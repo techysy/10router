@@ -81,7 +81,7 @@ export default function ChangelogModal({ isOpen, onClose }) {
           {!loading && !error && html && (
             <div
               className="changelog-body text-text-main"
-              dangerouslySetInnerHTML={{ __html: html }}
+              dangerouslySetInnerHTML={{ __html: html }} // TODO: sanitize with DOMPurify if html source is untrusted
             />
           )}
         </div>

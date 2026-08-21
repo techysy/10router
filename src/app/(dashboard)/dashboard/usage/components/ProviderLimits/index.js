@@ -1263,6 +1263,7 @@ export default function ProviderLimits() {
                       conn.provider === "codex" && quotaSortMode !== "default"
                     }
                     onHideQuota={(quotaRow) => handleHideQuota(conn.id, quotaRow)}
+                    hideNormalizedCounts={conn.provider === "antigravity"}
                   />
                 )}
                 {hiddenQuotaRows.length > 0 && (

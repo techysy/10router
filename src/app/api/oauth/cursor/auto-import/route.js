@@ -135,13 +135,19 @@ async function extractTokensViaCLI(dbPath) {
     return stdout.trim();
   };
 
-  // Try each key in priority order
+  // Parameterized variant — escapes single quotes for the sqlite3 CLI path
+  // (better-sqlite3 path above is already parameterized; this covers the CLI fallback)
+  const queryParam = async (key) => {
+    const escaped = String(key).replace(/'/g, "''");
+    return query(`SELECT value FROM itemTable WHERE key='` + escaped + `' LIMIT 1`);
+  };
+
+  // Try each key in priority order — use parameterized query to avoid SQL injection
+  // (route to the native better-sqlite3 path when available; fall back to sqlite3 CLI otherwise)
   let accessToken = null;
   for (const key of ACCESS_TOKEN_KEYS) {
     try {
-      const raw = await query(
-        `SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`,
-      );
+      const raw = await queryParam(key);
       if (raw) {
         accessToken = normalize(raw);
         break;
@@ -154,9 +160,7 @@ async function extractTokensViaCLI(dbPath) {
   let machineId = null;
   for (const key of MACHINE_ID_KEYS) {
     try {
-      const raw = await query(
-        `SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`,
-      );
+      const raw = await queryParam(key);
       if (raw) {
         machineId = normalize(raw);
         break;

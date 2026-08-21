@@ -50,6 +50,9 @@ RUN apk --no-cache upgrade && apk --no-cache add su-exec && \
   printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "const h=require('http');const r=h.request({host:'127.0.0.1',port:20128,path:'/api/health',timeout:3000},res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.end()"
+
 EXPOSE 20128
 
 ENTRYPOINT ["/entrypoint.sh"]

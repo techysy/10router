@@ -90,6 +90,7 @@ export default function QuotaTable({
   sortMode = "default",
   showSortLabel = false,
   onHideQuota = null,
+  hideNormalizedCounts = false,
 }) {
   const [page, setPage] = useState(1);
 
@@ -183,13 +184,15 @@ export default function QuotaTable({
                   />
                 </div>
 
-                <div className={`flex items-center justify-between gap-1 min-w-0 ${compact ? "text-[10px]" : "text-xs"}`}>
-                  <span
-                    className="text-text-muted truncate"
-                    title={`${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`}
-                  >
-                    {quota.used.toLocaleString()} / {quota.total > 0 ? quota.total.toLocaleString() : "∞"}
-                  </span>
+                <div className={`flex items-center ${hideNormalizedCounts ? "justify-end" : "justify-between"} gap-1 min-w-0 ${compact ? "text-[10px]" : "text-xs"}`}>
+                  {!hideNormalizedCounts && (
+                    <span
+                      className="text-text-muted truncate"
+                      title={`${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`}
+                    >
+                      {quota.used.toLocaleString()} / {quota.total > 0 ? quota.total.toLocaleString() : "∞"}
+                    </span>
+                  )}
                   <span className={`font-medium ${colors.text} shrink-0`}>
                     {quota.remaining}%
                   </span>
