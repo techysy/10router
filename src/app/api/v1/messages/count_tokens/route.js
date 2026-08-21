@@ -1,5 +1,7 @@
+const _corsRaw=(process.env.CORS_ALLOW_ORIGINS||"").split(",").map(s=>s.trim()).filter(Boolean);
+const _allowOrigin=process.env.NODE_ENV==="development"||_corsRaw.includes("*")?"*":(_corsRaw[0]||"*");
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": _allowOrigin,
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "*"
 };

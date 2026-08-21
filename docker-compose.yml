@@ -15,6 +15,12 @@ services:
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
       HEADROOM_URL: http://headroom:8787
+    healthcheck:
+      test: ["CMD", "node", "-e", "const h=require('http');const r=h.request({host:'127.0.0.1',port:20128,path:'/api/health',timeout:3000},res=>process.exit(res.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.end()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     depends_on:
       - headroom
 

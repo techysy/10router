@@ -1,5 +1,7 @@
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 
+function corsOrigin(){const raw=(process.env.CORS_ALLOW_ORIGINS||"").split(",").map(s=>s.trim()).filter(Boolean);return process.env.NODE_ENV==="development"||raw.includes("*")?"*":(raw[0]||"*");}
+
 // Provider → internal voices API. Edge/local-device share the generic endpoint.
 const PROVIDER_API = {
   elevenlabs: (origin) => `${origin}/api/media-providers/tts/elevenlabs/voices`,
@@ -11,7 +13,7 @@ const PROVIDER_API = {
 
 export async function OPTIONS() {
   return new Response(null, {
-    headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS" },
+    headers: { "Access-Control-Allow-Origin": corsOrigin(), "Access-Control-Allow-Methods": "GET, OPTIONS" },
   });
 }
 
@@ -26,7 +28,7 @@ export async function GET(request) {
     if (!provider || !PROVIDER_API[provider]) {
       return Response.json(
         { error: { message: `provider must be one of: ${Object.keys(PROVIDER_API).join(", ")}`, type: "invalid_request_error" } },
-        { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
+        { status: 400, headers: { "Access-Control-Allow-Origin": corsOrigin() } },
       );
     }
 
@@ -37,7 +39,7 @@ export async function GET(request) {
     if (!res.ok || data.error) {
       return Response.json(
         { error: { message: data.error || `Upstream ${res.status}`, type: "server_error" } },
-        { status: res.status, headers: { "Access-Control-Allow-Origin": "*" } },
+        { status: res.status, headers: { "Access-Control-Allow-Origin": corsOrigin() } },
       );
     }
 
@@ -57,12 +59,12 @@ export async function GET(request) {
     }));
 
     return Response.json({ object: "list", data: data_out }, {
-      headers: { "Access-Control-Allow-Origin": "*" },
+      headers: { "Access-Control-Allow-Origin": corsOrigin() },
     });
   } catch (err) {
     return Response.json(
       { error: { message: err.message || "Failed", type: "server_error" } },
-      { status: 502, headers: { "Access-Control-Allow-Origin": "*" } },
+      { status: 502, headers: { "Access-Control-Allow-Origin": corsOrigin() } },
     );
   }
 }
