@@ -1,447 +1,185 @@
-import { PROVIDERS, OAUTH_ENDPOINTS } from "../config/constants.js";
+import { PROVIDERS } from "../config/providers.js";
+import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
+import {
+  refreshXaiToken,
+  refreshAccessToken,
+  refreshKimiToken,
+  refreshClaudeOAuthToken,
+  refreshGoogleToken,
+  refreshCodexToken,
+  refreshKiroToken,
+  refreshIflowToken,
+  refreshGitHubToken,
+  refreshCopilotToken,
+  refreshCodebuddyToken,
+  refreshCodebuddyIntlToken,
+  refreshTraeToken,
+  refreshZedToken,
+  refreshWindsurfToken,
+  classifyOAuthRefreshError,
+} from "./tokenRefresh/providers.js";
 
-// Token expiry buffer (refresh if expires within 5 minutes)
+// Re-export all provider refresh functions (preserves public API for all consumers)
+export {
+  refreshAccessToken,
+  refreshKimiToken,
+  refreshClaudeOAuthToken,
+  refreshGoogleToken,
+  refreshCodexToken,
+  refreshKiroToken,
+  refreshIflowToken,
+  refreshGitHubToken,
+  refreshCopilotToken,
+  refreshCodebuddyToken,
+  refreshCodebuddyIntlToken,
+  refreshTraeToken,
+  refreshZedToken,
+  refreshWindsurfToken,
+  classifyOAuthRefreshError,
+};
+
 export const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
-/**
- * Refresh OAuth access token using refresh token
- */
-export async function refreshAccessToken(provider, refreshToken, credentials, log) {
-  const config = PROVIDERS[provider];
-  
-  if (!config || !config.refreshUrl) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh URL configured for provider: ${provider}`);
+export function isUnrecoverableRefreshError(result) {
+  return (
+    result &&
+    typeof result === "object" &&
+    (result.error === "unrecoverable_refresh_error" ||
+      result.error === "refresh_token_reused" ||
+      result.error === "invalid_request" ||
+      result.error === "invalid_grant")
+  );
+}
+
+export function getRefreshLeadMs(provider) {
+  if (REFRESH_LEAD_MS[provider]) return REFRESH_LEAD_MS[provider];
+  // Legacy id after kimi-coding → kimi merge
+  if (provider === "kimi-coding" && REFRESH_LEAD_MS.kimi) return REFRESH_LEAD_MS.kimi;
+  return TOKEN_EXPIRY_BUFFER_MS;
+}
+
+export function parseVertexSaJson(apiKey) {
+  if (typeof apiKey !== "string") return null;
+  try {
+    const parsed = JSON.parse(apiKey);
+    if (parsed.type === "service_account" && parsed.client_email && parsed.private_key && parsed.project_id) {
+      return parsed;
+    }
+    return null;
+  } catch {
     return null;
   }
+}
 
-  if (!refreshToken) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh token available for provider: ${provider}`);
-    return null;
+// Cache Vertex tokens keyed by service account email { token, expiresAt }
+const vertexTokenCache = new Map();
+
+export async function refreshVertexToken(saJson, log) {
+  const cacheKey = saJson.client_email;
+  const cached = vertexTokenCache.get(cacheKey);
+
+  if (cached && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
+    return { accessToken: cached.token, expiresAt: cached.expiresAt };
   }
 
   try {
-    const response = await fetch(config.refreshUrl, {
+    const { SignJWT, importPKCS8 } = await import("jose");
+    log?.debug?.("TOKEN_REFRESH", `Vertex minting token for ${saJson.client_email}`);
+    const privateKey = await importPKCS8(saJson.private_key.replace(/\\n/g, "\n"), "RS256");
+    const now = Math.floor(Date.now() / 1000);
+
+    const jwt = await new SignJWT({ scope: "https://www.googleapis.com/auth/cloud-platform" })
+      .setProtectedHeader({ alg: "RS256" })
+      .setIssuer(saJson.client_email)
+      .setAudience(OAUTH_ENDPOINTS.google.token)
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(privateKey);
+
+    const res = await fetch(OAUTH_ENDPOINTS.google.token, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      log?.error?.("TOKEN_REFRESH", `Failed to refresh token for ${provider}`, {
-        status: response.status,
-        error: errorText,
-      });
+    if (!res.ok) {
+      const err = await res.text();
+      log?.error?.("TOKEN_REFRESH", `Vertex token mint failed: ${err}`);
       return null;
     }
 
-    const tokens = await response.json();
-    
-    log?.info?.("TOKEN_REFRESH", `Successfully refreshed token for ${provider}`, {
-      hasNewAccessToken: !!tokens.access_token,
-      hasNewRefreshToken: !!tokens.refresh_token,
-      expiresIn: tokens.expires_in,
-    });
+    const { access_token, expires_in } = await res.json();
+    const expiresAt = Date.now() + (expires_in ?? 3600) * 1000;
 
-    return {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || refreshToken,
-      expiresIn: tokens.expires_in,
-    };
+    vertexTokenCache.set(cacheKey, { token: access_token, expiresAt });
+    log?.info?.("TOKEN_REFRESH", `Vertex token minted for ${saJson.client_email}`);
+
+    return { accessToken: access_token, expiresAt };
   } catch (error) {
-    log?.error?.("TOKEN_REFRESH", `Error refreshing token for ${provider}`, {
-      error: error.message,
-    });
+    log?.error?.("TOKEN_REFRESH", `Vertex token error: ${error.message}`);
     return null;
   }
 }
 
-/**
- * Specialized refresh for Claude OAuth tokens
- */
-export async function refreshClaudeOAuthToken(refreshToken, log) {
-  const response = await fetch(OAUTH_ENDPOINTS.anthropic.token, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: PROVIDERS.claude.clientId,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh Claude OAuth token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
-  }
-
-  const tokens = await response.json();
-  
-  log?.info?.("TOKEN_REFRESH", "Successfully refreshed Claude OAuth token", {
-    hasNewAccessToken: !!tokens.access_token,
-    hasNewRefreshToken: !!tokens.refresh_token,
-    expiresIn: tokens.expires_in,
-  });
-
-  return {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token || refreshToken,
-    expiresIn: tokens.expires_in,
-  };
+function vertexRefreshHandler(c, log) {
+  const saJson = parseVertexSaJson(c.apiKey);
+  if (!saJson) return null;
+  return refreshVertexToken(saJson, log);
 }
 
-/**
- * Specialized refresh for Google providers (Gemini, Antigravity)
- */
-export async function refreshGoogleToken(refreshToken, clientId, clientSecret, log) {
-  const response = await fetch(OAUTH_ENDPOINTS.google.token, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
+const REFRESH_HANDLERS = {
+  "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
+  antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
+  claude: (c, log) => refreshClaudeOAuthToken(c.refreshToken, log),
+  codex: (c, log) => refreshCodexToken(c.refreshToken, log),
+  iflow: (c, log) => refreshIflowToken(c.refreshToken, log),
+  github: (c, log) => refreshGitHubToken(c.refreshToken, log),
+  kiro: (c, log) => refreshKiroToken(c.refreshToken, c.providerSpecificData, log),
+  xai: (c, log) => refreshXaiToken(c.refreshToken, log),
+  // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
+  "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
+  gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
+  "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
+  "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
+  trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
+  zed: () => refreshZedToken(),
+  windsurf: (c, log) => refreshWindsurfToken(c, log),
+  // Kimi Code OAuth (merged into id `kimi`); legacy id still routes here
+  kimi: (c, log) => refreshKimiToken(c.refreshToken, c, log),
+  "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),
+  vertex: vertexRefreshHandler,
+  "vertex-partner": vertexRefreshHandler
+};
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh Google token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
-  }
-
-  const tokens = await response.json();
-  
-  log?.info?.("TOKEN_REFRESH", "Successfully refreshed Google token", {
-    hasNewAccessToken: !!tokens.access_token,
-    hasNewRefreshToken: !!tokens.refresh_token,
-    expiresIn: tokens.expires_in,
-  });
-
-  return {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token || refreshToken,
-    expiresIn: tokens.expires_in,
-  };
-}
-
-/**
- * Specialized refresh for Qwen OAuth tokens
- */
-export async function refreshQwenToken(refreshToken, log) {
-  const endpoint = OAUTH_ENDPOINTS.qwen.token;
-  
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-        client_id: PROVIDERS.qwen.clientId,
-      }),
-    });
-
-    if (response.status === 200) {
-      const tokens = await response.json();
-      
-      log?.info?.("TOKEN_REFRESH", "Successfully refreshed Qwen token", {
-        hasNewAccessToken: !!tokens.access_token,
-        hasNewRefreshToken: !!tokens.refresh_token,
-        expiresIn: tokens.expires_in,
-      });
-
-      return {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || refreshToken,
-        expiresIn: tokens.expires_in,
-      };
-    } else {
-      const errorText = await response.text().catch(() => "");
-      log?.warn?.("TOKEN_REFRESH", `Error with Qwen endpoint`, {
-        status: response.status,
-        error: errorText,
-      });
-    }
-  } catch (error) {
-    log?.warn?.("TOKEN_REFRESH", `Network error trying Qwen endpoint`, {
-      error: error.message,
-    });
-  }
-
-  log?.error?.("TOKEN_REFRESH", "Failed to refresh Qwen token");
-  return null;
-}
-
-/**
- * Specialized refresh for Codex (OpenAI) OAuth tokens
- */
-export async function refreshCodexToken(refreshToken, log) {
-  const response = await fetch(OAUTH_ENDPOINTS.openai.token, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: PROVIDERS.codex.clientId,
-      scope: "openid profile email offline_access",
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh Codex token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
-  }
-
-  const tokens = await response.json();
-  
-  log?.info?.("TOKEN_REFRESH", "Successfully refreshed Codex token", {
-    hasNewAccessToken: !!tokens.access_token,
-    hasNewRefreshToken: !!tokens.refresh_token,
-    expiresIn: tokens.expires_in,
-  });
-
-  return {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token || refreshToken,
-    expiresIn: tokens.expires_in,
-  };
-}
-
-/**
- * Specialized refresh for iFlow OAuth tokens
- */
-export async function refreshIflowToken(refreshToken, log) {
-  const basicAuth = btoa(`${PROVIDERS.iflow.clientId}:${PROVIDERS.iflow.clientSecret}`);
-  
-  const response = await fetch(OAUTH_ENDPOINTS.iflow.token, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-      Authorization: `Basic ${basicAuth}`,
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: PROVIDERS.iflow.clientId,
-      client_secret: PROVIDERS.iflow.clientSecret,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh iFlow token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
-  }
-
-  const tokens = await response.json();
-  
-  log?.info?.("TOKEN_REFRESH", "Successfully refreshed iFlow token", {
-    hasNewAccessToken: !!tokens.access_token,
-    hasNewRefreshToken: !!tokens.refresh_token,
-    expiresIn: tokens.expires_in,
-  });
-
-  return {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token || refreshToken,
-    expiresIn: tokens.expires_in,
-  };
-}
-
-/**
- * Specialized refresh for GitHub Copilot OAuth tokens
- */
-export async function refreshGitHubToken(refreshToken, log) {
-  const response = await fetch(OAUTH_ENDPOINTS.github.token, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: PROVIDERS.github.clientId,
-      client_secret: PROVIDERS.github.clientSecret,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    log?.error?.("TOKEN_REFRESH", "Failed to refresh GitHub token", {
-      status: response.status,
-      error: errorText,
-    });
-    return null;
-  }
-
-  const tokens = await response.json();
-  
-  log?.info?.("TOKEN_REFRESH", "Successfully refreshed GitHub token", {
-    hasNewAccessToken: !!tokens.access_token,
-    hasNewRefreshToken: !!tokens.refresh_token,
-    expiresIn: tokens.expires_in,
-  });
-
-  return {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token || refreshToken,
-    expiresIn: tokens.expires_in,
-  };
-}
-
-/**
- * Refresh GitHub Copilot token using GitHub access token
- */
-export async function refreshCopilotToken(githubAccessToken, log) {
-  try {
-    const response = await fetch("https://api.github.com/copilot_internal/v2/token", {
-      headers: {
-        "Authorization": `Bearer ${githubAccessToken}`,
-        "User-Agent": "GitHub-Copilot/1.0",
-        "Accept": "*/*"
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      log?.error?.("TOKEN_REFRESH", "Failed to refresh Copilot token", {
-        status: response.status,
-        error: errorText
-      });
-      return null;
-    }
-
-    const data = await response.json();
-    
-    log?.info?.("TOKEN_REFRESH", "Successfully refreshed Copilot token", {
-      hasToken: !!data.token,
-      expiresAt: data.expires_at
-    });
-
-    return {
-      token: data.token,
-      expiresAt: data.expires_at
-    };
-  } catch (error) {
-    log?.error?.("TOKEN_REFRESH", "Error refreshing Copilot token", {
-      error: error.message
-    });
-    return null;
-  }
-}
-
-/**
- * Get access token for a specific provider
- */
 export async function getAccessToken(provider, credentials, log) {
-  if (!credentials || !credentials.refreshToken) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh token available for provider: ${provider}`);
+  if (!credentials || !credentials.refreshToken || typeof credentials.refreshToken !== "string") {
+    log?.warn?.("TOKEN_REFRESH", `No valid refresh token available for provider: ${provider}`);
     return null;
   }
-
-  switch (provider) {
-    case "gemini":
-    case "gemini-cli":
-    case "antigravity":
-      return await refreshGoogleToken(
-        credentials.refreshToken,
-        PROVIDERS[provider].clientId,
-        PROVIDERS[provider].clientSecret,
-        log
-      );
-    
-    case "claude":
-      return await refreshClaudeOAuthToken(credentials.refreshToken, log);
-    
-    case "codex":
-      return await refreshCodexToken(credentials.refreshToken, log);
-    
-    case "qwen":
-      return await refreshQwenToken(credentials.refreshToken, log);
-    
-    case "iflow":
-      return await refreshIflowToken(credentials.refreshToken, log);
-    
-    case "github":
-      return await refreshGitHubToken(credentials.refreshToken, log);
-    
-    default:
-      log?.warn?.("TOKEN_REFRESH", `Unsupported provider for token refresh: ${provider}`);
-      return null;
-  }
+  return _getAccessTokenInternal(provider, credentials, log);
 }
 
-/**
- * Refresh token by provider type (helper for handlers)
- */
+async function _getAccessTokenInternal(provider, credentials, log) {
+  if (provider === "gemini") {
+    return refreshGoogleToken(credentials.refreshToken, PROVIDERS.gemini.clientId, PROVIDERS.gemini.clientSecret, log);
+  }
+  const handler = REFRESH_HANDLERS[provider];
+  if (!handler) {
+    log?.warn?.("TOKEN_REFRESH", `Unsupported provider for token refresh: ${provider}`);
+    return null;
+  }
+  return handler(credentials, log);
+}
+
 export async function refreshTokenByProvider(provider, credentials, log) {
   if (!credentials.refreshToken) return null;
-
-  switch (provider) {
-    case "gemini-cli":
-    case "antigravity":
-      return refreshGoogleToken(
-        credentials.refreshToken,
-        PROVIDERS[provider].clientId,
-        PROVIDERS[provider].clientSecret,
-        log
-      );
-    case "claude":
-      return refreshClaudeOAuthToken(credentials.refreshToken, log);
-    case "codex":
-      return refreshCodexToken(credentials.refreshToken, log);
-    case "qwen":
-      return refreshQwenToken(credentials.refreshToken, log);
-    case "iflow":
-      return refreshIflowToken(credentials.refreshToken, log);
-    case "github":
-      return refreshGitHubToken(credentials.refreshToken, log);
-    default:
-      return refreshAccessToken(provider, credentials.refreshToken, credentials, log);
-  }
+  const handler = REFRESH_HANDLERS[provider];
+  return handler ? handler(credentials, log) : refreshAccessToken(provider, credentials.refreshToken, credentials, log);
 }
 
-/**
- * Format credentials for provider
- */
 export function formatProviderCredentials(provider, credentials, log) {
   const config = PROVIDERS[provider];
   if (!config) {
@@ -456,30 +194,32 @@ export function formatProviderCredentials(provider, credentials, log) {
         accessToken: credentials.accessToken,
         projectId: credentials.projectId
       };
-    
+
     case "claude":
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken
       };
-    
+
     case "codex":
-    case "qwen":
     case "iflow":
     case "openai":
     case "openrouter":
+    case "xai":
+    case "grok-cli":
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken
       };
-    
+
     case "antigravity":
     case "gemini-cli":
       return {
         accessToken: credentials.accessToken,
-        refreshToken: credentials.refreshToken
+        refreshToken: credentials.refreshToken,
+        projectId: credentials.projectId
       };
-    
+
     default:
       return {
         apiKey: credentials.apiKey,
@@ -489,37 +229,26 @@ export function formatProviderCredentials(provider, credentials, log) {
   }
 }
 
-/**
- * Get all access tokens for a user
- */
 export async function getAllAccessTokens(userInfo, log) {
   const results = {};
-  
+
   if (userInfo.connections && Array.isArray(userInfo.connections)) {
     for (const connection of userInfo.connections) {
       if (connection.isActive && connection.provider) {
         const token = await getAccessToken(connection.provider, {
           refreshToken: connection.refreshToken
         }, log);
-        
+
         if (token) {
           results[connection.provider] = token;
         }
       }
     }
   }
-  
+
   return results;
 }
 
-/**
- * Refresh token with retry and exponential backoff
- * Retries on failure with increasing delay: 1s, 2s, 3s...
- * @param {function} refreshFn - Async function that returns token or null
- * @param {number} maxRetries - Max retry attempts (default 3)
- * @param {object} log - Logger instance (optional)
- * @returns {Promise<object|null>} Token result or null if all retries fail
- */
 export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
@@ -539,4 +268,3 @@ export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
   log?.error?.("TOKEN_REFRESH", `All ${maxRetries} retry attempts failed`);
   return null;
 }
-

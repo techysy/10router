@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getModelAliases, setModelAlias, deleteModelAlias, isCloudEnabled } from "@/models";
-import { getConsistentMachineId } from "@/shared/utils/machineId";
-import { syncToCloud } from "@/app/api/sync/cloud/route";
+import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
+
+export const dynamic = "force-dynamic";
 
 // GET /api/models/alias - Get all aliases
 export async function GET() {
@@ -24,24 +24,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: "Model and alias required" }, { status: 400 });
     }
 
-    const aliases = await getModelAliases();
-    
-    // Check if alias already used by different model
-    const existingModel = aliases[alias];
-    if (existingModel && existingModel !== model) {
-      return NextResponse.json({ 
-        error: `Alias '${alias}' already in use for model '${existingModel}'` 
-      }, { status: 400 });
-    }
-
-    // Delete old alias for this model (if exists and different from new alias)
-    const oldAlias = Object.entries(aliases).find(([a, m]) => m === model && a !== alias)?.[0];
-    if (oldAlias) {
-      await deleteModelAlias(oldAlias);
-    }
-
     await setModelAlias(alias, model);
-    await syncToCloudIfEnabled();
 
     return NextResponse.json({ success: true, model, alias });
   } catch (error) {
@@ -61,23 +44,10 @@ export async function DELETE(request) {
     }
 
     await deleteModelAlias(alias);
-    await syncToCloudIfEnabled();
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting alias:", error);
     return NextResponse.json({ error: "Failed to delete alias" }, { status: 500 });
-  }
-}
-
-async function syncToCloudIfEnabled() {
-  try {
-    const cloudEnabled = await isCloudEnabled();
-    if (!cloudEnabled) return;
-
-    const machineId = await getConsistentMachineId();
-    await syncToCloud(machineId);
-  } catch (error) {
-    console.log("Error syncing aliases to cloud:", error);
   }
 }

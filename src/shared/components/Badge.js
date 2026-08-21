@@ -3,12 +3,12 @@
 import { cn } from "@/shared/utils/cn";
 
 const variants = {
-  default: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
-  primary: "bg-primary/10 text-primary",
-  success: "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800/30",
-  warning: "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-500 border border-yellow-100 dark:border-yellow-800/30",
-  error: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-800/30",
-  info: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30",
+  default: "bg-surface-2 text-text-muted",
+  primary: "bg-brand-500/10 text-brand-600 dark:text-brand-300",
+  success: "bg-green-500/10 text-green-600 dark:text-green-400",
+  warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+  error: "bg-red-500/10 text-red-600 dark:text-red-400",
+  info: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
 };
 
 const sizes = {
@@ -42,7 +42,7 @@ export default function Badge({
             variant === "warning" && "bg-yellow-500",
             variant === "error" && "bg-red-500",
             variant === "info" && "bg-blue-500",
-            variant === "primary" && "bg-primary",
+            variant === "primary" && "bg-brand-500",
             variant === "default" && "bg-gray-500"
           )}
         />
@@ -52,4 +52,3 @@ export default function Badge({
     </span>
   );
 }
-

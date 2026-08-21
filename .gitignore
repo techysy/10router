@@ -15,11 +15,13 @@
 
 # next.js
 /.next/
+/.next-cli-build/
 /out/
-
+cli/.build-home/
+product
 # production
 /build
-cloud/*
+.idea/
 
 # misc
 .DS_Store
@@ -33,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -47,11 +50,39 @@ logs/*
 source/*
 .cursor/*
 docs/*
+!docs/ARCHITECTURE.md
 test/*
-bin/*
 open-sse/test/*
 RM.vn.md
 RM.md
 cursor/*
 PUBLIC.md
-scripts/*
+Thanks.md
+PUBLIC.en.md
+PR/*
+package-lock.json
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
+README1.md
+deploy*.sh
+ecosystem.config.*
+
+scripts/agSniffer/*
+gitbooks/*
+gitbook/README.md
+
+# Refactor backup reference (do not bundle/lint)
+open-sse.old/
+.graphifyignore
+graphify-out/*
+
+# Local-only working dirs (notes, vendored repos, scripts, skills)
+.claude/
+.docs/
+.repo/
+.script/
+.codegraph/
+.PR/
+.next-analyze/*

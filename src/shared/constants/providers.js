@@ -1,33 +1,110 @@
 // Provider definitions
+import REGISTRY from "open-sse/providers/registry/index.js";
+import { RISK_NOTICE } from "@/shared/constants/providersDisplay";
 
-// OAuth Providers
-export const OAUTH_PROVIDERS = {
-  claude: { id: "claude", alias: "cc", name: "Claude Code", icon: "smart_toy", color: "#D97757" },
-  antigravity: { id: "antigravity", alias: "ag", name: "Antigravity", icon: "rocket_launch", color: "#F59E0B" },
-  codex: { id: "codex", alias: "cx", name: "OpenAI Codex", icon: "code", color: "#3B82F6" },
-  iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1" },
-  qwen: { id: "qwen", alias: "qw", name: "Qwen Code", icon: "psychology", color: "#10B981" },
-  "gemini-cli": { id: "gemini-cli", alias: "gc", name: "Gemini CLI", icon: "terminal", color: "#4285F4" },
-  github: { id: "github", alias: "gh", name: "GitHub Copilot", icon: "code", color: "#333333" },
+const MEDIA_ENTRY_KEYS = [
+  "serviceKinds", "ttsConfig", "sttConfig", "embeddingConfig",
+  "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
+  "searchViaChat", "searchConfig", "fetchConfig",
+  "modelsFetcher", "mediaPriority", "hiddenKinds",
+];
+
+// Build provider UI object from registry entry
+function buildProviderEntry(r) {
+  const mediaFields = {};
+  if (r.media) Object.assign(mediaFields, r.media);
+  for (const k of MEDIA_ENTRY_KEYS) {
+    if (r[k] !== undefined) mediaFields[k] = r[k];
+  }
+  const display = { ...(r.display || {}) };
+  if (display.deprecationNotice === "RISK_NOTICE") display.deprecationNotice = RISK_NOTICE;
+  return {
+    ...display,
+    id: r.id,
+    alias: r.uiAlias || r.alias,
+    ...(r.hidden ? { hidden: true } : {}),
+    ...mediaFields,
+    ...(r.priority !== undefined ? { priority: r.priority } : {}),
+    ...(r.hasFree ? { hasFree: true } : {}),
+    ...(r.thinkingConfig ? { thinkingConfig: r.thinkingConfig } : {}),
+    ...(r.regions ? { regions: r.regions, defaultRegion: r.defaultRegion } : {}),
+    ...(r.hasProviderSpecificData ? { hasProviderSpecificData: true } : {}),
+    ...(r.noAuth ? { noAuth: true } : {}),
+    ...(r.passthroughModels ? { passthroughModels: true } : {}),
+    ...(r.hasOAuth ? { hasOAuth: true } : {}),
+    ...(r.authModes ? { authModes: r.authModes } : {}),
+    ...(r.authType ? { authType: r.authType } : {}),
+    ...(r.authHint ? { authHint: r.authHint } : {}),
+  };
+}
+
+const byCategory = (cat) => Object.fromEntries(
+  REGISTRY.filter(r => r.category === cat).map(r => [r.id, buildProviderEntry(r)])
+);
+
+export const FREE_PROVIDERS = byCategory("free");
+export const FREE_TIER_PROVIDERS = byCategory("freeTier");
+
+// Thinking config definitions
+// options: list of selectable modes ("auto" = no override from server)
+// defaultMode: fallback when user hasn't configured
+// extended: claude-style thinking (thinking.type + budget_tokens) — used by most providers
+// effort: openai-style reasoning_effort — only openai + codex
+export const THINKING_CONFIG = {
+  extended: {
+    options: ["auto", "on", "off"],
+    defaultMode: "auto",
+    defaultBudgetTokens: 10000
+  },
+  effort: {
+    options: ["auto", "none", "low", "medium", "high"],
+    defaultMode: "auto"
+  }
 };
 
-export const APIKEY_PROVIDERS = {
-  openrouter: { id: "openrouter", alias: "openrouter", name: "OpenRouter", icon: "router", color: "#6366F1", textIcon: "OR" , passthroughModels: true },
-  glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL" },
-  kimi: { id: "kimi", alias: "kimi", name: "Kimi Coding", icon: "psychology", color: "#1E3A8A", textIcon: "KM" },
-  minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM" },
-  openai: { id: "openai", alias: "openai", name: "OpenAI", icon: "auto_awesome", color: "#10A37F", textIcon: "OA" },
-  anthropic: { id: "anthropic", alias: "anthropic", name: "Anthropic", icon: "smart_toy", color: "#D97757", textIcon: "AN" },
-  gemini: { id: "gemini", alias: "gemini", name: "Gemini", icon: "diamond", color: "#4285F4", textIcon: "GE" },
-};
+export const OAUTH_PROVIDERS = byCategory("oauth");
+export const APIKEY_PROVIDERS = byCategory("apikey");
+
+// Web Cookie Providers (use browser session cookie instead of API key)
+export const WEB_COOKIE_PROVIDERS = byCategory("webCookie");
+
+// Media provider kinds — each kind maps to a route and endpoint config
+export const MEDIA_PROVIDER_KINDS = [
+  { id: "embedding",   label: "Embedding",      icon: "data_array",        endpoint: { method: "POST", path: "/v1/embeddings" } },
+  { id: "image",       label: "Text to Image",  icon: "brush",             endpoint: { method: "POST", path: "/v1/images/generations" } },
+  { id: "imageToText", label: "Image to Text",  icon: "image_search",      endpoint: { method: "POST", path: "/v1/images/understanding" } },
+  { id: "tts",         label: "Text To Speech", icon: "record_voice_over", endpoint: { method: "POST", path: "/v1/audio/speech" } },
+  { id: "stt",         label: "Speech To Text", icon: "mic",               endpoint: { method: "POST", path: "/v1/audio/transcriptions" } },
+  { id: "webSearch",   label: "Web Search",     icon: "travel_explore",    endpoint: { method: "POST", path: "/v1/search" } },
+  { id: "webFetch",    label: "Web Fetch",      icon: "language",          endpoint: { method: "POST", path: "/v1/web/fetch" } },
+  { id: "video",       label: "Video",          icon: "movie",             endpoint: { method: "POST", path: "/v1/videos/generations" } },
+  { id: "music",       label: "Music",          icon: "music_note",        endpoint: { method: "POST", path: "/v1/audio/music" } },
+];
+
+export const OPENAI_COMPATIBLE_PREFIX = "openai-compatible-";
+export const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible-";
+export const CUSTOM_EMBEDDING_PREFIX = "custom-embedding-";
+
+export function isOpenAICompatibleProvider(providerId) {
+  return typeof providerId === "string" && providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
+}
+
+export function isAnthropicCompatibleProvider(providerId) {
+  return typeof providerId === "string" && providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
+}
+
+export function isCustomEmbeddingProvider(providerId) {
+  return typeof providerId === "string" && providerId.startsWith(CUSTOM_EMBEDDING_PREFIX);
+}
 
 // All providers (combined)
-export const AI_PROVIDERS = { ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS };
+export const AI_PROVIDERS = { ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS, ...WEB_COOKIE_PROVIDERS };
 
 // Auth methods
 export const AUTH_METHODS = {
-  oauth: { id: "oauth", name: "OAuth", icon: "lock" },
-  apikey: { id: "apikey", name: "API Key", icon: "key" },
+  oauth: { id: "oauth" },
+  apikey: { id: "apikey" },
+  cookie: { id: "cookie" },
 };
 
 // Helper: Get provider by alias
@@ -63,3 +140,26 @@ export const ID_TO_ALIAS = Object.values(AI_PROVIDERS).reduce((acc, p) => {
   acc[p.id] = p.alias;
   return acc;
 }, {});
+
+// Helper: Get providers by service kind (e.g. "tts", "embedding", "image")
+// Providers without serviceKinds default to ["llm"]
+export function getProvidersByKind(kind) {
+  return Object.values(AI_PROVIDERS)
+    .filter((p) => {
+      const kinds = p.serviceKinds ?? ["llm"];
+      if (!kinds.includes(kind)) return false;
+      if (p.hidden) return false;
+      if (p.hiddenKinds?.includes(kind)) return false;
+      return true;
+    })
+    .sort((a, b) => (a.priority ?? a.mediaPriority ?? 999) - (b.priority ?? b.mediaPriority ?? 999));
+}
+
+// Derive từ registry features flags
+export const USAGE_SUPPORTED_PROVIDERS = REGISTRY
+  .filter(r => r.features?.usage)
+  .map(r => r.id);
+
+export const USAGE_APIKEY_PROVIDERS = REGISTRY
+  .filter(r => r.features?.usageApikey)
+  .map(r => r.id);

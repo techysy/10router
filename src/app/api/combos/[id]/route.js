@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { getComboById, updateCombo, deleteCombo, getComboByName, isCloudEnabled } from "@/lib/localDb";
-import { getConsistentMachineId } from "@/shared/utils/machineId";
-import { syncToCloud } from "@/app/api/sync/cloud/route";
+import { getComboById, updateCombo, deleteCombo, getComboByName } from "@/lib/localDb";
+import { resetComboRotation } from "open-sse/services/combo.js";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
-const VALID_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
+const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
 // GET /api/combos/[id] - Get combo by ID
 export async function GET(request, { params }) {
@@ -32,7 +31,7 @@ export async function PUT(request, { params }) {
     // Validate name format if provided
     if (body.name) {
       if (!VALID_NAME_REGEX.test(body.name)) {
-        return NextResponse.json({ error: "Name can only contain letters, numbers, - and _" }, { status: 400 });
+        return NextResponse.json({ error: "Name can only contain letters, numbers, -, _ and ." }, { status: 400 });
       }
       
       // Check if name already exists (exclude current combo)
@@ -42,15 +41,18 @@ export async function PUT(request, { params }) {
       }
     }
     
+    // Capture previous name to invalidate rotation state on rename
+    const prev = await getComboById(id);
     const combo = await updateCombo(id, body);
     
     if (!combo) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
     }
 
-    // Auto sync to Cloud if enabled
-    await syncToCloudIfEnabled();
-    
+    // Invalidate rotation state (models/strategy/name may have changed)
+    if (prev?.name) resetComboRotation(prev.name);
+    if (combo.name && combo.name !== prev?.name) resetComboRotation(combo.name);
+
     return NextResponse.json(combo);
   } catch (error) {
     console.log("Error updating combo:", error);
@@ -62,33 +64,18 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;
+    const prev = await getComboById(id);
     const success = await deleteCombo(id);
     
     if (!success) {
       return NextResponse.json({ error: "Combo not found" }, { status: 404 });
     }
 
-    // Auto sync to Cloud if enabled
-    await syncToCloudIfEnabled();
+    if (prev?.name) resetComboRotation(prev.name);
     
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting combo:", error);
     return NextResponse.json({ error: "Failed to delete combo" }, { status: 500 });
-  }
-}
-
-/**
- * Sync to Cloud if enabled
- */
-async function syncToCloudIfEnabled() {
-  try {
-    const cloudEnabled = await isCloudEnabled();
-    if (!cloudEnabled) return;
-
-    const machineId = await getConsistentMachineId();
-    await syncToCloud(machineId);
-  } catch (error) {
-    console.log("Error syncing to cloud:", error);
   }
 }

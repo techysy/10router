@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import open from "open";
-import { ANTIGRAVITY_CONFIG } from "../constants/oauth.js";
+import { ANTIGRAVITY_CONFIG, getOAuthClientMetadata } from "../constants/oauth.js";
 import { getServerCredentials } from "../config/index.js";
 import { startLocalServer } from "../utils/server.js";
 import { spinner as createSpinner } from "../utils/ui.js";
@@ -78,45 +78,115 @@ export class AntigravityService {
   }
 
   /**
-   * Fetch Project ID from loadCodeAssist API
+   * Get common headers for Antigravity API calls
    */
-  async fetchProjectId(accessToken) {
-    const loadReqBody = {
-      metadata: {
-        ideType: "IDE_UNSPECIFIED",
-        platform: "PLATFORM_UNSPECIFIED",
-        pluginType: "GEMINI",
-      },
+  getApiHeaders(accessToken) {
+    return {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": this.config.loadCodeAssistUserAgent,
     };
+  }
 
+  /**
+   * Get metadata object for loadCodeAssist / onboardUser API calls.
+   * Uses numeric enum values matching Antigravity binary ClientMetadata.
+   */
+  getMetadata() {
+    return getOAuthClientMetadata();
+  }
+
+  /**
+   * Fetch Project ID and Tier from loadCodeAssist API
+   */
+  async loadCodeAssist(accessToken) {
     const response = await fetch(this.config.loadCodeAssistEndpoint, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "User-Agent": this.config.loadCodeAssistUserAgent,
-        "X-Goog-Api-Client": this.config.loadCodeAssistApiClient,
-        "Client-Metadata": this.config.loadCodeAssistClientMetadata,
-      },
-      body: JSON.stringify(loadReqBody),
+      headers: this.getApiHeaders(accessToken),
+      body: JSON.stringify({ metadata: this.getMetadata() }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to fetch project ID: ${errorText}`);
+      throw new Error(`Failed to load code assist: ${errorText}`);
     }
 
-    const loadResp = await response.json();
-    let projectId = loadResp.cloudaicompanionProject;
+    const data = await response.json();
 
+    // Extract project ID
+    let projectId = data.cloudaicompanionProject;
     if (typeof projectId === 'object' && projectId !== null && projectId.id) {
       projectId = projectId.id;
     }
 
+    // Extract tier ID (default to legacy-tier)
+    let tierId = "legacy-tier";
+    if (Array.isArray(data.allowedTiers)) {
+      for (const tier of data.allowedTiers) {
+        if (tier.isDefault && tier.id) {
+          tierId = tier.id.trim();
+          break;
+        }
+      }
+    }
+
+    return { projectId, tierId, raw: data };
+  }
+
+  /**
+   * Onboard user to enable Gemini Code Assist for the project
+   */
+  async onboardUser(accessToken, projectId, tierId) {
+    const response = await fetch(this.config.onboardUserEndpoint, {
+      method: "POST",
+      headers: this.getApiHeaders(accessToken),
+      body: JSON.stringify({ tierId, metadata: this.getMetadata() }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to onboard user: ${errorText}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Complete onboarding flow with retry
+   */
+  async completeOnboarding(accessToken, projectId, tierId, maxRetries = 10) {
+    for (let i = 0; i < maxRetries; i++) {
+      const result = await this.onboardUser(accessToken, projectId, tierId);
+
+      if (result.done === true) {
+        // Extract final project ID from response
+        let finalProjectId = projectId;
+        if (result.response?.cloudaicompanionProject) {
+          const respProject = result.response.cloudaicompanionProject;
+          if (typeof respProject === 'string') {
+            finalProjectId = respProject.trim();
+          } else if (respProject.id) {
+            finalProjectId = respProject.id.trim();
+          }
+        }
+        return { success: true, projectId: finalProjectId };
+      }
+
+      // Wait 5 seconds before retry
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    throw new Error("Onboarding timeout - please try again");
+  }
+
+  /**
+   * Fetch Project ID from loadCodeAssist API (legacy method for compatibility)
+   */
+  async fetchProjectId(accessToken) {
+    const { projectId } = await this.loadCodeAssist(accessToken);
     if (!projectId) {
       throw new Error("No cloudaicompanionProject found in response");
     }
-
     return projectId;
   }
 
@@ -218,17 +288,27 @@ export class AntigravityService {
       // Get user info
       const userInfo = await this.getUserInfo(tokens.access_token);
 
-      spinner.text = "Fetching Google Cloud Project ID...";
+      spinner.text = "Loading Code Assist configuration...";
 
-      // Fetch Project ID
-      const projectId = await this.fetchProjectId(tokens.access_token);
+      // Load Code Assist to get project ID and tier
+      const { projectId, tierId } = await this.loadCodeAssist(tokens.access_token);
+
+      if (!projectId) {
+        throw new Error("No Google Cloud Project found. Please ensure you have a GCP project with Gemini Code Assist enabled.");
+      }
+
+      spinner.text = "Onboarding to Gemini Code Assist...";
+
+      // Complete onboarding to enable Gemini Code Assist
+      const onboardResult = await this.completeOnboarding(tokens.access_token, projectId, tierId);
+      const finalProjectId = onboardResult.projectId || projectId;
 
       spinner.text = "Saving tokens to server...";
 
       // Save tokens to server
-      await this.saveTokens(tokens, userInfo, projectId);
+      await this.saveTokens(tokens, userInfo, finalProjectId);
 
-      spinner.succeed(`Antigravity connected successfully! (${userInfo.email}, Project: ${projectId})`);
+      spinner.succeed(`Antigravity connected successfully! (${userInfo.email}, Project: ${finalProjectId})`);
       return true;
     } catch (error) {
       spinner.fail(`Failed: ${error.message}`);

@@ -2,397 +2,76 @@
  * Usage Fetcher - Get usage data from provider APIs
  */
 
-// GitHub API config
-const GITHUB_CONFIG = {
-  apiVersion: "2022-11-28",
-  userAgent: "GitHubCopilotChat/0.26.7",
-};
+import { getGitHubUsage } from "./usage/github.js";
+import { getGeminiUsage, getAntigravityUsage } from "./usage/google.js";
+import { getClaudeUsage } from "./usage/claude.js";
+import { getCodexUsage, consumeCodexRateLimitResetCredit, getCodexRateLimitResetCredits } from "./usage/codex.js";
 
-// Antigravity API config (from Quotio)
-const ANTIGRAVITY_CONFIG = {
-  quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
-  loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-  tokenUrl: "https://oauth2.googleapis.com/token",
-  clientId: "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
-  clientSecret: "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",
-  userAgent: "antigravity/1.11.3 Darwin/arm64",
-};
-
-// Codex (OpenAI) API config
-const CODEX_CONFIG = {
-  usageUrl: "https://chatgpt.com/backend-api/wham/usage",
-};
-
-// Claude API config
-const CLAUDE_CONFIG = {
-  usageUrl: "https://api.anthropic.com/v1/organizations/{org_id}/usage",
-  settingsUrl: "https://api.anthropic.com/v1/settings",
-};
+export { consumeCodexRateLimitResetCredit, getCodexRateLimitResetCredits };
+import { getKiroUsage } from "./usage/kiro.js";
+import { getMiniMaxUsage } from "./usage/minimax.js";
+import { getCodeBuddyCnUsage, getCodeBuddyIntlUsage } from "./usage/codebuddy-cn.js";
+import { getGrokCliUsage } from "./usage/grok-cli.js";
+import { getKimiUsage } from "./usage/kimi.js";
+import { getDeepseekUsage } from "./usage/deepseek.js";
+import { resolveQoderCredentials } from "./qoderModels.js";
+import {
+  getIflowUsage,
+  getOllamaUsage,
+  getGlmUsage,
+  getVercelAiGatewayUsage,
+  getQoderUsage,
+} from "./usage/misc.js";
 
 /**
  * Get usage data for a provider connection
  * @param {Object} connection - Provider connection with accessToken
  * @returns {Object} Usage data with quotas
  */
-export async function getUsageForProvider(connection) {
-  const { provider, accessToken, providerSpecificData } = connection;
+// provider → usage handler (ctx carries every arg each handler needs)
+const USAGE_HANDLERS = {
+  github: (c) => getGitHubUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  "gemini-cli": (c) => getGeminiUsage(c.accessToken, c.providerDataWithProjectId, c.proxyOptions),
+  antigravity: (c) => getAntigravityUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  claude: (c) => getClaudeUsage(c.accessToken, c.proxyOptions, { force: c.force }),
+  codex: (c) => getCodexUsage(c.accessToken, c.proxyOptions),
+  kiro: (c) => getKiroUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  qoder: async (c) => {
+    // PAT (pt-...) connections must be exchanged to a job token before the
+    // quota endpoint accepts them.
+    const resolved = await resolveQoderCredentials(c, c.proxyOptions).catch(() => null);
+    return getQoderUsage(resolved?.accessToken || c.accessToken, c.proxyOptions);
+  },
+  iflow: (c) => getIflowUsage(c.accessToken),
+  ollama: (c) => getOllamaUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
+  glm: (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),
+  "glm-cn": (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),
+  minimax: (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
+  "minimax-cn": (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
+  "vercel-ai-gateway": (c) => getVercelAiGatewayUsage(c.apiKey, c.proxyOptions),
+  "codebuddy-cn": (c) => getCodeBuddyCnUsage(c.accessToken, c.apiKey, c.providerSpecificData, c.proxyOptions),
+  "codebuddy-intl": (c) => getCodeBuddyIntlUsage(c.accessToken, c.apiKey, c.providerSpecificData, c.proxyOptions),
+  "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  kimi: (c) => getKimiUsage(c.accessToken, c.apiKey, c.proxyOptions, c.providerSpecificData),
+  deepseek: (c) => getDeepseekUsage(c.apiKey, c.proxyOptions),
+};
 
-  switch (provider) {
-    case "github":
-      return await getGitHubUsage(accessToken, providerSpecificData);
-    case "gemini-cli":
-      return await getGeminiUsage(accessToken);
-    case "antigravity":
-      return await getAntigravityUsage(accessToken);
-    case "claude":
-      return await getClaudeUsage(accessToken);
-    case "codex":
-      return await getCodexUsage(accessToken);
-    case "qwen":
-      return await getQwenUsage(accessToken, providerSpecificData);
-    case "iflow":
-      return await getIflowUsage(accessToken);
-    default:
-      return { message: `Usage API not implemented for ${provider}` };
-  }
-}
-
-/**
- * GitHub Copilot Usage
- */
-async function getGitHubUsage(accessToken, providerSpecificData) {
-  try {
-    const response = await fetch("https://api.github.com/copilot_internal/user", {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json",
-        "X-GitHub-Api-Version": GITHUB_CONFIG.apiVersion,
-        "User-Agent": GITHUB_CONFIG.userAgent,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`GitHub API error: ${error}`);
-    }
-
-    const data = await response.json();
-
-    // Handle different response formats (paid vs free)
-    if (data.quota_snapshots) {
-      // Paid plan format
-      const snapshots = data.quota_snapshots;
-      return {
-        plan: data.copilot_plan,
-        resetDate: data.quota_reset_date,
-        quotas: {
-          chat: formatGitHubQuotaSnapshot(snapshots.chat),
-          completions: formatGitHubQuotaSnapshot(snapshots.completions),
-          premium_interactions: formatGitHubQuotaSnapshot(snapshots.premium_interactions),
-        },
-      };
-    } else if (data.monthly_quotas || data.limited_user_quotas) {
-      // Free/limited plan format
-      const monthlyQuotas = data.monthly_quotas || {};
-      const usedQuotas = data.limited_user_quotas || {};
-      
-      return {
-        plan: data.copilot_plan || data.access_type_sku,
-        resetDate: data.limited_user_reset_date,
-        quotas: {
-          chat: {
-            used: usedQuotas.chat || 0,
-            total: monthlyQuotas.chat || 0,
-            unlimited: false,
-          },
-          completions: {
-            used: usedQuotas.completions || 0,
-            total: monthlyQuotas.completions || 0,
-            unlimited: false,
-          },
-        },
-      };
-    }
-
-    return { message: "GitHub Copilot connected. Unable to parse quota data." };
-  } catch (error) {
-    throw new Error(`Failed to fetch GitHub usage: ${error.message}`);
-  }
-}
-
-function formatGitHubQuotaSnapshot(quota) {
-  if (!quota) return { used: 0, total: 0, unlimited: true };
-  
-  return {
-    used: quota.entitlement - quota.remaining,
-    total: quota.entitlement,
-    remaining: quota.remaining,
-    unlimited: quota.unlimited || false,
+export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {
+  const { provider, accessToken, apiKey, providerSpecificData, projectId } = connection;
+  const providerDataWithProjectId = {
+    ...(providerSpecificData || {}),
+    ...(projectId ? { projectId } : {}),
   };
+
+  const handler = USAGE_HANDLERS[provider];
+  if (!handler) return { message: `Usage API not implemented for ${provider}` };
+  return await handler({
+    provider,
+    accessToken,
+    apiKey,
+    providerSpecificData,
+    providerDataWithProjectId,
+    proxyOptions,
+    force: options.force === true,
+  });
 }
-
-/**
- * Gemini CLI Usage (Google Cloud)
- */
-async function getGeminiUsage(accessToken) {
-  try {
-    // Gemini CLI uses Google Cloud quotas
-    // Try to get quota info from Cloud Resource Manager
-    const response = await fetch(
-      "https://cloudresourcemanager.googleapis.com/v1/projects?filter=lifecycleState:ACTIVE",
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      // Quota API may not be accessible, return generic message
-      return { message: "Gemini CLI uses Google Cloud quotas. Check Google Cloud Console for details." };
-    }
-
-    return { message: "Gemini CLI connected. Usage tracked via Google Cloud Console." };
-  } catch (error) {
-    return { message: "Unable to fetch Gemini usage. Check Google Cloud Console." };
-  }
-}
-
-/**
- * Antigravity Usage - Fetch quota from Google Cloud Code API
- */
-async function getAntigravityUsage(accessToken, providerSpecificData) {
-  try {
-    // First get project ID from subscription info
-    const projectId = await getAntigravityProjectId(accessToken);
-    
-    // Fetch quota data
-    const response = await fetch(ANTIGRAVITY_CONFIG.quotaApiUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(projectId ? { project: projectId } : {}),
-    });
-
-    if (response.status === 403) {
-      return { message: "Antigravity access forbidden. Check subscription." };
-    }
-
-    if (!response.ok) {
-      throw new Error(`Antigravity API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const quotas = {};
-    
-    // Parse model quotas
-    if (data.models) {
-      for (const [name, info] of Object.entries(data.models)) {
-        // Only include gemini and claude models
-        if (!name.includes("gemini") && !name.includes("claude")) continue;
-        
-        if (info.quotaInfo) {
-          const percentage = (info.quotaInfo.remainingFraction || 0) * 100;
-          quotas[name] = {
-            remaining: percentage,
-            resetTime: info.quotaInfo.resetTime || "",
-            unlimited: false,
-          };
-        }
-      }
-    }
-
-    // Get subscription info for plan type
-    const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken);
-
-    return {
-      plan: subscriptionInfo?.currentTier?.name || "Unknown",
-      quotas,
-      subscriptionInfo,
-    };
-  } catch (error) {
-    return { message: `Antigravity error: ${error.message}` };
-  }
-}
-
-/**
- * Get Antigravity project ID from subscription info
- */
-async function getAntigravityProjectId(accessToken) {
-  try {
-    const info = await getAntigravitySubscriptionInfo(accessToken);
-    return info?.cloudaicompanionProject || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get Antigravity subscription info
- */
-async function getAntigravitySubscriptionInfo(accessToken) {
-  try {
-    const response = await fetch(ANTIGRAVITY_CONFIG.loadProjectApiUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ metadata: { ideType: "ANTIGRAVITY" } }),
-    });
-
-    if (!response.ok) return null;
-
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Claude Usage - Try to fetch from Anthropic API
- */
-async function getClaudeUsage(accessToken) {
-  try {
-    // Try to get organization/account settings first
-    const settingsResponse = await fetch("https://api.anthropic.com/v1/settings", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-      },
-    });
-
-    if (settingsResponse.ok) {
-      const settings = await settingsResponse.json();
-      
-      // Try usage endpoint if we have org info
-      if (settings.organization_id) {
-        const usageResponse = await fetch(
-          `https://api.anthropic.com/v1/organizations/${settings.organization_id}/usage`,
-          {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-              "anthropic-version": "2023-06-01",
-            },
-          }
-        );
-
-        if (usageResponse.ok) {
-          const usage = await usageResponse.json();
-          return {
-            plan: settings.plan || "Unknown",
-            organization: settings.organization_name,
-            quotas: usage,
-          };
-        }
-      }
-
-      return {
-        plan: settings.plan || "Unknown",
-        organization: settings.organization_name,
-        message: "Claude connected. Usage details require admin access.",
-      };
-    }
-
-    // If settings API fails, OAuth token may not have required scope
-    return { message: "Claude connected. Usage API requires admin permissions." };
-  } catch (error) {
-    return { message: `Claude connected. Unable to fetch usage: ${error.message}` };
-  }
-}
-
-/**
- * Codex (OpenAI) Usage - Fetch from ChatGPT backend API
- */
-async function getCodexUsage(accessToken) {
-  try {
-    const response = await fetch(CODEX_CONFIG.usageUrl, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Codex API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Parse rate limit info
-    const rateLimit = data.rate_limit || {};
-    const primaryWindow = rateLimit.primary_window || {};
-    const secondaryWindow = rateLimit.secondary_window || {};
-
-    // Calculate reset dates
-    const sessionResetAt = primaryWindow.reset_at 
-      ? new Date(primaryWindow.reset_at * 1000).toISOString() 
-      : null;
-    const weeklyResetAt = secondaryWindow.reset_at 
-      ? new Date(secondaryWindow.reset_at * 1000).toISOString() 
-      : null;
-
-    return {
-      plan: data.plan_type || "unknown",
-      limitReached: rateLimit.limit_reached || false,
-      quotas: {
-        session: {
-          used: primaryWindow.used_percent || 0,
-          total: 100,
-          remaining: 100 - (primaryWindow.used_percent || 0),
-          resetTime: sessionResetAt,
-          unlimited: false,
-        },
-        weekly: {
-          used: secondaryWindow.used_percent || 0,
-          total: 100,
-          remaining: 100 - (secondaryWindow.used_percent || 0),
-          resetTime: weeklyResetAt,
-          unlimited: false,
-        },
-      },
-    };
-  } catch (error) {
-    throw new Error(`Failed to fetch Codex usage: ${error.message}`);
-  }
-}
-
-/**
- * Qwen Usage
- */
-async function getQwenUsage(accessToken, providerSpecificData) {
-  try {
-    const resourceUrl = providerSpecificData?.resourceUrl;
-    if (!resourceUrl) {
-      return { message: "Qwen connected. No resource URL available." };
-    }
-
-    // Qwen may have usage endpoint at resource URL
-    return { message: "Qwen connected. Usage tracked per request." };
-  } catch (error) {
-    return { message: "Unable to fetch Qwen usage." };
-  }
-}
-
-/**
- * iFlow Usage
- */
-async function getIflowUsage(accessToken) {
-  try {
-    // iFlow may have usage endpoint
-    return { message: "iFlow connected. Usage tracked per request." };
-  } catch (error) {
-    return { message: "Unable to fetch iFlow usage." };
-  }
-}
-

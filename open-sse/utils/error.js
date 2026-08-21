@@ -1,15 +1,4 @@
-// OpenAI-compatible error types mapping
-const ERROR_TYPES = {
-  400: { type: "invalid_request_error", code: "bad_request" },
-  401: { type: "authentication_error", code: "invalid_api_key" },
-  403: { type: "permission_error", code: "insufficient_quota" },
-  404: { type: "invalid_request_error", code: "model_not_found" },
-  429: { type: "rate_limit_error", code: "rate_limit_exceeded" },
-  500: { type: "server_error", code: "internal_server_error" },
-  502: { type: "server_error", code: "bad_gateway" },
-  503: { type: "server_error", code: "service_unavailable" },
-  504: { type: "server_error", code: "gateway_timeout" }
-};
+import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -25,29 +14,11 @@ export function buildErrorBody(statusCode, message) {
 
   return {
     error: {
-      message: message || getDefaultMessage(statusCode),
+      message: message || DEFAULT_ERROR_MESSAGES[statusCode] || "An error occurred",
       type: errorInfo.type,
       code: errorInfo.code
     }
   };
-}
-
-/**
- * Get default error message for status code
- */
-function getDefaultMessage(statusCode) {
-  const messages = {
-    400: "Bad request",
-    401: "Invalid API key provided",
-    403: "You exceeded your current quota",
-    404: "Model not found",
-    429: "Rate limit exceeded",
-    500: "Internal server error",
-    502: "Bad gateway - upstream provider error",
-    503: "Service temporarily unavailable",
-    504: "Gateway timeout"
-  };
-  return messages[statusCode] || "An error occurred";
 }
 
 /**
@@ -81,44 +52,80 @@ export async function writeStreamError(writer, statusCode, message) {
 /**
  * Parse upstream provider error response
  * @param {Response} response - Fetch response from provider
- * @returns {Promise<{statusCode: number, message: string}>}
+ * @param {object} [executor] - Optional executor with parseError() override for provider-specific parsing
+ * @returns {Promise<{statusCode: number, message: string, resetsAtMs?: number}>}
  */
-export async function parseUpstreamError(response) {
-  let message = "";
-  
+export async function parseUpstreamError(response, executor = null) {
+  let bodyText = "";
   try {
-    const text = await response.text();
-    
-    // Try parse as JSON
-    try {
-      const json = JSON.parse(text);
-      message = json.error?.message || json.message || json.error || text;
-    } catch {
-      message = text;
-    }
+    bodyText = await response.text();
   } catch {
-    message = `Upstream error: ${response.status}`;
+    bodyText = "";
   }
 
-  return {
-    statusCode: response.status,
-    message: typeof message === "string" ? message : JSON.stringify(message)
-  };
+  // Let executor-specific parser extract provider-specific fields (e.g. codex resetsAtMs)
+  if (executor && typeof executor.parseError === "function") {
+    try {
+      const parsed = executor.parseError(response, bodyText);
+      if (parsed && typeof parsed === "object") {
+        const msg = parsed.message || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
+        return { statusCode: parsed.status || response.status, message: msg, resetsAtMs: parsed.resetsAtMs };
+      }
+    } catch { /* fall through to default parsing */ }
+  }
+
+  let message = "";
+  try {
+    const json = JSON.parse(bodyText);
+    message = json.error?.message || json.message || json.error || bodyText;
+  } catch {
+    message = bodyText;
+  }
+
+  const messageStr = typeof message === "string" ? message : JSON.stringify(message);
+  const finalMessage = messageStr || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
+
+  return { statusCode: response.status, message: finalMessage };
 }
 
 /**
  * Create error result for chatCore handler
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
- * @returns {{ success: false, status: number, error: string, response: Response }}
+ * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
+ * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message) {
+export function createErrorResult(statusCode, message, resetsAtMs) {
   return {
     success: false,
     status: statusCode,
     error: message,
+    resetsAtMs,
     response: errorResponse(statusCode, message)
   };
+}
+
+/**
+ * Create unavailable response when all accounts are rate limited
+ * @param {number} statusCode - Original error status code
+ * @param {string} message - Error message (without retry info)
+ * @param {string} retryAfter - ISO timestamp when earliest account becomes available
+ * @param {string} retryAfterHuman - Human-readable retry info e.g. "reset after 30s"
+ * @returns {Response}
+ */
+export function unavailableResponse(statusCode, message, retryAfter, retryAfterHuman) {
+  const retryAfterSec = Math.max(Math.ceil((new Date(retryAfter).getTime() - Date.now()) / 1000), 1);
+  const msg = `${message} (${retryAfterHuman})`;
+  return new Response(
+    JSON.stringify({ error: { message: msg } }),
+    {
+      status: statusCode,
+      headers: {
+        "Content-Type": "application/json",
+        "Retry-After": String(retryAfterSec)
+      }
+    }
+  );
 }
 
 /**
@@ -130,7 +137,11 @@ export function createErrorResult(statusCode, message) {
  * @returns {string} Formatted error message
  */
 export function formatProviderError(error, provider, model, statusCode) {
-  const code = statusCode || error.code || 'FETCH_FAILED';
+  const code = statusCode || error.code || "FETCH_FAILED";
   const message = error.message || "Unknown error";
-  return `[${code}]: ${message}`;
+  // Expose low-level cause (e.g. UND_ERR_SOCKET, ECONNRESET, ETIMEDOUT) for diagnosing fetch failures
+  const causeCode = error.cause?.code;
+  const causeMsg = error.cause?.message;
+  const causeStr = causeCode || causeMsg ? ` (cause: ${[causeCode, causeMsg].filter(Boolean).join(": ")})` : "";
+  return `[${code}]: ${message}${causeStr}`;
 }

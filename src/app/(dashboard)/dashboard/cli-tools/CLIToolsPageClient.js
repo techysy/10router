@@ -1,192 +1,65 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardSkeleton } from "@/shared/components";
-import { CLI_TOOLS } from "@/shared/constants/cliTools";
-import { PROVIDER_MODELS, getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
-import { ClaudeToolCard, CodexToolCard, DefaultToolCard } from "./components";
+import { CardSkeleton } from "@/shared/components";
+import { CLI_TOOLS, MITM_TOOLS } from "@/shared/constants/cliTools";
+import { MitmLinkCard } from "./components";
+import ToolSummaryCard from "./components/ToolSummaryCard";
 
-const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+const ALL_STATUSES_URL = "/api/cli-tools/all-statuses";
 
 export default function CLIToolsPageClient({ machineId }) {
-  const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedTool, setExpandedTool] = useState(null);
-  const [modelMappings, setModelMappings] = useState({});
-  const [cloudEnabled, setCloudEnabled] = useState(false);
-  const [apiKeys, setApiKeys] = useState([]);
+  const [toolStatuses, setToolStatuses] = useState({});
 
   useEffect(() => {
-    fetchConnections();
-    loadCloudSettings();
-    fetchApiKeys();
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(ALL_STATUSES_URL);
+        if (res.ok && mounted) setToolStatuses(await res.json());
+      } catch (error) {
+        console.log("Error fetching tool statuses:", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
-
-  const loadCloudSettings = async () => {
-    try {
-      const res = await fetch("/api/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setCloudEnabled(data.cloudEnabled || false);
-      }
-    } catch (error) {
-      console.log("Error loading cloud settings:", error);
-    }
-  };
-
-  const fetchApiKeys = async () => {
-    try {
-      const res = await fetch("/api/keys");
-      if (res.ok) {
-        const data = await res.json();
-        setApiKeys(data.keys || []);
-      }
-    } catch (error) {
-      console.log("Error fetching API keys:", error);
-    }
-  };
-
-  const fetchConnections = async () => {
-    try {
-      const res = await fetch("/api/providers");
-      const data = await res.json();
-      if (res.ok) {
-        setConnections(data.connections || []);
-      }
-    } catch (error) {
-      console.log("Error fetching connections:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getActiveProviders = () => {
-    return connections.filter(c => c.isActive !== false);
-  };
-
-  const getAllAvailableModels = () => {
-    const activeProviders = getActiveProviders();
-    const models = [];
-    const seenModels = new Set();
-    
-    activeProviders.forEach(conn => {
-      const alias = PROVIDER_ID_TO_ALIAS[conn.provider] || conn.provider;
-      const providerModels = getModelsByProviderId(conn.provider);
-      providerModels.forEach(m => {
-        const modelValue = `${alias}/${m.id}`;
-        if (!seenModels.has(modelValue)) {
-          seenModels.add(modelValue);
-          models.push({
-            value: modelValue,
-            label: `${alias}/${m.id}`,
-            provider: conn.provider,
-            alias: alias,
-            connectionName: conn.name,
-            modelId: m.id,
-          });
-        }
-      });
-    });
-    
-    if (models.length === 0) {
-      Object.entries(PROVIDER_MODELS).forEach(([alias, providerModels]) => {
-        providerModels.forEach(m => {
-          const modelValue = `${alias}/${m.id}`;
-          models.push({
-            value: modelValue,
-            label: `${alias}/${m.id}`,
-            provider: alias,
-            alias: alias,
-            connectionName: alias,
-            modelId: m.id,
-          });
-        });
-      });
-    }
-    
-    return models;
-  };
-
-  const handleModelMappingChange = (toolId, modelAlias, targetModel) => {
-    setModelMappings(prev => ({
-      ...prev,
-      [toolId]: {
-        ...prev[toolId],
-        [modelAlias]: targetModel,
-      },
-    }));
-  };
-
-  const getBaseUrl = () => {
-    if (cloudEnabled && CLOUD_URL) {
-      return CLOUD_URL;
-    }
-    if (typeof window !== "undefined") {
-      return window.location.origin;
-    }
-    return "http://localhost:3000";
-  };
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
       </div>
     );
   }
 
-  const availableModels = getAllAvailableModels();
-  const hasActiveProviders = availableModels.length > 0;
-
-  const renderToolCard = (toolId, tool) => {
-    const commonProps = {
-      tool,
-      isExpanded: expandedTool === toolId,
-      onToggle: () => setExpandedTool(expandedTool === toolId ? null : toolId),
-      baseUrl: getBaseUrl(),
-      apiKeys,
-    };
-
-    switch (toolId) {
-      case "claude":
-        return (
-          <ClaudeToolCard
-            key={toolId}
-            {...commonProps}
-            activeProviders={getActiveProviders()}
-            modelMappings={modelMappings[toolId] || {}}
-            onModelMappingChange={(alias, target) => handleModelMappingChange(toolId, alias, target)}
-            hasActiveProviders={hasActiveProviders}
-            cloudEnabled={cloudEnabled}
-          />
-        );
-      case "codex":
-        return <CodexToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} />;
-      default:
-        return <DefaultToolCard key={toolId} toolId={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} />;
-    }
-  };
+  const regularTools = Object.entries(CLI_TOOLS);
+  const mitmTools = Object.entries(MITM_TOOLS);
 
   return (
-    <div className="flex flex-col gap-6">
-      {!hasActiveProviders && (
-        <Card className="border-yellow-500/50 bg-yellow-500/5">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-yellow-500">warning</span>
-            <div>
-              <p className="font-medium text-yellow-600 dark:text-yellow-400">No active providers</p>
-              <p className="text-sm text-text-muted">Please add and connect providers first to configure CLI tools.</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <div className="flex flex-col gap-4">
-        {Object.entries(CLI_TOOLS).map(([toolId, tool]) => renderToolCard(toolId, tool))}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-1 sm:px-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {regularTools.map(([toolId, tool]) => (
+          <ToolSummaryCard key={toolId} toolId={toolId} tool={tool} status={toolStatuses[toolId]} />
+        ))}
+      </div>
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 px-1">
+          <span className="material-symbols-outlined text-[18px] text-primary">security</span>
+          <h2 className="text-sm font-semibold text-text-main">MITM Tools</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {mitmTools.map(([toolId, tool]) => (
+            <MitmLinkCard key={toolId} tool={tool} />
+          ))}
+        </div>
       </div>
     </div>
   );
