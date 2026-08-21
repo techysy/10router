@@ -3,8 +3,12 @@
 
   # 10Router
 
+  [![GitHub stars](https://img.shields.io/github/stars/techysy/10router?style=flat&logo=github)](https://github.com/techysy/10router/stargazers)
+  [![GitHub last commit](https://img.shields.io/github/last-commit/techysy/10router)](https://github.com/techysy/10router/commits)
   [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-  [![9Router](https://img.shields.io/github/v/tag/decolua/9router?label=upstream&color=cyan)](https://github.com/decolua/9router)
+  [![9Router upstream](https://img.shields.io/badge/9Router-v0.5.55-cyan.svg)](https://github.com/decolua/9router)
+  [![npm](https://img.shields.io/npm/v/9router.svg?label=npm)](https://www.npmjs.com/package/9router)
+  [![Docker](https://img.shields.io/badge/Docker-decolua%2F9router-blue?logo=docker)](https://hub.docker.com/r/decolua/9router)
 
   **基于 [decolua/9router](https://github.com/decolua/9router) v0.5.55 的本地优化快照**
 
