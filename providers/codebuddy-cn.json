@@ -13,6 +13,7 @@
     { "id": "kimi-k2.7", "name": "Kimi-K2.7-Code", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 256000, "maxOutput": 32000, "thinkingFormat": "openai" },
     { "id": "kimi-k2.6", "name": "Kimi-K2.6", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 256000, "maxOutput": 32000, "thinkingFormat": "openai" },
     { "id": "hy3-preview", "name": "Hy3 Preview", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 192000, "maxOutput": 64000, "thinkingFormat": "openai" },
+    { "id": "hy4-preview", "name": "Hy4 Preview", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 1000000, "maxOutput": 64000, "thinkingFormat": "openai" },
     { "id": "deepseek-v4-pro", "name": "DeepSeek-V4-Pro", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 1000000, "maxOutput": 50000, "thinkingFormat": "openai" },
     { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "type": "llm", "vision": true, "reasoning": true, "contextWindow": 1000000, "maxOutput": 50000, "thinkingFormat": "openai" }
   ]
