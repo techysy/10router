@@ -64,6 +64,9 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Experimental: auto daily check-in for CodeBuddy CN accounts.
   codeBuddyCheckin: false,
+  // Experimental: OpenAI-spec stream default — omitted `stream` = non-streaming
+  // (issue #4). Default off keeps the upstream-legacy behavior (omitted = streaming).
+  strictStreamDefault: false,
 };
 
 async function readRaw() {

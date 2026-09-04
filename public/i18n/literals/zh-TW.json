@@ -304,5 +304,7 @@
   "accounts exported": "個帳號已匯出",
   "Export failed": "匯出失敗",
   "Enter your current password to export CodeBuddy CN accounts.": "輸入目前密碼以匯出 CodeBuddy CN 帳號。",
-  "Enter your current password to import CodeBuddy CN accounts.": "輸入目前密碼以匯入 CodeBuddy CN 帳號。"
+  "Enter your current password to import CodeBuddy CN accounts.": "輸入目前密碼以匯入 CodeBuddy CN 帳號。",
+  "OpenAI-spec stream default": "OpenAI 規範 stream 預設",
+  "Treat an omitted stream field as non-streaming (issue #4). Off = legacy upstream behavior (omitted = streaming)": "省略 stream 欄位時依 OpenAI 規範回傳非串流 JSON（issue #4）。關閉 = 沿用上游行為（省略 = 串流）"
 }

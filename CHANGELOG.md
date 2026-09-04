@@ -2,6 +2,14 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.0.7 (TBD)
+
+> Issue #4 修复：非流式请求（省略 stream 字段）被误判为流式。行为翻转放在实验性开关 `strictStreamDefault` 后面（默认关 = 保持上游兼容行为），避免对省略 stream 却期待 SSE 的存量客户端造成静默破坏。
+
+### 🐛 修复
+
+- **非流式请求（省略 stream 字段）被误判为流式，返回畸形 SSE 响应（issue #4，用户反馈）**：`chatCore.js` 的默认流式判定 `body.stream !== false` 在字段省略时恒为真 → 按 OpenAI 规范应返回 `application/json` 的请求实际返回 `text/event-stream` + 尾部 `data: [DONE]`，官方 SDK / curl 等严格 JSON 客户端解析失败（1.0.3 起即存在；上游 9router 同逻辑，master 未修）。判定抽为纯函数 `open-sse/utils/streamDefault.js` `resolveStreamDefault`，新设置键 `strictStreamDefault`（默认 false 保持现状；true 时省略 = 非流式，规范语义）经 `src/sse/handlers/chat.js` 传入 `handleChatCore`，Profile → 实验性功能新增开关（三语词条）；`forceStream` 供应商（openai / codex / codebuddy 等 7 个）、Accept 头回退与 deepseek-tui 分支在两档下行为不变。新增单测 `tests/unit/stream-default.test.js` 锁定两档行为。
+
 ## v1.0.6 (2026-09-05)
 
 > v1.0.5（2026-09-03，含最后一次 tag 移动并入的 APInex / 用量表修复 / 上游 v0.5.65 同步）之后的新增功能版：CodeBuddy CN 每日自动签到、Antigravity Gemini 3.8 Flash 修复 + 配额对齐官网（5h+每周）、OpenCode Free 免费目录对齐、Windows Web 安装器、quota「只看有余额」实时重算、更新横幅与 Profile i18n 补齐。
