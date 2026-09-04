@@ -1008,19 +1008,19 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[20px]">language</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Language</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Language")}</h3>
           </div>
           <button
             onClick={() => setLangOpen(true)}
             className="flex items-center justify-between w-full p-3 rounded-lg bg-bg border border-border hover:border-primary/50 transition-colors"
             data-i18n-skip="true"
           >
-            <span className="text-sm text-text-muted">Display language</span>
+            <span className="text-sm text-text-muted">{translate("Display language")}</span>
             <span className="text-2xl">{LOCALE_FLAGS[locale] || "🌐"}</span>
           </button>
           <div className="flex items-center justify-between gap-4 mt-3 p-3 rounded-lg bg-bg border border-border">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Regional currency</p>
+              <p className="text-sm font-medium">{translate("Regional currency")}</p>
               <p className="text-xs text-text-muted">Show costs in local currency (¥/NT$/₩/₫); off → $</p>
             </div>
             <Toggle checked={regional} onChange={toggleCurrency} />
@@ -1033,14 +1033,14 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg flex items-center justify-center bg-primary/10 text-primary shrink-0">
               <span className="material-symbols-outlined text-[20px]">shield</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Security</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Security")}</h3>
           </div>
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Require login</p>
+                <p className="font-medium text-sm sm:text-base">{translate("Require login")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  When ON, dashboard requires password. When OFF, access without login.
+                  {translate("When ON, dashboard requires password. When OFF, access without login.")}
                 </p>
               </div>
               <Toggle
@@ -1120,7 +1120,7 @@ export default function ProfilePage() {
               <span className="material-symbols-outlined text-[20px]">lock_open</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base sm:text-lg font-semibold">Single Sign-On (SSO)</h3>
+              <h3 className="text-base sm:text-lg font-semibold">{translate("Single Sign-On (SSO)")}</h3>
               <p className="text-xs text-text-muted">
                 {settings.authMode === "sso" || settings.authMode === "oidc" || settings.authMode === "saml"
                   ? `${settings.ssoType === "saml" ? "SAML 2.0" : "OIDC"} SSO active`
@@ -1136,7 +1136,7 @@ export default function ProfilePage() {
           {oidcExpanded && (
             <div className="flex flex-col gap-4 mt-4">
               <p className="text-xs sm:text-sm text-text-muted">
-                Configure enterprise Single Sign-On (SSO) for dashboard access using SAML 2.0 or OIDC.
+                {translate("Configure enterprise Single Sign-On (SSO) for dashboard access using SAML 2.0 or OIDC.")}
               </p>
 
               {/* SSO Protocol Switcher Tabs */}
@@ -1700,13 +1700,13 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg flex items-center justify-center bg-cyan-500/10 text-cyan-500 shrink-0">
               <span className="material-symbols-outlined text-[20px]">device_hub</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Providers</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Providers")}</h3>
           </div>
           <div className="flex flex-col gap-4">
             {/* Disabled providers sort last (behind no-connection providers) */}
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Disabled providers sort last</p>
+                <p className="font-medium text-sm sm:text-base">{translate("Disabled providers sort last")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
                   Push providers with all connections disabled behind those with no connections
                 </p>
@@ -1720,7 +1720,7 @@ export default function ProfilePage() {
             {/* Show community welfare providers (公益站) */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Show community welfare providers</p>
+                <p className="font-medium text-sm sm:text-base">{translate("Show community welfare providers")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
                   Show free community gateways with no recharge entry (GoRouter / TaBiAI)
                 </p>
@@ -1739,13 +1739,13 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg flex items-center justify-center bg-amber-500/10 text-amber-500 shrink-0">
               <span className="material-symbols-outlined text-[20px]">science</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Experimental</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Experimental")}</h3>
           </div>
           <div className="flex flex-col gap-4">
             {/* Fetch models from GitHub JSON — feature toggle (provider detail page) */}
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Fetch models from GitHub JSON</p>
+                <p className="font-medium text-sm sm:text-base">{translate("Fetch models from GitHub JSON")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
                   Show a Fetch Models button on providers that publish a model JSON catalog
                 </p>
@@ -1793,7 +1793,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg flex items-center justify-center bg-purple-500/10 text-purple-500 shrink-0">
               <span className="material-symbols-outlined text-[20px]">wifi</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Network</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Network")}</h3>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -1865,7 +1865,7 @@ export default function ProfilePage() {
             <div className="size-10 rounded-lg flex items-center justify-center bg-orange-500/10 text-orange-500 shrink-0">
               <span className="material-symbols-outlined text-[20px]">monitoring</span>
             </div>
-            <h3 className="text-base sm:text-lg font-semibold">Observability</h3>
+            <h3 className="text-base sm:text-lg font-semibold">{translate("Observability")}</h3>
           </div>
           <div className="flex items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">

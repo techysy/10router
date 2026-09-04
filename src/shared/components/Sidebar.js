@@ -8,6 +8,7 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 
@@ -132,7 +133,7 @@ export default function Sidebar({ onClose }) {
           {updateInfo && (
             <div className="flex flex-col gap-1.5 rounded p-1 -m-1">
               <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
-                ↑ New version available: v{updateInfo.latestVersion}
+                {translate("↑ New version available:")} v{updateInfo.latestVersion}
               </span>
               {updateInfo.installChannel === "fpk" ? (
                 /* fnOS fpk: npm install commands don't apply — the update ships as an fpk
@@ -143,7 +144,7 @@ export default function Sidebar({ onClose }) {
                   rel="noreferrer"
                   className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors text-center"
                 >
-                  Get the fpk from Releases
+                  {translate("Get the fpk from Releases")}
                 </a>
               ) : (
                 <div className="flex items-center gap-2">
@@ -151,15 +152,15 @@ export default function Sidebar({ onClose }) {
                     onClick={() => setShowUpdateModal(true)}
                     className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                   >
-                    Update now
+                    {translate("Update now")}
                   </button>
                   <button
                     onClick={() => copy(INSTALL_CMD)}
-                    title="Copy install command"
+                    title={translate("Copy install command")}
                     className="flex-1 text-left hover:opacity-80 transition-opacity cursor-pointer min-w-0"
                   >
                     <code className="block text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono truncate">
-                      {copied ? "✓ copied!" : INSTALL_CMD}
+                      {copied ? "✓ " + translate("copied!") : INSTALL_CMD}
                     </code>
                   </button>
                 </div>
@@ -334,10 +335,10 @@ export default function Sidebar({ onClose }) {
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
         onConfirm={handleUpdate}
-        title="Update 10Router"
-        message={`Show install command for v${updateInfo?.latestVersion || ""}? You can copy it and shutdown to install manually.`}
-        confirmText="Show Command"
-        cancelText="Cancel"
+        title={translate("Update 10Router")}
+        message={translate("Show install command for v${version}? You can copy it and shutdown to install manually.").replace("${version}", updateInfo?.latestVersion || "")}
+        confirmText={translate("Show Command")}
+        cancelText={translate("Cancel")}
         variant="primary"
       />
 
@@ -359,10 +360,10 @@ export default function Sidebar({ onClose }) {
               <div className="flex items-center justify-center size-16 rounded-full bg-red-500/20 text-red-500 mx-auto mb-4">
                 <span className="material-symbols-outlined text-[32px]">power_off</span>
               </div>
-              <h2 className="text-xl font-semibold text-white mb-2">Server Disconnected</h2>
-              <p className="text-text-muted mb-6">The proxy server has been stopped.</p>
+              <h2 className="text-xl font-semibold text-white mb-2">{translate("Server Disconnected")}</h2>
+              <p className="text-text-muted mb-6">{translate("The proxy server has been stopped.")}</p>
               <Button variant="secondary" onClick={() => globalThis.location.reload()}>
-                Reload Page
+                {translate("Reload Page")}
               </Button>
             </div>
           )}
@@ -385,39 +386,48 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
           <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Update 10Router{latestVersion ? ` to v${latestVersion}` : ""}</h2>
+          <h2 className="text-lg font-semibold">{translate("Update 10Router")}{latestVersion ? ` v${latestVersion}` : ""}</h2>
           <p className="text-xs text-white/60">
             {isDisconnected
-              ? "Server stopped. Paste the command into a terminal to install."
+              ? translate("Server stopped. Paste the command into a terminal to install.")
               : isCountingDown
-                ? `Command copied. Server will stop in ${countdown}s...`
-                : "Click the button below to copy the install command and shutdown."}
+                ? translate("Command copied. Server will stop in {s}s...").replace("{s}", String(countdown))
+                : translate("Click the button below to copy the install command and shutdown.")}
           </p>
         </div>
       </div>
 
-      <p className="text-sm text-white/80 mb-2">Install command:</p>
+      <p className="text-sm text-white/80 mb-2">{translate("Install command:")}</p>
       <div className="w-full px-3 py-2 rounded bg-white/5 mb-4">
         <code className="text-xs font-mono text-amber-400 break-all">{installCmd}</code>
       </div>
 
       <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
-        <li>Click <strong>Copy & Shutdown</strong> below.</li>
-        <li>Paste the command into your terminal and press Enter.</li>
-        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">10router</code> again after install.</li>
+        <li>{translate("Click Copy & Shutdown below.")}</li>
+        <li>{translate("Paste the command into your terminal and press Enter.")}</li>
+        <li>{translate("Run 10router again after install.")}</li>
       </ol>
 
       {isDisconnected ? (
         <Button variant="secondary" fullWidth onClick={() => globalThis.location.reload()}>
-          Reload Page
+          {translate("Reload Page")}
         </Button>
       ) : (
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={onCancel} disabled={isCountingDown}>
-            Cancel
+          <Button
+            variant="secondary"
+            onClick={onCancel}
+            disabled={isCountingDown}
+            className="whitespace-nowrap shrink-0"
+          >
+            {translate("Cancel")}
           </Button>
           <Button variant="primary" fullWidth onClick={onCopyAndShutdown} disabled={isCountingDown}>
-            {copied ? "✓ Copied — shutting down..." : isCountingDown ? `Shutting down in ${countdown}s` : "Copy & Shutdown"}
+            {copied
+              ? translate("✓ Copied — shutting down...")
+              : isCountingDown
+                ? translate("Shutting down in {s}s").replace("{s}", String(countdown))
+                : translate("Copy & Shutdown")}
           </Button>
         </div>
       )}

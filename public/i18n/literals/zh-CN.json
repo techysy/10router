@@ -1501,5 +1501,19 @@
   "Check-in failed": "签到失败",
   "Failed": "失败",
   "CodeBuddy CN OAuth import / export": "CodeBuddy CN OAuth 导入 / 导出",
-  "Show Import / Export buttons on the CodeBuddy CN page (experimental)": "在 CodeBuddy CN 页面显示 Import / Export 按钮"
+  "Show Import / Export buttons on the CodeBuddy CN page (experimental)": "在 CodeBuddy CN 页面显示 Import / Export 按钮",
+  "↑ New version available:": "检测到新版本：",
+  "Get the fpk from Releases": "从 Releases 获取 fpk",
+  "copied!": "已复制！",
+  "Show Command": "显示命令",
+  "Show install command for v${version}? You can copy it and shutdown to install manually.": "显示 v${version} 的安装命令？您可以复制后关闭，手动安装。",
+  "Server stopped. Paste the command into a terminal to install.": "服务器已停止。将命令粘贴到终端即可安装。",
+  "Command copied. Server will stop in {s}s...": "命令已复制，服务器将在 {s} 秒后停止…",
+  "Click the button below to copy the install command and shutdown.": "点击下方按钮复制安装命令并关闭。",
+  "Click Copy & Shutdown below.": "点击下方「复制并关闭」。",
+  "Run 10router again after install.": "安装完成后再次运行 10router。",
+  "✓ Copied — shutting down...": "✓ 已复制 — 正在关闭…",
+  "Shutting down in {s}s": "将在 {s} 秒后关闭",
+  "Regional currency": "本地货币",
+  "Single Sign-On (SSO)": "单点登录 (SSO)"
 }
