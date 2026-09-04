@@ -9,7 +9,7 @@
 - **新增供應商 APInex（apinex.bond）**：預付美元額度的第三方聚合網關（OpenAI 相容），18 個模型——GPT-5.6 Sol / Terra / Luna、Claude Opus 5 / Sonnet 5、Gemini 3.1 Pro / 3.8 Flash、Grok 4.6、DeepSeek V4、GLM-5.3、Kimi K3，外加 5 個 `free/` 前綴免費模型（GLM-5.3 Flash、DeepSeek V4 雙檔、GPT-5.6 Luna、Qwen 3.8 MAX）
 - **邀請碼一鍵複製**：供應商頁「獲取 API 金鑰」旁顯示邀請碼 chip，點擊即複製（APInex：`SLEWP68C`）
 - **CodeBuddy CN 每日自動簽到**（實驗性，預設關閉）：`設定 → 實驗性功能` 開啟 "CodeBuddy CN auto daily check-in" 後，CodeBuddy CN 頁面的 Import / Export 按鈕被替換為每日自動簽到（每個帳號在本地時間 00:00–06:00 隨機時刻自動簽到續免費額度，失敗不中斷服務、401 自動重新整理後重試）與「立即簽到」手動按鈕
-- **Antigravity 配額對齊官網**：用量頁 Antigravity 配額補上**每週視窗**——呼叫官網同款內部介面 retrieveUserQuotaSummary，依模型族分組（Gemini Models / Claude and GPT models）各顯示一條 weekly 配額（剩餘比例 + 重置時間），與 antigravity.google 管理頁一致
+- **Antigravity 配額對齊官網（5h + 每週雙視窗）**：用量頁 Antigravity 配額重構為主用官網同款 retrieveUserQuotaSummary 介面，每帳號精確顯示 **4 張卡片**（Gemini Models / Claude and GPT models × {5 小時限額, 週限額}），歸一化 100 百分制；介面不可用時回退舊逐模型解析
 
 ### 🐛 修復
 - **Antigravity `ag/gemini-3.8-flash-*` 404**：模型定址改為各檔 tiered 實體並升級 IDE 指紋至 2.11.0（裸 ID 直傳會 404「Requested entity was not found」）；新增無檔位 `ag/gemini-3.8-flash`（路由到 medium 檔）

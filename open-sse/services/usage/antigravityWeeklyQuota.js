@@ -1,20 +1,24 @@
 /**
- * Antigravity weekly-quota fetcher + parser.
+ * Antigravity quota-summary fetcher + parser (v1internal:retrieveUserQuotaSummary).
  *
- * Antigravity enforces both a 5-hour window (surfaced per-model by
- * getAntigravityUsage() via fetchAvailableModels) and a separate weekly window.
- * The weekly window is NOT part of the per-model response — it lives in a
- * distinct upstream RPC, `v1internal:retrieveUserQuotaSummary`, which groups
- * models into families ("Gemini Models", "Claude and GPT models") and reports
- * one bucket per family per window (5h + weekly), keyed by a
- * bucketId/displayName pair rather than by individual modelId. The window is
- * inferred from the bucketId/displayName text (undocumented API; shape
- * reverse-engineered by third-party Antigravity clients — see OmniRoute).
+ * Antigravity enforces two independent windows per model family:
+ *   - a 5-hour window (short-term burst pool), and
+ *   - a weekly window (long-term cap).
+ * The RPC groups models into families ("Gemini Models", "Claude and GPT models")
+ * and reports one bucket per family per window. We surface exactly 4 quota rows
+ * per account (2 families × {5h, weekly}), normalized to a 0–100 base so the
+ * progress bar reflects a real percentage.
+ *
+ * The window type is read from an explicit `window` field when present, else
+ * inferred from bucketId/displayName text (the API is undocumented; field
+ * casing/shape differs across Antigravity clients). remainingFraction may be
+ * top-level or nested under `remaining.remainingFraction`. Tolerant of both the
+ * top-level `groups[]` and `quotaSummary.groups[]` response envelopes.
  */
 
 import { parseResetTime, fetchWithTimeout } from "./shared.js";
 
-const WEEKLY_QUOTA_CACHE_TTL_MS = 60 * 1000;
+const SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const _cache = new Map(); // cacheKey -> { data, fetchedAt }
 const _inflight = new Map(); // cacheKey -> Promise
 
@@ -23,10 +27,10 @@ function buildCacheKey(accessToken, projectId) {
 }
 
 /**
- * Fetch the weekly-quota-bearing retrieveUserQuotaSummary response (cached,
- * best-effort). Returns null on any failure — callers must treat this as
- * optional data, never a hard dependency, since the RPC is undocumented and
- * may not be available for every account/tier.
+ * Fetch the retrieveUserQuotaSummary response (cached, best-effort). Returns
+ * null on any failure — callers treat this as optional data, never a hard
+ * dependency, since the RPC is undocumented and may not answer for every
+ * account/tier/host.
  */
 export async function fetchAntigravityUserQuotaSummaryCached(
   accessToken,
@@ -40,7 +44,7 @@ export async function fetchAntigravityUserQuotaSummaryCached(
 
   const cacheKey = buildCacheKey(accessToken, projectId);
   const cached = _cache.get(cacheKey);
-  if (!options.forceRefresh && cached && Date.now() - cached.fetchedAt < WEEKLY_QUOTA_CACHE_TTL_MS) {
+  if (!options.forceRefresh && cached && Date.now() - cached.fetchedAt < SUMMARY_CACHE_TTL_MS) {
     return cached.data;
   }
 
@@ -58,7 +62,7 @@ export async function fetchAntigravityUserQuotaSummaryCached(
             "Content-Type": "application/json",
             "User-Agent": userAgent,
             "X-Client-Name": "antigravity",
-            "X-Client-Version": "1.23.2",
+            "X-Client-Version": userAgent?.match(/antigravity\/ide\/([\d.]+)/)?.[1] || "2.11.0",
           },
           body: JSON.stringify({ project: projectId }),
         },
@@ -80,26 +84,7 @@ export async function fetchAntigravityUserQuotaSummaryCached(
   return promise;
 }
 
-/** Matches a bucket's combined bucketId+displayName text against a window keyword. */
-function bucketMatchesWindow(bucket, keyword) {
-  const text = `${String(bucket.bucketId || "")} ${String(bucket.displayName || "")}`.toLowerCase();
-  return keyword.test(text);
-}
-
-const WEEKLY_KEYWORD = /\bweekly\b/;
-
-/** Turns a group displayName (e.g. "Gemini Models", "Claude and GPT models") into a quota key. */
-function slugifyGroupWeeklyKey(displayName) {
-  const cleaned = String(displayName || "")
-    .toLowerCase()
-    .replace(/\bmodels?\b/g, "")
-    .replace(/\band\b/g, " ")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return cleaned ? `${cleaned}_weekly` : null;
-}
-
-/** Extracts `groups[]` from either observed response envelope (top-level or nested). */
+/** Extracts `groups[]` from either observed response envelope. */
 function extractSummaryGroups(summaryData) {
   const root = summaryData || {};
   if (Array.isArray(root.groups)) return root.groups;
@@ -107,62 +92,119 @@ function extractSummaryGroups(summaryData) {
   return Array.isArray(nested) ? nested : [];
 }
 
-/** Parses one model-family group into its weekly quota entry, or null when absent/invalid. */
-function parseGroupWeeklyQuota(group) {
-  const buckets = Array.isArray(group.buckets) ? group.buckets : [];
-  const weeklyBucketValue = buckets.find(
-    (b) => b && typeof b === "object" && bucketMatchesWindow(b, WEEKLY_KEYWORD)
-  );
-  if (!weeklyBucketValue) return null;
+// Normalize the many ways the window is written: explicit `window`, bucketId,
+// or displayName. Returns a canonical key "5h" | "weekly" | null.
+function bucketWindow(bucket) {
+  const raw = String(bucket?.window || "").toLowerCase().trim();
+  const text = `${String(bucket?.bucketId || "")} ${String(bucket?.displayName || "")}`.toLowerCase();
+  const norm = (s) => {
+    const w = String(s || "").toLowerCase();
+    if (/5h|five[\s_-]?hour|hourly/.test(w)) return "5h";
+    if (/weekly|week/.test(w)) return "weekly";
+    return null;
+  };
+  return norm(raw) || norm(text);
+}
 
-  const weeklyBucket = weeklyBucketValue;
-  if (weeklyBucket.disabled === true) return null;
+// remainingFraction may be top-level or nested under remaining.remainingFraction.
+function bucketRemainingFraction(bucket) {
+  const top = Number(bucket?.remainingFraction);
+  if (Number.isFinite(top)) return top;
+  const nested = bucket?.remaining && typeof bucket.remaining === "object"
+    ? Number(bucket.remaining.remainingFraction)
+    : Number.NaN;
+  return Number.isFinite(nested) ? nested : Number.NaN;
+}
 
-  const key = slugifyGroupWeeklyKey(String(group.displayName || ""));
-  if (!key) return null;
+function familyDisplayName(rawName, index) {
+  // Keep the upstream/official family label verbatim (English on Google's side)
+  // rather than baking a localized string into data — quota rows render
+  // displayName directly and are not currently routed through the i18n layer.
+  return String(rawName || "").trim() || `Quota Group ${index + 1}`;
+}
 
-  const rawFraction = Number(weeklyBucket.remainingFraction);
-  if (!Number.isFinite(rawFraction) || rawFraction < 0) return null;
+function windowLabel(windowKey) {
+  return windowKey === "5h" ? "5h Window" : "Weekly Window";
+}
 
-  const remainingFraction = Math.max(0, Math.min(1, rawFraction));
-  const resetAt = parseResetTime(weeklyBucket.resetTime);
+function slugifyFamilyKey(displayName, index) {
+  const cleaned = String(displayName || "")
+    .toLowerCase()
+    .replace(/\bmodels?\b/g, "")
+    .replace(/\band\b/g, " ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return cleaned || `group_${index + 1}`;
+}
+
+function parseBucket(group, bucket, familyName, windowKey, index) {
+  const frac = bucketRemainingFraction(bucket);
+  if (!Number.isFinite(frac) || frac < 0) return null;
+  if (bucket?.disabled === true) return null;
+
+  const remainingFraction = Math.max(0, Math.min(1, frac));
+  const resetAt = parseResetTime(bucket?.resetTime);
   const isUnlimited = !resetAt && remainingFraction >= 1;
-  const QUOTA_NORMALIZED_BASE = 1000;
-  const total = QUOTA_NORMALIZED_BASE;
-  const remaining = Math.round(total * remainingFraction);
+  const QUOTA_NORMALIZED_BASE = 100; // percent-scale
+  const remaining = Math.round(QUOTA_NORMALIZED_BASE * remainingFraction);
+  const used = QUOTA_NORMALIZED_BASE - remaining;
 
   return {
-    key,
-    quota: {
-      used: isUnlimited ? 0 : Math.max(0, total - remaining),
-      total: isUnlimited ? 0 : total,
-      resetAt,
-      remainingPercentage: isUnlimited ? 100 : remainingFraction * 100,
-      unlimited: isUnlimited,
-      fractionReported: true,
-      displayName: String(group.displayName || "").trim() || undefined,
-    },
+    used: isUnlimited ? 0 : Math.max(0, used),
+    total: isUnlimited ? 0 : QUOTA_NORMALIZED_BASE,
+    resetAt,
+    remainingPercentage: isUnlimited ? 100 : remainingFraction * 100,
+    unlimited: isUnlimited,
+    fractionReported: true,
+    displayName: `${familyName} · ${windowLabel(windowKey)}`,
   };
 }
 
 /**
- * Parse the raw retrieveUserQuotaSummary response into weekly UsageQuota
- * entries, one per model family group. Tolerant of the two response envelopes
- * third-party clients have observed (groups[] at the top level, or nested
- * under quotaSummary.groups[]).
+ * Parse the raw retrieveUserQuotaSummary response into per-family, per-window
+ * quota entries (5h first, then weekly). Returns a map keyed by a stable slug
+ * (e.g. "gemini_5h", "gemini_weekly", "claude_gpt_5h", "claude_gpt_weekly").
  */
-export function parseAntigravityWeeklyQuotas(summaryData) {
+export function parseAntigravityQuotaSummary(summaryData) {
   const quotas = {};
-  for (const groupValue of extractSummaryGroups(summaryData)) {
-    if (!groupValue || typeof groupValue !== "object") continue;
-    const entry = parseGroupWeeklyQuota(groupValue);
-    if (entry) quotas[entry.key] = entry.quota;
-  }
+  const groups = extractSummaryGroups(summaryData);
+  groups.forEach((groupValue, gIdx) => {
+    if (!groupValue || typeof groupValue !== "object") return;
+    const buckets = Array.isArray(groupValue.buckets) ? groupValue.buckets : [];
+    const familyName = familyDisplayName(groupValue.displayName, gIdx);
+    const familyKey = slugifyFamilyKey(familyName, gIdx);
+
+    // 5h first, weekly second, anything else last (stable order).
+    const rank = (b) => {
+      const w = bucketWindow(b);
+      if (w === "5h") return 0;
+      if (w === "weekly") return 1;
+      return 2;
+    };
+    const seen = new Set();
+    const ordered = [...buckets]
+      .filter((b) => b && typeof b === "object")
+      .sort((a, b) => rank(a) - rank(b));
+
+    for (const [bIdx, bucket] of ordered.entries()) {
+      const w = bucketWindow(bucket);
+      if (!w) continue; // ignore unknown windows (e.g. image/session-only buckets)
+      if (seen.has(w)) continue; // first bucket per window wins
+      seen.add(w);
+      const quota = parseBucket(groupValue, bucket, familyName, w, bIdx);
+      if (quota) quotas[`${familyKey}_${w}`] = quota;
+    }
+  });
   return quotas;
 }
 
-/** Fetch + parse in one call — the only entry point google.js needs. */
-export async function fetchAndParseAntigravityWeeklyQuotas(
+/** @deprecated Kept for callers of the earlier weekly-only parse. Re-export as dual-window. */
+export function parseAntigravityWeeklyQuotas(summaryData) {
+  return parseAntigravityQuotaSummary(summaryData);
+}
+
+/** Fetch + parse in one call — the primary entry point google.js uses. */
+export async function fetchAndParseAntigravityQuotaSummary(
   accessToken,
   projectId,
   quotaSummaryApiUrl,
@@ -178,5 +220,5 @@ export async function fetchAndParseAntigravityWeeklyQuotas(
     proxyOptions,
     options
   );
-  return parseAntigravityWeeklyQuotas(data);
+  return parseAntigravityQuotaSummary(data);
 }

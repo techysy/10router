@@ -5,7 +5,7 @@
 import { CLIENT_METADATA } from "../../config/appConstants.js";
 import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION, ANTIGRAVITY_OAUTH_CLIENT } from "../../providers/shared.js";
 import { U, parseResetTime, normalizeCloudCodeProjectId, fetchWithTimeout } from "./shared.js";
-import { fetchAndParseAntigravityWeeklyQuotas } from "./antigravityWeeklyQuota.js";
+import { fetchAndParseAntigravityQuotaSummary } from "./antigravityWeeklyQuota.js";
 
 // Antigravity API config (from Quotio) — urls from registry, oauth client + dynamic UA kept here
 const ANTIGRAVITY_CONFIG = {
@@ -115,18 +115,43 @@ async function getGeminiSubscriptionInfo(accessToken, proxyOptions = null) {
 }
 
 /**
- * Antigravity Usage - Fetch quota from Google Cloud Code API
+ * Antigravity quota — summary-first, per-family fallback.
+ *
+ * Primary source is v1internal:retrieveUserQuotaSummary, which reports exactly
+ * 4 rows per account (2 model families × {5h, weekly}) — the same grouping the
+ * official Antigravity quota UI shows. If that RPC is unavailable/empty for an
+ * account/tier/host, we fall back to the older fetchAvailableModels per-model
+ * parsing so the usage page still shows *something*.
  */
 export async function getAntigravityUsage(accessToken, providerSpecificData, proxyOptions = null) {
   try {
-    // Fetch subscription info once — reuse for both projectId and plan
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken, proxyOptions);
     const projectId = subscriptionInfo?.cloudaicompanionProject || null;
+    const plan = subscriptionInfo?.currentTier?.name || "Antigravity";
 
+    // 1) Prefer the dual-window summary (per-family 5h + weekly).
+    if (accessToken && projectId) {
+      try {
+        const summaryQuotas = await fetchAndParseAntigravityQuotaSummary(
+          accessToken,
+          projectId,
+          U("antigravity").quotaSummaryApiUrl,
+          ANTIGRAVITY_CONFIG.userAgent,
+          proxyOptions
+        );
+        if (summaryQuotas && Object.keys(summaryQuotas).length > 0) {
+          return { plan, quotas: summaryQuotas, subscriptionInfo };
+        }
+      } catch (summaryErr) {
+        console.warn("[Antigravity Usage] Quota summary unavailable, falling back to models:", summaryErr?.message);
+      }
+    }
+
+    // 2) Fallback: parse the per-model fetchAvailableModels catalog.
     const response = await fetchWithTimeout(ANTIGRAVITY_CONFIG.quotaApiUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
         "Content-Type": "application/json",
         "X-Client-Name": "antigravity",
@@ -138,19 +163,11 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
     }, 10000, proxyOptions);
 
     if (response.status === 403) {
-      return {
-        message: "Antigravity quota API access forbidden. Chat may still work.",
-        quotas: {}
-      };
+      return { message: "Antigravity quota API access forbidden. Chat may still work.", quotas: {} };
     }
-
     if (response.status === 401) {
-      return {
-        message: "Antigravity quota API authentication expired. Chat may still work.",
-        quotas: {}
-      };
+      return { message: "Antigravity quota API authentication expired. Chat may still work.", quotas: {} };
     }
-
     if (!response.ok) {
       throw new Error(`Antigravity API error: ${response.status}`);
     }
@@ -183,25 +200,15 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
       ];
 
       for (const [modelKey, info] of Object.entries(data.models)) {
-        // Skip models without quota info
-        if (!info.quotaInfo) {
-          continue;
-        }
-
-        // Skip internal models and non-important models
-        if (info.isInternal || !importantModels.includes(modelKey)) {
-          continue;
-        }
+        if (!info.quotaInfo) continue;
+        if (info.isInternal || !importantModels.includes(modelKey)) continue;
 
         const remainingFraction = info.quotaInfo.remainingFraction || 0;
         const remainingPercentage = remainingFraction * 100;
-
-        // Convert percentage to used/total for UI compatibility
-        const total = 1000; // Normalized base
+        const total = 1000; // Normalized base (fallback path only)
         const remaining = Math.round(total * remainingFraction);
         const used = total - remaining;
 
-        // Use modelKey as key (matches PROVIDER_MODELS id)
         quotas[modelKey] = {
           used,
           total,
@@ -213,28 +220,7 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
       }
     }
 
-    // Weekly quota (per model family) — separate undocumented RPC
-    // (v1internal:retrieveUserQuotaSummary), matching the Antigravity website's
-    // Model Quota UI ("Gemini Models" / "Claude and GPT models" weekly rows).
-    // Best-effort: on failure the per-model quotas above are returned unchanged.
-    let weeklyQuotas = {};
-    try {
-      weeklyQuotas = await fetchAndParseAntigravityWeeklyQuotas(
-        accessToken,
-        projectId,
-        U("antigravity").quotaSummaryApiUrl,
-        ANTIGRAVITY_CONFIG.userAgent,
-        proxyOptions
-      );
-    } catch {
-      weeklyQuotas = {};
-    }
-
-    return {
-      plan: subscriptionInfo?.currentTier?.name || "Unknown",
-      quotas: { ...quotas, ...weeklyQuotas },
-      subscriptionInfo,
-    };
+    return { plan, quotas, subscriptionInfo };
   } catch (error) {
     console.error("[Antigravity Usage] Error:", error.message, error.cause);
     return { message: `Antigravity error: ${error.message}` };
