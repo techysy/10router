@@ -73,9 +73,9 @@ export default function ProviderDetailPage() {
   const [modelJsonImportEnabled, setModelJsonImportEnabled] = useState(false); // server-side toggle
   const [codeBuddyOAuthImportEnabled, setCodeBuddyOAuthImportEnabled] = useState(false); // experimental toggle
   const [codeBuddyCheckinEnabled, setCodeBuddyCheckinEnabled] = useState(false); // experimental auto daily check-in toggle
-  // cbcn check-in manual trigger state: running flag + per-account results.
+  // cbcn check-in manual trigger: running flag (per-account results go to the
+  // summary toast + [CB_CN_CHECKIN] server log, not an inline list).
   const [cbCheckinRunning, setCbCheckinRunning] = useState(false);
-  const [cbCheckinResults, setCbCheckinResults] = useState(null); // [{id,name,status}] | null
   // cbcn export/import re-auth: { open, action: 'export'|'import', value }
   const [cbPw, setCbPw] = useState({ open: false, action: null, value: "" });
   const [cbImportPassword, setCbImportPassword] = useState(""); // password for bulk-import (passed to modal)
@@ -195,10 +195,10 @@ export default function ProviderDetailPage() {
   };
 
   // Manual CodeBuddy CN daily check-in trigger (only shown when the auto
-  // check-in experimental toggle is on). Returns per-account status only.
+  // check-in experimental toggle is on). Per-account results surface via the
+  // summary toast here and the [CB_CN_CHECKIN] server log — no inline list.
   const handleCodeBuddyCheckin = async () => {
     setCbCheckinRunning(true);
-    setCbCheckinResults(null);
     try {
       const res = await fetch("/api/oauth/codebuddy-cn/checkin", {
         method: "POST",
@@ -207,7 +207,6 @@ export default function ProviderDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
       const list = Array.isArray(data?.results) ? data.results : [];
-      setCbCheckinResults(list);
       if (list.length === 0) {
         notify.warning(translate("No CodeBuddy CN connections to check in"));
         return;
@@ -231,42 +230,19 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const cbCheckinStatusLabel = (status) => {
-    if (status === "checked-in") return translate("Checked in");
-    if (status === "already") return translate("Already checked in");
-    return translate("Failed");
-  };
-
-  // Check-in control block (button + note + per-account results). Rendered in
-  // place of the import/export buttons when the auto check-in toggle is on.
+  // Check-in control block (button with hover note). Rendered in place of the
+  // import/export buttons when the auto check-in toggle is on.
   const renderCbCheckinBlock = () => (
-    <div className="flex flex-col items-start gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          icon="calendar_today"
-          onClick={handleCodeBuddyCheckin}
-          disabled={cbCheckinRunning}
-          className="w-full sm:w-auto"
-        >
-          {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
-        </Button>
-      </div>
-      <p className="text-xs text-text-muted">
-        {translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time).")}
-      </p>
-      {cbCheckinResults && cbCheckinResults.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-0.5 text-xs text-text-muted">
-          {cbCheckinResults.map((r) => (
-            <li key={r.id}>
-              <span className="font-medium text-text">{r.name || r.id}</span>
-              {" — "}
-              {cbCheckinStatusLabel(r.status)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <Button
+      size="sm"
+      icon="calendar_today"
+      onClick={handleCodeBuddyCheckin}
+      disabled={cbCheckinRunning}
+      className="w-full sm:w-auto"
+      title={translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time).")}
+    >
+      {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
+    </Button>
   );
 
   const handleAgRiskConfirm = () => {

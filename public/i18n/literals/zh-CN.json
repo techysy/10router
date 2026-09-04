@@ -1498,7 +1498,7 @@
   "already checked in": "今日已签到",
   "Check-in complete with errors": "签到完成但存在失败",
   "Check-in failed": "签到失败",
-  "Checked in": "已签到",
-  "Already checked in": "今日已签到",
-  "Failed": "失败"
+  "Failed": "失败",
+  "CodeBuddy CN OAuth import / export": "CodeBuddy CN OAuth 导入 / 导出",
+  "Show Import / Export buttons on the CodeBuddy CN page (experimental)": "在 CodeBuddy CN 页面显示 Import / Export 按钮（实验性）"
 }
