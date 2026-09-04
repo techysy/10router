@@ -1,5 +1,5 @@
 appname               = 10router
-version               = 1.0.5
+version               = 1.0.6
 display_name          = 10Router
 desc                  = FREE AI Router & Token Saver - AI 编码路由器（10Router 版，端口 20127）
 platform              = x86
