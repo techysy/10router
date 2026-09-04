@@ -2,26 +2,32 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## v1.0.5 (2026-09-04)
+## v1.0.6 (2026-09-04)
 
 ### ✨ 新增
 
 - **新增供應商 APInex（apinex.bond）**：預付美元額度的第三方聚合網關（OpenAI 相容），18 個模型——GPT-5.6 Sol / Terra / Luna、Claude Opus 5 / Sonnet 5、Gemini 3.1 Pro / 3.8 Flash、Grok 4.6、DeepSeek V4、GLM-5.3、Kimi K3，外加 5 個 `free/` 前綴免費模型（GLM-5.3 Flash、DeepSeek V4 雙檔、GPT-5.6 Luna、Qwen 3.8 MAX）
 - **邀請碼一鍵複製**：供應商頁「獲取 API 金鑰」旁顯示邀請碼 chip，點擊即複製（APInex：`SLEWP68C`）
+- **CodeBuddy CN 每日自動簽到**（實驗性，預設關閉）：`設定 → 實驗性功能` 開啟 "CodeBuddy CN auto daily check-in" 後，CodeBuddy CN 頁面的 Import / Export 按鈕被替換為每日自動簽到（每個帳號在本地時間 00:00–06:00 隨機時刻自動簽到續免費額度，失敗不中斷服務、401 自動重新整理後重試）與「立即簽到」手動按鈕
+- **Antigravity 配額對齊官網**：用量頁 Antigravity 配額補上**每週視窗**——呼叫官網同款內部介面 retrieveUserQuotaSummary，依模型族分組（Gemini Models / Claude and GPT models）各顯示一條 weekly 配額（剩餘比例 + 重置時間），與 antigravity.google 管理頁一致
+
+### 🐛 修復
+- **Antigravity `ag/gemini-3.8-flash-*` 404**：模型定址改為各檔 tiered 實體並升級 IDE 指紋至 2.11.0（裸 ID 直傳會 404「Requested entity was not found」）；新增無檔位 `ag/gemini-3.8-flash`（路由到 medium 檔）
+- **用量統計 成本/Token 切換後表格錯亂**：修復切換顯示模式並點擊排序後，部分行的 token 數被回退顯示成金額的問題；繁體中文用量表表頭翻譯補齊
+- **用量表排序語義**：按 Token / 成本列排序改為按模型合計值排序，與表頭箭頭方向一致
+
+## v1.0.5 (2026-09-04)
+
+### ✨ 新增
+
 - **桌面系統列版（Windows / macOS）**：裝完即用的桌面應用——系統列選單（開啟控制台 / 啟動 / 重新啟動 / 停止 / 開機自啟）+ 內嵌視窗，關閉視窗即縮到系統列；與 npm CLI 共享資料、金鑰與連接埠，兩種形態互斥執行。Windows 提供安裝版（NSIS，支援 `/S` 靜默安裝）與便攜版，macOS 提供 Intel + Apple Silicon 雙 dmg
 - **CLI / 桌面版介面多語言**：npm CLI 與桌面系統列自動跟隨系統語言顯示繁體中文、簡體中文或英文，可用環境變數 `TENROUTER_LANG`（`zh-CN` / `zh-TW` / `en`）強制指定
 - **Agent 可自助新增自訂供應商 + Skills 頁新增技能**：執行階段用 dashboard LLM key 即可兩步註冊 baseUrl + 上游 key + 模型的自訂 OpenAI/Anthropic 相容節點（免改原始碼/免重新打包）；Dashboard **Skills 頁**新增「10router-add-provider」技能卡片並修正此前連結指向不存在的 `master` 分支（點擊 404），現指向 `main`
 - **CodeBuddy CN 帳號 JSON 批次匯入 / 匯出**（實驗性，預設關閉）：`設定 → Providers` 開啟 "CodeBuddy CN OAuth import / export" 後，CodeBuddy CN 詳情頁顯示 Import / Export 按鈕，可用第三方(wb) JSON 格式批次匯入或匯出帳號授權（匯入自動去重、非 CodeBuddy 簽發網域略過）。匯入 / 匯出均需二次輸入 dashboard 密碼確認（防免登入模式下匿名匯出帳號令牌）
-- **CodeBuddy CN 每日自動簽到**（實驗性，預設關閉）：`設定 → 實驗性功能` 開啟 "CodeBuddy CN auto daily check-in" 後，CodeBuddy CN 頁面的 Import / Export 按鈕被替換為每日自動簽到（每個帳號在本地時間 00:00–06:00 隨機時刻自動簽到續免費額度，失敗不中斷服務、401 自動重新整理後重試）與「立即簽到」手動按鈕（顯示各帳號 已簽到 / 今日已簽到 / 失敗）
 - **公益站供應商預設顯示**：GoRouter / TaBiAI 等公益站供應商改為預設顯示（無需再手動開啟開關），列表 / Profile 開關 / 用量拓撲圖三處一致
 - **公益站供應商排序歸組**：Free Tier 列表中 GoRouter / TaBiAI 等公益站供應商在 rank 分組內聚成相鄰一塊，不再與一般 freeTier 依 priority/名稱混排
 - **新增 Agnes AI 雙站供應商**：國際站 Agnes AI（com）+ 中國站 Agnes AI (CN)，各含 Agnes 2.5 Flash / 2.5 Pro 文字模型（512K / 1M 上下文，視覺+推理）；另含 Agnes Image 2.x Flash 影像生成模型（標準 images/generations 端點，圖生圖/編輯）
 - **設定新增「實驗性功能」分組**：Profile 獨立 Experimental 卡片，收納預設關閉的開發向開關（JSON 模型匯入 + CodeBuddy CN 匯入匯出），方便日後擴充
-
-
-### 🐛 修復
-- **用量統計 成本/Token 切換後表格錯亂**：修復切換顯示模式並點擊排序後，部分行的 token 數被回退顯示成金額的問題；繁體中文用量表表頭翻譯補齊
-- **用量表排序語義**：按 Token / 成本列排序改為按模型合計值排序，與表頭箭頭方向一致
 ## v1.0.4 (2026-09-01)
 
 ### ✨ 新增

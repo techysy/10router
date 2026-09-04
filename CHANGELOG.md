@@ -2,13 +2,29 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.0.6 (2026-09-04)
+
+> v1.0.5 发布后的功能版：CodeBuddy CN 每日自动签到、Antigravity Gemini 3.8 Flash 修复 + 每周配额、新供应商 APInex 与用量表修复（v1.0.5 tag 后合入的条目统一记入本版）。
+
+### ✨ 新增功能
+
+- **新供应商 APInex（apinex.bond）**：第三方预付 USD 中转网关，OpenAI 兼容（`https://api.apinex.bond/v1`，Bearer 认证）。18 个模型（13 付费 + 5 个 `free/` 前缀免费模型，含 GLM-5.3 Flash、DeepSeek V4、GPT-5.6 Luna、Qwen 3.8 MAX），模型 ID 为 `vendor/model` 斜杠形式原样透传，capabilities 按完整 ID 挂 provider 专属表（contextWindow 取自上游目录）。类别 `apikey`、`hasFree`（非公益站，不设 community 标志）。免费模型已用真实 key 实测可用（付费模型 $0 余额返回 402 `billing_error`，Anthropic 系不参与赠送额度）。新增 `notice.inviteCode` 通用字段：供应商详情页两处 + ProviderInfoCard 的 Get API Key 旁渲染可复制邀请码 chip（`InviteCodeChip`，复用 `useCopyToClipboard`），APInex 填 `SLEWP68C`。基线（providers/alias）与 golden 快照已重建。
+- **CodeBuddy CN 每日自动签到**（实验性，默认关）：Profile → 实验性功能 打开 **CodeBuddy CN auto daily check-in** 后，cbcn 详情页的 Import / Export 按钮被替换为**每日自动签到**（每账号本地时间 00:00–06:00 随机时刻自动调用 CodeBuddy 每日签到接口续免费额度，失败放行不崩服务；401 自动刷新一次 token 后重试）与一个**立即签到**手动按钮（汇总 toast；服务端日志 `CB_CN_CHECKIN` 按账号输出「账号名： 状态」）。该开关与 CodeBuddy OAuth import / export 两个实验开关独立、详情页展示互斥。实现：后端调度器 `src/sse/services/codebuddyCheckin.js`（boot 即安全补签 + 次日随机槽定时器，unref、幂等启动，每次触发重读开关），`POST /api/oauth/codebuddy-cn/checkin` 手动签到接口（仅返回状态、不返回任何 token），新设置键 `codeBuddyCheckin`（默认 false，经 GET/PATCH /api/settings 持久化）。
+- **Antigravity 每周配额（对齐官网 Model Quota UI）**：用量页 Antigravity 配额此前只有 5 小时窗口的逐模型配额，现补上**每周（weekly）窗口**——调用内部接口 `v1internal:retrieveUserQuotaSummary`，按模型族分组（"Gemini Models" / "Claude and GPT models"）各显示一条 weekly 配额（含剩余比例与重置时间）。best-effort：该接口不可用时返回原逐模型配额不受影响。
+
+### 🐛 修复
+
+- **Antigravity `ag/gemini-3.8-flash-*` 404「Requested entity was not found」（用户反馈）**：三处根因一并对齐 9router `70f15aa`——① registry 3.8 三档改为**各自的 tiered 实体**（`gemini-3.8-flash-high(high)` / `medium(medium)` / `low(low)`，裸 ID 直传会 404），并新增无档位 `gemini-3.8-flash`（路由到 medium 档）；② **IDE 指纹 2.1.1 → 2.11.0**（`providers/shared.js` 与 MITM 覆盖层 `src/mitm/antigravityIdeVersion.js` 两处统一，上游按 client 版本门控模型下发，旧指纹拿不到 3.8 实体）；③ MITM `MODEL_SYNONYMS` 补 `gemini-3.8-flash → medium` 归一化、capabilities 补 `*gemini-3.8*` pattern（vision/audio/video/reasoning/search、thinkingLevel、1M ctx）、quota discovery 切到 daily host（与原生 IDE 一致）。providers 基线同步重建。
+- **用量表 成本/Token 切换后显示错乱（用户反馈）**：根因在运行时 i18n（`src/i18n/runtime.js`）与 React 的冲突——观察器只监听 `childList`、看不见 React 原地改写的文本，且会把排序时被移动行的单元格文本重置回首次见到的"原文"（成本模式下的 `￥0.00`），造成 Token 模式下部分行显示金额、部分行显示 token 数的乱表。修复：观察器增加 `characterData` 监听 + 记录 `_i18nApplied`（上次写入值），发现文本被框架合法改写时采纳为新原文而非回退。附带修复：表头"Input Tokens"等被原地更新后漏翻译的问题。复现与修复均在 `next dev` + 真实浏览器验证。
+- **用量表排序语义**：值列（token/成本）排序此前作用于分组前的明细行，组顺序由"组内第一条明细"决定而非组合计值（51M input 的组会排在升序第一位）；现按分组 summary 排序（`UsageStats.js`）。成本模式的排序列字段从 `promptTokens`/`completionTokens` 修正为 `inputCost`/`outputCost`（`UsageTable.js`）。
+- **用量表表头字典补齐**：zh-CN 补 `Cached Cost`；zh-TW 补整个用量表组（Cached/Input Cost/Input Tokens/…/Usage by *，15 条）；APInex 提醒句与 `Invite code` 文案三语同步。
+
 ## v1.0.5 (2026-09-04)
 
 > v1.0.4 发布后的功能版：新增 Electron 桌面托盘版（Win + macOS）与 npm CLI 系统语言检测（en/zh-CN/zh-TW）；09-04 补入用量统计错乱修复与 APInex 供应商。
 
 ### ✨ 新增功能
-- **新供应商 APInex（apinex.bond）**：第三方预付 USD 中转网关，OpenAI 兼容（`https://api.apinex.bond/v1`，Bearer 认证）。18 个模型（13 付费 + 5 个 `free/` 前缀免费模型，含 GLM-5.3 Flash、DeepSeek V4、GPT-5.6 Luna、Qwen 3.8 MAX），模型 ID 为 `vendor/model` 斜杠形式原样透传，capabilities 按完整 ID 挂 provider 专属表（contextWindow 取自上游目录）。类别 `apikey`、`hasFree`（非公益站，不设 community 标志）。免费模型已用真实 key 实测可用（付费模型 $0 余额返回 402 `billing_error`，Anthropic 系不参与赠送额度）。新增 `notice.inviteCode` 通用字段：供应商详情页两处 + ProviderInfoCard 的 Get API Key 旁渲染可复制邀请码 chip（`InviteCodeChip`，复用 `useCopyToClipboard`），APInex 填 `SLEWP68C`。基线（providers/alias）与 golden 快照已重建。
-- **Antigravity 支持 Gemini 3.8 Flash 系列**（社区实测反馈）：Google 于 2026-09-02 在 Antigravity（agy）生态上线 Gemini 3.8 Flash（内部代号 Skimaki），`ag/gemini-3.8-flash-high` / `ag/gemini-3.8-flash-medium` / `ag/gemini-3.8-flash-low` 三档注册进 antigravity 供应商。**上游寻址用裸模型 ID 直传**（agy CLI 的 `agy models` 返回的即 `gemini-3.8-flash-high`）——3.6/3.7 的 `tiered` 实体方案对 3.8 尚未启用，实测发 tiered ID 会 404 "Requested entity was not found"；待 Google 统一开启 tiered 生产路由后再补 `upstreamModelId` 映射。计费对齐 3.7 Flash 档位（$1.50/M in、$7.50/M out），用量配额白名单与 CLI 种子模型同步补全，新增对称单测（注册/寻址/capabilities/定价四项）。
+- **Antigravity 支持 Gemini 3.8 Flash 系列**（社区实测反馈）：Google 于 2026-09-02 在 Antigravity（agy）生态上线 Gemini 3.8 Flash（内部代号 Skimaki），`ag/gemini-3.8-flash-high` / `ag/gemini-3.8-flash-medium` / `ag/gemini-3.8-flash-low` 三档注册进 antigravity 供应商，计费对齐 3.7 Flash 档位（$1.50/M in、$7.50/M out），用量配额白名单与 CLI 种子模型同步补全。⚠️ 本版的上游寻址（裸 ID 直传）实测不可用，**v1.0.6 已修正**为 tiered 实体 + IDE 指纹 2.11.0，详见下版更新日志。
 - **Kimi 官方渠道下线 kimi-k2.5 系列**：Moonshot 于 2026-08-31 正式下线 `kimi-k2.5` 与 `moonshot-v1` 系列（`moonshot-v1` 此前从未注册，无影响）。官方 `kimi` 供应商移除 `kimi-k2.5` / `kimi-k2.5-thinking` 两档（上游已 404，保留只会让请求失败）；第三方聚合网关（CodeBuddy、阿里百炼、B.AI、Cursor、Ollama、Cloudflare 等）各自的 `kimi-k2.5` 行**保留**——那些是网关侧自有托管副本，不受 Moonshot 平台下线影响，capabilities/pricing 条目相应加注释说明归属。
 
 - **npm CLI 系统语言检测（i18n）**：CLI 此前整体英文硬编码，现随系统语言自动显示中文（简/繁）或英文，`TENROUTER_LANG` 环境变量可强制覆盖，检测优先级 `TENROUTER_LANG` → `LC_ALL`/`LANG` → ICU 系统 locale（Windows 取系统显示语言）→ 回退英文。覆盖启动器全流程（`--help`、接口选择菜单、托盘模式横幅、更新提示、崩溃重启）、系统托盘菜单（Windows PowerShell NotifyIcon 管道两端已有显式 UTF-8，中文标签安全传输）、供应商/组合/API Keys/设置/CLI 工具五大管理菜单与终端 TUI，共 358 条文案 × en/zh-CN/zh-TW 三语；术语与仪表盘 `public/i18n/literals` 对齐（仪表盘/供应商/组合等）。实现为 `cli/src/cli/i18n/` 零依赖轻量方案：按源文件分片的 JSON 字典（`locales/<lang>/*.json`）+ `t(key, params)` 查找，缺失键回退 en 再回退键名；`xai video` 子命令、hooks 诊断信息与 apiKeys 盒线 legacy 展示函数暂保持英文。
@@ -25,7 +41,6 @@
 ### ✨ 新增（09-03 并入）
 
 - **CodeBuddy CN 账号 JSON 批量导入 / 导出**（实验性，默认关）：`设置 → Providers → 打开 "CodeBuddy CN OAuth import / export"` 后，cbcn 详情页显示 **Import / Export** 按钮——用三方账号切换工具的 (wb) JSON 格式**批量导入**（选文件或粘贴）或**导出**（下载 `codebuddy-cn-accounts-<date>.json`）OAuth 授权。导入按 token 的 Keycloak `sub`（uid）或昵称去重（已存在则更新、否则新建），仅接受 `codebuddy.cn` / `copilot.tencent.com` 签发域（`workbuddy.cn` 等其它 realm 自动跳过）。实现：`GET/POST /api/oauth/codebuddy-cn/export` 与 `bulk-import`。
-- **CodeBuddy CN 每日自动签到**（实验性，默认关）：Profile → 实验性功能 打开 **CodeBuddy CN auto daily check-in** 后，启用此开关时 cbcn 详情页的 Import / Export 按钮被替换为**每日自动签到**（按账号在本地时间 00:00–06:00 随机时刻自动调用 CodeBuddy 每日签到接口续免费额度，失败放行不崩服务；401 自动刷新一次 token 后重试）与一个**立即签到**手动按钮（可查看每个账号 `已签到 / 今日已签到 / 失败` 结果）。该开关与 CodeBuddy OAuth import / export 两个实验开关独立、详情页展示互斥。实现：后端调度器 `src/sse/services/codebuddyCheckin.js`（boot 即安全补签 + 次日随机槽定时器，unref、幂等启动，每次触发重读开关），`POST /api/oauth/codebuddy-cn/checkin` 手动签到接口（仅返回状态、不返回任何 token），新设置键 `codeBuddyCheckin`（默认 false，经 GET/PATCH /api/settings 持久化）。
 - **Agent 可自助添加自定义 OpenAI/Anthropic 兼容供应商**（运行时操作，免改源码/免重打包）：`POST /api/provider-nodes` + `POST /api/providers` 根路径可用 dashboard LLM API key 认证，两步把一个 baseUrl + 上游 key + 模型注册成可路由节点（模型须带 `{prefix}/` 前缀路由）；`GET/PUT/DELETE` 及子路由仍走 CLI token/JWT。随附 agent 操作指南 `docs/zh-CN/agent-add-custom-provider.md` 与开源 skill `skills/10router-add-provider/`。
 - **公益站供应商默认改为显示**：GoRouter / TaBiAI 等公益站（`community`）供应商从「默认隐藏、需手动打开开关」改为**默认显示**（未显式关闭即显示）——供应商列表、Profile 的「显示公益站供应商」开关、用量页拓扑图三处统一为 `!== false` 语义，不再默认藏起来。
 - **公益站供应商排序归组**：Free Tier 列表中 GoRouter / TaBiAI 等公益站（`community`）供应商在 rank 分组内聚成相邻的一块，不再与普通 freeTier 供应商按 priority/名字混排（rank 连接优先语义不变，公益站块排在同 rank 普通供应商之后）。
@@ -41,11 +56,6 @@
 - **Dashboard Skills 页链接指向不存在的 `master` 分支**：此前 `skills/*` 链接与 "View on GitHub" 均指向 `master`（仓库实际为 `main`），点击 404；统一改走 `main`。页面同时新增展示 **10router-add-provider** 技能卡片（可从 Skills 页复制粘贴给任意 AI agent 使用）。
 - **长 TTFT（time-to-first-token）下客户端假断连（ResponseAborted 循环）**：超大上下文上游（如 CodeBuddy 的 DeepSeek/GLM 在 100K+ token 提示词）首字节可能要 20–30s，这段静默期客户端（网关/卡片 sidecar）看到连接空闲便超时中断 → 反复 ResponseAborted。现于等待首字节期间按 5s 间隔下发 SSE 注释行（`: keep-alive`，规范合法、各 OpenAI/Claude/Gemini 解析器忽略），首字节到达即停止；同时新增断连观测日志（`STREAM-ERR`/`STREAM-CANCEL` 记录 `firstByteSeen`/`keepalivesSent`/耗时，用于判断断连发生在 TTFT 窗口还是流中段）。
 
-### 🐛 Bug 修复（09-04 并入）
-
-- **用量表 成本/Token 切换后显示错乱（用户反馈）**：根因在运行时 i18n（`src/i18n/runtime.js`）与 React 的冲突——观察器只监听 `childList`、看不见 React 原地改写的文本，且会把排序时被移动行的单元格文本重置回首次见到的"原文"（成本模式下的 `￥0.00`），造成 Token 模式下部分行显示金额、部分行显示 token 数的乱表。修复：观察器增加 `characterData` 监听 + 记录 `_i18nApplied`（上次写入值），发现文本被框架合法改写时采纳为新原文而非回退。附带修复：表头"Input Tokens"等被原地更新后漏翻译的问题。复现与修复均在 `next dev` + 真实浏览器验证。
-- **用量表排序语义**：值列（token/成本）排序此前作用于分组前的明细行，组顺序由"组内第一条明细"决定而非组合计值（51M input 的组会排在升序第一位）；现按分组 summary 排序（`UsageStats.js`）。成本模式的排序列字段从 `promptTokens`/`completionTokens` 修正为 `inputCost`/`outputCost`（`UsageTable.js`）。
-- **用量表表头字典补齐**：zh-CN 补 `Cached Cost`；zh-TW 补整个用量表组（Cached/Input Cost/Input Tokens/…/Usage by *，15 条）；APInex 提醒句与 `Invite code` 文案三语同步。
 
 ## v1.0.4 (2026-09-01)
 

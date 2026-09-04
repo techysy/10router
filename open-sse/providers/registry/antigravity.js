@@ -36,8 +36,11 @@ export default {
       },
     },
     usage: {
-      // Discovery (quota/project) on PROD; daily host rejects these.
-      quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+      // Discovery (quota/project) — daily host now serves these (matches the
+      // native IDE client); kept in sync with 9router 70f15aa.
+      quotaApiUrl: `${ANTIGRAVITY_IDE_BASE_URL}/v1internal:fetchAvailableModels`,
+      // Weekly per-family quota summary (Antigravity website "Model Quota" UI parity).
+      quotaSummaryApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
       loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
       tokenUrl: "https://oauth2.googleapis.com/token",
     },
@@ -45,12 +48,18 @@ export default {
     clientSecret: "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",
   },
   models: [
-    // 3.8 is served under plain ids (agy models lists gemini-3.8-flash-high) —
-    // the tiered entity scheme from 3.6/3.7 is NOT active for 3.8 yet; sending
-    // gemini-3.8-flash-tiered(high) 404s with "Requested entity was not found".
-    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" },
-    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
-    { id: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" },
+    // 3.8 uses its own tiered entity family — upstream serves
+    // `gemini-3.8-flash-<tier>(<level>)` (the bare id 404s "Requested entity
+    // was not found"). The un-tiered alias routes to the medium tier.
+    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)", upstreamModelId: "gemini-3.8-flash-high(high)" },
+    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", upstreamModelId: "gemini-3.8-flash-medium(medium)" },
+    { id: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)", upstreamModelId: "gemini-3.8-flash-low(low)" },
+    { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", upstreamModelId: "gemini-3.8-flash-medium(medium)" },
+    // 3.7 tiers share the single `tiered` entity — upstream accepts the bare
+    // `gemini-3.7-flash-tiered` family only; the thinking level rides on
+    // generationConfig.thinkingConfig.thinkingLevel (applied by the thinking
+    // concern), so the registry id keeps its level suffix as the upstream
+    // entity's requested tier.
     { id: "gemini-3.7-flash-high", name: "Gemini 3.7 Flash (High)", upstreamModelId: "gemini-3.7-flash-tiered(high)" },
     { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)", upstreamModelId: "gemini-3.7-flash-tiered(medium)" },
     { id: "gemini-3.7-flash-low", name: "Gemini 3.7 Flash (Low)", upstreamModelId: "gemini-3.7-flash-tiered(low)" },

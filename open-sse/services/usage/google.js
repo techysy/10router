@@ -5,6 +5,7 @@
 import { CLIENT_METADATA } from "../../config/appConstants.js";
 import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION, ANTIGRAVITY_OAUTH_CLIENT } from "../../providers/shared.js";
 import { U, parseResetTime, normalizeCloudCodeProjectId, fetchWithTimeout } from "./shared.js";
+import { fetchAndParseAntigravityWeeklyQuotas } from "./antigravityWeeklyQuota.js";
 
 // Antigravity API config (from Quotio) — urls from registry, oauth client + dynamic UA kept here
 const ANTIGRAVITY_CONFIG = {
@@ -212,9 +213,26 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
       }
     }
 
+    // Weekly quota (per model family) — separate undocumented RPC
+    // (v1internal:retrieveUserQuotaSummary), matching the Antigravity website's
+    // Model Quota UI ("Gemini Models" / "Claude and GPT models" weekly rows).
+    // Best-effort: on failure the per-model quotas above are returned unchanged.
+    let weeklyQuotas = {};
+    try {
+      weeklyQuotas = await fetchAndParseAntigravityWeeklyQuotas(
+        accessToken,
+        projectId,
+        U("antigravity").quotaSummaryApiUrl,
+        ANTIGRAVITY_CONFIG.userAgent,
+        proxyOptions
+      );
+    } catch {
+      weeklyQuotas = {};
+    }
+
     return {
       plan: subscriptionInfo?.currentTier?.name || "Unknown",
-      quotas,
+      quotas: { ...quotas, ...weeklyQuotas },
       subscriptionInfo,
     };
   } catch (error) {

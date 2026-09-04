@@ -9,16 +9,18 @@ describe("Gemini 3.8 Flash Support (Antigravity agy)", () => {
     expect(agIds).toContain("gemini-3.8-flash-high");
     expect(agIds).toContain("gemini-3.8-flash-medium");
     expect(agIds).toContain("gemini-3.8-flash-low");
-    expect(agIds).not.toContain("gemini-3.8-flash");
+    expect(agIds).toContain("gemini-3.8-flash");
   });
 
-  it("maps 3.8 models to plain upstream ids (tiered scheme not active for 3.8)", () => {
-    // Live-verified 2026-09-03: gemini-3.8-flash-tiered(high) 404s with
-    // "Requested entity was not found"; the agy CLI addresses the plain id.
+  it("maps 3.8 models to their own tiered entity ids (matches 9router 70f15aa)", () => {
+    // 9router 70f15aa: 3.8 has its own tiered family — upstream serves
+    // `gemini-3.8-flash-<tier>(<level>)`; the bare id 404s "Requested entity
+    // was not found". The un-tiered alias routes to the medium tier.
     const byId = Object.fromEntries(antigravityRegistry.models.map(m => [m.id, m]));
-    expect(byId["gemini-3.8-flash-high"].upstreamModelId).toBeUndefined();
-    expect(byId["gemini-3.8-flash-medium"].upstreamModelId).toBeUndefined();
-    expect(byId["gemini-3.8-flash-low"].upstreamModelId).toBeUndefined();
+    expect(byId["gemini-3.8-flash-high"].upstreamModelId).toBe("gemini-3.8-flash-high(high)");
+    expect(byId["gemini-3.8-flash-medium"].upstreamModelId).toBe("gemini-3.8-flash-medium(medium)");
+    expect(byId["gemini-3.8-flash-low"].upstreamModelId).toBe("gemini-3.8-flash-low(low)");
+    expect(byId["gemini-3.8-flash"].upstreamModelId).toBe("gemini-3.8-flash-medium(medium)");
   });
 
   it("resolves capabilities correctly for gemini-3.8 models", () => {
