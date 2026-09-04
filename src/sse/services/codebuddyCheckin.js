@@ -284,9 +284,14 @@ export async function runCodebuddyCheckinTick(deps = {}) {
         status: outcome.status,
         ...(outcome.error ? { error: outcome.error } : {}),
       });
-      log.info("CB_CN_CHECKIN", "Check-in result", {
+      const statusLabel =
+        outcome.status === "checked-in"
+          ? "签到成功"
+          : outcome.status === "already"
+            ? "今日已签到"
+            : `失败${outcome.error ? `(${outcome.error})` : ""}`;
+      log.info("CB_CN_CHECKIN", `${conn.name || conn.id}: ${statusLabel}`, {
         id: conn.id,
-        status: outcome.status,
       });
     } catch (err) {
       results.push({ id: conn.id, name: conn.name || conn.id, status: "failed" });

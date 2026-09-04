@@ -1772,7 +1772,7 @@ export default function ProfilePage() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy CN auto daily check-in")}</p>
                 <p className="text-xs sm:text-sm text-text-muted italic">
-                  {translate("Automatically check in CodeBuddy CN accounts once a day (random 00:00–06:00 local); replaces the Import / Export buttons on the CodeBuddy CN page")}
+                  {translate("Automatically check in CodeBuddy CN accounts once a day (random 00:00–06:00 local)")}
                 </p>
               </div>
               <Toggle
@@ -1780,6 +1780,10 @@ export default function ProfilePage() {
                 onChange={toggleCodeBuddyCheckin}
               />
             </div>
+
+            <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
+              {translate("When enabled, the Import / Export buttons on the CodeBuddy CN page are replaced")}
+            </p>
           </div>
         </Card>
 

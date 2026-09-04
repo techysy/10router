@@ -233,16 +233,18 @@ export default function ProviderDetailPage() {
   // Check-in control block (button with hover note). Rendered in place of the
   // import/export buttons when the auto check-in toggle is on.
   const renderCbCheckinBlock = () => (
-    <Button
-      size="sm"
-      icon="calendar_today"
-      onClick={handleCodeBuddyCheckin}
-      disabled={cbCheckinRunning}
-      className="w-full sm:w-auto"
-      title={translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time).")}
-    >
-      {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
-    </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        size="sm"
+        icon="calendar_today"
+        onClick={handleCodeBuddyCheckin}
+        disabled={cbCheckinRunning}
+        className="w-full sm:w-auto"
+        title={translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time)")}
+      >
+        {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
+      </Button>
+    </div>
   );
 
   const handleAgRiskConfirm = () => {
