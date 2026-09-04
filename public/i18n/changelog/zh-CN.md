@@ -9,11 +9,15 @@
 - **邀请码一键复制**：供应商页「获取 API 密钥」旁显示邀请码 chip，点击即复制（APInex：`SLEWP68C`）
 - **CodeBuddy CN 每日自动签到**（实验性，默认关）：`设置 → 实验性功能` 打开 "CodeBuddy CN auto daily check-in" 后，CodeBuddy CN 页面的 Import / Export 按钮被替换为每日自动签到（每个账号在本地时间 00:00–06:00 随机时刻自动签到续免费额度，失败不中断服务、401 自动刷新后重试）与「立即签到」手动按钮
 - **Antigravity 配额对齐官网（5h + 每周双窗）**：用量页 Antigravity 配额重构为主用官网同款 retrieveUserQuotaSummary 接口，每账号精确显示 **4 张卡片**（Gemini Models / Claude and GPT models × {5 小时限额, 周限额}），归一化 100 百分制；接口不可用时回退旧逐模型解析
+- **新搜索供应商 Ollama-Search 与 Xquik**：Ollama-Search 复用本地 Ollama key 搜索；Xquik 接入 X（推特）搜索
+- **OpenCode Free 目录对齐官方免费名单**：补入 Big Pickle / MiMo-V2.5 / Ling 3.0 Flash Fin / Nemotron 3 Ultra / Nemotron 3.5 Lightning 五个免费模型；不收官方已下架的 DeepSeek / Laguna 免费档（避免误用产生收费）
+- **更多新模型**：GLM-5.3-Flash(Vision)、GLM-4.6V、DeepSeek-V4-Flash-Vision-Exp、Grok-4.6、Claude-Fable-5.1 等随上游目录同步加入
 
 ### 🐛 修复
 - **Antigravity `ag/gemini-3.8-flash-*` 404**：模型寻址改为各档 tiered 实体并升级 IDE 指纹至 2.11.0（裸 ID 直传会 404「Requested entity was not found」）；新增无档位 `ag/gemini-3.8-flash`（路由到 medium 档）
 - **用量统计 成本/Token 切换后表格错乱**：修复切换显示模式并点击排序后，部分行的 token 数被回退显示成金额的问题；繁体中文用量表表头翻译补齐
 - **用量表排序语义**：按 Token / 成本列排序改为按模型合计值排序，与表头箭头方向一致
+- **用量页「只看有余额」拉不到新签到配额包**：修复 CodeBuddy CN 每日签到新增的满额包因旧包序号被后续包挤占、被持久化隐藏后显示不出的问题——改为实时重算隐藏集，有余额的包（含新满额包）始终可见
 
 ## v1.0.5 (2026-09-04)
 

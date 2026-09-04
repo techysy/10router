@@ -10,11 +10,15 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Invite code one-click copy**: provider pages show a copyable invite-code chip next to Get API Key (APInex: `SLEWP68C`)
 - **CodeBuddy CN auto daily check-in** (experimental, off by default): with "CodeBuddy CN auto daily check-in" enabled under Settings → Experimental, the Import / Export buttons on the CodeBuddy CN page are replaced by an automatic daily check-in (each account checks in at a random 00:00–06:00 local time to renew free quota; failures never interrupt the service and a 401 triggers one token refresh + retry) plus a manual "Check in now" button
 - **Antigravity quota aligned with the official site (5h + weekly dual window)**: Antigravity quotas on the usage page now use the official retrieveUserQuotaSummary RPC as the primary source, showing exactly **4 cards** per account (Gemini Models / Claude and GPT models × {5-hour, weekly}), normalized to a 0–100 scale; falls back to the old per-model parse when the RPC is unavailable
+- **New search providers Ollama-Search and Xquik**: Ollama-Search reuses your local Ollama key for web search; Xquik connects X (Twitter) search
+- **OpenCode Free catalog aligned with the official free list**: adds Big Pickle / MiMo-V2.5 / Ling 3.0 Flash Fin / Nemotron 3 Ultra / Nemotron 3.5 Lightning; deliberately excludes the DeepSeek / Laguna free tiers the official docs have dropped (avoids accidental paid calls)
+- **More new models**: GLM-5.3-Flash(Vision), GLM-4.6V, DeepSeek-V4-Flash-Vision-Exp, Grok-4.6, Claude-Fable-5.1 and more synced from the upstream catalog
 
 ### 🐛 Fixes
 - **Antigravity `ag/gemini-3.8-flash-*` 404**: model addressing now uses per-tier tiered entities and the IDE fingerprint is bumped to 2.11.0 (bare ids 404 with "Requested entity was not found"); adds the un-tiered `ag/gemini-3.8-flash` (routed to the medium tier)
 - **Usage table corruption after Cost/Token switch**: toggling the display mode and sorting no longer reverts some rows to currency values; Traditional Chinese usage-table headers are now fully translated
 - **Usage table sorting semantics**: token / cost columns now sort model groups by their totals, matching the header arrow direction
+- **"Only with balance" misses newly-checked-in quota packs**: fixed a case where CodeBuddy CN's daily full packs were hidden after older packs were renumbered and the persistent hide never cleared — the hidden set is now recomputed live so any pack with remaining balance (including fresh full packs) always shows
 
 ## v1.0.5 (2026-09-04)
 

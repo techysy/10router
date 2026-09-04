@@ -1,7 +1,7 @@
 {
   "name": "10router-desktop",
   "productName": "10Router",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "10Router 桌面托盘版 — Electron 托盘壳 + Node sidecar",
   "main": "main.js",
   "author": "techysy",

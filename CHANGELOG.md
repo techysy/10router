@@ -11,6 +11,10 @@
 - **新供应商 APInex（apinex.bond）**：第三方预付 USD 中转网关，OpenAI 兼容（`https://api.apinex.bond/v1`，Bearer 认证）。18 个模型（13 付费 + 5 个 `free/` 前缀免费模型，含 GLM-5.3 Flash、DeepSeek V4、GPT-5.6 Luna、Qwen 3.8 MAX），模型 ID 为 `vendor/model` 斜杠形式原样透传，capabilities 按完整 ID 挂 provider 专属表（contextWindow 取自上游目录）。类别 `apikey`、`hasFree`（非公益站，不设 community 标志）。免费模型已用真实 key 实测可用（付费模型 $0 余额返回 402 `billing_error`，Anthropic 系不参与赠送额度）。新增 `notice.inviteCode` 通用字段：供应商详情页两处 + ProviderInfoCard 的 Get API Key 旁渲染可复制邀请码 chip（`InviteCodeChip`，复用 `useCopyToClipboard`），APInex 填 `SLEWP68C`。基线（providers/alias）与 golden 快照已重建。
 - **CodeBuddy CN 每日自动签到**（实验性，默认关）：Profile → 实验性功能 打开 **CodeBuddy CN auto daily check-in** 后，cbcn 详情页的 Import / Export 按钮被替换为**每日自动签到**（每账号本地时间 00:00–06:00 随机时刻自动调用 CodeBuddy 每日签到接口续免费额度，失败放行不崩服务；401 自动刷新一次 token 后重试）与一个**立即签到**手动按钮（汇总 toast；服务端日志 `CB_CN_CHECKIN` 按账号输出「账号名： 状态」）。该开关与 CodeBuddy OAuth import / export 两个实验开关独立、详情页展示互斥。实现：后端调度器 `src/sse/services/codebuddyCheckin.js`（boot 即安全补签 + 次日随机槽定时器，unref、幂等启动，每次触发重读开关），`POST /api/oauth/codebuddy-cn/checkin` 手动签到接口（仅返回状态、不返回任何 token），新设置键 `codeBuddyCheckin`（默认 false，经 GET/PATCH /api/settings 持久化）。
 - **Antigravity 配额对齐官网 Model Quota UI（5h + 每周双窗）**：用量页 Antigravity 配额重构为以 `v1internal:retrieveUserQuotaSummary` 为主数据源 —— 每账号精确 **4 张卡片**（2 个模型族 "Gemini Models" / "Claude and GPT models" × {5 小时限额, 周限额}），各含剩余比例与重置时间，与 antigravity.google 管理页一致；归一化基准改为 100 百分制（原 1000 假次数）。解析兼容显式 `window` 字段与从 bucketId/displayName 文本推断两种形态、兼容顶层与 `remaining.remainingFraction` 嵌套两种字段层级。该接口不可用时优雅回退原 `fetchAvailableModels` 逐模型解析（不再混排 17 假模型）。
+- **上游 v0.5.65 供应商/模型数据同步**：新增 GLM-5.3-Flash(Vision) / GLM-4.6V / DeepSeek-V4-Flash-Vision-Exp / Grok-4.6 / Claude-Fable-5.1 等模型与 Muse-Spark Responses 直连路由；CodeBuddy CN 目录刷新（新增 hy3 / hy4-x / kimi-k3-1，删除 EOL 的 glm-5.0 / 4.7）；`kimi-k2.5` 不随上游回加（维持 EOL 2026-08-31 决定）。
+- **新搜索供应商 Ollama-Search 与 Xquik**：Ollama-Search 复用 Ollama 本地 key 直连搜索；Xquik（X/推特搜索）独立接入。搜索处理器支持凭据回退（`credentialFallback`）与搜索锁按 `websearch:*` 作用域隔离，避免跨 provider 串锁。
+- **OpenCode Free 目录对齐官方「限时免费」名单**：补入 Big Pickle（隐身模型）/ MiMo-V2.5 / Ling 3.0 Flash Fin / Nemotron 3 Ultra / Nemotron 3.5 Lightning 五个免费模型（registry + capabilities）；**刻意不收**上游列表残留的 `deepseek-v4-flash-free` / `laguna-s-2.1-free`（官方文档免费名单已无此二者，避免误用产生收费调用）。
+- **桌面 Windows 双产物**：新增 nsis-web Web 安装器（约 211KB，在线拉取完整包）+ 完整版保留；`appPackageUrl` 用 GitHub `releases/latest/download`；CI 上传 server tar.gz 时不再硬编码 release `name`/`body`（防止重复 run 覆盖手工维护的发布说明）。
 
 ### 🐛 修复
 
@@ -18,6 +22,9 @@
 - **用量表 成本/Token 切换后显示错乱（用户反馈）**：根因在运行时 i18n（`src/i18n/runtime.js`）与 React 的冲突——观察器只监听 `childList`、看不见 React 原地改写的文本，且会把排序时被移动行的单元格文本重置回首次见到的"原文"（成本模式下的 `￥0.00`），造成 Token 模式下部分行显示金额、部分行显示 token 数的乱表。修复：观察器增加 `characterData` 监听 + 记录 `_i18nApplied`（上次写入值），发现文本被框架合法改写时采纳为新原文而非回退。附带修复：表头"Input Tokens"等被原地更新后漏翻译的问题。复现与修复均在 `next dev` + 真实浏览器验证。
 - **用量表排序语义**：值列（token/成本）排序此前作用于分组前的明细行，组顺序由"组内第一条明细"决定而非组合计值（51M input 的组会排在升序第一位）；现按分组 summary 排序（`UsageStats.js`）。成本模式的排序列字段从 `promptTokens`/`completionTokens` 修正为 `inputCost`/`outputCost`（`UsageTable.js`）。
 - **用量表表头字典补齐**：zh-CN 补 `Cached Cost`；zh-TW 补整个用量表组（Cached/Input Cost/Input Tokens/…/Usage by *，15 条）；APInex 提醒句与 `Invite code` 文案三语同步。
+- **用量页「只看有余额」拉不到新配额包（用户反馈）**：CodeBuddy CN 每日签到会新增满额（0/100）Bonus Pack，且旧包过期后后续包会**挤占前面的序号**（pack 名复用）。原「只看有余额」只把耗尽行**加进**持久化隐藏集合、从不移除后来恢复余额的行 → 新满额包顶到曾隐藏的 pack 名上就永远显示不出，得「显示全部」再重筛才回来。修复：抽出 `computeDepletedHiddenKeys`，每次筛选**实时从当前快照重算** hidden —— 只隐藏「当前确实 used≥total / 0-0」的行，任何有余额的行（含新满额包）自动移出隐藏，序号再挤也能看到新包。
+- **更新横幅 / Profile 设置页 i18n 补齐**：侧栏「有新版可用」横幅、更新弹窗与 ManualUpdatePanel 全套文案（复制安装命令 / 倒计时 / 关闭指引）由英文硬编码改为接 translate；更新确认弹窗与服务器断开层的按钮文字补全。设置页 Providers / Experimental / Language / Security / Network / Observability / SSO 各卡**标题与描述**接 translate（此前字典有词条但代码漏接），补 `Regional currency` / `Single Sign-On (SSO)` 等缺失词条；弹窗「取消」按钮加 `whitespace-nowrap` 修复折行成两行。
+- **fetchPublic 安全加固（SSRF）**：`fetchPublic` 增加三层防护 —— ① 域名先解析为 IP 后校验是否回环/私网/保留段（防 DNS rebinding 首跳打到内网）；② 连接建立后再按实际响应 IP 复验一次；③ 重定向跟随时对每个跳转目标重新做 IP 校验，杜绝被 302 带到内网探测。配套 `tests/unit/ssrf-guard-hardening.test.js`。
 
 ## v1.0.5 (2026-09-04)
 
