@@ -2,25 +2,19 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## v1.0.6 (2026-09-04)
+## v1.0.6 (2026-09-05)
 
 ### ✨ 新增
 
-- **新增供應商 APInex（apinex.bond）**：預付美元額度的第三方聚合網關（OpenAI 相容），18 個模型——GPT-5.6 Sol / Terra / Luna、Claude Opus 5 / Sonnet 5、Gemini 3.1 Pro / 3.8 Flash、Grok 4.6、DeepSeek V4、GLM-5.3、Kimi K3，外加 5 個 `free/` 前綴免費模型（GLM-5.3 Flash、DeepSeek V4 雙檔、GPT-5.6 Luna、Qwen 3.8 MAX）
-- **邀請碼一鍵複製**：供應商頁「獲取 API 金鑰」旁顯示邀請碼 chip，點擊即複製（APInex：`SLEWP68C`）
 - **CodeBuddy CN 每日自動簽到**（實驗性，預設關閉）：`設定 → 實驗性功能` 開啟 "CodeBuddy CN auto daily check-in" 後，CodeBuddy CN 頁面的 Import / Export 按鈕被替換為每日自動簽到（每個帳號在本地時間 00:00–06:00 隨機時刻自動簽到續免費額度，失敗不中斷服務、401 自動重新整理後重試）與「立即簽到」手動按鈕
 - **Antigravity 配額對齊官網（5h + 每週雙視窗）**：用量頁 Antigravity 配額重構為主用官網同款 retrieveUserQuotaSummary 介面，每帳號精確顯示 **4 張卡片**（Gemini Models / Claude and GPT models × {5 小時限額, 週限額}），歸一化 100 百分制；介面不可用時回退舊逐模型解析
-- **新搜尋供應商 Ollama-Search 與 Xquik**：Ollama-Search 沿用本機 Ollama key 搜尋；Xquik 接入 X（推特）搜尋
 - **OpenCode Free 目錄對齊官方免費名單**：補入 Big Pickle / MiMo-V2.5 / Ling 3.0 Flash Fin / Nemotron 3 Ultra / Nemotron 3.5 Lightning 五個免費模型；不收官方已下架的 DeepSeek / Laguna 免費檔（避免誤用產生收費）
-- **更多新模型**：GLM-5.3-Flash(Vision)、GLM-4.6V、DeepSeek-V4-Flash-Vision-Exp、Grok-4.6、Claude-Fable-5.1 等隨上游目錄同步加入
 
 ### 🐛 修復
 - **Antigravity `ag/gemini-3.8-flash-*` 404**：模型定址改為各檔 tiered 實體並升級 IDE 指紋至 2.11.0（裸 ID 直傳會 404「Requested entity was not found」）；新增無檔位 `ag/gemini-3.8-flash`（路由到 medium 檔）
-- **用量統計 成本/Token 切換後表格錯亂**：修復切換顯示模式並點擊排序後，部分行的 token 數被回退顯示成金額的問題；繁體中文用量表表頭翻譯補齊
-- **用量表排序語義**：按 Token / 成本列排序改為按模型合計值排序，與表頭箭頭方向一致
 - **用量頁「只看有餘額」拉不到新簽到配額包**：修復 CodeBuddy CN 每日簽到新增的滿額包因舊包序號被後續包擠占、被持久化隱藏後顯示不出的問題——改為即時重算隱藏集，有餘額的包（含新滿額包）始終可見
 
-## v1.0.5 (2026-09-04)
+## v1.0.5 (2026-09-03)
 
 ### ✨ 新增
 
@@ -32,6 +26,13 @@
 - **公益站供應商排序歸組**：Free Tier 列表中 GoRouter / TaBiAI 等公益站供應商在 rank 分組內聚成相鄰一塊，不再與一般 freeTier 依 priority/名稱混排
 - **新增 Agnes AI 雙站供應商**：國際站 Agnes AI（com）+ 中國站 Agnes AI (CN)，各含 Agnes 2.5 Flash / 2.5 Pro 文字模型（512K / 1M 上下文，視覺+推理）；另含 Agnes Image 2.x Flash 影像生成模型（標準 images/generations 端點，圖生圖/編輯）
 - **設定新增「實驗性功能」分組**：Profile 獨立 Experimental 卡片，收納預設關閉的開發向開關（JSON 模型匯入 + CodeBuddy CN 匯入匯出），方便日後擴充
+- **新增供應商 APInex（apinex.bond）**：預付美元額度的第三方聚合網關（OpenAI 相容），18 個模型（13 付費 + 5 個 `free/` 前綴免費模型）；供應商頁顯示可複製邀請碼 chip（APInex：`SLEWP68C`）
+- **上游 v0.5.65 目錄同步 + 新搜尋供應商**：新增 GLM-5.3-Flash(Vision)、GLM-4.6V、DeepSeek-V4-Flash-Vision-Exp、Grok-4.6、Claude-Fable-5.1 等模型；新搜尋供應商 Ollama-Search（沿用本機 Ollama key）與 Xquik（X/推特搜尋）
+
+### 🐛 修復
+- **用量統計 成本/Token 切換後表格錯亂**：修復切換顯示模式並點擊排序後，部分行的 token 數被回退顯示成金額的問題；繁體中文用量表表頭翻譯補齊
+- **用量表排序語義**：按 Token / 成本列排序改為按模型合計值排序，與表頭箭頭方向一致
+
 ## v1.0.4 (2026-09-01)
 
 ### ✨ 新增

@@ -2,25 +2,19 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## v1.0.6 (2026-09-04)
+## v1.0.6 (2026-09-05)
 
 ### ✨ New
 
-- **New provider APInex (apinex.bond)**: prepaid USD-credit third-party gateway (OpenAI-compatible) with 18 models — GPT-5.6 Sol / Terra / Luna, Claude Opus 5 / Sonnet 5, Gemini 3.1 Pro / 3.8 Flash, Grok 4.6, DeepSeek V4, GLM-5.3, Kimi K3, plus 5 `free/`-prefixed free models (GLM-5.3 Flash, DeepSeek V4 ×2, GPT-5.6 Luna, Qwen 3.8 MAX)
-- **Invite code one-click copy**: provider pages show a copyable invite-code chip next to Get API Key (APInex: `SLEWP68C`)
 - **CodeBuddy CN auto daily check-in** (experimental, off by default): with "CodeBuddy CN auto daily check-in" enabled under Settings → Experimental, the Import / Export buttons on the CodeBuddy CN page are replaced by an automatic daily check-in (each account checks in at a random 00:00–06:00 local time to renew free quota; failures never interrupt the service and a 401 triggers one token refresh + retry) plus a manual "Check in now" button
 - **Antigravity quota aligned with the official site (5h + weekly dual window)**: Antigravity quotas on the usage page now use the official retrieveUserQuotaSummary RPC as the primary source, showing exactly **4 cards** per account (Gemini Models / Claude and GPT models × {5-hour, weekly}), normalized to a 0–100 scale; falls back to the old per-model parse when the RPC is unavailable
-- **New search providers Ollama-Search and Xquik**: Ollama-Search reuses your local Ollama key for web search; Xquik connects X (Twitter) search
 - **OpenCode Free catalog aligned with the official free list**: adds Big Pickle / MiMo-V2.5 / Ling 3.0 Flash Fin / Nemotron 3 Ultra / Nemotron 3.5 Lightning; deliberately excludes the DeepSeek / Laguna free tiers the official docs have dropped (avoids accidental paid calls)
-- **More new models**: GLM-5.3-Flash(Vision), GLM-4.6V, DeepSeek-V4-Flash-Vision-Exp, Grok-4.6, Claude-Fable-5.1 and more synced from the upstream catalog
 
 ### 🐛 Fixes
 - **Antigravity `ag/gemini-3.8-flash-*` 404**: model addressing now uses per-tier tiered entities and the IDE fingerprint is bumped to 2.11.0 (bare ids 404 with "Requested entity was not found"); adds the un-tiered `ag/gemini-3.8-flash` (routed to the medium tier)
-- **Usage table corruption after Cost/Token switch**: toggling the display mode and sorting no longer reverts some rows to currency values; Traditional Chinese usage-table headers are now fully translated
-- **Usage table sorting semantics**: token / cost columns now sort model groups by their totals, matching the header arrow direction
 - **"Only with balance" misses newly-checked-in quota packs**: fixed a case where CodeBuddy CN's daily full packs were hidden after older packs were renumbered and the persistent hide never cleared — the hidden set is now recomputed live so any pack with remaining balance (including fresh full packs) always shows
 
-## v1.0.5 (2026-09-04)
+## v1.0.5 (2026-09-03)
 
 ### ✨ New
 
@@ -32,6 +26,13 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Community welfare providers sort into one group**: in the Free Tier list, community providers (GoRouter / TaBiAI) now cluster into one adjacent block per rank group instead of interleaving with regular freeTier providers by priority/name
 - **New Agnes AI dual-site providers**: international **Agnes AI** (com) + **Agnes AI (CN)** — each with Agnes 2.5 Flash / 2.5 Pro text models (512K / 1M context, vision + reasoning), plus Agnes Image 2.x Flash image models (standard images/generations endpoint; image-to-image / editing)
 - **New "Experimental" settings group**: Profile gains a dedicated Experimental card gathering the developer-oriented default-off toggles (Fetch models from GitHub JSON + CodeBuddy CN import/export) for easy future expansion
+- **New provider APInex (apinex.bond)**: prepaid USD-credit third-party gateway (OpenAI-compatible) with 18 models (13 paid + 5 `free/`-prefixed free models); provider pages show a copyable invite-code chip (APInex: `SLEWP68C`)
+- **Upstream v0.5.65 catalog sync + new search providers**: adds GLM-5.3-Flash(Vision), GLM-4.6V, DeepSeek-V4-Flash-Vision-Exp, Grok-4.6, Claude-Fable-5.1 and more; new search providers Ollama-Search (reuses your local Ollama key) and Xquik (X/Twitter search)
+
+### 🐛 Fixes
+- **Usage table corruption after Cost/Token switch**: toggling the display mode and sorting no longer reverts some rows to currency values; Traditional Chinese usage-table headers are now fully translated
+- **Usage table sorting semantics**: token / cost columns now sort model groups by their totals, matching the header arrow direction
+
 ## v1.0.4 (2026-09-01)
 
 ### ✨ New
