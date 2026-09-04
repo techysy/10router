@@ -13,6 +13,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 ### 🐛 Fixes
 - **Antigravity `ag/gemini-3.8-flash-*` 404**: model addressing now uses per-tier tiered entities and the IDE fingerprint is bumped to 2.11.0 (bare ids 404 with "Requested entity was not found"); adds the un-tiered `ag/gemini-3.8-flash` (routed to the medium tier)
 - **"Only with balance" misses newly-checked-in quota packs**: fixed a case where CodeBuddy CN's daily full packs were hidden after older packs were renumbered and the persistent hide never cleared — the hidden set is now recomputed live so any pack with remaining balance (including fresh full packs) always shows
+- **Friendly message for free-model 429 rate limits**: when a free-tier model (`oc/*-free`, `contributor-free`, APInex `free/`-prefixed, etc.) hits an upstream rate limit and returns 429, the raw English `rate_limit_exceeded` is no longer passed through — instead a friendly Chinese message is returned showing an estimated wait ("try again in ~N sec/min/hr") when the upstream supplied a reset time, otherwise advising to retry later or switch to a paid tier. Paid models and multi-account fallback are untouched
 
 ## v1.0.5 (2026-09-03)
 

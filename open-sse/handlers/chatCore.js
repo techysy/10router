@@ -29,6 +29,7 @@ import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { isFreeModel, formatFreeRateLimitMessage } from "../utils/freeModel.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -435,6 +436,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
     }
     reqLogger.logError(new Error(message), finalBody || translatedBody);
+    // Free-tier models hit upstream rate limits often; surface a friendly,
+    // actionable message (with an estimated wait when the upstream gave a reset
+    // time) instead of the raw English rate-limit text. Paid models and
+    // multi-account providers keep their normal fallback path untouched.
+    if (statusCode === 429 && isFreeModel(model)) {
+      const retryAfterMs = resetsAtMs ? Math.max(0, resetsAtMs - Date.now()) : null;
+      return createErrorResult(statusCode, formatFreeRateLimitMessage(provider, model, retryAfterMs), resetsAtMs);
+    }
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 
