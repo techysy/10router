@@ -10,6 +10,7 @@ import {
   calculatePercentage,
   filterQuotasByVisibility,
   getHiddenQuotaRows,
+  computeDepletedHiddenKeys,
   getQuotaVisibilityKey,
   getConnectionLabel,
   getConnectionQuotaRemaining,
@@ -711,28 +712,26 @@ export default function ProviderLimits() {
   );
 
   // Hide every depleted (zero-balance) quota row across the current connections.
+  // This is a live re-filter, not a one-way add: a row that currently HAS balance
+  // (used < total — including a fresh 0/total pack, e.g. CodeBuddy CN's daily
+  // check-in bonus) is removed from `hidden` even if a past click hid it. CodeBuddy
+  // renumbers bonus packs (older ones expire and later packs shift into their
+  // names), so a persistent hide-by-name would otherwise keep a brand-new full
+  // pack invisible under the name of a pack that used to be depleted.
   const handleHideDepletedQuotas = useCallback(() => {
     const previous = quotaVisibility;
     const next = { ...previous };
     let changed = false;
     for (const conn of sortedConnections) {
-      const rawQuotas = quotaData[conn.id]?.quotas || [];
-      if (rawQuotas.length === 0) continue;
-      const key = conn.id;
-      const entryVisibility = next[key] || {};
-      const hidden = new Set(entryVisibility.hidden || []);
-      for (const q of rawQuotas) {
-        if (q.unlimited === true) continue; // genuinely unlimited rows stay visible
-        // Absolute zero-balance: 0/0 (no allowance) or used >= total.
-        const total = q.total || 0;
-        const depleted = total <= 0 || (q.used || 0) >= total;
-        if (depleted) {
-          const qk = getQuotaVisibilityKey(q);
-          if (qk && !hidden.has(qk)) hidden.add(qk);
-        }
-      }
-      if (hidden.size !== (entryVisibility.hidden || []).length) {
-        next[key] = { ...entryVisibility, hidden: [...hidden] };
+      const entryVisibility = next[conn.id] || {};
+      // Live re-filter: rebuild hidden from the CURRENT snapshot. Any legacy key
+      // that is no longer a currently-depleted row (now has balance, went
+      // unlimited, or the pack was renumbered/expired) is dropped automatically.
+      const hiddenList = [...computeDepletedHiddenKeys(quotaData[conn.id]?.quotas || [])];
+      const prevHidden = entryVisibility.hidden || [];
+      if (hiddenList.length !== prevHidden.length ||
+          hiddenList.some((k, i) => k !== prevHidden[i])) {
+        next[conn.id] = { ...entryVisibility, hidden: hiddenList };
         changed = true;
       }
     }

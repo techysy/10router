@@ -351,6 +351,35 @@ export function getHiddenQuotaRows(scopeKey, quotas = [], quotaVisibility = {}, 
 }
 
 /**
+ * Compute the set of quota keys that should be hidden under "Only with balance"
+ * for one connection's CURRENT quota snapshot. A row is hidden only when it has
+ * an absolute zero balance: 0/0 (no allowance) or used >= total. Everything with
+ * remaining credit is kept visible — including a fresh 0/total full pack (e.g. a
+ * CodeBuddy CN daily check-in bonus). Genuinely unlimited rows (unlimited:true)
+ * stay visible regardless.
+ *
+ * Because this recomputes from the live snapshot (rather than appending to a
+ * persistent list), a key that was hidden in the past but whose pack now has
+ * balance — or whose name was taken over by a renumbered brand-new pack — is
+ * dropped, so it shows up again without a manual "show all".
+ *
+ * @param {Array<Object>} quotas - normalized quota rows for one connection
+ * @returns {Set<string>} visibility keys to hide
+ */
+export function computeDepletedHiddenKeys(quotas) {
+  const hidden = new Set();
+  if (!Array.isArray(quotas)) return hidden;
+  for (const q of quotas) {
+    const qk = getQuotaVisibilityKey(q);
+    if (!qk) continue;
+    if (q.unlimited === true) continue;
+    const total = q.total || 0;
+    if (total <= 0 || (q.used || 0) >= total) hidden.add(qk);
+  }
+  return hidden;
+}
+
+/**
  * Parse provider-specific quota structures into normalized array
  * @param {string} provider - Provider name (github, antigravity, codex, kiro, claude)
  * @param {Object} data - Raw quota data from provider

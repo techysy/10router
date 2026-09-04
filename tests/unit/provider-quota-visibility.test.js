@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeDepletedHiddenKeys,
   filterQuotasByVisibility,
   getHiddenQuotaRows,
   parseQuotaData,
@@ -91,5 +92,54 @@ describe("provider quota visibility", () => {
     expect(visible.map((q) => q.name)).toEqual(["Bonus Pack 1"]);
     const hidden = getHiddenQuotaRows("conn-A", quotas, visibility, "codebuddy-cn");
     expect(hidden.map((q) => q.name)).toEqual(["Bonus Pack 2"]);
+  });
+});
+
+describe("computeDepletedHiddenKeys (CodeBuddy CN daily check-in renumbering)", () => {
+  // Normalized rows as produced by parseQuotaData for codebuddy-cn.
+  const pack = (name, used, total, extra = {}) => ({
+    name, used, total, resetAt: "2026-10-05T00:00:00Z", recurring: false, ...extra,
+  });
+
+  it("hides only truly depleted rows (used >= total or 0/0)", () => {
+    const quotas = [
+      pack("Monthly", 500, 500),
+      pack("Bonus Pack 1", 100, 100),       // depleted
+      pack("Bonus Pack 2", 0, 100),         // FRESH full pack — has balance
+      pack("Bonus Pack 3", 0, 9),
+      pack("Bonus Pack 4", 49.68, 100),     // partial
+    ];
+    const hidden = computeDepletedHiddenKeys(quotas);
+    expect(hidden.has("Monthly")).toBe(true);
+    expect(hidden.has("Bonus Pack 1")).toBe(true);
+    expect(hidden.has("Bonus Pack 2")).toBe(false); // fresh 0/100 stays visible
+    expect(hidden.has("Bonus Pack 3")).toBe(false);
+    expect(hidden.has("Bonus Pack 4")).toBe(false);
+  });
+
+  it("keeps a renumbered pack visible after a past hide under the same name", () => {
+    // Earlier, "Bonus Pack 2" was depleted and got hidden persistently. The pack
+    // then expired and CodeBuddy shifted a NEW full pack (0/100) into that name.
+    // Recomputed from the live snapshot, it must NOT be hidden anymore.
+    const quotas = [pack("Bonus Pack 2", 0, 100)]; // fresh, full balance now
+    const hidden = computeDepletedHiddenKeys(quotas);
+    expect(hidden.size).toBe(0);
+  });
+
+  it("ignores rows without a visibility key and keeps unlimited rows visible", () => {
+    const quotas = [
+      { used: 1, total: 1 }, // no name/modelKey
+      pack("Unlimited Row", 999, 999, { unlimited: true }),
+      pack("Depleted", 100, 100),
+    ];
+    const hidden = computeDepletedHiddenKeys(quotas);
+    expect(hidden.has("Depleted")).toBe(true);
+    expect(hidden.has("Unlimited Row")).toBe(false);
+    expect(hidden.size).toBe(1);
+  });
+
+  it("returns an empty set for empty/non-array input", () => {
+    expect(computeDepletedHiddenKeys([]).size).toBe(0);
+    expect(computeDepletedHiddenKeys(null).size).toBe(0);
   });
 });
