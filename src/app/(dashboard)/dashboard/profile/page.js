@@ -1757,7 +1757,7 @@ export default function ProfilePage() {
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy CN OAuth import / export")}</p>
-                <p className="text-xs sm:text-sm text-text-muted italic">
+                <p className="text-xs sm:text-sm text-text-muted">
                   {translate("Show Import / Export buttons on the CodeBuddy CN page (experimental)")}
                 </p>
               </div>
@@ -1771,8 +1771,8 @@ export default function ProfilePage() {
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy CN auto daily check-in")}</p>
-                <p className="text-xs sm:text-sm text-text-muted italic">
-                  {translate("Automatically check in CodeBuddy CN accounts once a day (random 00:00–06:00 local)")}
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Automatically check in accounts once a day (random 00:00–06:00 local)")}
                 </p>
               </div>
               <Toggle
