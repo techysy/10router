@@ -62,6 +62,8 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Experimental: auto daily check-in for CodeBuddy CN accounts.
+  codeBuddyCheckin: false,
 };
 
 async function readRaw() {

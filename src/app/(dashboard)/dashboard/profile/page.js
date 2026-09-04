@@ -169,6 +169,23 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleCodeBuddyCheckin = async () => {
+    const next = !(settings.codeBuddyCheckin === true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codeBuddyCheckin: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSettings((prev) => ({ ...prev, ...data }));
+      }
+    } catch (error) {
+      console.log("Error toggling codebuddy auto check-in:", error);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
@@ -1747,6 +1764,20 @@ export default function ProfilePage() {
               <Toggle
                 checked={settings.codeBuddyOAuthImport === true}
                 onChange={toggleCodeBuddyOAuthImport}
+              />
+            </div>
+
+            {/* CodeBuddy CN auto daily check-in (mutually exclusive UI with import/export) */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">CodeBuddy CN auto daily check-in</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Automatically check in CodeBuddy CN accounts once a day (random 00:00–06:00 local); replaces the Import / Export buttons on the CodeBuddy CN page
+                </p>
+              </div>
+              <Toggle
+                checked={settings.codeBuddyCheckin === true}
+                onChange={toggleCodeBuddyCheckin}
               />
             </div>
           </div>

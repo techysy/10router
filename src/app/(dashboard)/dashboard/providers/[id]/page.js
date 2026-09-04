@@ -72,6 +72,10 @@ export default function ProviderDetailPage() {
   }); // provider JSON catalog (null = not loaded/declared)
   const [modelJsonImportEnabled, setModelJsonImportEnabled] = useState(false); // server-side toggle
   const [codeBuddyOAuthImportEnabled, setCodeBuddyOAuthImportEnabled] = useState(false); // experimental toggle
+  const [codeBuddyCheckinEnabled, setCodeBuddyCheckinEnabled] = useState(false); // experimental auto daily check-in toggle
+  // cbcn check-in manual trigger state: running flag + per-account results.
+  const [cbCheckinRunning, setCbCheckinRunning] = useState(false);
+  const [cbCheckinResults, setCbCheckinResults] = useState(null); // [{id,name,status}] | null
   // cbcn export/import re-auth: { open, action: 'export'|'import', value }
   const [cbPw, setCbPw] = useState({ open: false, action: null, value: "" });
   const [cbImportPassword, setCbImportPassword] = useState(""); // password for bulk-import (passed to modal)
@@ -190,6 +194,81 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Manual CodeBuddy CN daily check-in trigger (only shown when the auto
+  // check-in experimental toggle is on). Returns per-account status only.
+  const handleCodeBuddyCheckin = async () => {
+    setCbCheckinRunning(true);
+    setCbCheckinResults(null);
+    try {
+      const res = await fetch("/api/oauth/codebuddy-cn/checkin", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
+      const list = Array.isArray(data?.results) ? data.results : [];
+      setCbCheckinResults(list);
+      if (list.length === 0) {
+        notify.warning(translate("No CodeBuddy CN connections to check in"));
+        return;
+      }
+      const okCount = list.filter((r) => r.status === "checked-in").length;
+      const alreadyCount = list.filter((r) => r.status === "already").length;
+      const failedCount = list.filter((r) => r.status === "failed").length;
+      if (failedCount === 0) {
+        notify.success(
+          `${translate("Check-in complete")}: ${okCount} ${translate("checked-in")}, ${alreadyCount} ${translate("already checked in")}`
+        );
+      } else {
+        notify.error(
+          `${translate("Check-in complete with errors")}: ${failedCount} ${translate("failed")}`
+        );
+      }
+    } catch (e) {
+      notify.error(translate("Check-in failed") + ": " + e.message);
+    } finally {
+      setCbCheckinRunning(false);
+    }
+  };
+
+  const cbCheckinStatusLabel = (status) => {
+    if (status === "checked-in") return translate("Checked in");
+    if (status === "already") return translate("Already checked in");
+    return translate("Failed");
+  };
+
+  // Check-in control block (button + note + per-account results). Rendered in
+  // place of the import/export buttons when the auto check-in toggle is on.
+  const renderCbCheckinBlock = () => (
+    <div className="flex flex-col items-start gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          icon="calendar_today"
+          onClick={handleCodeBuddyCheckin}
+          disabled={cbCheckinRunning}
+          className="w-full sm:w-auto"
+        >
+          {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
+        </Button>
+      </div>
+      <p className="text-xs text-text-muted">
+        {translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time).")}
+      </p>
+      {cbCheckinResults && cbCheckinResults.length > 0 && (
+        <ul className="mt-1 flex flex-col gap-0.5 text-xs text-text-muted">
+          {cbCheckinResults.map((r) => (
+            <li key={r.id}>
+              <span className="font-medium text-text">{r.name || r.id}</span>
+              {" — "}
+              {cbCheckinStatusLabel(r.status)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   const handleAgRiskConfirm = () => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(AG_RISK_STORAGE_KEY, "true");
@@ -227,6 +306,8 @@ export default function ProviderDetailPage() {
   // Experimental OAuth account transfer (import/export) — shown only for
   // codebuddy-cn AND when the settings toggle is enabled.
   const codeBuddyTransferOn = isCodeBuddy && codeBuddyOAuthImportEnabled;
+  // Experimental auto daily check-in — mutually exclusive display vs import/export.
+  const codeBuddyCheckinOn = isCodeBuddy && codeBuddyCheckinEnabled;
   const staticModels = getModelsByProviderId(providerId);
   const models = providerId === "cursor" && liveModels.length > 0
     ? liveModels
@@ -575,6 +656,9 @@ export default function ProviderDetailPage() {
         }
         if (typeof data.codeBuddyOAuthImport === "boolean") {
           setCodeBuddyOAuthImportEnabled(data.codeBuddyOAuthImport);
+        }
+        if (typeof data.codeBuddyCheckin === "boolean") {
+          setCodeBuddyCheckinEnabled(data.codeBuddyCheckin);
         }
       })
       .catch((e) => console.log("Error reading settings:", e));
@@ -1797,7 +1881,7 @@ export default function ProviderDetailPage() {
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
-                    {codeBuddyTransferOn && (
+                    {codeBuddyTransferOn && !codeBuddyCheckinOn && (
                       <>
                         <Button size="sm" icon="file_download" variant="secondary" onClick={() => openCbPassword("export")}>
                           {translate("Export")}
@@ -1807,6 +1891,7 @@ export default function ProviderDetailPage() {
                         </Button>
                       </>
                     )}
+                    {codeBuddyCheckinOn && renderCbCheckinBlock()}
                   </>
                 ) : (
                   <>
@@ -1908,7 +1993,7 @@ export default function ProviderDetailPage() {
                       >
                         {apiKeyConnectionLabel}
                       </Button>
-                      {codeBuddyTransferOn && (
+                      {codeBuddyTransferOn && !codeBuddyCheckinOn && (
                         <>
                           <Button
                             size="sm"
@@ -1930,6 +2015,7 @@ export default function ProviderDetailPage() {
                           </Button>
                         </>
                       )}
+                      {codeBuddyCheckinOn && renderCbCheckinBlock()}
                     </>
                   ) : (
                     <Button

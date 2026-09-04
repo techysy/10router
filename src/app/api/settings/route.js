@@ -108,6 +108,18 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
+    // Experimental CodeBuddy CN auto check-in: when the toggle flips on at
+    // runtime, (re)start the scheduler. It re-reads the flag on every fire, so
+    // turning it off later needs no extra wiring. Module is idempotent.
+    if (
+      Object.prototype.hasOwnProperty.call(body, "codeBuddyCheckin") &&
+      settings.codeBuddyCheckin === true
+    ) {
+      import("@/sse/services/codebuddyCheckin.js")
+        .then(({ startCodebuddyCheckin }) => startCodebuddyCheckin())
+        .catch((error) => console.warn("[CodeBuddyCheckin] start failed:", error.message));
+    }
+
     const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });

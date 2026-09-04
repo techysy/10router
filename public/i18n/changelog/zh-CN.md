@@ -11,6 +11,7 @@
 - **CLI / 桌面版界面多语言**：npm CLI 与桌面托盘自动跟随系统语言显示简体中文、繁体中文或英文，可用环境变量 `TENROUTER_LANG`（`zh-CN` / `zh-TW` / `en`）强制指定
 - **Agent 可自助添加自定义供应商 + Skills 页新增技能**：运行时用 dashboard LLM key 即可两步注册 baseUrl + 上游 key + 模型的自定义 OpenAI/Anthropic 兼容节点（免改源码/免重打包）；Dashboard **Skills 页**新增「10router-add-provider」技能卡片并修复此前链接指向不存在的 `master` 分支（点击 404），现指向 `main`
 - **CodeBuddy CN 账号 JSON 批量导入 / 导出**（实验性，默认关）：`设置 → Providers` 打开 "CodeBuddy CN OAuth import / export" 后，CodeBuddy CN 详情页显示 Import / Export 按钮，可用三方(wb) JSON 格式批量导入或导出账号授权（导入自动去重、非 CodeBuddy 签发域跳过）。导入 / 导出均需二次输入 dashboard 密码确认（防免登录模式下匿名导出账号令牌）
+- **CodeBuddy CN 每日自动签到**（实验性，默认关）：`设置 → 实验性功能` 打开 "CodeBuddy CN auto daily check-in" 后，CodeBuddy CN 页面的 Import / Export 按钮被替换为每日自动签到（每个账号在本地时间 00:00–06:00 随机时刻自动签到续免费额度，失败不中断服务、401 自动刷新后重试）与「立即签到」手动按钮（显示各账号 已签到 / 今日已签到 / 失败）
 - **公益站供应商默认显示**：GoRouter / TaBiAI 等公益站供应商改为默认显示（无需再手动打开开关），列表 / Profile 开关 / 用量拓扑图三处一致
 - **公益站供应商排序归组**：Free Tier 列表中 GoRouter / TaBiAI 等公益站供应商在 rank 分组内聚成相邻一块，不再与普通 freeTier 按 priority/名字混排
 - **新增 Agnes AI 双站供应商**：国际站 Agnes AI（com）+ 中国站 Agnes AI (CN)，各含 Agnes 2.5 Flash / 2.5 Pro 文本模型（512K / 1M 上下文，视觉+推理）；另含 Agnes Image 2.x Flash 图像生成模型（标准 images/generations 端点，图生图/编辑）

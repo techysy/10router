@@ -123,6 +123,16 @@ async function runHeavyStartup() {
   import("@/sse/services/backgroundTokenRefresh.js")
     .then(({ startBackgroundTokenRefresh }) => startBackgroundTokenRefresh())
     .catch((e) => console.log("[BackgroundTokenRefresh] scheduler start failed:", e.message));
+
+  // Experimental CodeBuddy CN auto daily check-in. Started only when the toggle
+  // is on at boot; each scheduled fire re-reads the flag and no-ops when turned
+  // off later, so no restart is needed to disable it. Turning it on at runtime
+  // from the UI is handled by the PATCH /api/settings route.
+  if (settings.codeBuddyCheckin === true) {
+    import("@/sse/services/codebuddyCheckin.js")
+      .then(({ startCodebuddyCheckin }) => startCodebuddyCheckin())
+      .catch((e) => console.log("[CodeBuddyCheckin] scheduler start failed:", e.message));
+  }
 }
 
 function hasQuotaAutoPingEnabled(settings) {
