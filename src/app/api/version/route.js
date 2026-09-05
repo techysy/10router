@@ -61,11 +61,13 @@ export async function GET() {
   const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
 
   // Install-source marker: fnOS fpk launches the server with INSTALL_CHANNEL=fpk
-  // (fnos-packaging/cmd/main); npm/Docker/standalone leave it unset. For fpk the
-  // npm install command is wrong in every direction — updates ship as fpk
-  // packages attached to the matching GitHub release, so hand the UI that URL.
+  // (fnos-packaging/cmd/main); the desktop tray shell sets INSTALL_CHANNEL=desktop
+  // (desktop/main.js sidecar env); npm/Docker/standalone leave it unset. For both
+  // non-npm channels the npm install command is wrong — updates ship as fpk /
+  // desktop installers attached to the matching GitHub release, so hand the UI
+  // that URL.
   const installChannel = process.env.INSTALL_CHANNEL || "";
-  const releaseUrl = installChannel === "fpk"
+  const releaseUrl = installChannel === "fpk" || installChannel === "desktop"
     ? `${GITHUB_CONFIG.repoUrl}/releases/tag/v${latestVersion || currentVersion}`
     : null;
 

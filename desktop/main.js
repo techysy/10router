@@ -63,6 +63,21 @@ const STRINGS = {
         'err.startFailedBody': 'Failed to launch the service process:\n{message}',
         'win.notReadyTitle': 'Service not ready',
         'win.notReadyBody': 'Please use the tray icon menu "Start Service" and try again.',
+        'menu.checkUpdate': 'Check for Updates',
+        'menu.about': 'About 10Router',
+        'update.failedTitle': 'Update check failed',
+        'update.failedBody': 'Could not reach the local service. Start it first, then try again.',
+        'update.availableTitle': 'New version available',
+        'update.availableBody': 'v{latest} is available (you are on v{current}).\n\nDesktop updates install a new version from GitHub Releases — download the installer for your platform there.',
+        'update.openReleases': 'Open Releases',
+        'update.latestTitle': 'Up to date',
+        'update.latestBody': 'You are on the latest version v{current}.',
+        'update.balloonBody': 'v{latest} is available (current v{current}). Open the tray menu "Check for Updates" to visit the Releases download page.',
+        'about.detail': 'FREE AI Router & Token Saver\n\nVersion: v{version}\nShell: v{shell}\nData folder: {dataDir}',
+        'about.github': 'GitHub Page',
+        'dialog.later': 'Later',
+        'dialog.ok': 'OK',
+        'dialog.close': 'Close',
     },
     'zh-CN': {
         'status.stopped': '服务未运行',
@@ -94,6 +109,21 @@ const STRINGS = {
         'err.startFailedBody': '服务进程启动失败:\n{message}',
         'win.notReadyTitle': '服务未就绪',
         'win.notReadyBody': '请从托盘图标菜单「启动服务」后重试。',
+        'menu.checkUpdate': '检查更新',
+        'menu.about': '关于 10Router',
+        'update.failedTitle': '检查更新失败',
+        'update.failedBody': '无法连接本地服务,请先启动服务后重试。',
+        'update.availableTitle': '发现新版本',
+        'update.availableBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n桌面版请前往 GitHub Releases 下载对应平台的安装包更新。',
+        'update.openReleases': '打开 Releases 页面',
+        'update.latestTitle': '已是最新版本',
+        'update.latestBody': '当前 v{current} 已是最新版本。',
+        'update.balloonBody': '发现新版本 v{latest}(当前 v{current})。可打开托盘菜单「检查更新」前往 Releases 下载页。',
+        'about.detail': 'FREE AI Router & Token Saver\n\n版本: v{version}\n壳版本: v{shell}\n数据目录: {dataDir}',
+        'about.github': 'GitHub 主页',
+        'dialog.later': '稍后',
+        'dialog.ok': '好',
+        'dialog.close': '关闭',
     },
     'zh-TW': {
         'status.stopped': '服務未執行',
@@ -125,6 +155,21 @@ const STRINGS = {
         'err.startFailedBody': '服務程序啟動失敗:\n{message}',
         'win.notReadyTitle': '服務未就緒',
         'win.notReadyBody': '請從系統列圖示選單「啟動服務」後重試。',
+        'menu.checkUpdate': '檢查更新',
+        'menu.about': '關於 10Router',
+        'update.failedTitle': '檢查更新失敗',
+        'update.failedBody': '無法連線本地服務,請先啟動服務後重試。',
+        'update.availableTitle': '發現新版本',
+        'update.availableBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n桌面版請前往 GitHub Releases 下載對應平台的安裝包更新。',
+        'update.openReleases': '開啟 Releases 頁面',
+        'update.latestTitle': '已是最新版本',
+        'update.latestBody': '目前 v{current} 已是最新版本。',
+        'update.balloonBody': '發現新版本 v{latest}(目前 v{current})。可開啟系統列選單「檢查更新」前往 Releases 下載頁。',
+        'about.detail': 'FREE AI Router & Token Saver\n\n版本: v{version}\n殼版本: v{shell}\n資料目錄: {dataDir}',
+        'about.github': 'GitHub 首頁',
+        'dialog.later': '稍後',
+        'dialog.ok': '好',
+        'dialog.close': '關閉',
     },
 };
 
@@ -271,6 +316,9 @@ async function startServer() {
         NODE_ENV: 'production',
         PORT: String(PORT),
         HOSTNAME: '0.0.0.0',            // 与 CLI 一致,局域网设备可直接访问
+        // 安装渠道标记:仪表盘「检查更新」据此显示 GitHub Releases 链接而非
+        // npm 安装命令(桌面版更新 = 下载新安装包,更新 npm 包碰不到内嵌 cli/app)。
+        INSTALL_CHANNEL: 'desktop',
     };
     delete env.NODE_OPTIONS;            // Electron 的 NODE_OPTIONS 白名单与纯 Node 不同,避免干扰
     log(`start server: ${process.execPath} ${serverPath} (data=${DATA_DIR})`);
@@ -307,6 +355,7 @@ async function startServer() {
         notify(tr('notify.started'), `${DASHBOARD_URL}${lanIp ? tr('notify.lanHint', { ip: lanIp, port: PORT }) : ''}`);
         if (!win || win.isDestroyed()) createWindow();      // 启动成功直接打开界面
         else win.loadURL(DASHBOARD_URL).catch(() => { });
+        autoCheckUpdate();                    // 静默检查,仅发现新版本时弹托盘气泡引导
     } else {
         setState('stopped');
         if (nodeProc) { try { killProcTree(nodeProc.pid); } catch { } }
@@ -407,18 +456,103 @@ const STATE_LABEL = {
     external: () => tr('status.external'),
 };
 
+const RELEASES_URL = 'https://github.com/techysy/10router/releases';
+
+function fetchJson(url, timeoutMs = 8000) {
+    return new Promise((resolve, reject) => {
+        const req = http.get(url, { timeout: timeoutMs }, (res) => {
+            let data = '';
+            res.on('data', (c) => (data += c));
+            res.on('end', () => {
+                try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    });
+}
+
+// 检查更新:走本地服务 /api/version(免鉴权,带 npm latest 1h 缓存),
+// 与 fpk/CLI 同一数据源;桌面版结果以对话框呈现并引导去 Releases 下载安装包。
+async function checkForUpdates() {
+    let info = null;
+    try {
+        info = await fetchJson(`${BASE_URL}/api/version`);
+    } catch { /* 服务未运行/网络失败 */ }
+    if (!info || !info.currentVersion) {
+        dialog.showMessageBox({ type: 'warning', title: tr('update.failedTitle'), message: tr('update.failedTitle'), detail: tr('update.failedBody'), buttons: [tr('dialog.ok')] });
+        return;
+    }
+    if (info.hasUpdate) {
+        const relUrl = info.releaseUrl || RELEASES_URL;
+        const choice = await dialog.showMessageBox({
+            type: 'info',
+            title: tr('update.availableTitle'),
+            message: tr('update.availableTitle'),
+            detail: tr('update.availableBody', { latest: info.latestVersion, current: info.currentVersion }),
+            buttons: [tr('update.openReleases'), tr('dialog.later')],
+            defaultId: 0,
+            cancelId: 1,
+        });
+        if (choice.response === 0) shell.openExternal(relUrl);
+    } else {
+        dialog.showMessageBox({ type: 'info', title: tr('update.latestTitle'), message: tr('update.latestTitle'), detail: tr('update.latestBody', { current: info.currentVersion }), buttons: [tr('dialog.ok')] });
+    }
+}
+
+// 启动后静默检查更新:仅发现新版本时弹托盘气泡引导(点击气泡打开 Releases);
+// 无更新/网络失败均静默,不打扰。与手动「检查更新」菜单项互补。
+async function autoCheckUpdate() {
+    try {
+        const info = await fetchJson(`${BASE_URL}/api/version`);
+        if (info && info.hasUpdate && info.latestVersion) {
+            notify(
+                tr('update.availableTitle'),
+                tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
+            );
+        }
+    } catch { /* 静默失败 */ }
+}
+
+function showAbout() {
+    dialog.showMessageBox({
+        type: 'info',
+        title: '10Router',
+        message: '10Router',
+        detail: tr('about.detail', { version: getServiceVersion(), shell: app.getVersion(), dataDir: DATA_DIR }),
+        buttons: [tr('about.github'), tr('dialog.close')],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+    }).then((r) => { if (r.response === 0) shell.openExternal('https://github.com/techysy/10router'); });
+}
+
+// 内嵌服务版本 = resources/app/package.json 的 version(打包时与壳版本同步,
+// 开发模式下回退壳版本);读不到不致命。
+function getServiceVersion() {
+    try {
+        return require(path.join(APP_DIR, 'package.json')).version || app.getVersion();
+    } catch { return app.getVersion(); }
+}
+
 function rebuildMenu() {
     if (!tray) return;
     const canOpen = state === 'running' || state === 'external';
+    // 启动/停止合一:按当前状态显示唯一动作项(菜单更短,语义更明确)
+    const toggleItem = state === 'running'
+        ? { label: tr('menu.stop'), enabled: true, click: () => stopServer() }
+        : state === 'starting'
+            ? { label: tr('menu.start'), enabled: false }
+            : { label: tr('menu.start'), enabled: state === 'stopped', click: () => startServer() };
     const menu = Menu.buildFromTemplate([
         { label: tr('menu.open'), enabled: canOpen, click: createWindow },
         { label: tr('menu.openInBrowser'), enabled: canOpen, click: () => shell.openExternal(DASHBOARD_URL) },
         { type: 'separator' },
         { label: STATE_LABEL[state](), enabled: false },
-        { label: tr('menu.start'), enabled: state === 'stopped', click: () => startServer() },
+        toggleItem,
         { label: tr('menu.restart'), enabled: state === 'running', click: () => restartServer() },
-        { label: tr('menu.stop'), enabled: state === 'running' || state === 'starting', click: () => stopServer() },
         { type: 'separator' },
+        { label: tr('menu.checkUpdate'), click: () => checkForUpdates() },
         {
             label: tr('menu.autostart'),
             type: 'checkbox',
@@ -429,6 +563,7 @@ function rebuildMenu() {
         { type: 'separator' },
         { label: tr('menu.openDataDir'), click: () => shell.openPath(DATA_DIR) },
         { label: tr('menu.openLogs'), click: () => shell.openPath(path.join(LOG_DIR, 'server.log')) },
+        { label: tr('menu.about'), click: () => showAbout() },
         { type: 'separator' },
         {
             label: tr('menu.quit'),

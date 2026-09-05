@@ -135,16 +135,18 @@ export default function Sidebar({ onClose }) {
               <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
                 {translate("↑ New version available:")} v{updateInfo.latestVersion}
               </span>
-              {updateInfo.installChannel === "fpk" ? (
-                /* fnOS fpk: npm install commands don't apply — the update ships as an fpk
-                   package attached to the matching GitHub release. */
+              {updateInfo.installChannel === "fpk" || updateInfo.installChannel === "desktop" ? (
+                /* fpk / desktop: npm install commands don't apply — the update ships as an
+                   fpk / desktop installer attached to the matching GitHub release. */
                 <a
                   href={updateInfo.releaseUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors text-center"
                 >
-                  {translate("Get the fpk from Releases")}
+                  {updateInfo.installChannel === "fpk"
+                    ? translate("Get the fpk from Releases")
+                    : translate("Get the installer from Releases")}
                 </a>
               ) : (
                 <div className="flex items-center gap-2">

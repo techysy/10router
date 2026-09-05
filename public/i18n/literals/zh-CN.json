@@ -1504,6 +1504,7 @@
   "Show Import / Export buttons on the CodeBuddy CN page (experimental)": "在 CodeBuddy CN 页面显示 Import / Export 按钮",
   "↑ New version available:": "检测到新版本：",
   "Get the fpk from Releases": "从 Releases 获取 fpk",
+  "Get the installer from Releases": "从 Releases 获取安装包",
   "copied!": "已复制！",
   "Show Command": "显示命令",
   "Show install command for v${version}? You can copy it and shutdown to install manually.": "显示 v${version} 的安装命令？您可以复制后关闭，手动安装。",

@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.0.7 (TBD)
+
+### ✨ 新增功能
+
+- **桌面托盘版更新链路适配 + 菜单精简**：① sidecar 启动注入 `INSTALL_CHANNEL=desktop`，`/api/version` 对该渠道返回 GitHub Releases 链接（与 fpk 同机制），仪表盘更新横幅对桌面版显示「从 Releases 获取安装包」而非错误的 `npm i -g` 命令/一键更新（桌面版更新 npm 包碰不到内嵌 cli/app，updater 重启也会拉起 CLI 而非 Electron 壳）；② 托盘菜单「启动服务/停止服务」合一为按状态显示的单动作项（菜单 11 项 → 更短），新增「检查更新」（走本地 `/api/version`，发现新版本弹框引导打开 Releases）与「关于 10Router」（版本/数据目录/GitHub 链接）；③ 服务启动成功后静默自动检查一次，仅发现新版本时弹托盘气泡引导（无更新/失败不打扰）。三语词条齐（en/zh-CN/zh-TW）。增量更新（blockmap 差量下载）评估：electron-builder 已产 `.blockmap`，但 electron-updater 差量更新要求应用代码签名（当前构建无证书、signing skipped），留待有签名证书后接入。
+
 ## v1.0.6 (2026-09-05)
 
 > v1.0.5（2026-09-03，含最后一次 tag 移动并入的 APInex / 用量表修复 / 上游 v0.5.65 同步）之后的新增功能版：CodeBuddy CN 每日自动签到、Antigravity Gemini 3.8 Flash 修复 + 配额对齐官网（5h+每周）、OpenCode Free 免费目录对齐、Windows Web 安装器、quota「只看有余额」实时重算、更新横幅与 Profile i18n 补齐。
