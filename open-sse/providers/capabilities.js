@@ -111,6 +111,10 @@ export const MODEL_CAPABILITIES = {
 
   // GLM vision variant (text GLM has no vision)
   "glm-4.6v":          { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000 },
+  // Zhipu official free-tier vision flash — separate model from glm-4.6v
+  // (different pricing tier; free permanent). Exact id casing as registered
+  // via the dashboard custom provider, so exact-match wins before *glm-4*.
+  "GLM-4.6V-Flash":    { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 200000 },
   "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
 
   // Qwen plain coder/text (no vision) — registry "vision-model" / "coder-model" aliases

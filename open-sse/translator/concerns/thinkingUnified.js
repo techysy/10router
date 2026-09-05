@@ -282,9 +282,12 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels) {
     case "deepseek": {
       if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
       body.thinking = { type: "enabled" };
-      // DeepSeek: low/medium→high, xhigh/max→max.
+      // DeepSeek: low/medium→high, xhigh/max→xhigh. SenseNova's DeepSeek V4
+      // endpoint rejects "max" ("field ReasoningEffort invalid, should be one
+      // of: low, medium, high, xhigh, none") while DeepSeek-official accepts it,
+      // so clamp to the widest shared value.
       const level = toLevel(eff);
-      body.reasoning_effort = level === "xhigh" || level === "max" ? "max" : "high";
+      body.reasoning_effort = level === "xhigh" || level === "max" ? "xhigh" : "high";
       break;
     }
     case "kimi": {

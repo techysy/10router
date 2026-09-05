@@ -32,7 +32,11 @@ export class CodeBuddyExecutor extends DefaultExecutor {
     // wipe the agent's full identity/role/tool memory on every new session
     // ("失忆"). Match on unique markers that won't appear in an attacker-controlled
     // prompt (product names, official-signature phrases).
-    const WHITELIST_PATTERN = /hermes|10router|9router|\bclaude code by anthropic\b|anthropic's official cli|\bsystem instructions\b|你的身份|你的角色设定/i;
+    // NOTE: "anthropic's official cli" was removed from the whitelist — Claude Code's
+    // own system prompt opens with exactly that phrase ("You are Claude Code,
+    // Anthropic's official CLI for Claude"), so whitelisting it let the raw agent
+    // identity through and Tencent's filter rejected the request (400 code 11128).
+    const WHITELIST_PATTERN = /hermes|10router|9router|\bclaude code by anthropic\b|\bsystem instructions\b|你的身份|你的角色设定/i;
     const flatten = (content) =>
       typeof content === "string"
         ? content
