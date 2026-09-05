@@ -7,6 +7,21 @@
 ### ✨ 新增功能
 
 - **桌面托盘版更新链路适配 + 菜单精简**：① sidecar 启动注入 `INSTALL_CHANNEL=desktop`，`/api/version` 对该渠道返回 GitHub Releases 链接（与 fpk 同机制），仪表盘更新横幅对桌面版显示「从 Releases 获取安装包」而非错误的 `npm i -g` 命令/一键更新（桌面版更新 npm 包碰不到内嵌 cli/app，updater 重启也会拉起 CLI 而非 Electron 壳）；② 托盘菜单「启动服务/停止服务」合一为按状态显示的单动作项（菜单 11 项 → 更短），新增「检查更新」（走本地 `/api/version`，发现新版本弹框引导打开 Releases）与「关于 10Router」（版本/数据目录/GitHub 链接）；③ 服务启动成功后静默自动检查一次，仅发现新版本时弹托盘气泡引导（无更新/失败不打扰）。三语词条齐（en/zh-CN/zh-TW）。增量更新（blockmap 差量下载）评估：electron-builder 已产 `.blockmap`，但 electron-updater 差量更新要求应用代码签名（当前构建无证书、signing skipped），留待有签名证书后接入。
+- **上游 9router v0.5.69 择优移植·第一批**（`2adcd9c4`，按「重实现不合并」惯例）：① **antigravity/gemini-cli 多账号后台刷新防风控**——OAuth 后台刷新由 `Promise.allSettled` 并行改为串行 + 分级抖动（Google 系 12s、常规 1.5s，`BG_REFRESH_GOOGLE_DELAY_MS`/`BG_REFRESH_DELAY_MS` 可调），onboard 重试 5×2s → 2×12s+抖动（`ONBOARD_MAX_ATTEMPTS`/`ONBOARD_RETRY_DELAY_MS`），多账号用户不再触发 Google 反滥用风控；② **anthropic-compatible-* 前置真 Claude 补发 beta flag**——自定义节点挂真 Claude 时补 `context-management-2025-06-27` 等头，修 `context_management: Extra inputs are not permitted` 400 静默换模型（按模型 id 门控，前置 Kimi/GLM 的节点不受扰）；③ **opencode-go 稳定 session**——新专属 executor 维护 `x-opencode-session`（原生头优先 → 按「会话+客户端工具」确定性翻译），免费池不再因每请求随机会话触发风控；④ **Responses 并行工具调用修复**——`output_item.added` 即分配 index 并按 item_id 路由 delta，修全 added-后-delta 乱序把 N 个并行调用并进 index 0（客户端 InputValidationError），call_id 同毫秒回退加进程级序列防碰撞；⑤ **Claude Fable 周配额追踪**（`seven_day_fable`/`fable` 归一 + 仅周窗口时回填展示行，仪表盘 claude 配额固定排序）；⑥ **codex 新模型**——gpt-6-astra（vision/thinking/search，272k）四表齐上 + GPT-5.6 Sol/Terra/Luna image 变体；⑦ **codebuddy-cn 目录对齐服务端契约**——删 glm-5.0-turbo/minimax-m2.7/kimi-k2.5/hy3-preview/hy3-x/hy4-preview-x/deepseek-v3-2-volc 七个不再发布的模型（保留 kimi-k3 / deepseek-v4-flash-vision-exp 本地增量），能力表按服务端 product-config 重校（glm-5.3/5.3-flash/5.2/deepseek thinkingCanDisable=true、kimi-k3-1 1M 窗口），thinkingLevels 补 per-model effort sets，与 docs/zh-CN/codebuddy-cn-error-codes.md 错误码速查配套；⑧ glm/glm-cn 补 glm-5-turbo；⑨ profile 页按 hostname 动态显示 Local/Remote Mode；⑩ 后台刷新日志降噪。
+- **上游 v0.5.69 择优移植·第二批**（`00c8e002`）：① **qoder 目录刷新 + 图片透传**——模型清单对齐服务端（新增 lite/Qwen3.8-Max/Qwen3.8-Flash/GLM-5.3/GLM-5.3-Flash，删 qmodel_preview/gm51model），capabilities 补 qoder 全表（真实模型家族窗口/输出上限；thinkingCanDisable 全 false——客户端 thinking 意图被上游丢弃），executor 图片透传（OpenAI `image_url` 与 Claude image 均转 OpenAI 形态，base64 直传免 OSS 预上传），chat_record_id 纳入数组内容哈希（同 prompt 不同图不撞缓存）；② **仪表盘 antigravity 配额按家族分组**——gemini-*/claude-* 归并单行（取最耗尽成员为代表），image 等保持独立，hide/show 级联 + hidden 陈旧 key 读侧修剪；保留我们优于上游的**按连接隔离**（上游按 provider 共享会跨账号串扰），多账号互不影响；③ **copilot 弃 MITM 改 VS Code 扩展指南**——CLI 工具页 copilot 从 MITM 拦截改为三步扩展配置指引（`9Router for Github Copilot` 扩展 + Server URL/API Key + Copilot Chat 选模型），MITM 引擎层保留可手动配置随时回退。
+
+### 🐛 修复
+
+- **`/responses` 根路径重写鉴权缺口（安全）**：dashboardGuard 的 `PUBLIC_PREFIXES` 此前不含 `/responses`，而中间件先于 Next.js rewrites 执行——根路径请求落在 guard「未知路径放行」分支后经重写直达 `/api/v1/responses` 公开 LLM handler，**远端无需 API key** 即可调用；补入前缀表后该路径与 `/v1/*` 同样强制 API key 校验（对齐上游 98579f98）。
+- **Claude 组合回落产生的外来 `server_tool_use` 毒化历史（400）**：组合回落到自带内置工具的供应商（如 z.ai/glm 的 `call_` id analyze_image）后，历史里残留非 `srvtoolu_` 前缀的 server_tool_use 块，后续每个 Claude 回合整请求被 Anthropic 400 拒绝——passthrough 归一化现按 `^srvtoolu_[A-Za-z0-9_]+$` 校验并丢弃外来块，连带清理其 tool_result 半边（悬空 tool_result 同样 400），顺带清空文本块与清空消息（Anthropic 拒绝空 text 块）。
+- **MCP 延迟工具破坏缓存锚点（400）**：Anthropic 拒绝同时携带 `defer_loading:true` 与 `cache_control` 的工具（MCP 客户端把延迟工具放尾部恰是锚点落点）——缓存锚点改为锚在最后一个**可缓存**工具上（`anchorClaudeCache` 与 `prepareClaudeRequest` 两处），不再整体丢缓存。
+- **gemini schema 元组校验 400**：`prefixItems`/`additionalItems`（元组关键词）此前被静默剥离，`type:"array"` 缺 `items` 被 Gemini 以 "missing field" 拒绝——先转换 `prefixItems` → `items`（单变体直取/多变体 anyOf）再剥离残留，数组缺 items 补宽松占位。
+- **antigravity 系统提示竞争品牌清洗泛化（防误判 429）**：Zed 的 Claude 提示词此前只剥一句，OpenCode 命名仍会触发后端 429 Quota Exhausted——改为规则表（Claude Agent SDK 句剥除 + `opencode` 大小写变体改写为 antigravity）。
+- **免费模型后台刷新噪音与连接测试悬挂**：① 后台刷新 tick 高频 debug/info 日志降噪；② 连接测试加 15s 超时防挂起耗尽连接池，供应商搜索对空名守卫（对齐上游 df85e16d）。
+
+### 📄 文档
+
+- **CodeBuddy-CN 上游错误码速查**（`78ffd238`，社区贡献）：中英双语对照 11101/11128/11133/11150/11151 与 429/401/402 的成因与出路，登记进 docs README。
 
 ## v1.0.6 (2026-09-05)
 
