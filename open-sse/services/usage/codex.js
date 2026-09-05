@@ -25,6 +25,15 @@ function getCodexAccountId(providerSpecificData) {
   return providerSpecificData?.workspaceId || providerSpecificData?.accountId || providerSpecificData?.chatgptAccountId || null;
 }
 
+// Upstream error bodies vary: {message}, {error: "..."} or {error:{message}},
+// {detail}. Stringify whatever shape arrives so the UI never shows [object Object].
+function errorMessage(value, fallback) {
+  if (!value) return fallback;
+  if (typeof value === "string") return value;
+  if (typeof value.message === "string") return value.message;
+  return JSON.stringify(value);
+}
+
 function getCodexRateLimitBody(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
   return snapshot.rate_limit && typeof snapshot.rate_limit === "object"
@@ -142,7 +151,7 @@ export async function getCodexRateLimitResetCredits(accessToken, proxyOptions = 
   }
 
   if (!response.ok) {
-    const message = data?.message || data?.error || data?.detail || `Codex reset credits API unavailable (${response.status}).`;
+    const message = errorMessage(data?.message || data?.error || data?.detail, `Codex reset credits API unavailable (${response.status}).`);
     throw new Error(message);
   }
 

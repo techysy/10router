@@ -143,3 +143,26 @@ describe("computeDepletedHiddenKeys (CodeBuddy CN daily check-in renumbering)", 
     expect(computeDepletedHiddenKeys(null).size).toBe(0);
   });
 });
+
+describe("claude quota rows (Fable tracker)", () => {
+  it("sorts claude windows in fixed order and fills remaining from used/total", () => {
+    const quotas = parseQuotaData("claude", {
+      quotas: {
+        "weekly sonnet (7d)": { used: 10, total: 100, resetAt: null },
+        "session (5h)": { used: 1, total: 100, resetAt: null },
+        "weekly fable (7d)": { used: 25, total: 100, resetAt: null },
+        "weekly (7d)": { used: 50, total: 100, resetAt: null },
+      },
+    });
+
+    expect(quotas.map((q) => q.name)).toEqual([
+      "session (5h)",
+      "weekly (7d)",
+      "weekly fable (7d)",
+      "weekly sonnet (7d)",
+    ]);
+    const fable = quotas.find((q) => q.name === "weekly fable (7d)");
+    expect(fable.remaining).toBe(75);
+    expect(fable.remainingPercentage).toBe(75);
+  });
+});

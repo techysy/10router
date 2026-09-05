@@ -155,6 +155,42 @@ describe("runBackgroundTokenRefreshTick", () => {
     expect(refreshConnection).not.toHaveBeenCalled();
   });
 
+  it("refreshes connections sequentially with staggered delays between accounts", async () => {
+    const agy = conn({
+      id: "agy-1",
+      provider: "antigravity",
+      expiresAt: new Date(NOW + 10 * 60 * 1000).toISOString(),
+    });
+    const claude = conn({
+      id: "claude-1",
+      expiresAt: new Date(NOW + 10 * 60 * 1000).toISOString(),
+    });
+
+    const events = [];
+    const refreshConnection = vi.fn(async (c) => {
+      events.push(`start:${c.id}`);
+      await Promise.resolve();
+      events.push(`end:${c.id}`);
+      return c;
+    });
+    const sleeps = [];
+    const sleep = vi.fn(async (ms) => { sleeps.push(ms); });
+
+    const loadConnections = vi.fn(async () => [agy, claude]);
+
+    const { runBackgroundTokenRefreshTick } = await import(
+      "../../src/sse/services/backgroundTokenRefresh.js"
+    );
+
+    await runBackgroundTokenRefreshTick({ loadConnections, refreshConnection, sleep });
+
+    // Strict start→end→start→end order proves no overlapping refreshes
+    expect(events).toEqual(["start:agy-1", "end:agy-1", "start:claude-1", "end:claude-1"]);
+    // One inter-account delay; Google-sensitive provider paces at ≥12s
+    expect(sleeps).toHaveLength(1);
+    expect(sleeps[0]).toBeGreaterThanOrEqual(12_000);
+  });
+
   it("swallows top-level load errors", async () => {
     const refreshConnection = vi.fn();
     const loadConnections = vi.fn(async () => {

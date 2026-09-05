@@ -241,10 +241,13 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels) {
       // an explicit thinking:{type:"adaptive"} on Opus 4.6/4.7/4.8 and Sonnet 4.6
       // ("thinking is off unless you explicitly set it"), and Anthropic-compatible
       // shims (e.g. GitHub Copilot /v1/messages) default thinking off even for
-      // Sonnet 5. Send both fields — the documented adaptive-thinking shape.
-      body.thinking = { type: "adaptive" };
+      // Sonnet 5. Send both fields — the documented adaptive shape. Permanently
+      // adaptive models (thinkingCanDisable:false, e.g. Fable) never get the
+      // redundant thinking switch — effort alone drives them.
+      if (canDisable) body.thinking = { type: "adaptive" };
+      // "auto" is not a value Anthropic accepts in output_config.effort — map it to high.
       const level = toLevel(eff);
-      body.output_config = { effort: level === "xhigh" ? "high" : level };
+      body.output_config = { effort: level === "xhigh" || level === "auto" ? "high" : level };
       break;
     }
     case "claude-budget": {
