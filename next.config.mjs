@@ -13,6 +13,11 @@ const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
+  // Next 16 dev-only cross-site protection: browsers that open the dashboard via
+  // the loopback IP (127.0.0.1) send Origin: http://127.0.0.1:<port> on /_next
+  // fetches, which is not in the default localhost-only allowlist — every static
+  // chunk 403s and the app never hydrates. Production/desktop builds are unaffected.
+  allowedDevOrigins: ["127.0.0.1"],
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
   // webpack replaces that with the absolute path of the BUILD machine as a string literal.
   // A release built on macOS therefore ships `file:///Users/.../open/index.js`, which
