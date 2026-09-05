@@ -29,6 +29,10 @@ jobs:
       - name: Install root dependencies (for cli/app bundle)
         run: npm install --no-audit --no-fund
 
+      - name: Install cli dependencies (esbuild for MITM bundle)
+        run: npm install --no-audit --no-fund
+        working-directory: cli
+
       - name: Build CLI bundle (cli/app)
         run: node cli/scripts/build-cli.js
 
