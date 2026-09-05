@@ -19,6 +19,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [Model JSON Catalog Mechanism](/docs/en/json-model-catalog-mechanism.md) — `modelsJsonUrl` online model catalogs, Gitee fallback, and the "enabled but not listed" pitfall.
 - [MITM Proxy Security Hardening](/docs/en/mitm-security-hardening.md) — the four security fixes (TLS verification, 0600 root CA key, no blind port-443 kill, hosts cleanup).
 - [Mirasim-bundled dsh tool_call id/name loss](/docs/en/mirasim-dsh-toolcall-loss.md) — third-party bug causing 11133/`unknown tool ""`; 10Router does not work around it.
+- [Stream-default spec fix (issue #4)](/docs/en/stream-default-spec-fix.md) — omitted `stream` was misjudged as streaming; experimental `strictStreamDefault` toggle restores the OpenAI-spec default.
 
 ### CodeBuddy CN compatibility layers
 
@@ -42,6 +43,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [模型 JSON 目录机制](/docs/zh-CN/json-model-catalog-mechanism.md) — `modelsJsonUrl` 在线模型目录、Gitee 回退，以及"激活了却不显示"的坑。
 - [MITM 代理安全加固](/docs/zh-CN/mitm-security-hardening.md) — 四项安全修复（TLS 校验、root CA 私钥 0600、不再盲杀 443、hosts 清理）。
 - [Mirasim 内嵌 dsh 工具调用 id/name 丢失](/docs/zh-CN/mirasim-dsh-toolcall-loss.md) — 第三方 bug 导致 11133 / `unknown tool ""`，10Router 不做适配。
+- [stream 默认值规范修复（issue #4）](/docs/zh-CN/stream-default-spec-fix.md) — 省略 `stream` 被误判为流式；实验性开关 `strictStreamDefault` 恢复 OpenAI 规范默认。
 
 ### CodeBuddy CN 兼容层
 

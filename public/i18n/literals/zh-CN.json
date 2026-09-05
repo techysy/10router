@@ -1488,6 +1488,8 @@
   "Enter your current password to export CodeBuddy CN accounts.": "输入当前密码以导出 CodeBuddy CN 账号。",
   "Enter your current password to import CodeBuddy CN accounts.": "输入当前密码以导入 CodeBuddy CN 账号。",
   "CodeBuddy CN auto daily check-in": "CodeBuddy CN 每日自动签到",
+  "OpenAI-spec stream default": "OpenAI 规范 stream 默认",
+  "Treat an omitted stream field as non-streaming (issue #4). Off = legacy upstream behavior (omitted = streaming)": "省略 stream 字段时按 OpenAI 规范返回非流式 JSON（issue #4）。关闭 = 沿用上游行为（省略 = 流式）",
   "Automatically check in CodeBuddy CN accounts once a day (random 00:00–06:00 local)": "每天为 CodeBuddy CN 账号自动签到一次（本地时间 00:00–06:00 随机时段）",
   "When enabled, the Import / Export buttons on the CodeBuddy CN page are replaced": "启用后 CodeBuddy CN 页面的 Import / Export 按钮将被替换",
   "Check in now": "立即签到",

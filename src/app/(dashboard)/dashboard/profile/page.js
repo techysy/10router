@@ -186,6 +186,23 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleStrictStreamDefault = async () => {
+    const next = !(settings.strictStreamDefault === true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strictStreamDefault: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSettings((prev) => ({ ...prev, ...data }));
+      }
+    } catch (error) {
+      console.log("Error toggling strict stream default:", error);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
@@ -1778,6 +1795,20 @@ export default function ProfilePage() {
               <Toggle
                 checked={settings.codeBuddyCheckin === true}
                 onChange={toggleCodeBuddyCheckin}
+              />
+            </div>
+
+            {/* OpenAI-spec stream default (issue #4): omitted stream = non-streaming */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("OpenAI-spec stream default")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Treat an omitted stream field as non-streaming (issue #4). Off = legacy upstream behavior (omitted = streaming)")}
+                </p>
+              </div>
+              <Toggle
+                checked={settings.strictStreamDefault === true}
+                onChange={toggleStrictStreamDefault}
               />
             </div>
 
