@@ -25,6 +25,10 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [Agent System Prompt Amnesia Fix](/docs/en/CodeBuddy-agent-amnesia-fix.md) — whitelist to stop our own agents' prompts from being wiped (amnesia).
 - [reasoning_effort Compatibility Fix](/docs/en/CodeBuddy-reasoning-effort-fix.md) — DeepSeek models reject `auto`/`off`; mapped to `high`/dropped.
 
+### Repo operations
+
+- [Contributors cache residue](/docs/en/contributors-cache-residue.md) — why the sidebar showed 248 upstream contributors after the fork detach; triage the three data sources and let the cache rebuild (no history rewrite).
+
 ---
 
 ## 中文
@@ -47,6 +51,10 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 
 - [Agent 系统提示失忆修复](/docs/zh-CN/CodeBuddy-agent-amnesia-fix.md) — 白名单放行自家 Agent 提示，避免"失忆"。
 - [reasoning_effort 兼容修复](/docs/zh-CN/CodeBuddy-reasoning-effort-fix.md) — DeepSeek 模型不支持 `auto`/`off`，映射为 `high`/删除。
+
+### 仓库运维
+
+- [Contributors 残留上游贡献者](/docs/zh-CN/contributors-cache-residue.md) — fork detach 后侧边栏为何显示 248 个上游贡献者；三数据源定位 + 等缓存重建（勿重写历史）。
 
 ---
 
