@@ -591,6 +591,19 @@ function rebuildMenu() {
     tray.setToolTip(`10Router — ${STATE_LABEL[state]()}`);
 }
 
+function winTaskbarDark() {
+    // 任务栏深浅由「Windows 模式」(SystemUsesLightTheme)决定,不是「应用模式」;
+    // 自定义主题下两者可不同(任务栏深+应用浅),必须读任务栏自己的值。
+    try {
+        const out = spawnSync('reg', [
+            'query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize',
+            '/v', 'SystemUsesLightTheme'
+        ], { encoding: 'utf8', timeout: 2000, windowsHide: true });
+        if (out.status === 0) return !/0x1\b/.test(out.stdout || '');
+    } catch (e) { /* 读不到 → 退回应用模式 */ }
+    return nativeTheme.shouldUseDarkColors;
+}
+
 function trayIconImage() {
     // 单色托盘(mac template / win 主题黑白):alpha 即图形(方框描边+10),
     // 与系统菜单栏/任务栏深浅色自适应。缺资产时回落彩色品牌图标。
@@ -598,7 +611,7 @@ function trayIconImage() {
         const img = nativeImage.createFromPath(path.join(__dirname, 'icon-template.png'));
         if (!img.isEmpty()) { img.setTemplateImage(true); return img; }
     } else if (process.platform === 'win32') {
-        const file = nativeTheme.shouldUseDarkColors ? 'icon-mono-white.ico' : 'icon-mono-black.ico';
+        const file = winTaskbarDark() ? 'icon-mono-white.ico' : 'icon-mono-black.ico';
         const img = nativeImage.createFromPath(path.join(__dirname, file));
         if (!img.isEmpty()) return img;
     }

@@ -62,8 +62,8 @@ def main() -> None:
 # 旧彩色版的 alpha 通道是整块圆角方块,template 模式下会渲染成实心色块;
 # 单色版 alpha 即图形本身(方框描边 + 粗体 10),mac 菜单栏随深浅色自适应。
 
-MONO_STROKE = int(MASTER * 0.055)   # 1024 下 ~56px → 32px 图上 ~1.8px
-MONO_TEXT_SCALE = 0.42              # 需缩进方框内,比彩色版 0.52 小
+MONO_STROKE = int(MASTER * 0.075)   # 1024 下 ~77px → 32px 图上 ~2.4px,16px 下仍可辨
+MONO_TEXT_SCALE = 0.40              # 框线加粗后文字略缩,避免拥挤
 CLI_TRAY = HERE.parent / "cli" / "src" / "cli" / "tray"
 
 
