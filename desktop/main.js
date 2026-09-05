@@ -20,7 +20,7 @@
  *  - 端口: ROUTER_PORT > 20128(与 CLI 默认一致)
  *  - 界面语言: 跟随系统(与 npm CLI 的 i18n 同规则),TENROUTER_LANG 可覆盖
  */
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, dialog } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const fs = require('fs');
@@ -591,20 +591,37 @@ function rebuildMenu() {
     tray.setToolTip(`10Router — ${STATE_LABEL[state]()}`);
 }
 
-function createTray() {
+function trayIconImage() {
+    // 单色托盘(mac template / win 主题黑白):alpha 即图形(方框描边+10),
+    // 与系统菜单栏/任务栏深浅色自适应。缺资产时回落彩色品牌图标。
+    if (process.platform === 'darwin') {
+        const img = nativeImage.createFromPath(path.join(__dirname, 'icon-template.png'));
+        if (!img.isEmpty()) { img.setTemplateImage(true); return img; }
+    } else if (process.platform === 'win32') {
+        const file = nativeTheme.shouldUseDarkColors ? 'icon-mono-white.ico' : 'icon-mono-black.ico';
+        const img = nativeImage.createFromPath(path.join(__dirname, file));
+        if (!img.isEmpty()) return img;
+    }
     let icon = nativeImage.createFromPath(path.join(__dirname, 'icon.ico'));
     if (icon.isEmpty()) icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
     if (process.platform === 'darwin') {
-        // macOS 菜单栏图标要小;保留品牌橙色(不做 template,黑白会失去辨识度)
+        // macOS 菜单栏图标要小
         icon = icon.resize({ width: 16, height: 16 });
-        icon.setTemplateImage(false);
     }
-    tray = new Tray(icon);
+    return icon;
+}
+
+function createTray() {
+    tray = new Tray(trayIconImage());
     rebuildMenu();
     tray.on('click', () => {
         if (state === 'running' || state === 'external') createWindow();
         else if (state === 'stopped') startServer();
     });
+    // win 无 template 机制:主题切换时换对应黑白图标
+    if (process.platform === 'win32') {
+        nativeTheme.on('updated', () => { if (tray) tray.setImage(trayIconImage()); });
+    }
 }
 
 // ──────────────────────── 生命周期 ────────────────────────

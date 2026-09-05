@@ -8,10 +8,12 @@ let isWinTray = false;
 
 /**
  * Get icon base64 from file — used for systray (mac/linux)
+ * macOS uses the monochrome template glyph (alpha = artwork): menu bar renders
+ * it black/white with the system appearance, matching native menu bar icons.
  */
 function getIconBase64() {
-  const isWin = process.platform === "win32";
-  const iconFile = isWin ? "icon.ico" : "icon.png";
+  const platform = process.platform;
+  const iconFile = platform === "darwin" ? "icon-template.png" : platform === "win32" ? "icon.ico" : "icon.png";
   try {
     const iconPath = path.join(__dirname, iconFile);
     if (fs.existsSync(iconPath)) {
@@ -115,8 +117,8 @@ function handleClick(index, options, onAutostartToggle) {
 function initWindowsTray(options) {
   const { port } = options;
   try {
-    const { initWinTray } = require("./trayWin");
-    const iconPath = path.join(__dirname, "icon.ico");
+    const { initWinTray, winTrayIconPath } = require("./trayWin");
+    const iconPath = winTrayIconPath();
     const autostartEnabled = getAutostartEnabled();
     const items = buildMenuItems(port, autostartEnabled);
 
@@ -200,10 +202,13 @@ function initUnixTray(options) {
 
     const menu = {
       icon: getIconBase64(),
-      // The bundled icon.png is a full-color RGBA logo. Don't mark it as a
-      // template icon: macOS would then render it as a solid white square
-      // because template mode only uses the alpha channel.
-      isTemplateIcon: false,
+      // macOS: template mode — icon-template.png's alpha channel IS the artwork
+      // (rounded outline + "10"), so the menu bar tints it to match light/dark
+      // appearance. The colored icon.png must NOT be a template (its alpha is a
+      // filled square → solid blob), which is why template is darwin-only and
+      // paired with the dedicated monochrome asset. Linux panels have no
+      // template convention → keep the colored logo.
+      isTemplateIcon: process.platform === "darwin",
       title: "",
       tooltip: t("tray.tooltip", { port }),
       items

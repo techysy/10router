@@ -30,7 +30,11 @@
       "main.js",
       "package.json",
       "icon.ico",
-      "icon.png"
+      "icon.png",
+      "icon-template.png",
+      "icon-template@2x.png",
+      "icon-mono-white.ico",
+      "icon-mono-black.ico"
     ],
     "extraResources": [
       {

@@ -1,11 +1,40 @@
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 const readline = require("readline");
 
 // PowerShell-based tray for Windows (AV-safe, zero binary deps)
 
 let psProcess = null;
 let clickHandler = null;
+
+/**
+ * Windows app theme: true = light (light tray background), false = dark (default).
+ * Direct registry read — cheap, and works before the PowerShell process starts.
+ */
+function isWindowsLightTheme() {
+  try {
+    const out = execSync(
+      'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize" /v AppsUseLightTheme',
+      { encoding: "utf8", timeout: 2000, windowsHide: true }
+    );
+    return /0x1\b/.test(out);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Monochrome tray icon matching the system theme (white glyph on the default
+ * dark taskbar, black on light). Falls back to the colored brand icon.
+ */
+function winTrayIconPath() {
+  const mono = path.join(__dirname, isWindowsLightTheme() ? "icon-mono-black.ico" : "icon-mono-white.ico");
+  try {
+    if (fs.existsSync(mono)) return mono;
+  } catch (e) {}
+  return path.join(__dirname, "icon.ico");
+}
 
 /**
  * Send JSON command to PowerShell tray process via stdin
@@ -86,4 +115,4 @@ function initWinTray(options) {
   };
 }
 
-module.exports = { initWinTray };
+module.exports = { initWinTray, isWindowsLightTheme, winTrayIconPath };
