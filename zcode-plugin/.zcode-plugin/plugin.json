@@ -1,0 +1,20 @@
+{
+  "name": "10router-sync",
+  "description": "Sync ZCode's local model-usage ledger into 10Router via /api/settings/database/import-usage (Bearer virtual key or dashboard password). Adds the /10router-sync:sync-usage command and a usage-sync skill.",
+  "description_i18n": {
+    "en": "Sync ZCode's local model-usage ledger into 10Router via /api/settings/database/import-usage (Bearer virtual key or dashboard password). Adds the /10router-sync:sync-usage command and a usage-sync skill.",
+    "zh-CN": "将 ZCode 本地模型调用用量导出并导入 10Router（/api/settings/database/import-usage，支持虚拟 key 或仪表盘密码鉴权）。提供 /10router-sync:sync-usage 命令与 usage-sync 技能。"
+  },
+  "version": "0.1.0",
+  "author": {
+    "name": "techysy",
+    "url": "https://github.com/techysy"
+  },
+  "keywords": [
+    "10router",
+    "usage",
+    "export",
+    "sync",
+    "stats"
+  ]
+}
