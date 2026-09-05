@@ -4,6 +4,7 @@ import {
   filterQuotasByVisibility,
   getHiddenQuotaRows,
   parseQuotaData,
+  trimHiddenQuotaKeys,
 } from "@/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 
 describe("provider quota visibility", () => {
@@ -14,22 +15,26 @@ describe("provider quota visibility", () => {
         used: 200,
         total: 1000,
         resetAt: "2026-07-04T00:00:00Z",
+        remainingPercentage: 80,
       },
       "claude-opus-4-6-thinking": {
         displayName: "Claude Opus 4.6 (Thinking)",
         used: 100,
         total: 1000,
         resetAt: "2026-07-04T00:00:00Z",
+        remainingPercentage: 90,
       },
     },
   };
 
-  it("keeps Antigravity modelKey so hidden settings use stable quota ids", () => {
+  it("groups Antigravity model quotas into Gemini and Claude families", () => {
     const quotas = parseQuotaData("antigravity", data);
     expect(quotas.map((q) => q.modelKey)).toEqual([
-      "gemini-pro-agent",
-      "claude-opus-4-6-thinking",
+      "gemini",
+      "claude",
     ]);
+    expect(quotas[0].name).toBe("Gemini (Flash / Pro)");
+    expect(quotas[1].name).toBe("Claude (Sonnet / Opus)");
   });
 
   it("shows all quotas by default and hides configured provider rows", () => {
@@ -37,19 +42,34 @@ describe("provider quota visibility", () => {
     expect(filterQuotasByVisibility("antigravity", quotas, {})).toHaveLength(2);
 
     const visibility = {
-      antigravity: { hidden: ["claude-opus-4-6-thinking"] },
+      antigravity: { hidden: ["claude"] },
     };
     const visible = filterQuotasByVisibility("antigravity", quotas, visibility);
     const hidden = getHiddenQuotaRows("antigravity", quotas, visibility);
 
-    expect(visible.map((q) => q.modelKey)).toEqual(["gemini-pro-agent"]);
-    expect(hidden.map((q) => q.modelKey)).toEqual(["claude-opus-4-6-thinking"]);
+    expect(visible.map((q) => q.modelKey)).toEqual(["gemini"]);
+    expect(hidden.map((q) => q.modelKey)).toEqual(["claude"]);
+  });
+
+  it("trims stale or obsolete model keys", () => {
+    const quotas = parseQuotaData("antigravity", data);
+    const trimmed = trimHiddenQuotaKeys(["claude", "stale-model-xyz", "gemini-3.8-flash-low"], quotas);
+    expect(trimmed).toEqual(["claude"]);
+
+    const visibility = {
+      antigravity: { hidden: ["claude", "stale-model-xyz"] },
+    };
+    const visible = filterQuotasByVisibility("antigravity", quotas, visibility);
+    const hidden = getHiddenQuotaRows("antigravity", quotas, visibility);
+
+    expect(visible.map((q) => q.modelKey)).toEqual(["gemini"]);
+    expect(hidden.map((q) => q.modelKey)).toEqual(["claude"]);
   });
 
   it("does not apply one provider hidden list to another provider", () => {
     const quotas = parseQuotaData("antigravity", data);
     const visibility = {
-      codex: { hidden: ["gemini-pro-agent"] },
+      codex: { hidden: ["gemini"] },
     };
     expect(filterQuotasByVisibility("antigravity", quotas, visibility)).toHaveLength(2);
   });
@@ -164,5 +184,56 @@ describe("claude quota rows (Fable tracker)", () => {
     const fable = quotas.find((q) => q.name === "weekly fable (7d)");
     expect(fable.remaining).toBe(75);
     expect(fable.remainingPercentage).toBe(75);
+  });
+});
+
+describe("antigravity family grouping (multi-account)", () => {
+  const agyData = {
+    quotas: {
+      "gemini-3-pro": { displayName: "Gemini 3 Pro", used: 10, total: 100, remainingPercentage: 90, resetAt: null },
+      "gemini-3-flash": { displayName: "Gemini 3 Flash", used: 50, total: 100, remainingPercentage: 50, resetAt: null },
+      "claude-sonnet-5": { displayName: "Claude Sonnet 5", used: 80, total: 100, remainingPercentage: 20, resetAt: null },
+      "gemini-3-pro-image": { displayName: "Gemini 3 Pro Image", used: 1, total: 10, remainingPercentage: 90, resetAt: null },
+    },
+  };
+
+  it("groups gemini/claude rows and keeps image models individual", () => {
+    const quotas = parseQuotaData("antigravity", agyData);
+    const names = quotas.map((q) => q.modelKey);
+    expect(names).toEqual(["gemini", "claude", "gemini-3-pro-image"]);
+    // Group representative = most exhausted member of the family
+    const gemini = quotas.find((q) => q.modelKey === "gemini");
+    expect(gemini.remainingPercentage).toBe(50);
+    const claude = quotas.find((q) => q.modelKey === "claude");
+    expect(claude.remainingPercentage).toBe(20);
+  });
+
+  it("trimHiddenQuotaKeys drops stale keys per connection snapshot only", () => {
+    // Connection A is grouped (no individual gemini-* rows), connection B
+    // still reports them — trimming A's hidden list must not affect B.
+    const hidden = ["gemini", "gemini-3-pro", "claude-sonnet-5"];
+    const groupedQuotas = parseQuotaData("antigravity", agyData);
+    const trimmedA = trimHiddenQuotaKeys(hidden, groupedQuotas);
+    expect(trimmedA).toEqual(["gemini"]);
+    // Same stored list against B's individual-row snapshot keeps the model key
+    const individualQuotas = [
+      { modelKey: "gemini-3-pro", name: "Gemini 3 Pro" },
+      { modelKey: "claude-sonnet-5", name: "Claude Sonnet 5" },
+    ];
+    expect(trimHiddenQuotaKeys(hidden, individualQuotas)).toEqual(["gemini-3-pro", "claude-sonnet-5"]);
+  });
+
+  it("filterQuotasByVisibility with a stale hidden list still shows the group row", () => {
+    const quotas = parseQuotaData("antigravity", agyData);
+    const visibility = {
+      connA: { hidden: ["gemini-3-pro", "gemini-3-flash"] }, // stale pre-grouping keys
+    };
+    const visible = filterQuotasByVisibility("connA", quotas, visibility);
+    expect(visible.map((q) => q.modelKey)).toEqual(["gemini", "claude", "gemini-3-pro-image"]);
+    // Hiding the group hides just the group row, not the image model
+    const hiddenGroup = filterQuotasByVisibility("connA", quotas, {
+      connA: { hidden: ["gemini"] },
+    });
+    expect(hiddenGroup.map((q) => q.modelKey)).toEqual(["claude", "gemini-3-pro-image"]);
   });
 });

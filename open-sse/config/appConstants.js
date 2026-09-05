@@ -76,6 +76,13 @@ export const INTERNAL_REQUEST_HEADER = { name: "x-request-source", value: "local
 // Suffix added to client tools when forwarding to Antigravity provider (anti-ban cloaking)
 export const AG_TOOL_SUFFIX = "_ide";
 
+// Rewrite rules applied to Antigravity system prompts: competing-client branding
+// makes the backend flag the request and answer 429 Quota Exhausted.
+export const ANTIGRAVITY_PROMPT_REWRITES = [
+  { from: "You are a Claude agent, built on Anthropic's Claude Agent SDK.", to: "" },
+  { from: /opencode/gi, to: (m) => (m === "OpenCode" ? "Antigravity" : m === "OPENCODE" ? "ANTIGRAVITY" : "antigravity") }
+];
+
 // Suffix added to client tools when forwarding to Claude provider (anti-ban cloaking)
 export const CLAUDE_TOOL_SUFFIX = "_ide";
 

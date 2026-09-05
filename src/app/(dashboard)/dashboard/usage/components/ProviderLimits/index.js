@@ -603,7 +603,7 @@ export default function ProviderLimits() {
     }
   }, []);
 
-  const handleHideQuota = useCallback((connectionId, quota) => {
+  const handleHideQuota = useCallback((connectionId, quota, provider) => {
     const key = getQuotaVisibilityKey(quota);
     if (!connectionId || !key) return;
 
@@ -611,6 +611,20 @@ export default function ProviderLimits() {
     const entryVisibility = previous[connectionId] || {};
     const hidden = new Set(entryVisibility.hidden || []);
     hidden.add(key);
+    // Antigravity rows are family groups (gemini/claude); toggling the group
+    // also clears stale per-model keys so the group row and its members never
+    // disagree.
+    if (provider === "antigravity") {
+      if (key === "gemini") {
+        for (const k of hidden) {
+          if (k.startsWith("gemini-") && !k.includes("image")) hidden.delete(k);
+        }
+      } else if (key === "claude") {
+        for (const k of hidden) {
+          if (k.startsWith("claude-")) hidden.delete(k);
+        }
+      }
+    }
     const next = {
       ...previous,
       [connectionId]: {
@@ -621,7 +635,7 @@ export default function ProviderLimits() {
     updateQuotaVisibility(next, previous);
   }, [quotaVisibility, updateQuotaVisibility]);
 
-  const handleShowQuota = useCallback((connectionId, quota) => {
+  const handleShowQuota = useCallback((connectionId, quota, provider) => {
     const key = getQuotaVisibilityKey(quota);
     if (!connectionId || !key) return;
 
@@ -629,6 +643,17 @@ export default function ProviderLimits() {
     const entryVisibility = previous[connectionId] || {};
     const hidden = new Set(entryVisibility.hidden || []);
     hidden.delete(key);
+    if (provider === "antigravity") {
+      if (key === "gemini") {
+        for (const k of hidden) {
+          if (k.startsWith("gemini-") && !k.includes("image")) hidden.delete(k);
+        }
+      } else if (key === "claude") {
+        for (const k of hidden) {
+          if (k.startsWith("claude-")) hidden.delete(k);
+        }
+      }
+    }
     const next = {
       ...previous,
       [connectionId]: {
@@ -1357,7 +1382,7 @@ export default function ProviderLimits() {
                     showSortLabel={
                       conn.provider === "codex" && quotaSortMode !== "default"
                     }
-                    onHideQuota={(quotaRow) => handleHideQuota(conn.id, quotaRow)}
+                    onHideQuota={(quotaRow) => handleHideQuota(conn.id, quotaRow, conn.provider)}
                   />
                 )}
                 {hiddenQuotaRows.length > 0 && (
@@ -1371,7 +1396,7 @@ export default function ProviderLimits() {
                         <button
                           key={getQuotaVisibilityKey(quotaRow)}
                           type="button"
-                          onClick={() => handleShowQuota(conn.id, quotaRow)}
+                          onClick={() => handleShowQuota(conn.id, quotaRow, conn.provider)}
                           className="shrink-0 rounded-md border border-black/10 px-1.5 py-0.5 transition-colors hover:bg-black/5 hover:text-text-primary dark:border-white/10 dark:hover:bg-white/5"
                           title="Show this quota row"
                         >

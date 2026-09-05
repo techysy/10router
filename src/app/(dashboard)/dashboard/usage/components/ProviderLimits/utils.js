@@ -317,6 +317,19 @@ export function getQuotaVisibilityKey(quota) {
 }
 
 /**
+ * Trim hidden quota keys to only those matching currently valid quotas.
+ * Stale or obsolete model keys (e.g. pre-grouping individual antigravity
+ * model ids) are dropped. Read-side only — stored lists stay intact, so a
+ * key hidden for one connection is never lost because another connection's
+ * snapshot no longer reports it.
+ */
+export function trimHiddenQuotaKeys(hidden = [], quotas = []) {
+  if (!Array.isArray(hidden) || hidden.length === 0) return [];
+  const validKeys = new Set(quotas.map(getQuotaVisibilityKey).filter(Boolean));
+  return [...new Set(hidden.map((k) => String(k).trim()).filter((k) => validKeys.has(k)))];
+}
+
+/**
  * Resolve the hidden-quota set for a scope.
  *
  * The primary scope key is the connection id so that two connections of the
@@ -326,26 +339,33 @@ export function getQuotaVisibilityKey(quota) {
  * fallback still applies to every connection of that provider, but any new
  * hide/show writes use the connection id and are isolated per account.
  */
-function getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey) {
+function getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey, quotas = []) {
+  let hidden = null;
   const byScope = quotaVisibility?.[scopeKey]?.hidden;
-  if (Array.isArray(byScope)) return new Set(byScope.map(String));
-  if (legacyScopeKey && legacyScopeKey !== scopeKey) {
+  if (Array.isArray(byScope)) hidden = byScope.map(String);
+  else if (legacyScopeKey && legacyScopeKey !== scopeKey) {
     const byLegacy = quotaVisibility?.[legacyScopeKey]?.hidden;
-    if (Array.isArray(byLegacy)) return new Set(byLegacy.map(String));
+    if (Array.isArray(byLegacy)) hidden = byLegacy.map(String);
   }
-  return new Set();
+  if (!hidden) return new Set();
+  // Only trim against this scope's own snapshot; never against another
+  // connection's quotas.
+  if (Array.isArray(quotas) && quotas.length > 0) {
+    return new Set(trimHiddenQuotaKeys(hidden, quotas));
+  }
+  return new Set(hidden);
 }
 
 export function filterQuotasByVisibility(scopeKey, quotas = [], quotaVisibility = {}, legacyScopeKey) {
   if (!Array.isArray(quotas) || quotas.length === 0) return [];
-  const hidden = getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey);
+  const hidden = getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey, quotas);
   if (hidden.size === 0) return quotas;
   return quotas.filter((quota) => !hidden.has(getQuotaVisibilityKey(quota)));
 }
 
 export function getHiddenQuotaRows(scopeKey, quotas = [], quotaVisibility = {}, legacyScopeKey) {
   if (!Array.isArray(quotas) || quotas.length === 0) return [];
-  const hidden = getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey);
+  const hidden = getHiddenQuotaSet(scopeKey, quotaVisibility, legacyScopeKey, quotas);
   if (hidden.size === 0) return [];
   return quotas.filter((quota) => hidden.has(getQuotaVisibilityKey(quota)));
 }
@@ -407,10 +427,59 @@ export function parseQuotaData(provider, data) {
 
       case "antigravity":
         if (data.quotas) {
-          Object.entries(data.quotas).forEach(([modelKey, quota]) => {
+          // Group the per-model quota pool into family rows: the pool is
+          // shared per family upstream, so N model rows with identical
+          // numbers are noise. The row shows the most-exhausted member —
+          // that is the binding limit for the family.
+          const entries = Object.entries(data.quotas);
+          const geminiModels = entries.filter(([k]) => k.startsWith("gemini-") && !k.includes("image"));
+          const claudeModels = entries.filter(([k]) => k.startsWith("claude-"));
+          const imageModels = entries.filter(([k]) => k.includes("image"));
+          const otherModels = entries.filter(([k]) => !k.startsWith("gemini-") && !k.startsWith("claude-") && !k.includes("image"));
+
+          if (geminiModels.length > 0) {
+            const rep = geminiModels.reduce((min, cur) =>
+              (cur[1].remainingPercentage ?? 100) < (min[1].remainingPercentage ?? 100) ? cur : min
+            )[1];
+            normalizedQuotas.push({
+              name: "Gemini (Flash / Pro)",
+              modelKey: "gemini",
+              used: rep.used || 0,
+              total: rep.total || 0,
+              resetAt: rep.resetAt || null,
+              remainingPercentage: rep.remainingPercentage,
+            });
+          }
+
+          if (claudeModels.length > 0) {
+            const rep = claudeModels.reduce((min, cur) =>
+              (cur[1].remainingPercentage ?? 100) < (min[1].remainingPercentage ?? 100) ? cur : min
+            )[1];
+            normalizedQuotas.push({
+              name: "Claude (Sonnet / Opus)",
+              modelKey: "claude",
+              used: rep.used || 0,
+              total: rep.total || 0,
+              resetAt: rep.resetAt || null,
+              remainingPercentage: rep.remainingPercentage,
+            });
+          }
+
+          imageModels.forEach(([modelKey, quota]) => {
             normalizedQuotas.push({
               name: quota.displayName || modelKey,
-              modelKey: modelKey, // Keep modelKey for sorting
+              modelKey,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.resetAt || null,
+              remainingPercentage: quota.remainingPercentage,
+            });
+          });
+
+          otherModels.forEach(([modelKey, quota]) => {
+            normalizedQuotas.push({
+              name: quota.displayName || modelKey,
+              modelKey,
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
