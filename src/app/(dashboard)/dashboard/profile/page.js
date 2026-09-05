@@ -76,6 +76,7 @@ export default function ProfilePage() {
 
   const importFileRef = useRef(null);
   const usageImportFileRef = useRef(null);
+  const pendingUsageImportRef = useRef(null);
   const [usageImportStatus, setUsageImportStatus] = useState({ type: "", message: "" });
   const [usageImportLoading, setUsageImportLoading] = useState(false);
   const [proxyForm, setProxyForm] = useState({
@@ -819,7 +820,7 @@ export default function ProfilePage() {
     void importUsageFile(file);
   };
 
-  const importUsageFile = async (file) => {
+  const importUsageFile = async (file, password = null) => {
     setUsageImportLoading(true);
     setUsageImportStatus({ type: "", message: "" });
     try {
@@ -828,9 +829,18 @@ export default function ProfilePage() {
       const res = await fetch("/api/settings/database/import-usage", {
         method: "POST",
         body: form,
+        ...(password ? { headers: { "x-9r-password": password } } : {}),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to import usage");
+      if (!res.ok) {
+        // Session expired / not logged in — fall back to the password modal.
+        if (res.status === 401 && !password) {
+          pendingUsageImportRef.current = file;
+          setDbAuth({ open: true, mode: "usage-import", password: "" });
+          return;
+        }
+        throw new Error(data.error || "Failed to import usage");
+      }
       setUsageImportStatus({
         type: "success",
         message: `${translate("Imported")} ${data.imported} ${translate("usage records")} (${translate("skipped")} ${data.skipped}, ${translate("total")} ${data.total})`,
@@ -877,6 +887,11 @@ export default function ProfilePage() {
     setDbAuth({ open: false, mode: "", password: "" });
     if (mode === "export") await handleExportDatabase(password);
     else if (mode === "import") await runImportDatabase(password);
+    else if (mode === "usage-import") {
+      const file = pendingUsageImportRef.current;
+      pendingUsageImportRef.current = null;
+      if (file) await importUsageFile(file, password);
+    }
   };
 
   const observabilityEnabled = settings.enableObservability === true;

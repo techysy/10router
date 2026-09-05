@@ -47,20 +47,32 @@ export function readUsageFromJson(payload) {
   if (!payload || typeof payload !== "object") return [];
   const raw = payload.usageHistory || payload.usage;
   if (!Array.isArray(raw)) return [];
-  return raw.map((r) => ({
-    timestamp: r.timestamp,
-    provider: r.provider,
-    model: r.model,
-    connectionId: r.connectionId,
-    apiKey: r.apiKey,
-    endpoint: r.endpoint,
-    promptTokens: r.promptTokens,
-    completionTokens: r.completionTokens,
-    cost: r.cost,
-    status: r.status,
-    tokens: typeof r.tokens === "string" ? parseJsonField(r.tokens) : (r.tokens || {}),
-    meta: typeof r.meta === "string" ? parseJsonField(r.meta) : (r.meta || {}),
-  }));
+  return raw.map((r) => {
+    const tokens = typeof r.tokens === "string" ? parseJsonField(r.tokens) : (r.tokens || {});
+    // aggregateEntryToDay only reads tokens.prompt_tokens/completion_tokens —
+    // normalize top-level counts so hand-written JSON payloads still aggregate
+    // into usageDaily instead of logging 0 tokens for the day.
+    if (r.promptTokens != null && tokens.prompt_tokens == null && tokens.input_tokens == null) {
+      tokens.prompt_tokens = r.promptTokens;
+    }
+    if (r.completionTokens != null && tokens.completion_tokens == null && tokens.output_tokens == null) {
+      tokens.completion_tokens = r.completionTokens;
+    }
+    return {
+      timestamp: r.timestamp,
+      provider: r.provider,
+      model: r.model,
+      connectionId: r.connectionId,
+      apiKey: r.apiKey,
+      endpoint: r.endpoint,
+      promptTokens: r.promptTokens,
+      completionTokens: r.completionTokens,
+      cost: r.cost,
+      status: r.status,
+      tokens,
+      meta: typeof r.meta === "string" ? parseJsonField(r.meta) : (r.meta || {}),
+    };
+  });
 }
 
 export async function importUsageFromSqlite(buffer, filename = "data.sqlite") {

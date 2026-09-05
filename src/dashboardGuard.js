@@ -208,6 +208,18 @@ export async function proxy(request) {
     }
   }
 
+  // Usage-import self-serve: POST with explicit credentials (dashboard password
+  // or virtual proxy key) is passed through to the route, which verifies them
+  // itself — the guard's cookie/CLI-token check can't see these. Must sit above
+  // the ALWAYS_PROTECTED prefix match on /api/settings/database.
+  if (
+    request.method === "POST" &&
+    pathname === "/api/settings/database/import-usage" &&
+    (request.headers.get("x-9r-password") || extractApiKey(request))
+  ) {
+    return NextResponse.next();
+  }
+
   // Always protected - require valid JWT or local CLI token (machineId-based).
   // Exception: agent-managed custom provider write (POST create node / add
   // connection) may use a dashboard LLM API key, so remote agents can self-serve
