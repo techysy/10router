@@ -173,23 +173,96 @@ export async function getRequestDetails(filter = {}) {
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const cntRow = db.get(`SELECT COUNT(*) as c FROM requestDetails ${where}`, params);
-  const totalItems = cntRow ? cntRow.c : 0;
+  const rdTotal = cntRow ? cntRow.c : 0;
 
   const page = filter.page || 1;
   const pageSize = filter.pageSize || 50;
-  const totalPages = Math.ceil(totalItems / pageSize);
   const offset = (page - 1) * pageSize;
 
-  const rows = db.all(
-    `SELECT data FROM requestDetails ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
-    [...params, pageSize, offset]
+  const importedCount = countImportedDetails(db, filter);
+  const totalItems = rdTotal + importedCount;
+
+  // Imported usage rows (ZCode plugin / 9r backup via importUsageRows) live only
+  // in usageHistory — they never passed through the proxy, so requestDetails has
+  // no row and the details tab would silently hide them. Synthesize a detail
+  // entry for each meta.imported row and merge both sources by timestamp. Live
+  // proxy traffic writes usageHistory without the imported marker, so nothing
+  // is double-shown. Retention keeps requestDetails small (~200 rows), making
+  // the in-memory merge cheap.
+  const fetchLimit = offset + pageSize;
+  const rdRows = db.all(
+    `SELECT data FROM requestDetails ${where} ORDER BY timestamp DESC LIMIT ?`,
+    [...params, fetchLimit]
   );
-  const details = rows.map((r) => parseJson(r.data, {}));
+  const rdDetails = rdRows.map((r) => parseJson(r.data, {}));
+  const importedDetails = getImportedDetails(db, filter, fetchLimit);
+
+  const merged = [...rdDetails, ...importedDetails].sort(
+    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+  );
+  const details = merged.slice(offset, offset + pageSize);
 
   return {
     details,
-    pagination: { page, pageSize, totalItems, totalPages, hasNext: page < totalPages, hasPrev: page > 1 },
+    pagination: {
+      page,
+      pageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / pageSize),
+      hasNext: offset + details.length < totalItems,
+      hasPrev: page > 1,
+    },
   };
+}
+
+function importedHistoryConds(filter) {
+  const conds = [`meta LIKE '%"imported":true%'`];
+  const params = [];
+  if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
+  if (filter.status) { conds.push("status = ?"); params.push(filter.status); }
+  if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
+  if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
+  return { conds: conds.concat(filter.model ? ["model = ?"] : []), params: filter.model ? [...params, filter.model] : params };
+}
+
+function countImportedDetails(db, filter) {
+  try {
+    const { conds, params } = importedHistoryConds(filter);
+    return db.get(`SELECT COUNT(*) as c FROM usageHistory WHERE ${conds.join(" AND ")}`, params)?.c || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function getImportedDetails(db, filter, limit) {
+  try {
+    const { conds, params } = importedHistoryConds(filter);
+    const rows = db.all(
+      // id DESC ≈ newest first (autoincrement); stable enough for the details tab.
+      `SELECT timestamp, provider, model, connectionId, endpoint, promptTokens, completionTokens, cost, status, tokens, meta FROM usageHistory WHERE ${conds.join(" AND ")} ORDER BY id DESC LIMIT ?`,
+      [...params, limit]
+    );
+    return rows.map((r) => ({
+      id: `imported-${r.timestamp}-${r.provider}-${r.model}`,
+      imported: true,
+      provider: r.provider || "unknown",
+      model: r.model || "unknown",
+      connectionId: r.connectionId || undefined,
+      timestamp: r.timestamp,
+      latency: { ttft: 0, total: 0 },
+      tokens: parseJson(r.tokens, {}) || {},
+      status: r.status === "ok" ? "success" : "error",
+      request: {
+        endpoint: r.endpoint || null,
+        promptTokens: r.promptTokens || 0,
+        completionTokens: r.completionTokens || 0,
+        cost: r.cost || 0,
+      },
+      response: {},
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function getDistinctProviders() {

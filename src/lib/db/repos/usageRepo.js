@@ -800,7 +800,7 @@ export async function importUsageRows(rows) {
 
       // Dedup: same signature as live writes.
       const existing = db.get(
-        `SELECT id FROM usageHistory
+        `SELECT id, meta FROM usageHistory
          WHERE timestamp = ?
            AND COALESCE(provider, '') = COALESCE(?, '')
            AND COALESCE(model, '') = COALESCE(?, '')
@@ -812,6 +812,13 @@ export async function importUsageRows(rows) {
         [ts, entry.provider || null, entry.model || null, entry.connectionId || null, entry.apiKey || null, promptTokens, completionTokens]
       );
       if (existing) {
+        // A dedup hit during an import proves the row itself came from an
+        // import — stamp it so getRequestDetails can surface it. This also
+        // backfills rows imported before the marker existed (9r backups).
+        const existingMeta = parseJson(existing.meta, {}) || {};
+        if (existingMeta.imported !== true) {
+          db.run(`UPDATE usageHistory SET meta = ? WHERE id = ?`, [stringifyJson({ imported: true, ...existingMeta }), existing.id]);
+        }
         skipped++;
         continue;
       }
@@ -822,7 +829,7 @@ export async function importUsageRows(rows) {
           ts, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson(entry.meta || {}),
+          stringifyJson(tokens), stringifyJson({ imported: true, ...(entry.meta || {}) }),
         ]
       );
 
