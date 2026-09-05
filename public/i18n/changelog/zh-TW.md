@@ -2,6 +2,23 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
+## v1.0.7 (2026-09-06)
+
+### ✨ 新增
+- **上游 v0.5.69 擇優移植**：① Google 系多帳號後台刷新改為串行 + 分級抖動，規避反濫用風控；② Anthropic 相容節點掛真 Claude 自動補 context-management beta 頭，修靜默換模型；③ opencode-go 穩定會話，免費池不再觸發風控；④ Responses 並行工具調用修復（不再把 N 個調用併成一個）；⑤ Claude Fable 週配額追蹤；⑥ codex 新增 gpt-6-astra 等模型；⑦ codebuddy-cn 模型目錄對齊服務端契約
+- **qoder 目錄刷新 + 圖片透傳**：模型清單對齊服務端，executor 圖片 base64 直傳；儀表盤 Antigravity 配額按家族分組（多帳號隔離優於上游）
+- **桌面托盤版更新鏈路 + 選單精簡**：桌面版更新橫幅改指 GitHub Releases（不再錯誤提示 npm 安裝）；托盤選單「檢查更新 / 關於 / 服務啟停」合一精簡
+- **copilot 改為 VS Code 擴充指引**：不再用 MITM 攔截，改三步擴充配置（引擎層保留可手動回退）
+- **托盤圖示單色化**：macOS template 圖示 + Windows 深淺主題黑白自適應
+
+### 🐛 修復
+- **`/responses` 根路徑鑑權缺口（安全）**：補入前綴表，該路徑強制 API key 校驗
+- **Claude 組合回落的外來 `server_tool_use` 毒化歷史（400）**：按 `srvtoolu_` 前綴校驗並清理外來工具塊
+- **MCP 延遲工具破壞快取錨點（400）**：快取錨點改為錨在最後一個可快取工具上
+- **gemini schema 元組校驗 400**：`prefixItems` 轉換 + 陣列缺 items 補佔位
+- **antigravity 系統提示競爭品牌清洗泛化**：OpenCode 命名不再觸發 429
+- **免費模型後台刷新噪音與連線測試懸掛**：降噪 + 15s 逾時
+
 ## v1.0.6 (2026-09-05)
 
 ### ✨ 新增

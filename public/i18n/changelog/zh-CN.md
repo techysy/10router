@@ -2,6 +2,23 @@
 
 这里展示面向用户的关键更新；完整开发明细见 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
+## v1.0.7 (2026-09-06)
+
+### ✨ 新增
+- **上游 v0.5.69 择优移植**：① Google 系多账号后台刷新改串行 + 分级抖动，规避反滥用风控；② Anthropic 兼容节点挂真 Claude 自动补 context-management beta 头，修静默换模型；③ opencode-go 稳定会话，免费池不再触发风控；④ Responses 并行工具调用修复（不再把 N 个调用并进一个）；⑤ Claude Fable 周配额追踪；⑥ codex 新增 gpt-6-astra 等模型；⑦ codebuddy-cn 模型目录对齐服务端契约
+- **qoder 目录刷新 + 图片透传**：模型清单对齐服务端，executor 图片 base64 直传；仪表盘 Antigravity 配额按家族分组（多账号隔离优于上游）
+- **桌面托盘版更新链路 + 菜单精简**：桌面版更新横幅改指 GitHub Releases（不再错误提示 npm 安装）；托盘菜单「检查更新 / 关于 / 服务启停」合一精简
+- **copilot 改为 VS Code 扩展指引**：不再用 MITM 拦截，改三步扩展配置（引擎层保留可手动回退）
+- **托盘图标单色化**：macOS template 图标 + Windows 深浅主题黑白自适应
+
+### 🐛 修复
+- **`/responses` 根路径鉴权缺口（安全）**：补入前缀表，该路径强制 API key 校验
+- **Claude 组合回落的外来 `server_tool_use` 毒化历史（400）**：按 `srvtoolu_` 前缀校验并清理外来工具块
+- **MCP 延迟工具破坏缓存锚点（400）**：缓存锚点改为锚在最后一个可缓存工具上
+- **gemini schema 元组校验 400**：`prefixItems` 转换 + 数组缺 items 补占位
+- **antigravity 系统提示竞争品牌清洗泛化**：OpenCode 命名不再触发 429
+- **免费模型后台刷新噪音与连接测试悬挂**：降噪 + 15s 超时
+
 ## v1.0.6 (2026-09-05)
 
 ### ✨ 新增
