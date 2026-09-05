@@ -174,13 +174,30 @@ const STRINGS = {
 };
 
 function detectLocale() {
-    for (const envKey of ['TENROUTER_LANG', 'LC_ALL', 'LANG']) {
+    for (const envKey of ['TENROUTER_LANG', 'LC_ALL']) {
         const raw = process.env[envKey];
         if (raw) {
             const loc = String(raw).trim().replace(/_/g, '-').toLowerCase();
             if (/^zh($|-)/.test(loc)) return /(tw|hk|mo|hant)/.test(loc) ? 'zh-TW' : 'zh-CN';
             if (loc.startsWith('en')) return 'en';
         }
+    }
+    // macOS: 系统 UI 语言的权威来源是 AppleLanguages(Terminal 的 LANG 常年 en_US/C,
+    // 与系统语言脱节);Electron 直接暴露该列表,无需 shell out defaults
+    if (process.platform === 'darwin') {
+        try {
+            for (const lang of app.getPreferredSystemLanguages()) {
+                const loc = String(lang).replace(/_/g, '-').toLowerCase();
+                if (/^zh($|-)/.test(loc)) return /(tw|hk|mo|hant)/.test(loc) ? 'zh-TW' : 'zh-CN';
+                if (loc.startsWith('en')) return 'en';
+            }
+        } catch (e) { /* 取不到继续走通用链 */ }
+    }
+    const langEnv = process.env.LANG;
+    if (langEnv) {
+        const loc = String(langEnv).trim().replace(/_/g, '-').toLowerCase();
+        if (/^zh($|-)/.test(loc)) return /(tw|hk|mo|hant)/.test(loc) ? 'zh-TW' : 'zh-CN';
+        if (loc.startsWith('en')) return 'en';
     }
     try {
         const loc = String(Intl.DateTimeFormat().resolvedOptions().locale || '').replace(/_/g, '-').toLowerCase();
