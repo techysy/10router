@@ -2,6 +2,23 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.0.7 (2026-09-06)
+
+### ✨ New
+- **Upstream v0.5.69 selective port**: ① Google-family multi-account background refresh → serial + tiered jitter to dodge anti-abuse risk control; ② Anthropic-compatible nodes on real Claude auto-add context-management beta headers (no more silent model-swap); ③ opencode-go stable sessions (free pool no longer trips risk control); ④ Responses parallel tool-call fix (no longer merges N calls into one); ⑤ Claude Fable weekly-quota tracking; ⑥ codex adds gpt-6-astra etc.; ⑦ codebuddy-cn model catalog aligned to server contract
+- **qoder catalog refresh + image passthrough**: model list aligned to server, base64 image direct send; dashboard Antigravity quota grouped by family (per-connection isolation, better than upstream)
+- **Desktop tray update path + leaner menu**: desktop update banner now points to GitHub Releases; tray menu merges check-update / about / start-stop into one compact flow
+- **copilot switched to VS Code extension guide**: no more MITM intercept — three-step extension config (engine layer retained, manually revertible)
+- **Tray icon monochrome**: macOS template icon + Windows dark/light theme black-white adaptive
+
+### 🐛 Fixed
+- **`/responses` root-path auth gap (security)**: prefix added, path now enforces API-key check
+- **Foreign `server_tool_use` poisoning history after Claude combo fallback (400)**: validate `srvtoolu_` prefix and drop foreign tool blocks
+- **MCP deferred tool breaking cache anchors (400)**: anchor now pinned to the last cacheable tool
+- **gemini schema tuple validation 400**: `prefixItems` conversion + array missing `items` placeholder
+- **antigravity system-prompt competitor brand-clean generalization**: OpenCode naming no longer triggers 429
+- **Free-model background-refresh noise + connection-test hang**: de-noised + 15s timeout
+
 ## v1.0.6 (2026-09-05)
 
 ### ✨ New
