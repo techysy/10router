@@ -5,6 +5,8 @@
 ## v1.0.7 (2026-09-06)
 
 ### ✨ 新增
+- **CodeBuddy CN 內建「總積分」配額行**：用量頁 CodeBuddy CN 第一行新增總積分彙總（全部包即時餘額合計，含每月/贈送包），不用再自己加總；總餘額耗盡時隨「只看有餘額」自動隱藏；「贈送包」行名已翻譯
+- **ZCode 用量同步外掛（10router-sync）**：一鍵把 ZCode 本地模型用量帳本匯入 10Router——自動排除指向 10Router 的供應商防重複計數，可重複執行冪等去重；匯入的用量在用量頁與詳情 tab 均可見
 - **上游 v0.5.69 擇優移植**：① Google 系多帳號後台刷新改為串行 + 分級抖動，規避反濫用風控；② Anthropic 相容節點掛真 Claude 自動補 context-management beta 頭，修靜默換模型；③ opencode-go 穩定會話，免費池不再觸發風控；④ Responses 並行工具調用修復（不再把 N 個調用併成一個）；⑤ Claude Fable 週配額追蹤；⑥ codex 新增 gpt-6-astra 等模型；⑦ codebuddy-cn 模型目錄對齊服務端契約
 - **qoder 目錄刷新 + 圖片透傳**：模型清單對齊服務端，executor 圖片 base64 直傳；儀表盤 Antigravity 配額按家族分組（多帳號隔離優於上游）
 - **桌面托盤版更新鏈路 + 選單精簡**：桌面版更新橫幅改指 GitHub Releases（不再錯誤提示 npm 安裝）；托盤選單「檢查更新 / 關於 / 服務啟停」合一精簡

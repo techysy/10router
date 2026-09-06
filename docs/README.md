@@ -30,6 +30,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 ### Repo operations
 
 - [Contributors cache residue](/docs/en/contributors-cache-residue.md) — why the sidebar showed 248 upstream contributors after the fork detach; triage the three data sources and let the cache rebuild (no history rewrite).
+- [v1.0.7 Release Review](/docs/zh-CN/release-review-v1.0.7.md) — per-commit review of the 23 commits in v1.0.7 (zh-only): security fixes verified, upstream v0.5.69 re-implementation audit, test regression gate, tag/SignPath checklist.
 
 ---
 
@@ -59,6 +60,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 ### 仓库运维
 
 - [Contributors 残留上游贡献者](/docs/zh-CN/contributors-cache-residue.md) — fork detach 后侧边栏为何显示 248 个上游贡献者；三数据源定位 + 等缓存重建（勿重写历史）。
+- [v1.0.7 发版审查](/docs/zh-CN/release-review-v1.0.7.md) — v1.0.7 全部 23 笔提交逐笔审查（安全修复验证/上游 v0.5.69 重实现审计/回归门禁/打 tag 与 SignPath 检查单）。
 
 ---
 

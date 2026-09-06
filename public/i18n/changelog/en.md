@@ -5,6 +5,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 ## v1.0.7 (2026-09-06)
 
 ### ✨ New
+- **CodeBuddy CN built-in "Total Points" quota row**: the CodeBuddy CN card now leads with a Total Points row summing the live balance of every pack (monthly refills + bonus packs) — no more adding them up yourself; it auto-hides under the "Only with balance" filter once drained; "Bonus Pack" row names are now localized
+- **ZCode usage sync plugin (10router-sync)**: import ZCode's local model-usage ledger into 10Router in one step — providers pointed at 10Router are auto-excluded to prevent double counting; re-runs are idempotent via dedup; imported usage shows up in the usage page and the details tab
 - **Upstream v0.5.69 selective port**: ① Google-family multi-account background refresh → serial + tiered jitter to dodge anti-abuse risk control; ② Anthropic-compatible nodes on real Claude auto-add context-management beta headers (no more silent model-swap); ③ opencode-go stable sessions (free pool no longer trips risk control); ④ Responses parallel tool-call fix (no longer merges N calls into one); ⑤ Claude Fable weekly-quota tracking; ⑥ codex adds gpt-6-astra etc.; ⑦ codebuddy-cn model catalog aligned to server contract
 - **qoder catalog refresh + image passthrough**: model list aligned to server, base64 image direct send; dashboard Antigravity quota grouped by family (per-connection isolation, better than upstream)
 - **Desktop tray update path + leaner menu**: desktop update banner now points to GitHub Releases; tray menu merges check-update / about / start-stop into one compact flow

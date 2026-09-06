@@ -5,6 +5,8 @@
 ## v1.0.7 (2026-09-06)
 
 ### ✨ 新增
+- **CodeBuddy CN 内置「总积分」配额行**：用量页 CodeBuddy CN 第一行新增总积分汇总（全部包实时余额合计，含每月/赠送包），不用再自己加总；总余额耗尽时随「只看有余额」自动隐藏；「赠送包」行名已翻译
+- **ZCode 用量同步插件（10router-sync）**：一键把 ZCode 本地模型用量账本导入 10Router——自动排除指向 10Router 的供应商防重复计数，可重复执行幂等去重；导入的用量在用量页与详情 tab 均可见
 - **上游 v0.5.69 择优移植**：① Google 系多账号后台刷新改串行 + 分级抖动，规避反滥用风控；② Anthropic 兼容节点挂真 Claude 自动补 context-management beta 头，修静默换模型；③ opencode-go 稳定会话，免费池不再触发风控；④ Responses 并行工具调用修复（不再把 N 个调用并进一个）；⑤ Claude Fable 周配额追踪；⑥ codex 新增 gpt-6-astra 等模型；⑦ codebuddy-cn 模型目录对齐服务端契约
 - **qoder 目录刷新 + 图片透传**：模型清单对齐服务端，executor 图片 base64 直传；仪表盘 Antigravity 配额按家族分组（多账号隔离优于上游）
 - **桌面托盘版更新链路 + 菜单精简**：桌面版更新横幅改指 GitHub Releases（不再错误提示 npm 安装）；托盘菜单「检查更新 / 关于 / 服务启停」合一精简
