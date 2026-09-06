@@ -106,7 +106,8 @@ node tests/__baseline__/verify-no-regression.mjs → ✅ No regression
 - [x] 安全改动逐项复核（/responses 缺口、import-usage 鉴权、SSRF、超时）
 - [x] 版本四处一致（root / cli / desktop / fnos manifest = 1.0.7）
 - [x] CHANGELOG v1.0.7 与实际代码改动逐条比对一致（含上游同步明细、ZCode 用量链、mac 语言、托盘图标、cbcn 总积分；用户端三语含总积分与 ZCode 同步插件）
-- [ ] `git tag v1.0.7 && git push origin v1.0.7`（触发桌面 CI + Release 附产物）
+- [x] `git tag v1.0.7 && git push origin v1.0.7`（桌面 CI run 34049160612 绿，Release 附 9 产物）
+- [x] npm 发布 `@techysy/10router@1.0.7`（registry.npmjs.org，latest=1.0.7；pack-destination 修正 `2c72cc72` 一并入库）
 - [ ] 发版后 `git push gitee main --tags` 同步镜像
 - [ ] SignPath 证书就绪后：接签名 → 评估 electron-updater 差量更新
 - [ ] 观察 cbcn「总积分」/ antigravity 家族分组在真实多账号环境的展示反馈
