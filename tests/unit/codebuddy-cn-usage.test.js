@@ -1,4 +1,4 @@
-// CodeBuddy CN built-in "总积分" aggregate row: sums every pack's live balance
+// CodeBuddy CN built-in "Total Points" (总积分) aggregate row: sums every pack's live balance
 // (refills → Cycle fields, bonuses → lifetime Capacity fields) and renders
 // before the Monthly row, so users don't have to add packs up themselves.
 // The aggregate carries a plain used/total, which makes the "Only with
@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("codebuddy-cn usage 总积分 aggregate", () => {
+describe("codebuddy-cn usage Total Points aggregate", () => {
   it("sums refill (Cycle) + bonus (Capacity) balances and renders first", async () => {
     mockResponse([bonusFixture(), refillFixture()]);
 
@@ -63,11 +63,11 @@ describe("codebuddy-cn usage 总积分 aggregate", () => {
     expect(result.message).toBeUndefined();
 
     const keys = Object.keys(result.quotas);
-    expect(keys[0]).toBe("总积分");
+    expect(keys[0]).toBe("Total Points") // en key; zh dictionaries render 总积分;
     expect(keys).toContain("Monthly");
     expect(keys).toContain("Bonus Pack 1");
 
-    const total = result.quotas["总积分"];
+    const total = result.quotas["Total Points"];
     expect(total.used).toBe(18.54);
     expect(total.total).toBe(600);
     // Live aggregate: no single cycle → no countdown, no refill semantics
@@ -83,7 +83,7 @@ describe("codebuddy-cn usage 总积分 aggregate", () => {
 
     const result = await getCodeBuddyCnUsage("token", null, null, null);
     // Raw 0.1 + 0.2 = 0.30000000000000004 — the row must show 0.3
-    expect(result.quotas["总积分"].used).toBe(0.3);
+    expect(result.quotas["Total Points"].used).toBe(0.3);
   });
 
   it("links with the Only-with-balance filter: visible with credit, hidden when drained", async () => {
@@ -92,29 +92,29 @@ describe("codebuddy-cn usage 总积分 aggregate", () => {
     const result = await getCodeBuddyCnUsage("token", null, null, null);
     const rows = parseQuotaData("codebuddy-cn", result);
     // The user-facing order: 总积分 first, above the Monthly row
-    expect(rows[0].name).toBe("总积分");
+    expect(rows[0].name).toBe("Total Points");
     expect(rows.map((q) => q.name)).toContain("Monthly");
-    const totalRow = rows.find((q) => q.name === "总积分");
+    const totalRow = rows.find((q) => q.name === "Total Points");
     expect(totalRow).toBeDefined();
 
     // 18.54/600 has balance → stays visible under "Only with balance"
     let hidden = computeDepletedHiddenKeys(rows);
-    expect(hidden.has("总积分")).toBe(false);
+    expect(hidden.has("Total Points")).toBe(false);
 
     // Drain everything → the aggregate reads 600/600 → auto-hidden
     const drained = parseQuotaData("codebuddy-cn", {
       plan: "CodeBuddy Pro",
-      quotas: { 总积分: { used: 600, total: 600, resetAt: null, recurring: false } },
+      quotas: { "Total Points": { used: 600, total: 600, resetAt: null, recurring: false } },
     });
     hidden = computeDepletedHiddenKeys(drained);
-    expect(hidden.has("总积分")).toBe(true);
+    expect(hidden.has("Total Points")).toBe(true);
   });
 
   it("keeps the aggregate when a pack reports missing numbers (treated as 0)", async () => {
     mockResponse([refillFixture({ CycleCapacityUsed: undefined, CycleCapacityUsedPrecise: undefined })]);
 
     const result = await getCodeBuddyCnUsage("token", null, null, null);
-    expect(result.quotas["总积分"].used).toBe(0);
-    expect(result.quotas["总积分"].total).toBe(500);
+    expect(result.quotas["Total Points"].used).toBe(0);
+    expect(result.quotas["Total Points"].total).toBe(500);
   });
 });

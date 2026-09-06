@@ -17,7 +17,7 @@
  *
  * We surface one quota row per package — a cadence label (Monthly/Weekly/Daily)
  * for refill packs, "Bonus Pack N" for bonus packs (soonest-expiring first) —
- * plus a built-in "总积分" aggregate row first, summing every pack's live
+ * plus a built-in "Total Points" aggregate row first, summing every pack's live
  * balance (feeds the "Only with balance" filter like any other row).
  */
 
@@ -99,11 +99,13 @@ async function getCodeBuddyUsage(providerId, accessToken, apiKey, providerSpecif
     const bonuses = accounts.filter((a) => !isRefill(a)).sort(byExpiry);
 
     const quotas = {};
-    // Built-in "总积分" aggregate, rendered first (above the Monthly row):
-    // sums every pack's live balance — refills count their *Cycle* fields,
-    // bonuses their lifetime *Capacity* fields, exactly the numbers the
-    // per-pack rows below show — so users don't have to add packs up
-    // themselves. resetAt stays null: the aggregate has no single cycle, its
+    // Built-in "Total Points" aggregate, rendered first (above the Monthly
+    // row): sums every pack's live balance — refills count their *Cycle*
+    // fields, bonuses their lifetime *Capacity* fields, exactly the numbers
+    // the per-pack rows below show — so users don't have to add packs up
+    // themselves. English key on purpose: quota names feed the dashboard
+    // translate() lookup (en is identity, zh dictionaries map it to 总积分/
+    // 總積分). resetAt stays null: the aggregate has no single cycle, its
     // earliest change is whichever pack refreshes or expires first, and one
     // countdown would mislead either way. When the total runs dry the row
     // reads as a plain 0-balance pack, so the "Only with balance" filter
@@ -118,7 +120,7 @@ async function getCodeBuddyUsage(providerId, accessToken, apiKey, providerSpecif
       totalUsed += num(acc.CapacityUsedPrecise, acc.CapacityUsed);
       totalCount += num(acc.CapacitySizePrecise, acc.CapacitySize);
     });
-    quotas["总积分"] = {
+    quotas["Total Points"] = {
       used: Math.round(totalUsed * 100) / 100,
       total: Math.round(totalCount * 100) / 100,
       resetAt: null,

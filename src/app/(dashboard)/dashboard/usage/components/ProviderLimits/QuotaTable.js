@@ -6,6 +6,15 @@ import { translate } from "@/i18n/runtime";
 
 const PAGE_SIZE = 10;
 
+// Quota names are English dictionary keys ("Monthly", "Total Points"), but
+// generated names embed numbers ("Bonus Pack 1") that exact-match translate()
+// can't hit. Translate the base word, keep the numeric suffix.
+export function translateQuotaName(name) {
+  const m = /^Bonus Pack (\d+)$/.exec(String(name || "").trim());
+  if (m) return `${translate("Bonus Pack")} ${m[1]}`;
+  return translate(name);
+}
+
 /**
  * Format reset time display (Today, 12:00 PM)
  */
@@ -169,7 +178,7 @@ export default function QuotaTable({
               <div className="flex w-36 min-w-0 items-center gap-1.5">
                 <span className="text-[10px] shrink-0">{colors.emoji}</span>
                 <span className={`${nameText} font-medium text-text-primary truncate`}>
-                  {translate(quota.name)}
+                  {translateQuotaName(quota.name)}
                 </span>
               </div>
 
