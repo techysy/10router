@@ -137,6 +137,17 @@ PORT=20128 HOSTNAME=0.0.0.0 npm run start
 - API endpoint: `http://localhost:20128/v1`
 - 初始密码: `123456`（登录后请修改）
 
+## 🔌 ZCode 用量同步插件
+
+10Router 附带一个 **ZCode 插件**（`zcode-plugin/`，插件名 `10router-sync`），把本机 ZCode 的模型调用用量一键导入 10Router 统计——自动排除指向 10Router 的供应商防重复计数，幂等可重复执行。npm / 桌面 / 源码安装的用户都走同一条安装路径：
+
+1. ZCode → Settings → Plugin Management → Discover 页 → 点 `+` 添加市场，填 GitHub 仓库 `techysy/10router`
+2. 找到 **10router-sync** 点 Get 安装
+3. 10Router 仪表盘 → API Keys → 新建一个虚拟 key（如命名 `zcode-usage-sync`）
+4. 在 ZCode 里执行 `/10router-sync:sync-usage`（或直接说「导出 ZCode 使用量到 10Router」）
+
+详见 [zcode-plugin/README.md](zcode-plugin/README.md)。
+
 ## 🔄 同步上游
 
 上游新增功能时，**先学习、再自己写**：阅读上游对应实现理解思路，然后在本仓库用自己的代码和提交重写，移植后跑 `npx vitest run` + 三条 registry 基线确认无回归，并在 CHANGELOG.md 记录。
@@ -165,6 +176,7 @@ git show upstream/master:<path>    # 阅读某文件的上游实现
 │   ├── providers/          # Provider 注册 + 配置
 │   └── rtk/                # Token Saver 压缩引擎
 ├── cli/                    # CLI launcher（npm: @techysy/10router）
+├── zcode-plugin/           # ZCode 用量同步插件（marketplace.json 在仓库根）
 ├── tests/                  # 测试（vitest）
 ├── docs/                   # 架构文档
 └── .github/workflows/      # CI（Docker GHCR 构建）
