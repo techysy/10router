@@ -194,11 +194,15 @@ export default function QuotaTable({
                 </div>
 
                 <div className={`flex items-center justify-between gap-1 min-w-0 ${compact ? "text-[10px]" : "text-xs"}`}>
+                  {/* percentScale rows normalize the RPC's remaining fraction to
+                      0–100 — there is no real request count to show. */}
                   <span
                     className="text-text-muted truncate"
-                    title={`${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`}
+                    title={quota.percentScale ? undefined : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`}
                   >
-                    {quota.used.toLocaleString()} / {quota.total > 0 ? quota.total.toLocaleString() : "∞"}
+                    {quota.percentScale
+                      ? ""
+                      : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`}
                   </span>
                   <span className={`font-medium ${colors.text} shrink-0`}>
                     {quota.remaining}%

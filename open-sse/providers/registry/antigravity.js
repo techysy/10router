@@ -39,8 +39,16 @@ export default {
       // Discovery (quota/project) — daily host now serves these (matches the
       // native IDE client); kept in sync with 9router 70f15aa.
       quotaApiUrl: `${ANTIGRAVITY_IDE_BASE_URL}/v1internal:fetchAvailableModels`,
-      // Weekly per-family quota summary (Antigravity website "Model Quota" UI parity).
-      quotaSummaryApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+      // Dual-window quota summary (Antigravity website "Model Quota" UI parity).
+      // Tried in order; chat traffic lands on the daily host, and the two
+      // environments report different counters, so daily must be queried first
+      // or the numbers lag behind what the account actually spent (same order
+      // the native IDE client and CLIProxyAPI use).
+      quotaSummaryApiUrls: [
+        "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+        "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
+        "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+      ],
       loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
       tokenUrl: "https://oauth2.googleapis.com/token",
     },

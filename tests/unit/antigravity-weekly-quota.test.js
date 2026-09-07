@@ -48,6 +48,8 @@ describe("parseAntigravityQuotaSummary (dual window)", () => {
     expect(quotas.gemini_weekly.total).toBe(100);
     expect(quotas.gemini_weekly.remainingPercentage).toBeCloseTo(80);
     expect(quotas.gemini_weekly.used).toBe(20);
+    // synthetic 0-100 scale — the UI must not render used/total as counts
+    expect(quotas.gemini_weekly.percentScale).toBe(true);
     expect(quotas.gemini_5h.total).toBe(100);
     expect(quotas.gemini_5h.remainingPercentage).toBeCloseTo(50);
     expect(quotas.gemini_5h.used).toBe(50);

@@ -473,6 +473,7 @@ export function parseQuotaData(provider, data) {
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
               remainingPercentage: quota.remainingPercentage,
+              percentScale: quota.percentScale === true,
             });
           });
 
@@ -484,6 +485,7 @@ export function parseQuotaData(provider, data) {
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
               remainingPercentage: quota.remainingPercentage,
+              percentScale: quota.percentScale === true,
             });
           });
         }

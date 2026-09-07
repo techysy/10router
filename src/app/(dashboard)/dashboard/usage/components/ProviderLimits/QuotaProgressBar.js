@@ -69,6 +69,7 @@ export default function QuotaProgressBar({
   used = 0,
   total = 0,
   unlimited = false,
+  percentScale = false,
   resetTime = null,
   recurring = true,
 }) {
@@ -110,8 +111,9 @@ export default function QuotaProgressBar({
 
       {/* Usage details and countdown */}
       <div className="flex items-center justify-between text-xs text-text-muted">
+        {/* percentScale rows normalize the provider's fraction to 0–100 — no real request count to show */}
         <span>
-          {used.toLocaleString()} / {total.toLocaleString()} requests
+          {!percentScale && `${used.toLocaleString()} / ${total.toLocaleString()} requests`}
         </span>
         {countdown !== "-" && (
           <div className="flex items-center gap-1">

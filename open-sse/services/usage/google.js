@@ -135,7 +135,7 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
         const summaryQuotas = await fetchAndParseAntigravityQuotaSummary(
           accessToken,
           projectId,
-          U("antigravity").quotaSummaryApiUrl,
+          U("antigravity").quotaSummaryApiUrls,
           ANTIGRAVITY_CONFIG.userAgent,
           proxyOptions
         );

@@ -149,10 +149,12 @@ export default function ProviderLimitCard({
       {!loading && !error && !message && quotas?.length > 0 && (
         <div className="space-y-4">
           {quotas.map((quota, index) => {
-            // For Antigravity, use remainingPercentage if available, otherwise calculate
+            // Honor the backend's remainingPercentage when reported (percent-scale
+            // rows derive used/total synthetically, so recomputing from them can
+            // round-trip wrong); fall back to used/total otherwise.
             const percentage =
               quota.remainingPercentage !== undefined
-                ? Math.round(((quota.total - quota.used) / quota.total) * 100)
+                ? Math.round(quota.remainingPercentage)
                 : calculatePercentage(quota.used, quota.total);
             const unlimited = quota.total === 0 || quota.total === null;
 
@@ -164,6 +166,7 @@ export default function ProviderLimitCard({
                 total={quota.total}
                 percentage={percentage}
                 unlimited={unlimited}
+                percentScale={quota.percentScale === true}
                 resetTime={quota.resetAt}
                 recurring={quota.recurring !== false}
               />

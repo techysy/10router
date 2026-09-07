@@ -14,6 +14,12 @@
  * casing/shape differs across Antigravity clients). remainingFraction may be
  * top-level or nested under `remaining.remainingFraction`. Tolerant of both the
  * top-level `groups[]` and `quotaSummary.groups[]` response envelopes.
+ *
+ * The RPC is tried against several hosts in order (daily → daily sandbox →
+ * prod): chat traffic lands on the daily host and the environments report
+ * different counters, so the first host that returns parseable groups wins —
+ * querying prod alone underreports a daily-active account (CLIProxyAPI and the
+ * native IDE client use the same daily-first order).
  */
 
 import { parseResetTime, fetchWithTimeout } from "./shared.js";
@@ -26,8 +32,18 @@ function buildCacheKey(accessToken, projectId) {
   return `${accessToken.substring(0, 16)}:${projectId || "default"}`;
 }
 
+/** Extracts `groups[]` from either observed response envelope. */
+function extractSummaryGroups(summaryData) {
+  const root = summaryData || {};
+  if (Array.isArray(root.groups)) return root.groups;
+  const nested = root.quotaSummary?.groups;
+  return Array.isArray(nested) ? nested : [];
+}
+
 /**
- * Fetch the retrieveUserQuotaSummary response (cached, best-effort). Returns
+ * Fetch the retrieveUserQuotaSummary response (cached, best-effort).
+ * `quotaSummaryApiUrl` accepts a single URL or an ordered candidate list —
+ * the first URL whose response carries parseable `groups[]` wins. Returns
  * null on any failure — callers treat this as optional data, never a hard
  * dependency, since the RPC is undocumented and may not answer for every
  * account/tier/host.
@@ -40,56 +56,61 @@ export async function fetchAntigravityUserQuotaSummaryCached(
   proxyOptions = null,
   options = {}
 ) {
-  if (!accessToken || !projectId || !quotaSummaryApiUrl) return null;
+  const urls = (Array.isArray(quotaSummaryApiUrl) ? quotaSummaryApiUrl : [quotaSummaryApiUrl])
+    .filter(Boolean);
+  if (!accessToken || !projectId || urls.length === 0) return null;
 
-  const cacheKey = buildCacheKey(accessToken, projectId);
-  const cached = _cache.get(cacheKey);
-  if (!options.forceRefresh && cached && Date.now() - cached.fetchedAt < SUMMARY_CACHE_TTL_MS) {
-    return cached.data;
-  }
-
-  const inflight = _inflight.get(cacheKey);
-  if (inflight !== undefined) return inflight;
-
-  const promise = (async () => {
-    try {
-      const response = await fetchWithTimeout(
-        quotaSummaryApiUrl,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-            "User-Agent": userAgent,
-            "X-Client-Name": "antigravity",
-            "X-Client-Version": userAgent?.match(/antigravity\/ide\/([\d.]+)/)?.[1] || "2.11.0",
-          },
-          body: JSON.stringify({ project: projectId }),
-        },
-        10000,
-        proxyOptions
-      );
-      if (!response.ok) return null;
-      const data = await response.json();
-      _cache.set(cacheKey, { data, fetchedAt: Date.now() });
-      return data;
-    } catch {
-      return null;
+  const keyBase = buildCacheKey(accessToken, projectId);
+  const fetchOne = async (url) => {
+    const cacheKey = `${keyBase}:${url}`;
+    const cached = _cache.get(cacheKey);
+    if (!options.forceRefresh && cached && Date.now() - cached.fetchedAt < SUMMARY_CACHE_TTL_MS) {
+      return cached.data;
     }
-  })().finally(() => {
-    _inflight.delete(cacheKey);
-  });
 
-  _inflight.set(cacheKey, promise);
-  return promise;
-}
+    const inflight = _inflight.get(cacheKey);
+    if (inflight !== undefined) return inflight;
 
-/** Extracts `groups[]` from either observed response envelope. */
-function extractSummaryGroups(summaryData) {
-  const root = summaryData || {};
-  if (Array.isArray(root.groups)) return root.groups;
-  const nested = root.quotaSummary?.groups;
-  return Array.isArray(nested) ? nested : [];
+    const promise = (async () => {
+      try {
+        const response = await fetchWithTimeout(
+          url,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+              "User-Agent": userAgent,
+              "X-Client-Name": "antigravity",
+              "X-Client-Version": userAgent?.match(/antigravity\/ide\/([\d.]+)/)?.[1] || "2.11.0",
+            },
+            body: JSON.stringify({ project: projectId }),
+          },
+          10000,
+          proxyOptions
+        );
+        if (!response.ok) return null;
+        const data = await response.json();
+        _cache.set(cacheKey, { data, fetchedAt: Date.now() });
+        return data;
+      } catch {
+        return null;
+      }
+    })().finally(() => {
+      _inflight.delete(cacheKey);
+    });
+
+    _inflight.set(cacheKey, promise);
+    return promise;
+  };
+
+  for (const url of urls) {
+    const data = await fetchOne(url);
+    // A host may answer 2xx with an unrelated/empty envelope (e.g. the
+    // fetchAvailableModels shape) — that doesn't count as a winning host.
+    if (data && extractSummaryGroups(data).length > 0) return data;
+  }
+  return null;
 }
 
 // Normalize the many ways the window is written: explicit `window`, bucketId,
@@ -155,7 +176,9 @@ function parseBucket(group, bucket, familyName, windowKey, index) {
     resetAt,
     remainingPercentage: isUnlimited ? 100 : remainingFraction * 100,
     unlimited: isUnlimited,
-    fractionReported: true,
+    // used/total are a synthetic 0–100 percent scale (the RPC reports only a
+    // fraction, not request counts) — the UI must not render them as counts.
+    percentScale: true,
     displayName: `${familyName} · ${windowLabel(windowKey)}`,
   };
 }
