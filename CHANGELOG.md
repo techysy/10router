@@ -8,7 +8,7 @@
 
 - **Antigravity 配额与 CLIProxyAPI/官网数字对不上（用户反馈）**：两处根因一并对齐——① **配额 summary 查错 host**：聊天流量走 `daily-cloudcode-pa`，配额 RPC 却固定查 prod `cloudcode-pa`，两个环境的计数器相互独立，仪表盘数字系统性滞后于账号实际消耗（实测 Gemini weekly 显示 90%、CLIProxyAPI 同时刻为 71%）；`quotaSummaryApiUrl` 改为 `quotaSummaryApiUrls` 列表，按 daily → daily sandbox → prod 依次尝试（2xx 且解析出 `groups[]` 才算命中，防无关信封误判；缓存/并发去重按 URL 分键），与原生 IDE 客户端及 CLIProxyAPI 管理中心同一顺序，某台 host 拒答自动落到下一台，全部不可用仍回退 `fetchAvailableModels` 逐模型解析；② **前端百分比失真**：`ProviderLimitCard` 的 `remainingPercentage` 三元表达式两个分支同值（都在前端从 used/total 重算），后端上报的真实百分比从未生效——改为直接取用；summary RPC 本就只报剩余比例（fraction），合成的 `x / 100` 刻度行不再当请求数展示（`percentScale` 标记贯通 google.js → parseQuotaData → QuotaTable/QuotaProgressBar，计数留空只显示剩余百分比与倒计时）。测试：新增 `antigravity-quota-summary-hosts.test.js` 覆盖 host 回退三场景（daily 命中即停 / daily 拒答逐级回落 prod / 全挂走兜底），既有 headers/weekly-quota/gemini-3.x 断言同步更新，8 套件 35 例全绿。
 
-## v1.0.7 (2026-09-06)
+## v1.0.7 (2026-09-07)
 
 ### ✨ 新增功能
 

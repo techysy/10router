@@ -2,7 +2,7 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## v1.0.7 (2026-09-06)
+## v1.0.7 (2026-09-07)
 
 ### ✨ 新增
 - **CodeBuddy CN 內建「總積分」配額行**：用量頁 CodeBuddy CN 第一行新增總積分彙總（全部包即時餘額合計，含每月/贈送包），不用再自己加總；總餘額耗盡時隨「只看有餘額」自動隱藏；「贈送包」行名已翻譯

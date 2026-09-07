@@ -2,7 +2,7 @@
 
 这里展示面向用户的关键更新；完整开发明细见 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## v1.0.7 (2026-09-06)
+## v1.0.7 (2026-09-07)
 
 ### ✨ 新增
 - **CodeBuddy CN 内置「总积分」配额行**：用量页 CodeBuddy CN 第一行新增总积分汇总（全部包实时余额合计，含每月/赠送包），不用再自己加总；总余额耗尽时随「只看有余额」自动隐藏；「赠送包」行名已翻译

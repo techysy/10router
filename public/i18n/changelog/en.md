@@ -2,7 +2,7 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## v1.0.7 (2026-09-06)
+## v1.0.7 (2026-09-07)
 
 ### ✨ New
 - **CodeBuddy CN built-in "Total Points" quota row**: the CodeBuddy CN card now leads with a Total Points row summing the live balance of every pack (monthly refills + bonus packs) — no more adding them up yourself; it auto-hides under the "Only with balance" filter once drained; "Bonus Pack" row names are now localized
