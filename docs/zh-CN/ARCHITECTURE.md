@@ -1,6 +1,6 @@
 # 10Router 架构
 
-_最后更新：2026-09-01_
+_最后更新：2026-09-07_
 
 ## 摘要
 
@@ -8,13 +8,13 @@ _最后更新：2026-09-01_
 
 核心能力：
 
-- 面向 CLI / 工具的 OpenAI 兼容 API 表面
+- 面向 CLI / 工具的 OpenAI 兼容 API 表面（`/v1`、`/v1beta`、`/responses`，Claude/Anthropic 原生格式同口接收）
 - 跨供应商格式的请求/响应翻译
 - 模型组合 fallback（多模型序列）
-- 账号级 fallback（每供应商多账号）
+- 账号级 fallback（每供应商多账号）+ 后台刷新防风控抖动
 - OAuth + API-key 供应商连接管理
 - 本地持久化：供应商、Key、别名、组合、设置、定价
-- 用量/成本统计与请求日志
+- 用量/成本统计与请求日志（含请求详情、ZCode 插件离线导入）
 - 可选云端同步（多设备 / 状态同步）
 
 主要运行时模型：
@@ -46,39 +46,42 @@ flowchart LR
     subgraph Clients[开发者客户端]
         C1[Claude Code]
         C2[Codex CLI]
-        C3[OpenClaw / Droid / Cline / Continue / Roo]
-        C4[自定义 OpenAI 兼容客户端]
+        C3["OpenClaw / Droid / Cline / Continue / Roo"]
+        C4["自定义 OpenAI 兼容客户端（Hermes 等 agent 经此接入）"]
         BROWSER[浏览器仪表盘]
+        ZP["ZCode 插件 10router-sync（本地用量离线导入）"]
     end
 
-    subgraph Router[10Router 本地进程]
-        API[V1 兼容 API\n/v1/*]
-        DASH[仪表盘 + 管理 API\n/api/*]
-        CORE[SSE + 翻译核心\nopen-sse + src/sse]
-        DB[(SQLite: data.sqlite)]
-        UDB[(同一 SQLite 中的用量表)]
+    subgraph Router["10Router 本地进程"]
+        GUARD["dashboardGuard 鉴权面<br/>PUBLIC_PREFIXES + ALWAYS_PROTECTED<br/>+ x-9r-real-ip 盖章校验"]
+        API["V1 兼容 API<br/>/v1/* · /v1beta/* · /responses"]
+        DASH["仪表盘 + 管理 API<br/>/api/*"]
+        CORE["SSE + 翻译核心<br/>open-sse + src/sse"]
+        DB[("SQLite: data.sqlite<br/>状态 + 用量 + 请求详情")]
     end
 
-    subgraph Upstreams[上游供应商]
-        P1[OAuth 供应商\nClaude/Codex/Gemini/Qwen/iFlow/GitHub/Kiro/Cursor/Antigravity]
-        P2[API Key 供应商\nOpenAI/Anthropic/OpenRouter/GLM/Kimi/MiniMax]
-        P3[兼容节点\nOpenAI 兼容 / Anthropic 兼容]
+    subgraph Upstreams["上游供应商"]
+        P1["OAuth 供应商<br/>Claude/Codex/Gemini/Qwen/iFlow/GitHub/Kiro/Cursor/Antigravity"]
+        P2["API Key 供应商<br/>OpenAI/Anthropic/OpenRouter/GLM/Kimi/MiniMax/APInex 等"]
+        P3["兼容节点<br/>OpenAI 兼容 / Anthropic 兼容"]
     end
 
-    subgraph Cloud[可选云端同步]
-        CLOUD[云端同步端点\nNEXT_PUBLIC_CLOUD_URL]
+    subgraph Cloud["可选云端同步"]
+        CLOUD["云端同步端点<br/>NEXT_PUBLIC_CLOUD_URL"]
     end
 
-    C1 --> API
-    C2 --> API
-    C3 --> API
-    C4 --> API
-    BROWSER --> DASH
+    C1 --> GUARD
+    C2 --> GUARD
+    C3 --> GUARD
+    C4 --> GUARD
+    ZP -. "import-usage (Bearer sk-)" .-> GUARD
+    BROWSER --> GUARD
 
+    GUARD --> API
+    GUARD --> DASH
     API --> CORE
     DASH --> DB
     CORE --> DB
-    CORE --> UDB
 
     CORE --> P1
     CORE --> P2
@@ -149,8 +152,10 @@ flowchart LR
 
 ## 4) 认证 + 安全面
 
-- 仪表盘 cookie 认证：`src/proxy.js`、`src/app/api/auth/login/route.js`
-- API key 生成 / 校验：`src/shared/utils/apiKey.js`
+- **IP 盖章链**：`custom-server.js` 从 TCP socket 写 `x-9r-real-ip`，并用进程内随机 `NINEROUTER_PEER_TOKEN`（`src/lib/auth/trustedPeer.js`）证明该头是自己盖的——登录限流（`loginLimiter.js`）只信盖章值，客户端自报 `X-Forwarded-For` 不能轮换限流桶
+- 仪表盘 cookie 认证：`src/proxy.js`（dashboardGuard middleware，先于 Next rewrites）、`src/app/api/auth/login/route.js`；鉴权由 `PUBLIC_PREFIXES` / `ALWAYS_PROTECTED` 两张表决定，加公开 LLM 路径必须同步进表
+- API key 生成 / 校验：`src/shared/utils/apiKey.js`——格式 `sk-{machineId}-{keyId}-{crc8}`，CRC 为 HMAC-SHA256 截断；keyId 用 `crypto.randomBytes`（v1.0.8 起），HMAC 密钥默认走内置兜底（启动告警），实验开关 `API_KEY_ROTATION=true` 才切换为 env → `$DATA_DIR/api-key-secret`（0600）自动生成（会使存量 key 失效，绝不静默迁移）
+- CLI token（`x-9r-cli-token`）：加盐机器码（`getConsistentMachineId`），属本机进程互认，不是远程密钥；`import-usage` 等专用路由依赖它 + `ALWAYS_PROTECTED` 前置
 - 供应商密钥持久化在 `providerConnections` 条目中
 - 通过环境代理变量支持上游调用的可选代理（`open-sse/utils/proxyFetch.js`）
 
@@ -448,14 +453,19 @@ flowchart LR
 
 ## 供应商执行器覆盖
 
-专用执行器：
+专用执行器（`open-sse/executors/`，每个处理非标准协议或供应商特有行为）：
 
-- `antigravity`
+- `antigravity`（含竞争品牌 prompt 清洗 `ANTIGRAVITY_PROMPT_REWRITES`、配额 summary host 回退）
 - `gemini-cli`
 - `github`
-- `kiro`
+- `kiro`（EventStream 二进制）
 - `codex`
-- `cursor`
+- `cursor`（protobuf 二进制）
+- `commandcode`（NDJSON 二进制）
+- `codebuddy-cn` / `codebuddy-intl`
+- `grok-cli` / `grok-web`
+- `opencode-go`（稳定 session 头，免费池防风控）
+- `qoder`、`trae`、`windsurf`、`zed`、`iflow`、`kimchi`、`mimo-free`、`devin-cli`、`perplexity-web`、`xiaomi-tokenplan`、`ollama-local`、`azure`
 
 默认执行器路径：
 
@@ -514,17 +524,20 @@ flowchart LR
 运行时可见性来源：
 
 - `src/sse/utils/logger.js` 的 console 日志
-- `usage.json` 中的每请求用量聚合
-- `log.txt` 中的文本请求状态日志
+- SQLite 用量表中的每请求用量聚合（`usageRepo`；`requestDetailsRepo` 持有完整请求/响应明细，详情 tab 只读此表）
+- 请求状态日志（SQLite `appendRequestLog`；旧 `usage.json` / `log.txt` 文件已废弃，`src/lib/usageDb.js` 仅作兼容 shim 重导出 DB 层）
 - 当 `ENABLE_REQUEST_LOGS=true` 时 `logs/` 下的可选深度请求/翻译日志
 - 供 UI 消费的仪表盘用量端点（`/api/usage/*`）
+- 后台 token 刷新带分级抖动（`BG_REFRESH_GOOGLE_DELAY_MS` / `BG_REFRESH_DELAY_MS`），多账号防风控
 
 ## 安全敏感边界
 
-- JWT 密钥（`JWT_SECRET`）保护仪表盘会话 cookie 的校验/签名
+- JWT 密钥（`JWT_SECRET`）保护仪表盘会话 cookie 的校验/签名；占位串启动即拒，自动生成落 `$DATA_DIR/jwt-secret`（0600）
 - 初始密码兜底（`INITIAL_PASSWORD`，默认 `123456`）在真实部署中必须覆盖
-- API key HMAC 密钥（`API_KEY_SECRET`）保护生成的本地 API key 格式
-- 供应商密钥（API keys/tokens）持久化在本地 DB 中，应在文件系统层面保护
+- API key HMAC 密钥（`API_KEY_SECRET`）：默认内置兜底 + 启动告警；实验开关 `API_KEY_ROTATION=true` 切换为自动生成落盘 `$DATA_DIR/api-key-secret`（0600）——开启会使存量 key 的 CRC 全部失效，必须重新签发
+- 登录 500 只回通用文案，内部错误仅写服务端日志
+- `REQUIRE_API_KEY` 环境变量**运行时不读**——真实开关是设置 DB 的 `requireApiKey` 行（默认 `true`）
+- 供应商密钥（API keys/tokens）明文持久化在本地 DB 中，应在文件系统层面保护；`DATA_DIR` 备份/同步等于连密钥一起搬
 - 云端同步端点依赖 API key 认证 + machine id 语义
 
 ## 环境与运行时矩阵
@@ -533,8 +546,9 @@ flowchart LR
 
 - 应用 / 认证：`JWT_SECRET`、`INITIAL_PASSWORD`
 - 存储：`DATA_DIR`
-- 安全哈希：`API_KEY_SECRET`、`MACHINE_ID_SALT`
+- 安全哈希：`API_KEY_SECRET`、`API_KEY_ROTATION`（实验，默认 off）、`MACHINE_ID_SALT`
 - 日志：`ENABLE_REQUEST_LOGS`
+- OAuth 后台刷新抖动：`BG_REFRESH_GOOGLE_DELAY_MS`、`BG_REFRESH_DELAY_MS`、`ONBOARD_MAX_ATTEMPTS`、`ONBOARD_RETRY_DELAY_MS`
 - 同步 / 云端 URL：`NEXT_PUBLIC_BASE_URL`、`NEXT_PUBLIC_CLOUD_URL`
 - 出站代理：`HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 及小写变体
 - 平台 / 运行时辅助（非应用特定配置）：`APPDATA`、`NODE_ENV`、`PORT`、`HOSTNAME`
@@ -545,6 +559,8 @@ flowchart LR
 2. `/api/v1/route.js` 返回静态模型列表，不是 `/v1/models` 使用的主要模型源。
 3. 启用后请求日志会写完整 headers/body；请将日志目录视为敏感。
 4. 云端行为依赖正确的 `NEXT_PUBLIC_BASE_URL` 与云端端点可达性。
+5. `API_KEY_ROTATION`（实验，默认 off）会更换 key CRC 的 HMAC 密钥——开启后**所有已签发 API key 失效**，须在仪表盘重新签发并更新各客户端；关闭时行为与历史版本一致。
+6. 导入的用量行（ZCode 插件）写 `usageHistory` 并打 `meta.imported` 标记；详情 tab 只读 `requestDetails`，两者按时间戳归并展示。
 
 ## 运维验证清单
 
