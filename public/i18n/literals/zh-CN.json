@@ -1435,6 +1435,8 @@
   "Rolling": "滚动",
   "Weekly": "每周",
   "Monthly": "每月",
+  "Total Points": "总积分",
+  "Bonus Pack": "赠送包",
   "Only with balance": "只看有余额",
   "Disabled providers sort last": "已禁用供应商后置",
   "Push providers with all connections disabled behind those with no connections": "连接全部停用的供应商排在无连接供应商之后",

@@ -97,3 +97,6 @@ graphify-out/*
 .v2c/
 .zcode/
 tmpwebapp-node-modulesprepare.log
+
+# npm pack artifacts (repo root, regenerable)
+*.tgz

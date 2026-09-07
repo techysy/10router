@@ -9,9 +9,15 @@
 - **溯源**：导入后 provider 显示为 `zcode-<名称>`（如 `zcode-bigmodel-start-plan`），cost 记 0（订阅制渠道），agent/会话/时长等明细在 meta 里
 - **鉴权**：虚拟 key（`sk-…`，推荐）或仪表盘密码，与 10Router v1.0.7+ 的导入鉴权匹配
 
-## 安装（本地开发）
+## 安装
 
-ZCode 客户端 → Plugins → 从目录安装，选择本目录（含 `.zcode-plugin/plugin.json`）。或直接把目录拷贝到 ZCode 插件目录。
+**方式一：ZCode 插件市场（推荐，npm/桌面/源码安装用户通用）**
+
+ZCode → Settings → Plugin Management → Discover 页 → 点 `+` 添加市场，填 GitHub 仓库 `techysy/10router`（市场索引在仓库根 `marketplace.json`）→ 找到 **10router-sync** 点 Get 安装。
+
+**方式二：从目录安装（本地开发）**
+
+Plugins → 从目录安装，选择 `zcode-plugin/` 目录（含 `.zcode-plugin/plugin.json`）。或直接把目录拷贝到 ZCode 插件目录。
 
 ## 使用
 
@@ -23,9 +29,25 @@ ZCode 客户端 → Plugins → 从目录安装，选择本目录（含 `.zcode-
 # 预览（不导入）
 node scripts/export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-… --dry-run
 
-# 导入
+# 导入（本机可直连 10Router 时）
 node scripts/export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-…
 ```
+
+### 离线模式（ZCode 与 10Router 不在同一网段）
+
+本机无法直连 10Router 时，先导出 JSON（无需网络与凭据），把文件带到任何能连上
+10Router 的机器再导入：
+
+```bash
+# ① ZCode 机器上导出
+node scripts/export-usage.mjs --export zcode-usage.json
+
+# ② 能连通 10Router 的机器上导入
+node scripts/export-usage.mjs --import zcode-usage.json --endpoint http://<host>:<port> --key sk-…
+```
+
+导出的 JSON 也可以直接在 10Router 仪表盘导入（设置 → 数据库备份 → JSON 用量导入）。
+幂等去重按行签名，导出后隔多久导入、重复导入都安全。
 
 环境变量：`TENROUTER_ENDPOINT` / `TENROUTER_KEY` / `TENROUTER_PASSWORD`。
 

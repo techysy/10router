@@ -9,7 +9,7 @@ Export this machine's ZCode model-usage ledger into 10Router's usage statistics.
 
 ## Preconditions (check before running)
 
-1. **10Router endpoint** — default `http://127.0.0.1:20127`. If the user runs 10Router elsewhere (NAS, LAN), ask or infer from context. For a NAS/remote instance use its address, e.g. `http://192.168.31.101:20127`.
+1. **10Router endpoint** — default `http://127.0.0.1:20127`. If the user runs 10Router elsewhere (NAS, LAN), ask or infer from context. For a NAS/remote instance use its address, e.g. `http://192.168.31.101:20127`. *(Online modes only — `--export` needs neither endpoint nor credentials.)*
 2. **Credential (one of)** —
    - Virtual key (recommended): created in 10Router dashboard → API Keys, format `sk-…`. Pass via `--key`.
    - Dashboard password: pass via `--password`.
@@ -17,6 +17,13 @@ Export this machine's ZCode model-usage ledger into 10Router's usage statistics.
 3. Never ask the user to paste credentials into chat if they already configured them; prefer env/config over interactive prompts.
 
 ## Run
+
+**Choose the mode first**: if this machine can reach the 10Router endpoint (same
+LAN / localhost / tunnel), sync online. If it **cannot** (different network, no
+route to the instance), export offline instead — write a JSON file here, the
+user carries it to any machine that can reach 10Router, and imports there.
+
+### Online (direct)
 
 Dry-run first (shows row counts per provider, imports nothing):
 
@@ -29,6 +36,23 @@ Then import:
 ```bash
 node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --endpoint <URL> --key <sk-…>
 ```
+
+### Offline (export JSON, import elsewhere)
+
+On the ZCode machine (no network, no credentials needed):
+
+```bash
+node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --export zcode-usage.json
+```
+
+The user carries `zcode-usage.json` to a machine that can reach 10Router, then:
+
+```bash
+node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --import zcode-usage.json --endpoint <URL> --key <sk-…>
+```
+
+The file is also loadable directly from the 10Router dashboard (Settings →
+database backup section → JSON usage import).
 
 Notes:
 - The script is **idempotent**: 10Router dedups by row signature, so re-running never duplicates rows.
