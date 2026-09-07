@@ -3,12 +3,19 @@
  * 10router ZCode usage exporter.
  *
  * Reads ZCode's local model_usage ledger (~/.zcode/cli/db/db.sqlite, table
- * model_usage), converts rows to 10router usageHistory entries, and POSTs them
- * to /api/settings/database/import-usage (Bearer virtual key). Dedup on the
+ * model_usage), converts rows to 10router usageHistory entries, and either
+ * POSTs them to /api/settings/database/import-usage (online) or writes a JSON
+ * file (offline — for ZCode machines that cannot reach the 10Router instance;
+ * carry the file to any machine that can and run --import there). Dedup on the
  * 10router side makes re-runs idempotent, so syncing the whole table each time
  * is safe and simple.
  *
- * Auth: one of
+ * Modes:
+ *   (default)  export + POST to --endpoint            (needs network + auth)
+ *   --export F collect rows, write JSON file F        (no network, no auth)
+ *   --import F read JSON file F, POST to --endpoint   (needs network + auth)
+ *
+ * Auth (online modes): one of
  *   --key sk-…            virtual proxy key from 10router dashboard (preferred)
  *   --password <pass>     dashboard password (same as usage-import UI)
  * Config: --endpoint http://host:port (default http://127.0.0.1:20127)
@@ -18,6 +25,8 @@
  *
  * Manual smoke test:
  *   node export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-… --dry-run
+ *   node export-usage.mjs --export zcode-usage.json
+ *   node export-usage.mjs --import zcode-usage.json --endpoint http://nas:20128 --key sk-…
  */
 
 import fs from "node:fs";
@@ -38,6 +47,8 @@ function parseArgs(argv) {
     limit: 0,
     dryRun: false,
     quiet: false,
+    exportFile: null,
+    importFile: null,
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -45,14 +56,33 @@ function parseArgs(argv) {
     else if (a === "--key") args.key = argv[++i];
     else if (a === "--password") args.password = argv[++i];
     else if (a === "--limit") args.limit = parseInt(argv[++i], 10) || 0;
+    else if (a === "--export") args.exportFile = argv[++i];
+    else if (a === "--import") args.importFile = argv[++i];
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--quiet") args.quiet = true;
     else if (a === "--help" || a === "-h") {
-      console.log(`Usage: node export-usage.mjs [--endpoint URL] [--key sk-...] [--password PASS] [--limit N] [--dry-run] [--quiet]`);
+      console.log(`Usage: node export-usage.mjs [mode] [options]
+
+Modes (pick at most one; default = read ZCode db + POST online):
+  --export <file>      read ZCode db, write usageHistory JSON (no network/auth)
+  --import <file>      POST a previously exported JSON to --endpoint
+
+Options:
+  --endpoint URL       10Router base URL (default http://127.0.0.1:20127)
+  --key sk-...         virtual proxy key (recommended)   [online modes]
+  --password PASS      dashboard password                 [online modes]
+  --limit N            keep only the newest N rows
+  --dry-run            show what would be sent, send nothing
+  --quiet              suppress progress output`);
       process.exit(0);
     }
   }
-  if (!args.key && !args.password) {
+  if (args.exportFile && args.importFile) {
+    console.error("error: --export and --import are mutually exclusive");
+    process.exit(2);
+  }
+  // Offline export needs neither endpoint nor credentials.
+  if (!args.exportFile && !args.key && !args.password) {
     console.error("error: provide --key sk-… (virtual key, recommended) or --password <dashboard password>");
     process.exit(2);
   }
@@ -182,7 +212,8 @@ async function importBatch(entries, { endpoint, key, password }) {
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
+// Read every ZCode db snapshot and return converted usageHistory entries.
+function collectEntries() {
   const selfIds = loadSelfProviderIds();
   const dbs = zcodeDbCandidates();
   if (dbs.length === 0) {
@@ -221,26 +252,11 @@ async function main() {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   }
+  return entries;
+}
 
-  let selected = entries;
-  if (args.limit > 0) selected = entries.slice(-args.limit);
-
-  if (selected.length === 0) {
-    log("nothing to import (0 rows after filtering)");
-    return;
-  }
-
-  if (args.dryRun) {
-    log(`[dry-run] would import ${selected.length} rows to ${args.endpoint}`);
-    const byProvider = {};
-    for (const e of selected) byProvider[e.provider] = (byProvider[e.provider] || 0) + 1;
-    for (const [p, c] of Object.entries(byProvider).sort()) log(`  ${p}: ${c}`);
-    log(`  sample: ${JSON.stringify(selected[selected.length - 1]).slice(0, 240)}`);
-    return;
-  }
-
-  // One batch; 10router inserts in a single transaction. Keep payloads bounded
-  // in case a ledger grows huge — 5k rows ≈ 2 MB JSON.
+// POST entries in bounded batches; 10router dedups so re-runs are safe.
+async function postEntries(selected) {
   const BATCH = 5000;
   let imported = 0, skipped = 0;
   for (let i = 0; i < selected.length; i += BATCH) {
@@ -249,6 +265,79 @@ async function main() {
     skipped += data.skipped || 0;
   }
   log(`done: imported ${imported}, skipped ${skipped} (of ${selected.length})`);
+}
+
+function applyLimit(entries) {
+  return args.limit > 0 ? entries.slice(-args.limit) : entries;
+}
+
+async function main() {
+  // Offline import: read a previously exported JSON, POST it. No ZCode db
+  // access — this runs on whatever machine can reach the 10Router instance.
+  if (args.importFile) {
+    let payload;
+    try {
+      payload = JSON.parse(fs.readFileSync(args.importFile, "utf8"));
+    } catch (err) {
+      console.error(`error: cannot read import file ${args.importFile}: ${err.message}`);
+      process.exit(1);
+    }
+    const raw = payload.usageHistory || payload.usage;
+    if (!Array.isArray(raw)) {
+      console.error("error: file is not a usage export (expected { usageHistory: [...] })");
+      process.exit(1);
+    }
+    const selected = applyLimit(raw);
+    if (selected.length === 0) {
+      log("nothing to import (0 rows in file)");
+      return;
+    }
+    if (args.dryRun) {
+      log(`[dry-run] would import ${selected.length} rows from ${args.importFile} to ${args.endpoint}`);
+      return;
+    }
+    log(`importing ${selected.length} rows from ${args.importFile} → ${args.endpoint}`);
+    await postEntries(selected);
+    return;
+  }
+
+  // Both remaining modes read the local ZCode ledger.
+  const entries = applyLimit(collectEntries());
+  if (entries.length === 0) {
+    log("nothing to export (0 rows after filtering)");
+    return;
+  }
+
+  // Offline export: write a JSON file shaped exactly like the import API's
+  // payload — feed it back with --import, or load it in the dashboard's
+  // JSON usage-import UI. No network, no credentials.
+  if (args.exportFile) {
+    const doc = {
+      source: "zcode-plugin",
+      exportedAt: new Date().toISOString(),
+      rowCount: entries.length,
+      usageHistory: entries,
+    };
+    fs.writeFileSync(args.exportFile, JSON.stringify(doc));
+    const sizeKb = Math.round(fs.statSync(args.exportFile).size / 1024);
+    log(`exported ${entries.length} rows → ${args.exportFile} (${sizeKb} KB)`);
+    log(`next: carry the file to a machine that can reach 10Router and run`);
+    log(`  node export-usage.mjs --import ${args.exportFile} --endpoint http://<host>:<port> --key sk-…`);
+    return;
+  }
+
+  if (args.dryRun) {
+    log(`[dry-run] would import ${entries.length} rows to ${args.endpoint}`);
+    const byProvider = {};
+    for (const e of entries) byProvider[e.provider] = (byProvider[e.provider] || 0) + 1;
+    for (const [p, c] of Object.entries(byProvider).sort()) log(`  ${p}: ${c}`);
+    log(`  sample: ${JSON.stringify(entries[entries.length - 1]).slice(0, 240)}`);
+    return;
+  }
+
+  // One batch; 10router inserts in a single transaction. Keep payloads bounded
+  // in case a ledger grows huge — 5k rows ≈ 2 MB JSON.
+  await postEntries(entries);
 }
 
 main().catch((err) => {
