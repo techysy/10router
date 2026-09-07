@@ -146,6 +146,8 @@ PORT=20128 HOSTNAME=0.0.0.0 npm run start
 3. 10Router 仪表盘 → API Keys → 新建一个虚拟 key（如命名 `zcode-usage-sync`）
 4. 在 ZCode 里执行 `/10router-sync:sync-usage`（或直接说「导出 ZCode 使用量到 10Router」）
 
+ZCode 机器与 10Router **不在同一网段**时走离线模式：本机 `--export zcode-usage.json` 导出（无需网络与凭据），把文件带到能连通的机器 `--import` 灌回，或直接在仪表盘 JSON 导入。
+
 详见 [zcode-plugin/README.md](zcode-plugin/README.md)。
 
 ## 🔄 同步上游
