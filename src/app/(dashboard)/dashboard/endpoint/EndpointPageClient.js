@@ -26,6 +26,9 @@ export default function APIPageClient({ machineId }) {
   const [confirmState, setConfirmState] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
+  const [apiKeyRotation, setApiKeyRotation] = useState(false);
+  const [rotatingKeys, setRotatingKeys] = useState(false);
+  const [rotatedKeysSummary, setRotatedKeysSummary] = useState(null);
   const [requireLogin, setRequireLogin] = useState(true);
   const [hasPassword, setHasPassword] = useState(true);
  const [tunnelDashboardAccess, setTunnelDashboardAccess] = useState(false);
@@ -201,6 +204,7 @@ export default function APIPageClient({ machineId }) {
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setRequireApiKey(data.requireApiKey || false);
+        setApiKeyRotation(data.apiKeyRotation === true);
         setRequireLogin(data.requireLogin !== false);
         setHasPassword(data.hasPassword || false);
         setTunnelDashboardAccess(data.tunnelDashboardAccess || false);
@@ -250,6 +254,42 @@ export default function APIPageClient({ machineId }) {
       if (res.ok) setRequireApiKey(value);
     } catch (error) {
       console.log("Error updating requireApiKey:", error);
+    }
+  };
+
+  const handleApiKeyRotation = async (value) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKeyRotation: value }),
+      });
+      if (res.ok) setApiKeyRotation(value);
+      return res.ok;
+    } catch (error) {
+      console.log("Error updating apiKeyRotation:", error);
+      return false;
+    }
+  };
+
+  const handleRotateKeys = async () => {
+    setRotatingKeys(true);
+    try {
+      const res = await fetch("/api/keys/rotate", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        // Reload keys list; user must copy the new keys from the result modal
+        const keysRes = await fetch("/api/keys");
+        if (keysRes.ok) {
+          const keysData = await keysRes.json();
+          setKeys(keysData.keys || []);
+        }
+        setRotatedKeysSummary(data);
+      }
+    } catch (error) {
+      console.log("Error rotating keys:", error);
+    } finally {
+      setRotatingKeys(false);
     }
   };
 
@@ -984,13 +1024,94 @@ export default function APIPageClient({ machineId }) {
           </div>
           <Toggle
             checked={requireApiKey}
-            onChange={() => handleRequireApiKey(!requireApiKey)}
+            onChange={(next) => {
+              if (!next) {
+                // Disabling exposes the endpoint — confirm before applying.
+                setConfirmState({
+                  title: "Disable API key requirement?",
+                  message:
+                    "Requests without a valid key will be accepted while this is off. " +
+                    "You can re-enable it at any time.",
+                  onConfirm: () => handleRequireApiKey(false),
+                });
+              } else {
+                handleRequireApiKey(true);
+              }
+            }}
           />
         </div>
 
         {isRemoteHost && !requireApiKey && (
           <div className="mb-4 -mt-2">
             <SecurityWarning message="Endpoint is exposed without an API key." />
+          </div>
+        )}
+
+        {/* Experimental: key secret rotation */}
+        <div className="flex items-center justify-between py-4 mb-4 border-b border-border">
+          <div className="flex items-center gap-1.5">
+            <div>
+              <p className="font-medium flex items-center gap-2">
+                Key secret rotation
+                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  Experimental
+                </span>
+              </p>
+              <p className="text-sm text-text-muted">
+                Sign new keys with an auto-generated secret instead of the built-in one
+              </p>
+            </div>
+            <Tooltip text="When enabled, the HMAC secret used for API key CRC is auto-generated to the data directory (api-key-secret, mode 0600) — or set API_KEY_SECRET to pin your own (env always wins). Existing keys keep working only if they were issued under the same secret; after enabling, previously issued keys fail validation and must be re-created." />
+          </div>
+          <Toggle
+            checked={apiKeyRotation}
+            onChange={(next) => {
+              if (next) {
+                setConfirmState({
+                  title: "Enable key secret rotation?",
+                  message:
+                    "New keys will be signed with an auto-generated secret. " +
+                    "Keys issued BEFORE enabling will stop validating and cannot be restored — " +
+                    "re-create them and update every client. This cannot be undone silently.",
+                  onConfirm: () => handleApiKeyRotation(true),
+                });
+              } else {
+                setConfirmState({
+                  title: "Disable key secret rotation?",
+                  message:
+                    "New keys will be signed with the built-in secret again. " +
+                    "Keys issued while rotation was enabled will stop validating — " +
+                    "re-create them and update every client.",
+                  onConfirm: () => handleApiKeyRotation(false),
+                });
+              }
+            }}
+          />
+        </div>
+
+        {apiKeyRotation && (
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+            <div>
+              <p className="font-medium">Re-issue all keys</p>
+              <p className="text-sm text-text-muted">
+                Re-create every existing key under the current secret — clients must be updated
+              </p>
+            </div>
+            <Button
+              icon="autorenew"
+              onClick={() =>
+                setConfirmState({
+                  title: "Re-issue all API keys?",
+                  message:
+                    "Every existing key will be replaced with a new one signed under the current secret. " +
+                    "All clients using old keys will stop working until updated. This cannot be undone.",
+                  onConfirm: handleRotateKeys,
+                })
+              }
+              disabled={rotatingKeys}
+            >
+              {rotatingKeys ? "Rotating…" : "Rotate all"}
+            </Button>
           </div>
         )}
 
@@ -1107,6 +1228,44 @@ export default function APIPageClient({ machineId }) {
               Cancel
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Rotated Keys Modal */}
+      <Modal
+        isOpen={!!rotatedKeysSummary}
+        title="Keys Re-issued"
+        onClose={() => setRotatedKeysSummary(null)}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2 font-medium">
+              Save these keys now — shown only once
+            </p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              Old keys no longer work. Update every client with the new values below.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+            {(rotatedKeysSummary?.rotated || []).map((r) => (
+              <div key={r.id} className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-text-muted">{r.name}</p>
+                <div className="flex gap-2">
+                  <Input value={r.key} readOnly className="flex-1 font-mono text-xs" />
+                  <Button
+                    variant="secondary"
+                    icon={copied === `rot_${r.id}` ? "check" : "content_copy"}
+                    onClick={() => copy(r.key, `rot_${r.id}`)}
+                  >
+                    {copied === `rot_${r.id}` ? "Copied!" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => setRotatedKeysSummary(null)} fullWidth>
+            Done
+          </Button>
         </div>
       </Modal>
 

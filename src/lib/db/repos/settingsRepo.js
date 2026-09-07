@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   },
   requireLogin: true,
   requireApiKey: true,
+  apiKeyRotation: false, // experimental: HMAC secret rotation (invalidates all issued keys)
   tunnelDashboardAccess: true,
   authMode: "password",
   ssoType: "oidc",
