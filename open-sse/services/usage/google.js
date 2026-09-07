@@ -123,7 +123,7 @@ async function getGeminiSubscriptionInfo(accessToken, proxyOptions = null) {
  * account/tier/host, we fall back to the older fetchAvailableModels per-model
  * parsing so the usage page still shows *something*.
  */
-export async function getAntigravityUsage(accessToken, providerSpecificData, proxyOptions = null) {
+export async function getAntigravityUsage(accessToken, providerSpecificData, proxyOptions = null, options = {}) {
   try {
     const subscriptionInfo = await getAntigravitySubscriptionInfo(accessToken, proxyOptions);
     const projectId = subscriptionInfo?.cloudaicompanionProject || null;
@@ -137,7 +137,8 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
           projectId,
           U("antigravity").quotaSummaryApiUrls,
           ANTIGRAVITY_CONFIG.userAgent,
-          proxyOptions
+          proxyOptions,
+          { forceRefresh: options.force === true || options.forceRefresh === true }
         );
         if (summaryQuotas && Object.keys(summaryQuotas).length > 0) {
           return { plan, quotas: summaryQuotas, subscriptionInfo };
