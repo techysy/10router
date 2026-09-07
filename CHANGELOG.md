@@ -4,6 +4,11 @@
 
 ## v1.0.8 (未发布)
 
+### 🔒 安全加固
+
+- **API key 生成与 HMAC secret 硬化**（本地审查清单落地，向后兼容）：① `generateKeyId()` 由 `Math.random()` 改 `crypto.randomBytes`——keyId 是密钥材料，不能出自可预测源（新旧格式互通，存量 key 不受影响）；② `API_KEY_SECRET` 硬编码兜底不再静默使用——未设置时启动告警提示；新增**实验功能 `API_KEY_ROTATION=true`（默认关闭）**：开启后与 `JWT_SECRET` 同契约，自动生成随机 secret 落盘 `$DATA_DIR/api-key-secret`（mode 0600）——因 CRC secret 变化会使存量 API key 失效需重新签发，故**绝不静默迁移**，由用户显式选择时机；③ `.env.example` 补两个变量的契约说明，`REQUIRE_API_KEY=false` 死示例删除并注明该变量**运行时不读**（真开关是仪表盘设置 DB 的 `requireApiKey` 行，默认 true），消除部署误导。配套临时验证：生成→解析→CRC 校验闭环、篡改 CRC 必拒、20000 次抽取无 keyId 碰撞、实验开关关闭时兜底行为与旧版逐字节一致（验证用例跑完即删，不入库）。
+- **登录 500 不再回传内部错误详情**：`/api/auth/login` 的 catch 分支此前把 `error.message` 原样回给客户端（泄漏服务器内部信息），改为服务端 `console.error` 记录、客户端回通用文案。
+
 ### 🐛 修复
 
 - **Antigravity 配额与 CLIProxyAPI/官网数字对不上（用户反馈）**：两处根因一并对齐——① **配额 summary 查错 host**：聊天流量走 `daily-cloudcode-pa`，配额 RPC 却固定查 prod `cloudcode-pa`，两个环境的计数器相互独立，仪表盘数字系统性滞后于账号实际消耗（实测 Gemini weekly 显示 90%、CLIProxyAPI 同时刻为 71%）；`quotaSummaryApiUrl` 改为 `quotaSummaryApiUrls` 列表，按 daily → daily sandbox → prod 依次尝试（2xx 且解析出 `groups[]` 才算命中，防无关信封误判；缓存/并发去重按 URL 分键），与原生 IDE 客户端及 CLIProxyAPI 管理中心同一顺序，某台 host 拒答自动落到下一台，全部不可用仍回退 `fetchAvailableModels` 逐模型解析；② **前端百分比失真**：`ProviderLimitCard` 的 `remainingPercentage` 三元表达式两个分支同值（都在前端从 used/total 重算），后端上报的真实百分比从未生效——改为直接取用；summary RPC 本就只报剩余比例（fraction），合成的 `x / 100` 刻度行不再当请求数展示（`percentScale` 标记贯通 google.js → parseQuotaData → QuotaTable/QuotaProgressBar，计数留空只显示剩余百分比与倒计时）。测试：新增 `antigravity-quota-summary-hosts.test.js` 覆盖 host 回退三场景（daily 命中即停 / daily 拒答逐级回落 prod / 全挂走兜底），既有 headers/weekly-quota/gemini-3.x 断言同步更新，8 套件 35 例全绿。

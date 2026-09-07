@@ -87,6 +87,7 @@ graphify-out/*
 .script/
 .codegraph/
 .PR/
+.mrdayone/
 .next-analyze/*
 
 # Desktop shell (Electron) build artifacts

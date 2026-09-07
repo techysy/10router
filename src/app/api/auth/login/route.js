@@ -33,6 +33,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   } catch (error) {
     recordFail(ip);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Never echo internal error details to the client — log server-side only.
+    console.error("[auth] login failed:", error);
+    return NextResponse.json({ error: "Login failed. Check server logs." }, { status: 500 });
   }
 }

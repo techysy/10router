@@ -1,15 +1,50 @@
 import crypto from "crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { DATA_DIR } from "@/lib/dataDir";
 
-const API_KEY_SECRET = process.env.API_KEY_SECRET || "endpoint-proxy-api-key-secret";
+const LEGACY_FALLBACK_SECRET = "endpoint-proxy-api-key-secret";
+
+// Opt-in experimental secret rotation (API_KEY_ROTATION=true). Default OFF:
+// enabling regenerates the HMAC secret, which invalidates every existing API
+// key's CRC on upgrade — that migration must never happen silently. When on,
+// same contract as JWT_SECRET (dashboardSession): env wins, else a random
+// secret is auto-generated to $DATA_DIR/api-key-secret (mode 0600).
+function loadApiKeySecret() {
+  const fromEnv = process.env.API_KEY_SECRET;
+  if (fromEnv) return fromEnv;
+  if (process.env.API_KEY_ROTATION !== "true") {
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[auth] API_KEY_SECRET is unset — falling back to a well-known built-in secret. " +
+          "Set API_KEY_SECRET, or opt into experimental auto-rotation with API_KEY_ROTATION=true " +
+          "(existing API keys will need to be re-issued after enabling).",
+      );
+    }
+    return LEGACY_FALLBACK_SECRET;
+  }
+  const file = path.join(DATA_DIR, "api-key-secret");
+  try {
+    return fs.readFileSync(file, "utf8").trim();
+  } catch {}
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const generated = crypto.randomBytes(32).toString("hex");
+  fs.writeFileSync(file, generated, { mode: 0o600 });
+  return generated;
+}
+
+const API_KEY_SECRET = loadApiKeySecret();
 
 /**
- * Generate 6-char random keyId
+ * Generate 6-char random keyId (crypto-grade randomness — key material
+ * must not come from Math.random)
  */
 function generateKeyId() {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.randomBytes(6);
   let result = "";
   for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(bytes[i] % chars.length);
   }
   return result;
 }
