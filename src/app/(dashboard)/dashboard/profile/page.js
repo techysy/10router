@@ -808,19 +808,23 @@ export default function ProfilePage() {
     setDbAuth({ open: true, mode: "import", password: "" });
   };
 
+  const isSqliteFile = (file) =>
+    /\\.(sqlite|sqlite3|db)$/i.test(file.name) ||
+    file.type === "application/x-sqlite3" ||
+    file.type === "application/vnd.sqlite3" ||
+    file.type === "application/octet-stream";
+  const isJsonFile = (file) =>
+    /\\.(json)$/i.test(file.name) || file.type === "application/json";
+
   const handleUsageImportFile = (event) => {
     const file = event.target.files?.[0];
     if (usageImportFileRef.current) usageImportFileRef.current.value = "";
     if (!file) return;
     // Hard validation: accept attribute is only a UI hint — some browsers
-    // (Safari etc.) let any file through. Reject anything that isn't SQLite.
-    const isSqlite =
-      /\.(sqlite|sqlite3|db)$/i.test(file.name) ||
-      file.type === "application/x-sqlite3" ||
-      file.type === "application/vnd.sqlite3" ||
-      file.type === "application/octet-stream";
-    if (!isSqlite) {
-      setUsageImportStatus({ type: "error", message: translate("Only SQLite database files (.sqlite/.db) can be imported") });
+    // (Safari etc.) let any file through. Allow SQLite db files OR the JSON
+    // usage payload (e.g. the ZCode sync-usage export / a saved usage JSON).
+    if (!isSqliteFile(file) && !isJsonFile(file)) {
+      setUsageImportStatus({ type: "error", message: translate("Only SQLite (.sqlite/.db) or JSON (.json) usage files can be imported") });
       return;
     }
     void importUsageFile(file);
@@ -830,12 +834,34 @@ export default function ProfilePage() {
     setUsageImportLoading(true);
     setUsageImportStatus({ type: "", message: "" });
     try {
-      const form = new FormData();
-      form.append("file", file);
+      const isJson = isJsonFile(file) && !isSqliteFile(file);
+      const headers = {};
+      if (password) headers["x-9r-password"] = password;
+
+      let body;
+      if (isJson) {
+        let parsed;
+        try {
+          const raw = await file.text();
+          parsed = JSON.parse(raw);
+        } catch {
+          setUsageImportLoading(false);
+          setUsageImportStatus({ type: "error", message: translate("Invalid JSON usage file") });
+          return;
+        }
+        // Accept either the raw usageHistory array or a wrapper object.
+        body = JSON.stringify(Array.isArray(parsed) ? { usageHistory: parsed } : parsed);
+        headers["Content-Type"] = "application/json";
+      } else {
+        const form = new FormData();
+        form.append("file", file);
+        body = form;
+      }
+
       const res = await fetch("/api/settings/database/import-usage", {
         method: "POST",
-        body: form,
-        ...(password ? { headers: { "x-9r-password": password } } : {}),
+        body,
+        headers,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1005,7 +1031,7 @@ export default function ProfilePage() {
               <input
                 ref={usageImportFileRef}
                 type="file"
-                accept=".sqlite,.db"
+                accept=".sqlite,.db,.sqlite3,.json,application/json"
                 className="hidden"
                 onChange={handleUsageImportFile}
               />
