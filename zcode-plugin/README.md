@@ -9,9 +9,15 @@
 - **溯源**：导入后 provider 显示为 `zcode-<名称>`（如 `zcode-bigmodel-start-plan`），cost 记 0（订阅制渠道），agent/会话/时长等明细在 meta 里
 - **鉴权**：虚拟 key（`sk-…`，推荐）或仪表盘密码，与 10Router v1.0.7+ 的导入鉴权匹配
 
-## 安装（本地开发）
+## 安装
 
-ZCode 客户端 → Plugins → 从目录安装，选择本目录（含 `.zcode-plugin/plugin.json`）。或直接把目录拷贝到 ZCode 插件目录。
+**方式一：ZCode 插件市场（推荐，npm/桌面/源码安装用户通用）**
+
+ZCode → Settings → Plugin Management → Discover 页 → 点 `+` 添加市场，填 GitHub 仓库 `techysy/10router`（市场索引在仓库根 `marketplace.json`）→ 找到 **10router-sync** 点 Get 安装。
+
+**方式二：从目录安装（本地开发）**
+
+Plugins → 从目录安装，选择 `zcode-plugin/` 目录（含 `.zcode-plugin/plugin.json`）。或直接把目录拷贝到 ZCode 插件目录。
 
 ## 使用
 
