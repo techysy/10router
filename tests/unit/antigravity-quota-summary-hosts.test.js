@@ -108,6 +108,21 @@ describe("Antigravity quota-summary host ordering", () => {
     expect(usage.quotas.gemini_weekly).toMatchObject({ remainingPercentage: 71 });
   });
 
+  it("bypasses cache when forceRefresh is requested", async () => {
+    const { getAntigravityUsage } = await import("../../open-sse/services/usage/google.js");
+
+    await getAntigravityUsage("token-force-refresh-test", {});
+    expect(summaryCalls()).toHaveLength(1);
+
+    // Default call within TTL hits cache (no new network request)
+    await getAntigravityUsage("token-force-refresh-test", {});
+    expect(summaryCalls()).toHaveLength(1);
+
+    // Call with force: true must bypass cache and issue a new request
+    await getAntigravityUsage("token-force-refresh-test", {}, null, { force: true });
+    expect(summaryCalls()).toHaveLength(2);
+  });
+
   it("still answers via the per-model fetchAvailableModels fallback when no summary host responds", async () => {
     summaryHostBehavior.daily = () => jsonResponse(500, {});
     summaryHostBehavior.sandbox = () => jsonResponse(500, {});
