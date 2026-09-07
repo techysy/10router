@@ -80,7 +80,16 @@ export const AG_TOOL_SUFFIX = "_ide";
 // makes the backend flag the request and answer 429 Quota Exhausted.
 export const ANTIGRAVITY_PROMPT_REWRITES = [
   { from: "You are a Claude agent, built on Anthropic's Claude Agent SDK.", to: "" },
-  { from: /opencode/gi, to: (m) => (m === "OpenCode" ? "Antigravity" : m === "OPENCODE" ? "ANTIGRAVITY" : "antigravity") }
+  { from: /opencode/gi, to: (m) => (m === "OpenCode" ? "Antigravity" : m === "OPENCODE" ? "ANTIGRAVITY" : "antigravity") },
+  // Hermes / Nous Research identity reaches Antigravity verbatim (no client-side sanitization on this
+  // path — hermes-agent only renames for Anthropic/Claude), so Google's competitor/client sniffing
+  // flags it with a fake 429 Quota Exhausted. Rename to Antigravity branding, mirroring opencode above
+  // and hermes-agent's own Anthropic-side mapping (Hermes Agent→Claude Code, Nous Research→Anthropic).
+  // Longest/full-domain first so hermes-agent.nousresearch.com isn't left half-renamed by shorter rules.
+  { from: /hermes-agent\.nousresearch\.com/gi, to: "antigravity.google.com" },
+  { from: /hermes agent/gi, to: (m) => (m.startsWith("H") ? "Antigravity" : "antigravity") },
+  { from: /nous research/gi, to: (m) => (m.startsWith("N") ? "Google DeepMind" : "google deepmind") },
+  { from: /hermes-agent/gi, to: "antigravity" }
 ];
 
 // Suffix added to client tools when forwarding to Claude provider (anti-ban cloaking)
