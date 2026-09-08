@@ -285,9 +285,9 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels) {
     case "deepseek": {
       if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
       body.thinking = { type: "enabled" };
-      // DeepSeek: low/medium→high, xhigh/max→max.
+      // DeepSeek: low/medium→high, xhigh/max→xhigh (SenseNova rejects "max").
       const level = toLevel(eff);
-      body.reasoning_effort = level === "xhigh" || level === "max" ? "max" : "high";
+      body.reasoning_effort = level === "xhigh" || level === "max" ? "xhigh" : "high";
       break;
     }
     case "kimi": {

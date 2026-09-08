@@ -43,7 +43,12 @@
       }
     },
     "usage": {
-      "quotaApiUrl": "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+      "quotaApiUrl": "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+      "quotaSummaryApiUrls": [
+        "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+        "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
+        "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+      ],
       "loadProjectApiUrl": "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
       "tokenUrl": "https://oauth2.googleapis.com/token"
     },
@@ -1061,6 +1066,11 @@
   "apinex": {
     "baseUrl": "https://api.apinex.bond/v1/chat/completions",
     "validateUrl": "https://api.apinex.bond/v1/models",
+    "format": "openai"
+  },
+  "amd": {
+    "baseUrl": "https://developer.amd.com.cn/radeon/api/v1/chat/completions",
+    "validateUrl": "https://developer.amd.com.cn/radeon/api/v1/models",
     "format": "openai"
   }
 }

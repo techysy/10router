@@ -114,6 +114,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > alitp-intl → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > amd → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > anthropic → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1611,6 +1630,13 @@ exports[`GOLDEN buildUrl (default executor providers) > alitp-intl → url (stre
 {
   "nonStream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
   "stream": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > amd → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://developer.amd.com.cn/radeon/api/v1/chat/completions",
+  "stream": "https://developer.amd.com.cn/radeon/api/v1/chat/completions",
 }
 `;
 

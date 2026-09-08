@@ -111,6 +111,7 @@ export const MODEL_CAPABILITIES = {
 
   // GLM vision variant (text GLM has no vision)
   "glm-4.6v":          { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000 },
+  "GLM-4.6V-Flash":    { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 200000 },
   "glm-5.3-flash":     { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
 
   // Qwen plain coder/text (no vision) — registry "vision-model" / "coder-model" aliases
@@ -153,6 +154,16 @@ export const PROVIDER_CAPABILITIES = {
     "z-ai/glm-5.2": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 128000 },
     "deepseek-ai/deepseek-v4-pro": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
     "deepseek-ai/deepseek-v4-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
+  },
+  // AMD Token Factory (Radeon Cloud) free shared endpoints — OpenAI protocol,
+  // text-only (image_url → 400), reasoning via reasoning_effort only (native
+  // `thinking` field → 400). DeepSeek defaults to no thinking; Qwen thinks by
+  // default (internal xhigh) and only accepts low/medium, so it cannot disable.
+  // maxOutput: upstream publishes no output cap (max_tokens counts the total
+  // budget) — values here are conservative UI hints, not wire limits.
+  "amd": {
+    "DeepSeek-V4-Flash":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+    "Qwen3.8-Flash-Next": { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 32768 },
   },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },

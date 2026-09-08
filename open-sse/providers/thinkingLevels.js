@@ -40,6 +40,12 @@ const PATTERN_THINKING = [
   { provider: "codex", pattern: "*gpt-5.6-terra*", levels: [...CODEX_GPT_5_6_LEVELS, "ultra"] },
   { provider: "codex", pattern: "*gpt-5.6-luna*", levels: CODEX_GPT_5_6_LEVELS },
   { pattern: "*codex*", levels: ["low", "medium", "high", "xhigh"] }, // codex cannot disable thinking
+  // AMD Token Factory per-model effort sets (upstream docs probe every value):
+  // DeepSeek-V4-Flash accepts all six efforts (default = none/no thinking);
+  // Qwen3.8-Flash-Next only serves low/medium (high → 400, others → 422) and
+  // thinks by default — no "none".
+  { provider: "amd", pattern: "DeepSeek-V4-Flash", levels: ["none", "minimal", "low", "medium", "high", "xhigh", "max"] },
+  { provider: "amd", pattern: "Qwen3.8-Flash-Next", levels: ["low", "medium"] },
   // codebuddy-cn per-model effort sets — the server's product-config payload
   // publishes `reasoning.supportedEfforts` per model. NOTE: the chat endpoint
   // accepts any level you send (probed none/minimal/low/medium/high/xhigh/max

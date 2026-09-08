@@ -133,6 +133,7 @@ import p130 from "./agnes-ai-cn.js";
 import p131 from "./apinex.js";
 import p132 from "./ollama-search.js";
 import p133 from "./xquik.js";
+import p134 from "./amd.js";
 
 export default [
   p0,
@@ -267,4 +268,5 @@ export default [
   p131,
   p132,
   p133,
+  p134,
 ];

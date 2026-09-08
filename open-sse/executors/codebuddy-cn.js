@@ -32,7 +32,7 @@ export class CodeBuddyExecutor extends DefaultExecutor {
     // wipe the agent's full identity/role/tool memory on every new session
     // ("失忆"). Match on unique markers that won't appear in an attacker-controlled
     // prompt (product names, official-signature phrases).
-    const WHITELIST_PATTERN = /hermes|10router|9router|\bclaude code by anthropic\b|anthropic's official cli|\bsystem instructions\b|你的身份|你的角色设定/i;
+    const WHITELIST_PATTERN = /hermes|10router|9router|\bclaude code by anthropic\b|\bsystem instructions\b|你的身份|你的角色设定/i;
     const flatten = (content) =>
       typeof content === "string"
         ? content
