@@ -1,6 +1,6 @@
-# 10router-sync (ZCode 插件)
+# 10router-sync (ZCode / OpenCode 插件)
 
-把本机 ZCode 的模型调用流水（`~/.zcode/cli/db/db.sqlite` 的 `model_usage` 表）导出并导入 10Router 的用量统计，复用 10Router 的 `/api/settings/database/import-usage` 接口。
+把本机 ZCode 的模型调用流水（`~/.zcode/cli/db/db.sqlite` 的 `model_usage` 表）或 OpenCode 桌面端的会话用量（`~/.local/share/opencode/opencode.db` 的 `session` 表）导出并导入 10Router 的用量统计，复用 10Router 的 `/api/settings/database/import-usage` 接口。
 
 ## 能力
 
@@ -31,6 +31,19 @@ node scripts/export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-… --d
 
 # 导入（本机可直连 10Router 时）
 node scripts/export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-…
+```
+
+数据源由 `--source` 指定：`--source zcode`（默认）读 ZCode，`--source opencode` 读 OpenCode 桌面端。OpenCode 不会自动检测——导出 OpenCode 用量须显式加 `--source opencode`。
+
+### OpenCode 用量同步
+
+```bash
+# 导入 OpenCode 用量（本机可直连 10Router 时）
+node scripts/export-usage.mjs --source opencode --endpoint http://127.0.0.1:20127 --key sk-…
+
+# 离线：先导出，再在能连通 10Router 的机器导入
+node scripts/export-usage.mjs --source opencode --export opencode-usage.json
+node scripts/export-usage.mjs --import opencode-usage.json --endpoint http://<host>:<port> --key sk-…
 ```
 
 ### 离线模式（ZCode 与 10Router 不在同一网段）

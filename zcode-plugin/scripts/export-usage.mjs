@@ -1,32 +1,31 @@
 #!/usr/bin/env node
 /**
- * 10router ZCode usage exporter.
+ * 10router usage exporter — supports ZCode *and* OpenCode.
  *
- * Reads ZCode's local model_usage ledger (~/.zcode/cli/db/db.sqlite, table
- * model_usage), converts rows to 10router usageHistory entries, and either
- * POSTs them to /api/settings/database/import-usage (online) or writes a JSON
- * file (offline — for ZCode machines that cannot reach the 10Router instance;
- * carry the file to any machine that can and run --import there). Dedup on the
- * 10router side makes re-runs idempotent, so syncing the whole table each time
- * is safe and simple.
+ * Reads a local model-usage ledger (ZCode: ~/.zcode/cli/db/db.sqlite,
+ * OpenCode: ~/.local/share/opencode/opencode.db) and either POSTs to
+ * 10Router's /api/settings/database/import-usage (online) or writes a JSON
+ * file for offline import.
  *
  * Modes:
  *   (default)  export + POST to --endpoint            (needs network + auth)
  *   --export F collect rows, write JSON file F        (no network, no auth)
  *   --import F read JSON file F, POST to --endpoint   (needs network + auth)
  *
+ * Source selection:
+ *   --source zcode      (default) read ZCode ledger
+ *   --source opencode   read OpenCode desktop ledger
+ *
  * Auth (online modes): one of
  *   --key sk-…            virtual proxy key from 10router dashboard (preferred)
  *   --password <pass>     dashboard password (same as usage-import UI)
  * Config: --endpoint http://host:port (default http://127.0.0.1:20127)
  *
- * Safety: ZCode's db.sqlite is a live WAL database. Never open it in place —
- * copy db.sqlite (+ -wal/-shm when present) to a temp dir and open the copy.
- *
  * Manual smoke test:
  *   node export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-… --dry-run
  *   node export-usage.mjs --export zcode-usage.json
- *   node export-usage.mjs --import zcode-usage.json --endpoint http://nas:20128 --key sk-…
+ *   node export-usage.mjs --source opencode --export opencode-usage.json
+ *   node export-usage.mjs --import opencode-usage.json --endpoint http://nas:20128 --key sk-…
  */
 
 import fs from "node:fs";
@@ -44,6 +43,7 @@ function parseArgs(argv) {
     endpoint: process.env.TENROUTER_ENDPOINT || "http://127.0.0.1:20127",
     key: process.env.TENROUTER_KEY || "",
     password: process.env.TENROUTER_PASSWORD || "",
+    source: "zcode", // "zcode" | "opencode"
     limit: 0,
     dryRun: false,
     quiet: false,
@@ -55,6 +55,7 @@ function parseArgs(argv) {
     if (a === "--endpoint") args.endpoint = argv[++i];
     else if (a === "--key") args.key = argv[++i];
     else if (a === "--password") args.password = argv[++i];
+    else if (a === "--source") args.source = argv[++i];
     else if (a === "--limit") args.limit = parseInt(argv[++i], 10) || 0;
     else if (a === "--export") args.exportFile = argv[++i];
     else if (a === "--import") args.importFile = argv[++i];
@@ -63,9 +64,13 @@ function parseArgs(argv) {
     else if (a === "--help" || a === "-h") {
       console.log(`Usage: node export-usage.mjs [mode] [options]
 
-Modes (pick at most one; default = read ZCode db + POST online):
-  --export <file>      read ZCode db, write usageHistory JSON (no network/auth)
+Modes (pick at most one; default = read db + POST online):
+  --export <file>      read local db, write usageHistory JSON (no network/auth)
   --import <file>      POST a previously exported JSON to --endpoint
+
+Source:
+  --source zcode       (default) read ZCode ledger (~/.zcode/cli/db/db.sqlite)
+  --source opencode    read OpenCode desktop ledger (~/.local/share/opencode/opencode.db)
 
 Options:
   --endpoint URL       10Router base URL (default http://127.0.0.1:20127)
@@ -79,6 +84,10 @@ Options:
   }
   if (args.exportFile && args.importFile) {
     console.error("error: --export and --import are mutually exclusive");
+    process.exit(2);
+  }
+  if (!["zcode", "opencode"].includes(args.source)) {
+    console.error(`error: --source must be "zcode" or "opencode", got "${args.source}"`);
     process.exit(2);
   }
   // Offline export needs neither endpoint nor credentials.
@@ -123,6 +132,62 @@ function snapshotDb(srcPath) {
     if (fs.existsSync(src)) fs.copyFileSync(src, dst + suffix);
   }
   return { tmpDir, dst };
+}
+
+// ---------------------------------------------------------------------------
+// OpenCode db discovery
+// ---------------------------------------------------------------------------
+
+function opencodeDbCandidates() {
+  const home = os.homedir();
+  const candidates = [];
+  // Primary: ~/.local/share/opencode/opencode.db (works on all platforms)
+  candidates.push(path.join(home, ".local", "share", "opencode", "opencode.db"));
+  // Windows fallback: %LOCALAPPDATA%\opencode\opencode.db
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+    candidates.push(path.join(localAppData, "opencode", "opencode.db"));
+  }
+  return candidates.filter((p) => fs.existsSync(p));
+}
+
+function convertOpenCodeSession(s) {
+  // model field is JSON: {"id":"mimo-v2.5-free","providerID":"opencode","variant":"default"}
+  let modelId = "unknown";
+  let providerID = "opencode";
+  if (s.model) {
+    try {
+      const m = typeof s.model === "string" ? JSON.parse(s.model) : s.model;
+      modelId = m.id || "unknown";
+      providerID = m.providerID || "opencode";
+    } catch {
+      modelId = String(s.model);
+    }
+  }
+  const tokens = {
+    prompt_tokens: s.tokens_input || 0,
+    completion_tokens: s.tokens_output || 0,
+  };
+  if (s.tokens_cache_read) tokens.cache_read_input_tokens = s.tokens_cache_read;
+  return {
+    timestamp: new Date(s.time_created).toISOString(),
+    provider: "opencode-" + providerID,
+    model: modelId,
+    connectionId: null,
+    apiKey: null,
+    endpoint: "opencode://desktop",
+    cost: s.cost || 0,
+    status: "ok",
+    tokens,
+    meta: {
+      source: "opencode",
+      opencodeSessionId: s.id || null,
+      title: s.title || null,
+      agent: s.agent || null,
+      reasoning_tokens: s.tokens_reasoning || 0,
+      cache_write_tokens: s.tokens_cache_write || 0,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +278,7 @@ async function importBatch(entries, { endpoint, key, password }) {
 // ---------------------------------------------------------------------------
 
 // Read every ZCode db snapshot and return converted usageHistory entries.
-function collectEntries() {
+function collectZcodeEntries() {
   const selfIds = loadSelfProviderIds();
   const dbs = zcodeDbCandidates();
   if (dbs.length === 0) {
@@ -253,6 +318,40 @@ function collectEntries() {
     }
   }
   return entries;
+}
+
+// Read OpenCode desktop db and return converted usageHistory entries.
+function collectOpencodeEntries() {
+  const dbs = opencodeDbCandidates();
+  if (dbs.length === 0) {
+    console.error("error: no OpenCode db found (~/.local/share/opencode/opencode.db)");
+    process.exit(1);
+  }
+
+  const entries = [];
+  for (const dbPath of dbs) {
+    // OpenCode uses WAL too; snapshot before reading.
+    const { tmpDir, dst } = snapshotDb(dbPath);
+    try {
+      const db = new DatabaseSync(dst, { readOnly: true });
+      try {
+        const rows = db.prepare(`SELECT id, title, model, agent, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created, time_updated FROM session ORDER BY time_created ASC`).all();
+        for (const row of rows) {
+          entries.push(convertOpenCodeSession(row));
+        }
+      } finally {
+        db.close();
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+  return entries;
+}
+
+function collectEntries() {
+  if (args.source === "opencode") return collectOpencodeEntries();
+  return collectZcodeEntries();
 }
 
 // POST entries in bounded batches; 10router dedups so re-runs are safe.

@@ -9,7 +9,7 @@
         "en": "Sync ZCode's local model-usage ledger into 10Router (/api/settings/database/import-usage).",
         "zh-CN": "将 ZCode 本地模型调用用量导出并导入 10Router。"
       },
-      "version": "0.2.0",
+      "version": "0.3.0",
       "source": "./"
     }
   ]
