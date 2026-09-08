@@ -4,6 +4,10 @@
 
 ## v1.0.8 (未发布)
 
+### ✨ 新增功能
+
+- **新增 AMD Token Factory 供应商（免费档，与 NVIDIA NIM 同形态）**：AMD Radeon Cloud 的免费共享 OpenAI 兼容端点（`developer.amd.com.cn/radeon/api/v1`，Bearer `rc-…` key 在 Token Factory 页自动签发），上线两个实验模型——`DeepSeek-V4-Flash`（1M 原生上下文，默认不思考，reasoning_effort 六档全收）与 `Qwen3.8-Flash-Next`（262K 上下文，默认思考且不可关，仅收 low/medium，high→400、其余→422）；registry/capabilities/thinkingLevels 三处按上游文档逐项对齐（纯文本、tool calling 支持但无并行、json_object 可用 json_schema 不可、原生 thinking 字段 400 须走 reasoning_effort），DefaultExecutor 直接承接无需专属 executor；免费额度：每 key 30 RPM / 每账户 20 RPM / 并发 8。providers/alias 两份基线快照刻意重建（差异仅 `+amd`），OAuth 基线不变，全量回归零新增失败。
+
 ### 🔒 安全加固
 
 - **API key 生成与 HMAC secret 硬化**（本地审查清单落地，向后兼容）：① `generateKeyId()` 由 `Math.random()` 改 `crypto.randomBytes`——keyId 是密钥材料，不能出自可预测源（新旧格式互通，存量 key 不受影响）；② `API_KEY_SECRET` 硬编码兜底不再静默使用——未设置时启动告警提示；新增**实验功能 Key secret rotation（默认关闭）**：环境变量 `API_KEY_ROTATION=true` 或仪表盘「API Keys → Key secret rotation」开关均可开启，开启后与 `JWT_SECRET` 同契约，自动生成随机 secret 落盘 `$DATA_DIR/api-key-secret`（mode 0600）——因 CRC secret 变化会使存量 API key 失效需重新签发，故**绝不静默迁移**：开关两向切换均弹确认框（明示旧 key 失效不可恢复），开启后仪表盘提供 **Rotate all 一键重签**（逐 key 换发新串、旧 key 停用，弹窗一次性展示全部新 key 供复制）；`API_KEY_SECRET` 环境变量始终优先于实验开关；③ `.env.example` 补两个变量的契约说明，`REQUIRE_API_KEY=false` 死示例删除并注明该变量**运行时不读**（真开关是仪表盘设置 DB 的 `requireApiKey` 行，默认 true），消除部署误导。配套临时验证：生成→解析→CRC 校验闭环、篡改 CRC 必拒、20000 次抽取无 keyId 碰撞、三态解析（默认兜底 / env 优先 / rotation 落盘）与关闭时兜底行为同旧版逐字节一致（验证用例跑完即删，不入库）。
