@@ -154,7 +154,7 @@ flowchart LR
 
 - **IP 盖章链**：`custom-server.js` 从 TCP socket 写 `x-9r-real-ip`，并用进程内随机 `NINEROUTER_PEER_TOKEN`（`src/lib/auth/trustedPeer.js`）证明该头是自己盖的——登录限流（`loginLimiter.js`）只信盖章值，客户端自报 `X-Forwarded-For` 不能轮换限流桶
 - 仪表盘 cookie 认证：`src/proxy.js`（dashboardGuard middleware，先于 Next rewrites）、`src/app/api/auth/login/route.js`；鉴权由 `PUBLIC_PREFIXES` / `ALWAYS_PROTECTED` 两张表决定，加公开 LLM 路径必须同步进表
-- API key 生成 / 校验：`src/shared/utils/apiKey.js`——格式 `sk-{machineId}-{keyId}-{crc8}`，CRC 为 HMAC-SHA256 截断；keyId 用 `crypto.randomBytes`（v1.0.8 起），HMAC 密钥默认走内置兜底（启动告警），实验开关 `API_KEY_ROTATION=true` 才切换为 env → `$DATA_DIR/api-key-secret`（0600）自动生成（会使存量 key 失效，绝不静默迁移）
+- API key 生成 / 校验：`src/shared/utils/apiKey.js`——格式 `sk-{machineId}-{keyId}-{crc8}`，CRC 为 HMAC-SHA256 截断；keyId 用 `crypto.randomBytes`（v1.0.8 起），HMAC 密钥默认走内置兜底（启动告警），实验开关 `API_KEY_ROTATION=true` 才切换为 env → `$DATA_DIR/api-key-secret`（0600）自动生成（会使存量 key 失效，绝不静默迁移）。完整机制（含「本地校验不验 CRC」的过渡态设计与强校验规划）见 [API Key 签名与密钥签名轮换](./api-key-signing-rotation.md)
 - CLI token（`x-9r-cli-token`）：加盐机器码（`getConsistentMachineId`），属本机进程互认，不是远程密钥；`import-usage` 等专用路由依赖它 + `ALWAYS_PROTECTED` 前置
 - 供应商密钥持久化在 `providerConnections` 条目中
 - 通过环境代理变量支持上游调用的可选代理（`open-sse/utils/proxyFetch.js`）
@@ -578,6 +578,7 @@ flowchart LR
 - [SQLite 驱动链](./sqlite-driver-chain.md)
 - [用量去重 usageKey 契约](./usage-usageKey-contract.md)
 - [JSON 模型目录机制](./json-model-catalog-mechanism.md)
+- [API Key 签名与密钥签名轮换](./api-key-signing-rotation.md)
 - [MITM 代理安全加固](./mitm-security-hardening.md)
 - [CodeBuddy 系统提示失忆修复](./CodeBuddy-agent-amnesia-fix.md)
 - [CodeBuddy reasoning_effort 兼容修复](./CodeBuddy-reasoning-effort-fix.md)
