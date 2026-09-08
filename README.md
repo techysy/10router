@@ -51,11 +51,7 @@
 | **v1.0.7** | ZCode 本地用量同步插件（10router-sync，离线导出/导入）；托盘图标单色化（mac template / win 主题黑白）+ 托盘菜单精简与桌面版更新引导；上游 v0.5.69 择优移植（多账号刷新防风控、Responses 并行工具调用修复、Claude Fable 周配额、codebuddy-cn 目录对齐等）；CodeBuddy CN「总积分」聚合行；安全加固（/responses 鉴权缺口、Claude 外来 server_tool_use 400、MCP 缓存锚点）；mac 语言检测修复 |
 | **v1.0.6** | CodeBuddy CN 每日自动签到（实验性）；Antigravity 配额对齐官网（5h + 每周双窗）与 Gemini 3.8 Flash 404 修复；OpenCode Free 免费目录对齐；Windows Web 安装器（211KB 在线拉取）；quota「只看有余额」实时重算；更新横幅 / Profile i18n 补齐；免费模型 429 友好中文提示 |
 | **v1.0.5** | **桌面托盘版（Windows / macOS）** + CLI/桌面多语言；Agent 自助添加自定义供应商；CodeBuddy CN 账号 JSON 批量导入导出；新增 Agnes AI 双站 / APInex 供应商；上游 v0.5.65 供应商同步 + 新搜索供应商（Ollama Search / Xquik）；SSRF 三层防护；用量表 成本/Token 切换错乱修复 |
-| **v1.0.4** | 新增 TokenBom / GoRouter / TaBiAI 供应商与 B.AI 扩展；社区供应商开关（DB 持久化）；CodeBuddy 修复；用量导入路径加固与鉴权补齐；Skills 界面多语言 |
-| **v1.0.3** | 安全加固（npm 包敏感文件门禁、占位密钥拒用、登录限流、用量去重）；新增 LongCat / SenseNova / Dots / B.AI 供应商与官方图标；自定义供应商模型目录；fpk 更新直达 Releases；移除 qoder-cn；npm 包名变更为 `@techysy/10router` |
-| **v1.0.2** | 修复更新检查误指第三方包、`--help` 命令名、postinstall 失败；新增测试 CI，统一 Node 24 |
-| **v1.0.1** | 未作为完整版本发布（仅 npm 试水包 `10router-cli@1.0.1`），MITM 安全修复与 UI 改进实际随 v1.0.2 交付 |
-| **v1.0.0** | 品牌重塑 9Router → 10Router（数据目录迁移至 `~/.10router/` 等一次性变更），沉淀本地修复与增强：配额轮询加速、按 connection 隔离、多币种显示、arm64 Docker 等 |
+| **v1.0.0 – v1.0.4** | 品牌重塑 9Router → 10Router 与沉淀本地修复（配额轮询加速、按 connection 隔离、多币种显示、arm64 Docker）；安全加固（npm 包敏感文件门禁、登录限流、SSRF、用量去重）；新增 TokenBom / GoRouter / TaBiAI / LongCat / SenseNova / Dots / B.AI 等供应商与自定义模型目录；社区供应商开关；CodeBuddy 修复与账号 JSON 批量导入导出；fpk 更新直达 Releases；npm 包名变更为 `@techysy/10router`；测试 CI（Node 24） |
 
 👉 各版本完整明细（每项修复的根因与验证方式）见 **[CHANGELOG.md](CHANGELOG.md)**；本地打包发版流程见 [cli/PACKAGING.md](cli/PACKAGING.md)。
 
