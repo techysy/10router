@@ -112,7 +112,25 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = PROVIDERS[provider]?.forceStream === true;
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
+
+  // Accept header, parsed before defaulting. SDKs and curl send `*/*`, so it can
+  // only ever be an explicit opt-in/out: `text/event-stream` alone asks for SSE,
+  // while `application/json, text/event-stream` together is the OpenAI/Vercel AI
+  // SDK non-stream signature and means JSON.
+  const acceptHeader = (clientRawRequest?.headers?.accept || "").toLowerCase();
+  const clientPrefersJson = acceptHeader.includes("application/json");
+  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
+
+  // Spec default: an omitted `stream` field means a plain JSON response — OpenAI
+  // Chat Completions and Anthropic Messages both define it that way (#4). Stream
+  // only when the client asked (explicit stream:true, a stream-only source
+  // format, or a pure SSE Accept opt-in) or when the provider only implements
+  // streaming (drained back into a JSON body downstream when the client
+  // didn't ask — see the !clientRequestedStreaming branch).
+  let stream =
+    providerRequiresStreaming ||
+    clientRequestedStreaming ||
+    (clientPrefersSSE && !clientPrefersJson && body.stream !== false);
 
   // Image generation models require non-streaming (Google v1internal:generateContent)
   const modelType = getModelType(alias, model);
@@ -127,11 +145,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const detectedTool = detectClientTool(clientRawRequest?.headers || {}, body);
   if (detectedTool === "deepseek-tui" && body.stream !== true) stream = false;
 
-  // Check client Accept header preference for non-streaming requests
-  // This fixes AI SDK compatibility where clients send Accept: application/json
-  const acceptHeader = clientRawRequest?.headers?.accept || "";
-  const clientPrefersJson = acceptHeader.includes("application/json");
-  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
+  // An explicit JSON-only Accept still downgrades the stream-only source formats
+  // above (AI SDK compatibility) — same behavior as before the spec-default fix.
   if (clientPrefersJson && !clientPrefersSSE && body.stream !== true && !providerRequiresStreaming) {
     stream = false;
   }
