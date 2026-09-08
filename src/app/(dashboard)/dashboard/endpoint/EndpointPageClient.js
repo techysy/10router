@@ -17,6 +17,7 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
+import { translate } from "@/i18n/runtime";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,7 @@ export default function APIPageClient({ machineId }) {
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [apiKeyRotation, setApiKeyRotation] = useState(false);
   const [rotatingKeys, setRotatingKeys] = useState(false);
+  const rotateGuardRef = useRef(false); // blocks double-submit before React re-renders
   const [rotatedKeysSummary, setRotatedKeysSummary] = useState(null);
   const [requireLogin, setRequireLogin] = useState(true);
   const [hasPassword, setHasPassword] = useState(true);
@@ -273,6 +275,11 @@ export default function APIPageClient({ machineId }) {
   };
 
   const handleRotateKeys = async () => {
+    // Close the confirm dialog right away and block re-entry — a second click
+    // while the request is in flight would rotate every key again.
+    if (rotateGuardRef.current) return;
+    rotateGuardRef.current = true;
+    setConfirmState(null);
     setRotatingKeys(true);
     try {
       const res = await fetch("/api/keys/rotate", { method: "POST" });
@@ -290,6 +297,7 @@ export default function APIPageClient({ machineId }) {
       console.log("Error rotating keys:", error);
     } finally {
       setRotatingKeys(false);
+      rotateGuardRef.current = false;
     }
   };
 
@@ -1172,7 +1180,7 @@ export default function APIPageClient({ machineId }) {
                       if (key.isActive && !checked) {
                         setConfirmState({
                           title: "Pause API Key",
-                          message: `Pause API key "${key.name}"?\n\nThis key will stop working immediately but can be resumed later.`,
+                          message: `${translate("Pause API key")} "${key.name}"?\n\n${translate("This key will stop working immediately but can be resumed later.")}`,
                           onConfirm: async () => {
                             setConfirmState(null);
                             handleToggleKey(key.id, checked);
@@ -1454,7 +1462,14 @@ export default function APIPageClient({ machineId }) {
       <ConfirmModal
         isOpen={!!confirmState}
         onClose={() => setConfirmState(null)}
-        onConfirm={confirmState?.onConfirm}
+        onConfirm={() => {
+          // Close before running: several onConfirm handlers open a follow-up
+          // modal (e.g. rotated-keys summary) that this dialog would cover,
+          // and a still-open Confirm button invites double submits.
+          const fn = confirmState?.onConfirm;
+          setConfirmState(null);
+          fn?.();
+        }}
         title={confirmState?.title || "Confirm"}
         message={confirmState?.message}
         variant="danger"

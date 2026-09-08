@@ -1524,6 +1524,8 @@
   "Re-issue all keys": "重签全部密钥",
   "Rotate all": "全部重签",
   "Rotating…": "重签中…",
+  "Pause API key": "暂停 API 密钥",
+  "This key will stop working immediately but can be resumed later.": "该密钥将立即停止工作，之后可以随时恢复。",
   "Sign new keys with an auto-generated secret instead of the built-in one": "使用自动生成的密文签署新密钥，替代内置默认密文",
   "Re-issue all keys under the current secret — clients must be updated": "按当前密文重签全部存量密钥——所有客户端需同步更新",
   "Re-create every existing key under the current secret — clients must be updated": "按当前密文重新创建全部存量密钥——所有客户端需同步更新",
