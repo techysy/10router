@@ -2,7 +2,7 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
-## v1.0.8 (未发布)
+## v1.0.8 (2026-09-09)
 
 ### ✨ 新增功能
 

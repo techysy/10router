@@ -2,6 +2,24 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.0.8 (2026-09-09)
+
+### ✨ New
+- **AMD Token Factory provider**: free shared OpenAI-compatible endpoints from AMD Radeon Cloud (`DeepSeek-V4-Flash` 1M context + `Qwen3.8-Flash-Next` 262K context); thinking via reasoning_effort with per-model level pickers; same shape as NVIDIA NIM
+- **Antigravity quota host fix**: quota summary now queries the correct daily host (matching the native IDE), fixing systematically stale numbers; percentage reads from the backend value instead of re-deriving in the frontend
+
+### 🔒 Security
+- **API key HMAC secret hardening**: built-in fallback secret now triggers a production startup warning; experimental **Key secret rotation** (off by default) auto-generates a per-install secret; `generateKeyId` switched from `Math.random` to `crypto.randomBytes`
+- **Dangerous-action confirm dialogs**: "Require API key" off, key-rotation enable/disable, and "Rotate all" now require explicit confirmation; rotation is double-submit protected (server 409 + client guard)
+
+### 🐛 Fixed
+- **Non-streaming requests defaulted to SSE (issue #4)**: omitting `stream` now correctly defaults to JSON (OpenAI/Anthropic spec); previously returned `text/event-stream` with trailing `data: [DONE]` that broke strict JSON clients (OpenAI SDK, WorkBuddy, curl)
+- **Key rotation confirm dialog stuck open / repeated rotation**: confirm modal now auto-closes before executing; repeated rotations no longer stack "(rotated)" suffixes
+- **MCP SSE idle disconnect**: long-lived MCP SSE connections now send a 25s comment heartbeat, preventing NAT/firewall silent drops
+- **CodeBuddy CN whitelist false-positive (PR #5)**: Claude Code's own system prompt no longer matches the agent-identity whitelist (was triggering 11128)
+- **GLM-4.6V-Flash missing vision (PR #5)**: free vision model now registered with correct capabilities
+- **DeepSeek effort "max" rejected by SenseNova (PR #5)**: clamped to "xhigh" for cross-provider compatibility
+
 ## v1.0.7 (2026-09-07)
 
 ### ✨ New

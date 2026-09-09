@@ -2,6 +2,24 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
+## v1.0.8 (2026-09-09)
+
+### ✨ 新增
+- **新增 AMD Token Factory 供應商**：AMD Radeon Cloud 免費共享 OpenAI 相容端點（`DeepSeek-V4-Flash` 1M 上下文 + `Qwen3.8-Flash-Next` 262K 上下文）；thinking 透過 reasoning_effort 控制，每個模型有獨立的檔位選擇器；形態與 NVIDIA NIM 相同
+- **Antigravity 配額主機修復**：配額 summary 改查正確的 daily host（與原生 IDE 一致），修復數字系統性偏差；百分比直讀後端值而非前端重算
+
+### 🔒 安全加固
+- **API key HMAC secret 硬化**：內建兜底密文未設定時 production 啟動告警；新增實驗功能「金鑰簽署輪換」（預設關閉），自動產生每實例獨立密文；keyId 生成改用 `crypto.randomBytes`
+- **危險操作確認彈窗**：關閉 API 金鑰校驗、啟用/停用簽署輪換、全部重簽均需確認；重簽防重複提交（伺服器 409 + 前端防護）
+
+### 🐛 修復
+- **非串流請求被誤判為串流（issue #4）**：省略 `stream` 欄位現在正確預設為 JSON（OpenAI/Anthropic 規範）；此前會傳回 `text/event-stream` + `data: [DONE]` 尾隨，嚴格解析的用戶端全部報錯（OpenAI SDK、WorkBuddy、curl）
+- **金鑰輪換確認彈窗卡死 / 反覆重簽**：確認彈窗自動關閉後再執行操作；重複重簽不再堆疊 "(rotated)" 後綴
+- **MCP SSE 閒置斷線**：MCP 長連線補 25 秒註解心跳，防止 NAT/防火牆靜默掐斷
+- **CodeBuddy CN 白名單誤放行（PR #5）**：Claude Code 自身系統提示不再匹配 agent 身分白名單（此前觸發 11128）
+- **GLM-4.6V-Flash 缺視覺能力（PR #5）**：免費視覺模型補註冊正確的 capabilities
+- **DeepSeek effort "max" 被 SenseNova 拒絕（PR #5）**：鉗位到 "xhigh" 相容兩家
+
 ## v1.0.7 (2026-09-07)
 
 ### ✨ 新增
