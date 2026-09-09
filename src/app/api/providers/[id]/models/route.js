@@ -198,6 +198,8 @@ const PROVIDER_MODELS_CONFIG = {
   },
   openai: createOpenAIModelsConfig("https://api.openai.com/v1/models"),
   openrouter: createOpenAIModelsConfig("https://openrouter.ai/api/v1/models"),
+  "opencode-go": createOpenAIModelsConfig("https://opencode.ai/zen/go/v1/models"),
+  bai: createOpenAIModelsConfig("https://api.b.ai/v1/models"),
   anthropic: {
     url: "https://api.anthropic.com/v1/models",
     method: "GET",

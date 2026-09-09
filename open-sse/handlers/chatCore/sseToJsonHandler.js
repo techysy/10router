@@ -50,6 +50,17 @@ function extractCustomToolInput(argumentsValue) {
   return argumentsText;
 }
 
+function shouldPreserveReasoningContent(model, parsed, sourceFormat, targetFormat) {
+  if (sourceFormat === FORMATS.OPENAI_RESPONSES) return true;
+  if ([FORMATS.GEMINI, FORMATS.GEMINI_CLI, FORMATS.ANTIGRAVITY, FORMATS.VERTEX].includes(targetFormat)) return true;
+
+  const modelName = [model, parsed?.model]
+    .filter((value) => typeof value === "string")
+    .join(" ");
+  if (/gemini/i.test(modelName)) return true;
+  return false;
+}
+
 function chatCompletionToResponses(responseBody, customToolNames = null) {
   const choice = responseBody?.choices?.[0];
   if (!choice) return responseBody;
@@ -330,11 +341,9 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
     // a 90%-cached request from a cheap one without this.
     if (usage && Object.keys(usage).length > 0) parsed.usage = usage;
 
-    // Strip reasoning_content only when content is non-empty.
-    // When content is empty (e.g. thinking models that used all tokens for reasoning),
-    // reasoning_content is the only useful output and must be preserved.
-    // Previously this was unconditional, which broke Qwen3.5, Claude extended thinking, etc.
-    if (parsed?.choices) {
+    // Keep Gemini thought summaries on the forced-SSE-to-JSON path, matching
+    // the normal non-streaming path.
+    if (!shouldPreserveReasoningContent(model, parsed, sourceFormat, targetFormat) && parsed?.choices) {
       for (const choice of parsed.choices) {
         if (choice?.message?.reasoning_content && choice.message.content) {
           delete choice.message.reasoning_content;

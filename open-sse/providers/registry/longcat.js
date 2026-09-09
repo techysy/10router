@@ -22,7 +22,5 @@ export default {
   },
   // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
   // the provider detail page (behind the global model-JSON-import toggle).
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/longcat.json",
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/longcat.json",
   models: [{ id: "LongCat-2.0", name: "LongCat 2.0" }],
 };

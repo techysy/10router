@@ -22,8 +22,6 @@ export default {
     baseUrl: "https://api.b.ai/v1/chat/completions",
     validateUrl: "https://api.b.ai/v1/models",
   },
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/bai.json",
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/bai.json",
   models: [
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextWindow: 1000000, maxOutput: 384000, reasoning: true },
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", contextWindow: 1000000, maxOutput: 384000, reasoning: true },

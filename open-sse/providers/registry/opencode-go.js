@@ -22,12 +22,9 @@ export default {
     usage: true,
     usageApikey: true,
   },
-  // Live model list is in the repo's providers/opencode-go.json (contextWindow
-  // and capability fields — the /v1/models endpoint returns neither). Same
-  // JSON-catalog flow as CodeBuddy: Fetch Models pulls this file from GitHub.
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/opencode-go.json",
-  // Gitee mirror fallback — used when the GitHub source is unreachable/slow
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/opencode-go.json",
+  // Fetch Models uses the live authenticated /v1/models endpoint; the checked-in
+  // catalog is only a fallback for networks that cannot reach opencode.ai.
+  // GitHub fallback — used when the live source is unreachable/slow.
   transport: {
     baseUrl: "https://opencode.ai/zen/go/v1/chat/completions",
     headers: {},
@@ -41,6 +38,10 @@ export default {
     { format: "openai-responses", baseUrl: "https://opencode.ai/zen/go/v1/responses", auth: { combined: true, header: "Authorization", scheme: "bearer" } },
   ],
   models: [
+    // Live /v1/models advertises Luna, but it was missing from the static
+    // routing table. Keep it on the OpenAI Chat endpoint; Claude/Responses
+    // transports are not valid for this model.
+    { id: "gpt-5.6-luna", name: "GPT 5.6 Luna", supportedFormats: ["openai"] },
     { id: "glm-5.3-flash", name: "GLM 5.3 Flash (Vision)", supportedFormats: ["openai"] },
     { id: "glm-5.2", name: "GLM 5.2", supportedFormats: ["openai"] },
     { id: "glm-5.1", name: "GLM 5.1", supportedFormats: ["openai"] },

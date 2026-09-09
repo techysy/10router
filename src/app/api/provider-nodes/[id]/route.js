@@ -70,16 +70,6 @@ export async function PUT(request, { params }) {
       updates.apiType = apiType;
     }
 
-    // Optional model JSON catalog source — same import + enable/disable
-    // lifecycle as preset providers' modelsJsonUrl. Empty string clears;
-    // omitting the field leaves the stored value untouched.
-    if (typeof body.modelsJsonUrl === "string") {
-      updates.modelsJsonUrl = body.modelsJsonUrl.trim();
-    }
-    if (typeof body.fallbackModelsJsonUrl === "string") {
-      updates.fallbackModelsJsonUrl = body.fallbackModelsJsonUrl.trim();
-    }
-
     const updated = await updateProviderNode(id, updates);
 
     const connections = await getProviderConnections({ provider: id });

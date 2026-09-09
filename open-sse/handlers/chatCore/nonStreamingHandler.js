@@ -22,6 +22,23 @@ function parseToolArguments(value) {
   }
 }
 
+// Gemini's thinking summary is returned as OpenAI-compatible
+// `reasoning_content`. Keep it on the JSON path as well as the streaming path;
+// otherwise a Gemini model can visibly think through SSE but appear not to
+// think when the client requests a non-streaming response. For other models,
+// retain the historical Firecrawl compatibility behavior.
+function shouldPreserveReasoningContent(model, responseBody, targetFormat) {
+  if ([FORMATS.GEMINI, FORMATS.GEMINI_CLI, FORMATS.ANTIGRAVITY, FORMATS.VERTEX].includes(targetFormat)) {
+    return true;
+  }
+
+  const modelName = [model, responseBody?.model]
+    .filter((value) => typeof value === "string")
+    .join(" ");
+  if (/gemini/i.test(modelName)) return true;
+  return false;
+}
+
 function openAICompletionToClaudeMessage(responseBody) {
   if (!responseBody?.choices?.[0]) return responseBody;
   const choice = responseBody.choices[0];
@@ -358,10 +375,13 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     translatedResponse.usage = filterUsageForFormat(addBufferToUsage(translatedResponse.usage), sourceFormat);
   }
 
-  // Strip reasoning_content only when content is non-empty.
-  // When content is empty (e.g. thinking models that used all tokens for reasoning),
-  // reasoning_content is the only useful output and must be preserved.
-  if (!isClaudeMessageResponse && !isResponsesResponse && translatedResponse?.choices) {
+  // Firecrawl and similar clients historically required reasoning_content to
+  // be omitted from ordinary JSON responses. Gemini is the exception: its
+  // thought summaries are a first-class part of the user-visible response and
+  // must match the streaming path (and CPA's behavior).
+  if (!isClaudeMessageResponse && !isResponsesResponse
+      && !shouldPreserveReasoningContent(model, translatedResponse, targetFormat)
+      && translatedResponse?.choices) {
     for (const choice of translatedResponse.choices) {
       if (choice?.message?.reasoning_content && choice.message.content) {
         delete choice.message.reasoning_content;

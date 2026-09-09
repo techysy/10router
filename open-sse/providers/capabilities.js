@@ -146,6 +146,23 @@ const CODEX_GPT_56_DEFAULT_CAPS = { vision: true, reasoning: true, search: true,
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
+  // Antigravity's display id is a legacy alias for Gemini 3.1 Pro High. It
+  // does not contain the `gemini-3` substring, so the generic Gemini pattern
+  // cannot identify its thinking support. Keep this provider-specific entry
+  // aligned with the Antigravity/CLIProxyAPI model catalog.
+  "antigravity": {
+    "gemini-pro-agent": {
+      vision: true,
+      audioInput: true,
+      videoInput: true,
+      reasoning: true,
+      search: true,
+      thinkingFormat: "gemini-level",
+      thinkingCanDisable: false,
+      contextWindow: 1048576,
+      maxOutput: 65535,
+    },
+  },
   // NVIDIA NIM is OpenAI-compatible → rejects MiniMax/GLM native `thinking` field.
   // Force openai reasoning_effort format for its reasoning models. #issue
   "nvidia": {

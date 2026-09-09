@@ -7,12 +7,6 @@ export default {
   uiAlias: "cbai",
   hidden: false,
   priority: 90,
-  // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
-  // the provider detail page (behind the global model-JSON-import toggle).
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/codebuddy-intl.json",
-  // Gitee mirror fallback — used when the GitHub source is unreachable/slow
-  // from the user's network (no CDN cache lag; raw.giteeusercontent.com CDN).
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/codebuddy-intl.json",
   display: {
     name: "CodeBuddy",
     icon: "smart_toy",
@@ -49,7 +43,9 @@ export default {
       url: "https://www.codebuddy.ai/v2/billing/meter/get-user-resource",
     },
   },
-  // Same model lineup exposed by the CN gateway — intl backend is the same catalog.
+  // The intl gateway has no verified public model-catalog endpoint. Keep this
+  // list static; the old hand-maintained JSON import advertised models that
+  // the intl service rejected with 11102 (model service info not found).
   models: [
     { id: "glm-5.2", name: "GLM-5.2" },
     { id: "glm-5.1", name: "GLM-5.1" },

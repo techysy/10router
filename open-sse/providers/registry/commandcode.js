@@ -29,10 +29,8 @@ export default {
   },
   // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
   // the provider detail page (behind the global model-JSON-import toggle).
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/commandcode.json",
   // Gitee mirror fallback — used when the GitHub source is unreachable/slow
   // from the user's network (no CDN cache lag; raw.giteeusercontent.com CDN).
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/commandcode.json",
   models: [
     { id: "claude-fable-5", name: "Claude Fable 5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },

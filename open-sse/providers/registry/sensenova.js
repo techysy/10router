@@ -24,8 +24,6 @@ export default {
     baseUrl: "https://token.sensenova.cn/v1/chat/completions",
     validateUrl: "https://token.sensenova.cn/v1/models",
   },
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/sensenova.json",
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/sensenova.json",
   models: [
     { id: "sensenova-6.8-flash-lite", name: "SenseNova 6.8 Flash Lite" },
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },

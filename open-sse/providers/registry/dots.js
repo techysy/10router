@@ -27,7 +27,5 @@ export default {
     auth: { combined: true, header: "api-key", scheme: "raw" },
     // No documented GET /models endpoint — connection validation falls back to a chat ping.
   },
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/dots.json",
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/dots.json",
   models: [{ id: "dots3-note-prev", name: "Dots3 Note Prev" }],
 };

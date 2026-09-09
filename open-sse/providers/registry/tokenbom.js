@@ -20,8 +20,6 @@ export default {
     baseUrl: "https://tokenbom.com/v1/chat/completions",
     validateUrl: "https://tokenbom.com/v1/models",
   },
-  modelsJsonUrl: "https://api.github.com/repos/techysy/10router/contents/providers/tokenbom.json",
-  fallbackModelsJsonUrl: "https://gitee.com/techysy/10router/raw/main/providers/tokenbom.json",
   models: [
     { id: "claude-opus-5", name: "Claude Opus 5" },
     { id: "claude-4.8-opus", name: "Claude Opus 4.8" },

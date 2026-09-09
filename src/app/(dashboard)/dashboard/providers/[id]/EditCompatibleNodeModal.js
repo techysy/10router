@@ -10,8 +10,6 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     prefix: "",
     apiType: "chat",
     baseUrl: "https://api.openai.com/v1",
-    modelsJsonUrl: "",
-    fallbackModelsJsonUrl: "",
   });
   const [saving, setSaving] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -26,8 +24,6 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
-        modelsJsonUrl: node.modelsJsonUrl || "",
-        fallbackModelsJsonUrl: node.fallbackModelsJsonUrl || "",
       });
     }
   }, [node, isAnthropic]);
@@ -45,8 +41,6 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
-        modelsJsonUrl: formData.modelsJsonUrl,
-        fallbackModelsJsonUrl: formData.fallbackModelsJsonUrl,
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -113,20 +107,6 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
           hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
         />
-        <Input
-          label="Model JSON URL (optional)"
-          value={formData.modelsJsonUrl}
-          onChange={(e) => setFormData({ ...formData, modelsJsonUrl: e.target.value })}
-          placeholder="https://example.com/models.json"
-          hint="Optional. A {models:[...]} or {data:[...]} JSON listing — enables Fetch Models with per-model enable/disable instead of add-only. Non-GitHub sources are sent the connection's API key as Bearer."
-        />
-        <Input
-          label="Fallback Model JSON URL (optional)"
-          value={formData.fallbackModelsJsonUrl}
-          onChange={(e) => setFormData({ ...formData, fallbackModelsJsonUrl: e.target.value })}
-          placeholder="https://mirror.example.com/models.json"
-          hint="Optional. Mirror used when the primary Model JSON URL is unreachable."
-        />
         <div className="flex gap-2">
           <Input
             label="API Key (for Check)"
@@ -174,8 +154,6 @@ EditCompatibleNodeModal.propTypes = {
     prefix: PropTypes.string,
     apiType: PropTypes.string,
     baseUrl: PropTypes.string,
-    modelsJsonUrl: PropTypes.string,
-    fallbackModelsJsonUrl: PropTypes.string,
   }),
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,

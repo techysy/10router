@@ -5,7 +5,7 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
-import { getProviderConnections, getProviderNodes, getCombos, getCustomModels, getModelAliases, getProviderJsonModels, getSettings } from "@/lib/localDb";
+import { getProviderConnections, getProviderNodes, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -246,15 +246,6 @@ export async function buildModelsList(kindFilter, options = {}) {
   // 10router instance's fetchCompatibleModelIds — skip dynamic fetch to break
   // cross-instance recursive loops.
   const skipDynamicFetch = options.skipDynamicFetch === true;
-  // Server-side toggle: when OFF, providers with a JSON model catalog fall back
-  // to their static model list instead of the imported JSON.
-  let modelJsonImportEnabled = false;
-  try {
-    const settings = await getSettings();
-    modelJsonImportEnabled = settings.modelJsonImport === true;
-  } catch (e) {
-    modelJsonImportEnabled = false;
-  }
   let connections = [];
   // Distinguish "DB healthy but with no connections" from "DB unavailable".
   // `getProviderConnections()` returns [] for a healthy DB with no provider
@@ -298,12 +289,6 @@ export async function buildModelsList(kindFilter, options = {}) {
     console.log("Could not fetch provider nodes");
   }
   const validNodeIds = new Set(providerNodes.map((n) => n.id));
-
-  // Custom nodes can declare their own JSON catalog source (modelsJsonUrl, set
-  // in the node editor) — same authoritative import semantics as presets.
-  const nodeJsonUrlById = new Map(
-    providerNodes.filter((n) => n.modelsJsonUrl).map((n) => [n.id, n.modelsJsonUrl])
-  );
 
   // Every valid provider identifier (id or alias) from the static registry, so a
   // customModel keyed by either form is treated as legitimate (e.g. noAuth free
@@ -441,60 +426,20 @@ export async function buildModelsList(kindFilter, options = {}) {
       let liveModelKindById = new Map();
       let liveCapabilitiesById = new Map();
 
-      // If this provider uses a JSON model catalog (modelsJsonUrl) AND the
-      // global toggle is ON, the imported list is authoritative: only enabled
-      // models are exposed, with kind/caps read from the imported entries.
-      // When the toggle is OFF, fall back to the static model list.
-      //
-      // Authoritative means authoritative even BEFORE the first fetch (catalog
-      // null) and when every model is disabled (enabled list empty): falling
-      // back to the full static list in those states leaked every built-in
-      // model to /v1/models with no way to disable them — the dashboard is in
-      // JSON mode and renders no static rows, so Disable All / per-model
-      // toggles had nothing to act on. Default posture is "everything off
-      // until the user fetches and enables what they need".
-      const providerUsesJsonCatalog =
-        modelJsonImportEnabled &&
-        !!(AI_PROVIDERS[providerId]?.modelsJsonUrl || nodeJsonUrlById.get(providerId));
-      const jsonCatalog = providerUsesJsonCatalog
-        ? await getProviderJsonModels(providerId)
-        : null;
-      const jsonEnabled = (jsonCatalog || []).filter((m) => m.enabled !== false);
       let rawModelIds;
-      if (providerUsesJsonCatalog) {
-        liveModelKindById = new Map(
-          jsonEnabled.filter((m) => m.id).map((m) => [m.id, modelKind(m)])
-        );
-        liveCapabilitiesById = new Map(
-          jsonEnabled
-            .filter((m) => m?.id)
-            .map((m) => [
-              m.id,
-              {
-                ...(m.vision === undefined ? {} : { vision: m.vision }),
-                ...(m.reasoning === undefined ? {} : { reasoning: m.reasoning }),
-                ...(m.contextWindow === undefined ? {} : { contextWindow: m.contextWindow }),
-                ...(m.maxOutput === undefined ? {} : { maxOutput: m.maxOutput }),
-              },
-            ])
-        );
-        rawModelIds = jsonEnabled.map((m) => m.id);
-      } else {
-        rawModelIds = hasExplicitEnabledModels
-          ? Array.from(
-              new Set(
-                enabledModels.filter(
-                  (modelId) => typeof modelId === "string" && modelId.trim() !== "",
-                ),
+      rawModelIds = hasExplicitEnabledModels
+        ? Array.from(
+            new Set(
+              enabledModels.filter(
+                (modelId) => typeof modelId === "string" && modelId.trim() !== "",
               ),
-            )
-          : providerModels.map((model) => model.id);
-      }
+            ),
+          )
+        : providerModels.map((model) => model.id);
 
-      // Dynamic upstream fetch for compatible nodes — but never when the JSON
-      // catalog is authoritative: an empty catalog there means "nothing enabled
-      // yet", not "please refill from upstream".
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch && !providerUsesJsonCatalog) {
+      // Dynamic upstream fetch for compatible nodes. This is a credential-backed
+      // discovery operation, not a user-imported model catalog.
+      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
         rawModelIds = await fetchCompatibleModelIds(conn);
       }
 
@@ -502,7 +447,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       // -thinking/-agentic variants per account). On failure, fall back to
       // whatever rawModelIds already holds.
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels && !providerUsesJsonCatalog) {
+      if (liveResolver && !hasExplicitEnabledModels) {
         try {
           const live = await liveResolver(conn);
           if (live?.models?.length) {
@@ -605,9 +550,12 @@ export async function buildModelsList(kindFilter, options = {}) {
         // { id, name } — no per-model capability data. Fall back to the same
         // pattern-matched capabilities the dashboard uses (useModelCaps.js) so
         // dynamically-discovered LLM models still surface vision/reasoning/search/tools.
-        const caps = liveCapabilitiesById.get(modelId)
-          || capabilitiesFromServiceKind(customKind || liveKind)
-          || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
+        const globalCaps = kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null;
+        const serviceCaps = capabilitiesFromServiceKind(customKind || liveKind);
+        const discoveredCaps = liveCapabilitiesById.get(modelId);
+        const caps = globalCaps
+          ? { ...globalCaps, ...(serviceCaps || {}), ...(discoveredCaps || {}) }
+          : (serviceCaps || discoveredCaps || null);
         if (caps) model.capabilities = caps;
         // Token limits under the snake_case names the OpenAI/OpenRouter
         // convention uses. `capabilities.contextWindow` is camelCase and nested,

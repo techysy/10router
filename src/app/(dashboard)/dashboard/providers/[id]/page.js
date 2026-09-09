@@ -58,19 +58,6 @@ export default function ProviderDetailPage() {
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
-  const [jsonModels, setJsonModels] = useState(() => {
-    // Seed from localStorage so a JSON-catalog provider shows its model list
-    // immediately (no 1-2s blank while fetchJsonModels loads). Refreshed on
-    // each successful fetch below.
-    if (typeof window === "undefined") return null;
-    try {
-      const cached = window.localStorage.getItem(`jsonModels_${params.id}`);
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  }); // provider JSON catalog (null = not loaded/declared)
-  const [modelJsonImportEnabled, setModelJsonImportEnabled] = useState(false); // server-side toggle
   const [codeBuddyOAuthImportEnabled, setCodeBuddyOAuthImportEnabled] = useState(false); // experimental toggle
   const [codeBuddyCheckinEnabled, setCodeBuddyCheckinEnabled] = useState(false); // experimental auto daily check-in toggle
   // cbcn check-in manual trigger: running flag (per-account results go to the
@@ -92,6 +79,7 @@ export default function ProviderDetailPage() {
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
+  const [officialModelsRefreshing, setOfficialModelsRefreshing] = useState(false);
   const [liveModels, setLiveModels] = useState([]);
   const [kiloFreeModels, setKiloFreeModels] = useState([]);
   const [disabledModelIds, setDisabledModelIds] = useState([]);
@@ -104,7 +92,6 @@ export default function ProviderDetailPage() {
   const [oneByOneSummary, setOneByOneSummary] = useState(null);
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
-  const [importingJsonModels, setImportingJsonModels] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -268,14 +255,8 @@ export default function ProviderDetailPage() {
         apiType: providerNode.apiType,
         baseUrl: providerNode.baseUrl,
         type: providerNode.type,
-        // Custom nodes can declare a model JSON catalog source (node editor) —
-        // same import + enable/disable lifecycle as preset providers.
-        modelsJsonUrl: providerNode.modelsJsonUrl || undefined,
-        fallbackModelsJsonUrl: providerNode.fallbackModelsJsonUrl || undefined,
       }
     : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
-  // GitHub JSON model source declared in the provider registry (nullable).
-  const providerModelsJsonUrl = providerInfo?.modelsJsonUrl;
   const authModes = providerInfo?.authModes || [];
   const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
@@ -423,27 +404,6 @@ export default function ProviderDetailPage() {
       console.log("Error fetching custom models:", error);
     }
   }, []);
-
-  // Load the provider's JSON catalog (modelsJsonUrl) — only for providers that
-  // declare one. Returns stored enabled states via the GET handler.
-  const fetchJsonModels = useCallback(async () => {
-    if (!providerModelsJsonUrl) return;
-    try {
-      const res = await fetch(`/api/providers/${providerId}/json-models`, { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) {
-        setJsonModels(data.models || []);
-        // Persist so the next visit renders instantly (no blank gap).
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem(`jsonModels_${providerId}`, JSON.stringify(data.models || []));
-          } catch { /* storage may be unavailable */ }
-        }
-      }
-    } catch (error) {
-      console.log("Error fetching provider JSON models:", error);
-    }
-  }, [providerId, providerModelsJsonUrl]);
 
   // Fetch free models from Kilo API for kilocode provider
   useEffect(() => {
@@ -620,18 +580,12 @@ export default function ProviderDetailPage() {
     fetchAliases();
     fetchCustomModels();
     fetchDisabledModels();
-    fetchJsonModels();
-  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels, fetchJsonModels]);
+  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels]);
 
-  // Read the server-side model-JSON-import toggle (persisted in DB, so it's
-  // consistent across devices/browsers — not localStorage).
   useEffect(() => {
     fetch("/api/settings", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        if (typeof data.modelJsonImport === "boolean") {
-          setModelJsonImportEnabled(data.modelJsonImport);
-        }
         if (typeof data.codeBuddyOAuthImport === "boolean") {
           setCodeBuddyOAuthImportEnabled(data.codeBuddyOAuthImport);
         }
@@ -819,55 +773,36 @@ export default function ProviderDetailPage() {
     }
   };
 
-  // Generic "Fetch Models from GitHub JSON" — POSTs the catalog to the provider's
-  // JSON model store (enabled/disabled semantics, not customModels). Gated by the
-  // global model-JSON-import toggle.
-  const handleImportJsonModels = async () => {
-    if (importingJsonModels) return;
-    setImportingJsonModels(true);
+  // Credential-backed model discovery for providers that expose an official
+  // OpenAI-compatible /models endpoint. Results stay in the page as suggestions
+  // and are added explicitly by the user; they never become a second catalog or
+  // override the global capability library.
+  const canRefreshOfficialModels = providerId === "opencode-go" || providerId === "bai";
+  const handleRefreshOfficialModels = async () => {
+    if (officialModelsRefreshing) return;
+    const connection = connections.find((item) => item.isActive !== false);
+    if (!connection?.id) {
+      notify.warning(translate("Add a connection to enable importing models."));
+      return;
+    }
+
+    setOfficialModelsRefreshing(true);
     try {
-      const res = await fetch(`/api/providers/${providerId}/json-models`, { method: "POST" });
+      const res = await fetch(`/api/providers/${connection.id}/models`, { cache: "no-store" });
       const data = await res.json();
-      if (!res.ok) {
-        notify.error(data.error || translate("Failed to fetch models"))
-        return;
-      }
-      await fetchJsonModels();
-      const total = data.total || data.models?.length || 0;
-      notify.success(translate("Sync complete") + ` (${total} ${translate("models")})`)
+      if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
+      const models = (Array.isArray(data.models) ? data.models : [])
+        .map((model) => {
+          const id = model?.id || model?.name || model?.model;
+          return id ? { ...model, id: String(id), name: model.name || String(id) } : null;
+        })
+        .filter(Boolean);
+      setSuggestedModels(models);
+      notify.success(`${translate("Models refreshed")} (${models.length})`);
     } catch (error) {
-      console.log("Error importing models from JSON:", error);
-      notify.error(translate("Error fetching models") + ": " + error.message)
+      notify.error(translate("Failed to fetch models") + ": " + error.message);
     } finally {
-      setImportingJsonModels(false);
-    }
-  };
-
-  // Toggle one JSON-catalog model's enabled flag (PUT /api/providers/[id]/json-models).
-  const handleToggleJsonModel = async (modelId, enabled) => {
-    try {
-      const res = await fetch(`/api/providers/${providerId}/json-models`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelId, enabled }),
-      });
-      if (res.ok) await fetchJsonModels();
-    } catch (error) {
-      console.log("Error toggling JSON model:", error);
-    }
-  };
-
-  // Bulk enable/disable every model in the JSON catalog (PUT all:true).
-  const handleBulkJsonModels = async (enabled) => {
-    try {
-      const res = await fetch(`/api/providers/${providerId}/json-models`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true, enabled }),
-      });
-      if (res.ok) await fetchJsonModels();
-    } catch (error) {
-      console.log("Error bulk-toggling JSON models:", error);
+      setOfficialModelsRefreshing(false);
     }
   };
 
@@ -1346,14 +1281,6 @@ export default function ProviderDetailPage() {
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
-          // JSON catalog lifecycle — same enable/disable flow as preset
-          // providers, sourced from the node's own modelsJsonUrl.
-          jsonModels={providerModelsJsonUrl ? jsonModels : null}
-          importingJsonModels={importingJsonModels}
-          onImportJsonModels={handleImportJsonModels}
-          onToggleJsonModel={handleToggleJsonModel}
-          onBulkJsonModels={handleBulkJsonModels}
-          useJsonCatalog={modelJsonImportEnabled && !!providerModelsJsonUrl}
         />
       );
     }
@@ -1364,22 +1291,8 @@ export default function ProviderDetailPage() {
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
     ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
     const disabledSet = new Set(disabledModelIds);
-    // Providers that publish a model JSON catalog treat the imported JSON as the
-    // authoritative model list when the global toggle is ON. When it's OFF (or
-    // no catalog declared), fall back to the static model list.
-    const useJsonCatalog = modelJsonImportEnabled && !!providerModelsJsonUrl;
-    const jsonEnabledModels = useJsonCatalog
-      ? (jsonModels || []).filter((m) => m.enabled !== false)
-      : [];
-    const jsonDisabledModels = useJsonCatalog
-      ? (jsonModels || []).filter((m) => m.enabled === false)
-      : [];
-    const displayModels = useJsonCatalog
-      ? []
-      : allModels.filter((m) => !disabledSet.has(m.id));
-    const disabledDisplayModels = useJsonCatalog
-      ? []
-      : allModels.filter((m) => disabledSet.has(m.id));
+    const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
+    const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
     const customModelRows = getProviderCustomModelRows({
       customModels,
       modelAliases,
@@ -1413,40 +1326,8 @@ export default function ProviderDetailPage() {
             isTesting={testingModelIds.has(model.id)}
             isCustom
             isFree={false}
-            caps={{
-              ...(getCaps(`${providerId}/${model.id}`) || {}),
-              // Custom models imported from a JSON catalog carry their own
-              // capability metadata — prefer it over the static lookup.
-              ...(model.vision === undefined ? {} : { vision: model.vision }),
-              ...(model.reasoning === undefined ? {} : { reasoning: model.reasoning }),
-              ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
-              ...(model.maxOutput === undefined ? {} : { maxOutput: model.maxOutput }),
-            }}
+            caps={getCaps(`${providerId}/${model.id}`)}
             thinkingSuffix={resolveThinkingSuffix(model.id)}
-          />
-        ))}
-
-        {/* JSON-catalog enabled models (disable → moves to Disabled) */}
-        {jsonEnabledModels.map((m) => (
-          <ModelRow
-            key={`json-${m.id}`}
-            model={{ id: m.id, name: m.name }}
-            fullModel={`${providerDisplayAlias}/${m.id}`}
-            copied={copied}
-            onCopy={copy}
-            testStatus={modelTestResults[m.id]}
-            onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(m.id) : undefined}
-            isTesting={testingModelIds.has(m.id)}
-            onDisable={() => handleToggleJsonModel(m.id, false)}
-            isFree={false}
-            caps={{
-              ...(getCaps(`${providerId}/${m.id}`) || {}),
-              ...(m.vision === undefined ? {} : { vision: m.vision }),
-              ...(m.reasoning === undefined ? {} : { reasoning: m.reasoning }),
-              ...(m.contextWindow === undefined ? {} : { contextWindow: m.contextWindow }),
-              ...(m.maxOutput === undefined ? {} : { maxOutput: m.maxOutput }),
-            }}
-            thinkingSuffix={resolveThinkingSuffix(m.id)}
           />
         ))}
 
@@ -1500,18 +1381,16 @@ export default function ProviderDetailPage() {
           </button>
         )}
 
-        {/* Generic "Fetch Models from GitHub JSON" — shown when the provider
-            declares a modelsJsonUrl AND the global toggle is enabled */}
-        {modelJsonImportEnabled && providerModelsJsonUrl && connections.some((conn) => conn.isActive !== false) && (
+        {canRefreshOfficialModels && (
           <button
-            onClick={handleImportJsonModels}
-            disabled={importingJsonModels}
+            onClick={handleRefreshOfficialModels}
+            disabled={officialModelsRefreshing || !connections.some((conn) => conn.isActive !== false)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-sm" style={importingJsonModels ? { animation: "spin 1s linear infinite" } : undefined}>
-              {importingJsonModels ? "progress_activity" : "download"}
+            <span className="material-symbols-outlined text-sm" style={officialModelsRefreshing ? { animation: "spin 1s linear infinite" } : undefined}>
+              {officialModelsRefreshing ? "progress_activity" : "refresh"}
             </span>
-            {importingJsonModels ? translate("Fetching...") : translate("Fetch Models")}
+            {officialModelsRefreshing ? translate("Refreshing...") : translate("Refresh Official Models")}
           </button>
         )}
 
@@ -1548,22 +1427,11 @@ export default function ProviderDetailPage() {
           );
         })()}
 
-        {/* Disabled models — restorable (JSON-catalog + static disabled) */}
-        {(jsonDisabledModels.length > 0 || disabledDisplayModels.length > 0) && (
+        {/* Disabled models — restorable */}
+        {disabledDisplayModels.length > 0 && (
           <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({jsonDisabledModels.length + disabledDisplayModels.length}):</p>
+            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length}):</p>
             <div className="flex flex-wrap gap-2">
-              {jsonDisabledModels.map((m) => (
-                <button
-                  key={`json-${m.id}`}
-                  onClick={() => handleToggleJsonModel(m.id, true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                  title="Restore model"
-                >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
-                  {m.id}
-                </button>
-              ))}
               {disabledDisplayModels.map((m) => (
                 <button
                   key={m.id}
@@ -2033,19 +1901,13 @@ export default function ProviderDetailPage() {
             )}
           </div>
           {!isCompatible && (() => {
-            // JSON-catalog providers: bulk buttons operate on the jsonModels enabled
-            // flags (the authoritative store); static providers keep the legacy
-            // disabledModelIds flow.
-            const useJson = modelJsonImportEnabled && !!providerModelsJsonUrl;
-            const jsonEnabledCount = (jsonModels || []).filter((m) => m.enabled !== false).length;
-            const jsonDisabledCount = (jsonModels || []).length - jsonEnabledCount;
             const allIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
             ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
-            const showEnableAll = useJson ? jsonDisabledCount > 0 : disabledModelIds.length > 0;
-            const showDisableAll = useJson ? jsonEnabledCount > 0 : activeIds.length > 0;
+            const showEnableAll = disabledModelIds.length > 0;
+            const showDisableAll = activeIds.length > 0;
             return (
               <div className="flex gap-2">
                 {showEnableAll && (
@@ -2053,7 +1915,7 @@ export default function ProviderDetailPage() {
                     size="sm"
                     variant="secondary"
                     icon="restart_alt"
-                    onClick={() => (useJson ? handleBulkJsonModels(true) : handleEnableAll())}
+                    onClick={handleEnableAll}
                   >
                     Active All
                   </Button>
@@ -2063,7 +1925,7 @@ export default function ProviderDetailPage() {
                     size="sm"
                     variant="secondary"
                     icon="block"
-                    onClick={() => (useJson ? handleBulkJsonModels(false) : handleDisableAll(activeIds))}
+                    onClick={() => handleDisableAll(activeIds)}
                   >
                     Disable All
                   </Button>

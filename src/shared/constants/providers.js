@@ -39,12 +39,6 @@ function buildProviderEntry(r) {
     ...(r.authModes ? { authModes: r.authModes } : {}),
     ...(r.authType ? { authType: r.authType } : {}),
     ...(r.authHint ? { authHint: r.authHint } : {}),
-    // Optional GitHub JSON model source — surfaced to the provider detail page
-    // so a "Fetch Models" button can pull the latest catalog without a release.
-    ...(r.modelsJsonUrl ? { modelsJsonUrl: r.modelsJsonUrl } : {}),
-    // Mirror/fallback source for the model catalog (e.g. Gitee) — used when the
-    // primary GitHub source is unreachable from the user's network.
-    ...(r.fallbackModelsJsonUrl ? { fallbackModelsJsonUrl: r.fallbackModelsJsonUrl } : {}),
   };
 }
 
