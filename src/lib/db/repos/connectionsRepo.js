@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { getDisabledByProvider, disableModels } from "./disabledModelsRepo.js";
 
 const OPTIONAL_FIELDS = [
   "displayName", "email", "globalPriority", "defaultModel",
@@ -104,8 +105,10 @@ export async function createProviderConnection(data) {
   const now = new Date().toISOString();
   let result;
 
+  let isFirstConnection = false;
   db.transaction(() => {
     const all = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [data.provider]).map(rowToConn);
+    isFirstConnection = all.length === 0;
 
     let existing = null;
     if (data.authType === "oauth" && data.email) {
@@ -184,6 +187,31 @@ export async function createProviderConnection(data) {
     reorderInTx(db, data.provider);
     result = conn;
   });
+
+  // Default posture on a provider's FIRST connection: every built-in LLM model
+  // starts disabled and the user enables what they need (same philosophy as the
+  // JSON catalog's "new models default disabled"). Only fires when the provider
+  // had no connections at all, so existing installs and added accounts keep
+  // their current model config; deleting every connection and re-adding one
+  // deliberately re-applies the default. Skipped if the user already has a
+  // disabledModels entry for the alias (they've touched the model config).
+  if (isFirstConnection && result) {
+    try {
+      const { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } = await import("open-sse/config/providerModels.js");
+      const alias = PROVIDER_ID_TO_ALIAS[data.provider] || data.provider;
+      const staticModels = PROVIDER_MODELS[alias] || [];
+      const llmIds = staticModels
+        .filter((m) => !m.kind || m.kind === "llm")
+        .map((m) => m.id);
+      if (llmIds.length > 0) {
+        const existing = await getDisabledByProvider(alias);
+        if (existing.length === 0) await disableModels(alias, llmIds);
+      }
+    } catch (error) {
+      // Fail-open: a registry hiccup must never block adding a connection.
+      console.log("Default-disable init skipped:", error?.message || error);
+    }
+  }
 
   return result;
 }

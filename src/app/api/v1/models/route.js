@@ -445,12 +445,23 @@ export async function buildModelsList(kindFilter, options = {}) {
       // global toggle is ON, the imported list is authoritative: only enabled
       // models are exposed, with kind/caps read from the imported entries.
       // When the toggle is OFF, fall back to the static model list.
-      const jsonCatalog = (modelJsonImportEnabled && (AI_PROVIDERS[providerId]?.modelsJsonUrl || nodeJsonUrlById.get(providerId)))
+      //
+      // Authoritative means authoritative even BEFORE the first fetch (catalog
+      // null) and when every model is disabled (enabled list empty): falling
+      // back to the full static list in those states leaked every built-in
+      // model to /v1/models with no way to disable them — the dashboard is in
+      // JSON mode and renders no static rows, so Disable All / per-model
+      // toggles had nothing to act on. Default posture is "everything off
+      // until the user fetches and enables what they need".
+      const providerUsesJsonCatalog =
+        modelJsonImportEnabled &&
+        !!(AI_PROVIDERS[providerId]?.modelsJsonUrl || nodeJsonUrlById.get(providerId));
+      const jsonCatalog = providerUsesJsonCatalog
         ? await getProviderJsonModels(providerId)
         : null;
       const jsonEnabled = (jsonCatalog || []).filter((m) => m.enabled !== false);
       let rawModelIds;
-      if (jsonCatalog && jsonEnabled.length > 0) {
+      if (providerUsesJsonCatalog) {
         liveModelKindById = new Map(
           jsonEnabled.filter((m) => m.id).map((m) => [m.id, modelKind(m)])
         );
@@ -480,7 +491,10 @@ export async function buildModelsList(kindFilter, options = {}) {
           : providerModels.map((model) => model.id);
       }
 
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
+      // Dynamic upstream fetch for compatible nodes — but never when the JSON
+      // catalog is authoritative: an empty catalog there means "nothing enabled
+      // yet", not "please refill from upstream".
+      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch && !providerUsesJsonCatalog) {
         rawModelIds = await fetchCompatibleModelIds(conn);
       }
 
@@ -488,7 +502,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       // -thinking/-agentic variants per account). On failure, fall back to
       // whatever rawModelIds already holds.
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels) {
+      if (liveResolver && !hasExplicitEnabledModels && !providerUsesJsonCatalog) {
         try {
           const live = await liveResolver(conn);
           if (live?.models?.length) {
