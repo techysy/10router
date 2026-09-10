@@ -168,4 +168,74 @@ describe("buildModelsList — empty-connection behavior", () => {
 
     expect(ids).not.toContain("openai-compatible-chat-disablednode-1111/claude-4.8-opus");
   });
+
+  // Fetched/imported custom models are written with enabled:false so the user
+  // enables on demand — /v1/models must honor that flag everywhere.
+  it("does NOT expose a custom model whose own enabled flag is false (zero connections)", async () => {
+    mocks.getProviderConnections.mockResolvedValue([]);
+    mocks.getCustomModels.mockResolvedValue([
+      { providerAlias: "oc", id: "mimo-v2.5-free", type: "llm", name: "mimo-v2.5-free", enabled: true },
+      { providerAlias: "oc", id: "kimi-k3-free", type: "llm", name: "kimi-k3-free", enabled: false },
+    ]);
+
+    const models = await buildModelsList([LLM_KIND]);
+    const ids = models.map((m) => m.id);
+
+    expect(ids).toContain("oc/mimo-v2.5-free");
+    expect(ids).not.toContain("oc/kimi-k3-free");
+  });
+
+  it("does NOT expose a disabled custom model tied to an active connection", async () => {
+    mocks.getProviderConnections.mockResolvedValue([
+      {
+        id: "conn-1",
+        provider: "openai-compatible-chat-validnode-1234",
+        authType: "apikey",
+        isActive: true,
+        providerSpecificData: { baseUrl: "https://example.com/v1", prefix: "ok" },
+      },
+    ]);
+    mocks.getProviderNodes.mockResolvedValue([
+      { id: "openai-compatible-chat-validnode-1234", type: "openai-compatible", name: "Valid" },
+    ]);
+    mocks.getCustomModels.mockResolvedValue([
+      { providerAlias: "openai-compatible-chat-validnode-1234", id: "glm-5.2", type: "llm", name: "glm-5.2", enabled: true },
+      { providerAlias: "openai-compatible-chat-validnode-1234", id: "glm-5.3", type: "llm", name: "glm-5.3", enabled: false },
+    ]);
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), { status: 200 })
+    );
+
+    const models = await buildModelsList([LLM_KIND]);
+    const ids = models.map((m) => m.id);
+
+    expect(ids).toContain("ok/glm-5.2");
+    expect(ids).not.toContain("ok/glm-5.3");
+  });
+
+  it("does NOT expose a disabled orphan custom model (alias without active connection)", async () => {
+    mocks.getProviderConnections.mockResolvedValue([
+      {
+        id: "conn-1",
+        provider: "openai-compatible-chat-validnode-1234",
+        authType: "apikey",
+        isActive: true,
+        providerSpecificData: { baseUrl: "https://example.com/v1", prefix: "ok" },
+      },
+    ]);
+    mocks.getProviderNodes.mockResolvedValue([
+      { id: "openai-compatible-chat-validnode-1234", type: "openai-compatible", name: "Valid" },
+    ]);
+    mocks.getCustomModels.mockResolvedValue([
+      { providerAlias: "oc", id: "mimo-v2.5-free", type: "llm", name: "mimo-v2.5-free", enabled: false },
+    ]);
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), { status: 200 })
+    );
+
+    const models = await buildModelsList([LLM_KIND]);
+    const ids = models.map((m) => m.id);
+
+    expect(ids).not.toContain("oc/mimo-v2.5-free");
+  });
 });

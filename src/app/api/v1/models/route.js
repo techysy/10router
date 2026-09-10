@@ -487,6 +487,9 @@ export async function buildModelsList(kindFilter, options = {}) {
       const customModelIds = customModels
         .filter((m) => {
           if (!m?.id) return false;
+          // Fetched/imported custom models default to disabled; honor that flag
+          // here too (the zero-connection branch below already does).
+          if (m.enabled === false) return false;
           const kind = getModelKind(m) || LLM_KIND;
           // imageToText custom models are vision-capable chat models: expose them
           // both in the default LLM list and in /v1/models/image-to-text.
@@ -616,6 +619,8 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
     for (const customModel of customModels) {
       if (!customModel?.id) continue;
+      // Fetched/imported custom models default to disabled; honor the flag here too.
+      if (customModel.enabled === false) continue;
       const kind = getModelKind(customModel) || LLM_KIND;
       if (!kindFilter.includes(kind)) continue;
       const alias = String(customModel.providerAlias || "").trim();

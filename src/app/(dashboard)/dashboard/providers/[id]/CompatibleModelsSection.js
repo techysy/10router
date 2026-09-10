@@ -5,7 +5,7 @@ import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
+function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onToggle, enabled = true, onTest, testStatus, isTesting }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -19,7 +19,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
     : undefined;
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
+    <div className={`flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50 ${enabled ? "" : "opacity-60"}`}>
       <span
         className="material-symbols-outlined text-base text-text-muted"
         style={iconColor ? { color: iconColor } : undefined}
@@ -61,6 +61,15 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
           )}
         </div>
       </div>
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          className={`p-1 rounded ${enabled ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10"}`}
+          title={enabled ? "Disable model" : "Activate model"}
+        >
+          <span className="material-symbols-outlined text-sm">{enabled ? "block" : "restart_alt"}</span>
+        </button>
+      )}
       <button
         onClick={onDeleteAlias}
         className="p-1 hover:bg-red-50 rounded text-red-500"
@@ -72,7 +81,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onToggleCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
   const notify = useNotificationStore();
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -104,6 +113,10 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     providerAlias: providerStorageAlias,
     type: "llm",
   });
+  // Fetched/imported custom models default to disabled; split so the disabled
+  // ones stay visible and re-activatable instead of silently disappearing.
+  const enabledRows = allModels.filter((model) => model.enabled !== false);
+  const disabledRows = allModels.filter((model) => model.enabled === false);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
@@ -147,7 +160,8 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         const modelId = model.id || model.name || model.model;
         if (!modelId) continue;
         if (allModels.some((entry) => entry.id === modelId)) continue;
-        await onAddCustomModel(modelId);
+        // Fetched catalog → add disabled; the user enables on demand.
+        await onAddCustomModel(modelId, false);
         importedCount += 1;
       }
       if (importedCount === 0) {
@@ -195,9 +209,9 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         </p>
       )}
 
-      {allModels.length > 0 && (
+      {enabledRows.length > 0 && (
         <div className="flex flex-col gap-3">
-          {allModels.map(({ id, alias, source }) => (
+          {enabledRows.map(({ id, alias, source }) => (
             <CompatibleModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               modelId={id}
@@ -205,6 +219,29 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               copied={copied}
               onCopy={onCopy}
               onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+              onToggle={source === "custom" && onToggleCustomModel ? () => onToggleCustomModel(id, false) : undefined}
+              onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
+              testStatus={modelTestResults[id]}
+              isTesting={testingModelId === id}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Disabled models — activate to expose again */}
+      {disabledRows.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-text-muted">Disabled (activate to expose again):</p>
+          {disabledRows.map(({ id, alias, source }) => (
+            <CompatibleModelRow
+              key={`disabled-${source}-${providerStorageAlias}/${id}`}
+              modelId={id}
+              fullModel={`${providerDisplayAlias}/${id}`}
+              copied={copied}
+              onCopy={onCopy}
+              enabled={false}
+              onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+              onToggle={source === "custom" && onToggleCustomModel ? () => onToggleCustomModel(id, true) : undefined}
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
@@ -226,6 +263,7 @@ CompatibleModelsSection.propTypes = {
   onCopy: PropTypes.func.isRequired,
   onDeleteAlias: PropTypes.func.isRequired,
   onAddCustomModel: PropTypes.func.isRequired,
+  onToggleCustomModel: PropTypes.func,
   onDeleteCustomModel: PropTypes.func.isRequired,
   connections: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.string,

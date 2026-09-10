@@ -350,20 +350,34 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const handleDisableAll = async (ids) => {
-    if (!ids.length) return;
+  // Flip a custom model's enabled flag without a per-model refetch (bulk path).
+  const putCustomModelEnabled = async (modelId, enabled) => {
+    await fetch("/api/models/custom", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type: "llm", enabled }),
+    });
+  };
+
+  const handleDisableAll = async (ids, customIds = []) => {
+    const total = ids.length + customIds.length;
+    if (!total) return;
     setConfirmState({
       title: "Disable All Models",
-      message: `Disable all ${ids.length} model(s)?`,
+      message: `Disable all ${total} model(s)?`,
       onConfirm: async () => {
         setConfirmState(null);
         try {
-          const res = await fetch("/api/models/disabled", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
-          });
-          if (res.ok) await fetchDisabledModels();
+          if (ids.length) {
+            const res = await fetch("/api/models/disabled", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
+            });
+            if (res.ok) await fetchDisabledModels();
+          }
+          for (const id of customIds) await putCustomModelEnabled(id, false);
+          if (customIds.length) await fetchCustomModels();
         } catch (error) {
           console.log("Error disabling all models:", error);
         }
@@ -371,10 +385,12 @@ export default function ProviderDetailPage() {
     });
   };
 
-  const handleEnableAll = async () => {
+  const handleEnableAll = async (customIds = []) => {
     try {
       const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { method: "DELETE" });
       if (res.ok) await fetchDisabledModels();
+      for (const id of customIds) await putCustomModelEnabled(id, true);
+      if (customIds.length) await fetchCustomModels();
     } catch (error) {
       console.log("Error enabling all models:", error);
     }
@@ -756,7 +772,8 @@ export default function ProviderDetailPage() {
           continue;
         }
 
-        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
+        // Fetched catalog → add disabled; the user enables on demand.
+        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias, {}, false);
         importedCount += 1;
       }
       
@@ -1277,7 +1294,8 @@ export default function ProviderDetailPage() {
           onCopy={copy}
           onSetAlias={handleSetAlias}
           onDeleteAlias={handleDeleteAlias}
-          onAddCustomModel={(modelId) => handleAddCustomModel(modelId, "llm", providerStorageAlias)}
+          onAddCustomModel={(modelId, enabled) => handleAddCustomModel(modelId, "llm", providerStorageAlias, {}, enabled)}
+          onToggleCustomModel={handleToggleCustomModel}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
@@ -1300,12 +1318,16 @@ export default function ProviderDetailPage() {
       builtInModels: models,
       type: "llm",
     });
+    // Fetched/imported custom models default to disabled; only enabled ones are
+    // listed as active, the rest live in the Disabled section below.
+    const enabledCustomModelRows = customModelRows.filter((model) => model.enabled !== false);
+    const disabledCustomModelRows = customModelRows.filter((model) => model.enabled === false);
 
     return (
       <div className="flex flex-wrap gap-3">
         {/* Custom models first — only enabled ones here; disabled customs are
             listed in the Disabled section below */}
-        {customModelRows.filter((model) => model.enabled !== false).map((model) => (
+        {enabledCustomModelRows.map((model) => (
           <ModelRow
             key={`${model.source}-${model.fullModel}`}
             model={{ id: model.id, name: model.name }}
@@ -1427,15 +1449,26 @@ export default function ProviderDetailPage() {
           );
         })()}
 
-        {/* Disabled models — restorable */}
-        {disabledDisplayModels.length > 0 && (
+        {/* Disabled models — restorable (built-in catalog + fetched/imported customs) */}
+        {(disabledDisplayModels.length > 0 || disabledCustomModelRows.length > 0) && (
           <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length}):</p>
+            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
             <div className="flex flex-wrap gap-2">
               {disabledDisplayModels.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => handleEnableModel(m.id)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  title="Restore model"
+                >
+                  <span className="material-symbols-outlined text-[13px]">add</span>
+                  {m.id}
+                </button>
+              ))}
+              {disabledCustomModelRows.map((m) => (
+                <button
+                  key={`custom-${m.fullModel}`}
+                  onClick={() => handleToggleCustomModel(m.id, true)}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
                   title="Restore model"
                 >
@@ -1906,8 +1939,15 @@ export default function ProviderDetailPage() {
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
             ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
             const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
-            const showEnableAll = disabledModelIds.length > 0;
-            const showDisableAll = activeIds.length > 0;
+            // Fetched/imported models carry their own enabled flag; keep the
+            // bulk buttons in sync so "Active All" doesn't skip them.
+            const providerCustoms = customModels.filter(
+              (m) => m?.providerAlias === providerStorageAlias && (m.kind || m.type || "llm") === "llm"
+            );
+            const enabledCustomIds = providerCustoms.filter((m) => m.enabled !== false).map((m) => m.id);
+            const disabledCustomIds = providerCustoms.filter((m) => m.enabled === false).map((m) => m.id);
+            const showEnableAll = disabledModelIds.length > 0 || disabledCustomIds.length > 0;
+            const showDisableAll = activeIds.length > 0 || enabledCustomIds.length > 0;
             return (
               <div className="flex gap-2">
                 {showEnableAll && (
@@ -1915,7 +1955,7 @@ export default function ProviderDetailPage() {
                     size="sm"
                     variant="secondary"
                     icon="restart_alt"
-                    onClick={handleEnableAll}
+                    onClick={() => handleEnableAll(disabledCustomIds)}
                   >
                     Active All
                   </Button>
@@ -1925,7 +1965,7 @@ export default function ProviderDetailPage() {
                     size="sm"
                     variant="secondary"
                     icon="block"
-                    onClick={() => handleDisableAll(activeIds)}
+                    onClick={() => handleDisableAll(activeIds, enabledCustomIds)}
                   >
                     Disable All
                   </Button>
