@@ -497,13 +497,19 @@ export const PATTERN_CAPABILITIES = [
   { pattern: "*laguna*",        caps: { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 } },
 
   // ── ByteDance Doubao-Seed 2.0 ─────────────────────────────────────────
-// 第一方是火山方舟（models.dev volcengine）；reseller 有 byteplus / tokenrouter /
-// kilo / qiniu-ai…，同一个模型在不同家写作 seed-2-0-*（带快照日期）或
+// 第一方是火山方舟（Ark 模型列表 / models.dev volcengine）；reseller 有 byteplus /
+// tokenrouter / kilo / qiniu-ai…，同一个模型在不同家写作 seed-2-0-*（带快照日期）或
 // Doubao-Seed-2.0-*（Ark 控制台显示名）。历史上一律落兜底。
-// 按“族”归并以避免每来一个新快照日期就补一行；值取第一方 volcengine 条目，
-// 各家 reseller 对 output 的报值分歧（32000 / 128000 / 131072）取第一方值。
-// （`Doubao-Seed-Code` 不带 2.0，与 2.0 的 code-preview 是否同一模型无据可查，
-// 刻意不匹配，继续落兜底。）
+// 按“族”归并以避免每来一个新快照日期就补一行；值取第一方：Ark 模型列表写
+// 「上下文窗口 256k / 最大输入 224k / 最大回答 128k / 最大思维链 128k」，
+// models.dev 第一方 volcengine 同条目给 262144 / 131072（reseller 报的
+// 32000 / 128000 一律不取）。
+// Ark 模型列表里 Seed-2.0 系列共 4 款：pro / lite / mini / code，
+// code 即 `doubao-seed-2-0-code-preview-260215`（能力：深度思考 / 多模态理解 /
+// GUI 任务处理 / 工具调用 / 结构化输出）。
+// ⚠️ `Doubao-Seed-Code`（不带 2.0）是**另一支**旧模型 `doubao-seed-code`
+// （`doubao-seed-code-preview-251028`，Ark 已标「即将下线」）：上下文同为 256k，
+// 但最大回答只有 32k，不要与 2.0 的 code 互相套用（见下方 *seed-code*）。
 { pattern: "*seed-2-0-pro*",   caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 128000 } },
 { pattern: "*seed-2.0-pro*",   caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 128000 } },
 { pattern: "*seed-2-0-code*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 131072 } },
@@ -512,6 +518,12 @@ export const PATTERN_CAPABILITIES = [
 { pattern: "*seed-2.0-mini*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
 { pattern: "*seed-2-0-lite*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
 { pattern: "*seed-2.0-lite*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
+
+// 旧支 seed-code（Ark 模型列表标「即将下线」）：256k 上下文 / 224k 最大输入 /
+// 32k 最大回答 / 32k 最大思维链；能力 深度思考 / 多模态理解 / 视觉定位 / 工具调用。
+// output 取第一方 32k（reseller zenmux 报 64000，偏大不取）；文档未提视频，故不给
+// videoInput。`*seed-code*` 与 `*seed-2-0-code*` 无公共子串，不会互相命中。
+{ pattern: "*seed-code*",      caps: { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 32768 } },
 
 // ── Others ───────────────────────────────────────────────────────
   { pattern: "*hunyuan*",       caps: { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 262144, maxOutput: 262144 } },

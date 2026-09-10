@@ -101,8 +101,6 @@ export const ALLOWLIST = {
   // kilo/openrouter say 262144/235929 text-only without reasoning.
   "kilo-gateway/kwaipilot/kat-coder-pro-v2.5:free": "conflict",
   "cline/kwaipilot/kat-coder-pro": "conflict", // v1 vs v2/v2.5, same split
-  // Ark's display id — unclear whether it is seed-2-0-code-preview.
-  "volcengine-ark/Doubao-Seed-Code": "conflict",
 
   // Image-generation endpoints (registry kind: "image"); the NON_CHAT regex simply
   // has no name to match on, so they fall through to the chat bucket. Asserted
