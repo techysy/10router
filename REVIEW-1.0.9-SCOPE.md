@@ -148,7 +148,9 @@ muse-spark-1.3-contributor, omen-alpha …（含本次新增的 deepseek-v4.1-fl
 | `glm-5.3` / `glm-5` | `*glm-5*` → 200000 / 128000 | GLM-5.3 真实窗口是 1M（CN 行给的是 1M / 48000） |
 | `qwen3.8-max` / `-flash` | `*qwen*max*` / `*qwen*` → 按 qwen 系列兜底 | 新代际数值未核 |
 
-结论：**种子对齐是独立的一步**（要连带补/改 6+ 条能力行，且 3 条得定 allowlist），不宜塞进本次修正。已记入 §7 未决事项。
+结论（**已解决**）：**种子对齐是独立的一步**（要连带补/改 6+ 条能力行，且 3 条得定 allowlist），不宜塞进本次修正。已记入 §7 未决事项。
+
+**→ 已完成（A8a）**：种子按公开目录补齐到 37 条 + 全量 `supportedFormats` 端点声明 + 两条 canonical 行（`muse-spark-1.3-contributor`、小写 `longcat-2.0`）+ `omen-alpha` 进 allowlist（floor 20 → 21，`--check` 仍绿）。上表里的**数值**几行（`glm-5.3`/`glm-5`、`qwen3.8-*`、`mimo-v2-*`、`hy3*` 等）属于**能力数值校准**，单独作为 A8b 处理（涉及「输出上限 > 窗口」这类既有异常），不在 A8a 范围。
 
 ---
 

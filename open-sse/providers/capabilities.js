@@ -177,6 +177,7 @@ export const MODEL_CAPABILITIES = {
   "muse-spark-1.1":            { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.1；与既有-1.2-contributor-free(-1.3) 行同值
   "muse-spark-1.2":            { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.2
   "muse-spark-1.2-contributor":{ vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.2-contributor
+  "muse-spark-1.3-contributor":{ vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.3-contributor（第一方）；与 -1.2-contributor 同值（另有 -free 变体行）
   // Sakana Fugu Ultra：各家都报 text+image、1M 输入；输出上限有两派——第一方
   // sakana 报 1000000（等于“无上限”），pioneer/requesty/empiriolabs 一致报 131072，
   // 取后者作保守上限（maxOutput 是 claude.js adjustMaxTokens 的硬夹子）。
@@ -193,6 +194,9 @@ export const MODEL_CAPABILITIES = {
   "gpt-audio":                  { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
   "gpt-audio-mini":             { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
   "LongCat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // longcat/LongCat-2.0（第一方）；纯文本
+  // opencode-go 的目录用小写 longcat-2.0，而 canonical 查表区分大小写 → 必须单独一行
+  // （同值，来源同上；models.dev 的 opencode-go 条目 1000000/131072 与第一方一致）。
+  "longcat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // 同上，小写 id
   "sensenova-6.8-flash-lite":   { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 }, // sensenova（第一方）
   "venice-uncensored-1-2":      { vision: true, contextWindow: 128000, maxOutput: 8192 }, // venice（第一方）；无 reasoning
   // Morph：第一方明说纯文本且 **不支持工具调用**（tools:false 必须显式写，

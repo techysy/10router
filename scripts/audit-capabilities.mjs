@@ -95,6 +95,11 @@ export const ALLOWLIST = {
   "morph/morph-dsv4flash": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch-mini": "codename",
+  // Present in opencode-go's public /models catalog, absent from their endpoint table and
+  // from every first-party source (models.dev marks it deprecated and carries it only under
+  // opencode-go itself, which is the same catalog — not independent evidence). It gets no
+  // supportedFormats either, so it keeps the sourceFormat-matched transport untouched.
+  "opencode-go/omen-alpha": "codename",
 
   // Sources disagree — held until a first-party spec settles it.
   // kat-coder-pro-v2.5: vercel says 256000/80000 text+image+reasoning, while
