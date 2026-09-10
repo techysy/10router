@@ -6,7 +6,7 @@ import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { v4 as uuidv4 } from "uuid";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import { resolveSessionIdentity } from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -340,9 +340,9 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
 
   const timestamp = new Date().toISOString();
 
-  // Kiro CLI/KAS sends these as top-level systemPrompt. Keep a content fallback
-  // too because the CodeWhisperer surface does not always enforce top-level
-  // systemPrompt for direct calls.
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
     systemPromptParts.push(buildThinkingSystemPrefix(thinkingBudget));
@@ -356,12 +356,6 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
 
   const sessionIdentity = resolveSessionIdentity({ headers: credentials?.rawHeaders, body, connectionId: credentials?.connectionId, scope: "kiro" });
   const conversationId = sessionIdentity.sessionId;
-  const continuationId = resolveContinuationId({
-    sessionId: conversationId,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-    ephemeral: sessionIdentity.ephemeral,
-  });
   const replay = applyKiroSessionReplay({
     conversationId,
     connectionId: credentials?.connectionId,
@@ -397,8 +391,6 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
       currentMessage: {
         userInputMessage: {
           content: replayCurrent.content || "",
@@ -414,13 +406,11 @@ export function openaiToKiroRequest(model, body, stream, credentials) {
       },
       history: canonical.history
     },
-    agentMode: "vibe",
   };
 
   if (profileArn) {
     payload.profileArn = profileArn;
   }
-  if (systemPrompt) payload.systemPrompt = systemPrompt;
   if (additionalModelRequestFields) {
     payload.additionalModelRequestFields = additionalModelRequestFields;
   }

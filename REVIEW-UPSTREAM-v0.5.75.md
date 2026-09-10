@@ -136,9 +136,9 @@
    取服务端 product-config 的 **128000**（“证据冲突取保守值”的既定决策）。
    canonical `deepseek-v4.1-flash` 行仍为 384K，供直连第一方 / 别家转售的同一 id 使用；
    CN 的 provider 行优先于 canonical，所以只影响这条通道。
-3. **kiro（A2/A3）**：你手上有可用的 kiro 凭据做活体验证吗？
-   没有的话只能按上游证据改 + 加单元测试守卫（我们 kiro 已有 2 例**已知失败**在基线里，
-   正好属于同一族，移植时可一并处理或明确继续豁免）。
+3. ~~**kiro（A2/A3）**：你手上有可用的 kiro 凭据做活体验证吗？~~ —— **无凭据，按既定方案落地**：
+   按上游证据改 + 单元测试守卫（另：我们 kiro 那 2 例**已知失败**经核查属“重试 HTTP 错误体”族，
+   与 A2/A3 无关，继续豁免）。
 4. **A6 codex `Version` 头**：需要能真实调 codex 的账号才能验证影响面；否则先按上游补上。
 
 ---
@@ -152,7 +152,7 @@
 | — | CN `deepseek-v4.1-flash` 输出上限回落 128K（§7.2 拍板） | `9ca6dcc2` | ✅ |
 | 1 | **A1** cookie maxAge | `536efe57` | ✅ |
 | 2 | **A4** #3905 tool type 作用域（含 MiniMax quirks） | 本提交 | ✅ |
-| 3 | **A2 + A3** kiro runtime surface / 顶层 systemPrompt | — | ⏳（§7.3 未答：无凭据则按上游证据 + 单测） |
+| 3 | **A2 + A3** kiro runtime surface / 顶层 systemPrompt | 本提交 | ✅ |
 | 4 | **A5 / A6 / A7** codex 三项（pattern 剥离、Version 头、新图像模型） | — | ⏳ |
 | 5 | **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账） | — | ⏳ |
 | 6 | **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证） | — | ⏳ |
@@ -168,6 +168,15 @@
 > 其余 Claude 格式网关（glm / kimi / opencode-go / xiaomi-*）暂无 2013 类报告，
 > 保持无 `type`；日后出现同类报错只需给该家加一行 quirk。
 
+> A2+A3 落地时的三个发现：① 上游 09-03 删掉顶层 `systemPrompt` 后**没同步改自己的测试**，
+> `tests/translator/claude-kiro-direct.test.js` 至今仍断言 `out.systemPrompt` 含 thinking 标记
+> ——那些断言在上游本身就是坏的；我们按“系统文本现在位于首个 user turn 的 content”重写辅助函数
+> 读回旧语义，并另加“不得出现顶层 `systemPrompt`”的 tripwire。
+> ② 上游 #3776 的 `getOrderedBaseUrls` 留下过时 JSDoc + 已无引用的 `authMethod` 局部量，
+> 这里重写说明并去掉死变量（行为与上游一致）。
+> ③ 端点排序变更波及两处既有断言（`kiro-api-key-endpoint-routing`、`kiro-external-idp`），已按新事实更新；
+> §9 提到的窗口外 `1fc2a81d` 正是 A2 的另一半，随本次一并补齐。
+
 每条落地时的验收口径照旧：全量回归 `failed` 不得超过基线（`known-fails.txt`），
 跑 `verify-no-regression.mjs` 门禁；改动 registry/capabilities 时补 capability 审计
 （`floor` 不得增长，`--check` 退出码 0）；新增测试不得依赖真实网络。
@@ -181,7 +190,7 @@
 
 - 上游 `v0.5.59..v0.5.69` 之间有 **50 个提交**。
 - 已查到至少两个我们没同步的窗口外修复：
-  - `1fc2a81d`（09-03）kiro 删顶层 `systemPrompt` —— **就是 A2 的另一半**；
+  - `1fc2a81d`（09-03）kiro 删顶层 `systemPrompt` —— **就是 A2 的另一半**（已随 A2/A3 落地）；
   - `e08ac6da`（08-28）Claude tool `type` 默认化 —— **就是 A4 的前置提交**。
 
 也就是说 A2 / A4 这两条本质上不是"本窗口的新修复"，而是"我们欠了两个更早的修复，

@@ -11,7 +11,19 @@ import { openaiToKiroRequest } from "../../open-sse/translator/request/openai-to
 
 const contentOf = (result) =>
   result.conversationState.currentMessage.userInputMessage.content;
-const systemPromptOf = (result) => result.systemPrompt || "";
+
+// The system text is no longer a top-level `systemPrompt` — kiro.dev answers that field
+// with 400 REQUEST_BODY_INVALID — so the translator folds it into the first user turn's
+// content as `contentPrefix`. Read it back from there, dropping the per-turn
+// "[Context: Current time is …]" line that rides along in the same content.
+const TIME_CONTEXT = /\[Context: Current time is [^\]]*\]/g;
+const systemPromptOf = (result) => {
+  const cs = result?.conversationState ?? {};
+  const first =
+    (cs.history ?? []).find((turn) => turn?.userInputMessage)?.userInputMessage ??
+    cs.currentMessage?.userInputMessage;
+  return typeof first?.content === "string" ? first.content.replace(TIME_CONTEXT, "").trim() : "";
+};
 
 describe("openaiToKiroRequest", () => {
   describe("basic message conversion", () => {
@@ -568,22 +580,28 @@ describe("openaiToKiroRequest", () => {
       expect(systemPromptOf(result)).toContain("<max_thinking_length>16000</max_thinking_length>");
     });
 
-    it("keeps top-level systemPrompt stable across turns", () => {
+    it("keeps the user-turn system prefix stable across turns", () => {
+      const credentials = {
+        connectionId: "kiro-account-openai-stable-prefix",
+        rawHeaders: { "x-session-id": "hermes-session-openai-stable-prefix" },
+      };
       const first = openaiToKiroRequest(
         "claude-sonnet-4.6-thinking",
         { messages: [{ role: "user", content: "first" }] },
         true,
-        {}
+        credentials
       );
       const second = openaiToKiroRequest(
         "claude-sonnet-4.6-thinking",
         { messages: [{ role: "user", content: "second" }] },
         true,
-        {}
+        credentials
       );
 
-      expect(first.systemPrompt).toBe(second.systemPrompt);
-      expect(first.systemPrompt).not.toContain("Current time");
+      // The prefix is written once, on the first user turn, then replayed verbatim.
+      expect(systemPromptOf(second)).toBe(systemPromptOf(first));
+      expect(systemPromptOf(first)).toContain("<thinking_mode>enabled</thinking_mode>");
+      expect(systemPromptOf(first)).not.toContain("Current time");
       expect(first.conversationState.currentMessage.userInputMessage.content).toContain("Current time");
     });
 
@@ -606,7 +624,7 @@ describe("openaiToKiroRequest", () => {
       );
 
       expect(second.conversationState.conversationId).toBe("hermes-session-openai-replay");
-      expect(second.conversationState.agentContinuationId).toBe(first.conversationState.agentContinuationId);
+      expect(second.conversationState).not.toHaveProperty("agentContinuationId");
       expect(second.conversationState.history[0].userInputMessage.content).toBe(
         first.conversationState.currentMessage.userInputMessage.content
       );
@@ -626,6 +644,25 @@ describe("openaiToKiroRequest", () => {
       expect(systemPromptOf(result)).not.toContain("<thinking_mode>enabled</thinking_mode>");
       expect(systemPromptOf(result)).not.toContain("<max_thinking_length>");
       expect(result.additionalModelRequestFields).toBeUndefined();
+    });
+  });
+
+  // The runtime rejects the retired agent fields, and a top-level `systemPrompt` is a
+  // hard 400 — the system text rides in the first user turn instead. See
+  // tests/unit/kiro-minimal-wire-payload.test.js for both translators.
+  describe("wire shape", () => {
+    it("omits the retired agent fields and the top-level systemPrompt", () => {
+      const result = openaiToKiroRequest(
+        "claude-sonnet-4.6",
+        { messages: [{ role: "user", content: "hello" }] },
+        true,
+        {}
+      );
+
+      expect(result).not.toHaveProperty("systemPrompt");
+      expect(result).not.toHaveProperty("agentMode");
+      expect(result.conversationState).not.toHaveProperty("agentContinuationId");
+      expect(result.conversationState).not.toHaveProperty("agentTaskType");
     });
   });
 });

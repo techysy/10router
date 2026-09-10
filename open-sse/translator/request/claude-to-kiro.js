@@ -18,7 +18,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { applyKiroSessionReplay } from "../../utils/kiroSessionReplay.js";
-import { resolveContinuationId, resolveSessionIdentity } from "../../utils/sessionManager.js";
+import { resolveSessionIdentity } from "../../utils/sessionManager.js";
 import {
   resolveKiroModelIntent,
   applyKiroThinkingOverride,
@@ -242,9 +242,9 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     ? (credentials?.providerSpecificData?.profileArn || "")
     : (credentials?.providerSpecificData?.profileArn || resolveDefaultProfileArn(authMethod));
 
-  // Kiro CLI/KAS sends system prompt as top-level `systemPrompt`. Keep a
-  // content fallback too because the CodeWhisperer surface does not always
-  // enforce top-level systemPrompt for direct calls.
+  // The system prompt travels inside the first user turn's content (contentPrefix):
+  // the CodeWhisperer surface rejects a top-level `systemPrompt` with
+  // 400 REQUEST_BODY_INVALID, so the value below is only a replay cache key.
   const timestamp = new Date().toISOString();
   const systemPromptParts = [];
   if (thinkingBudget !== null && !usesNativeGptEffort) {
@@ -264,12 +264,6 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     scope: "kiro",
   });
   const conversationId = sessionIdentity.sessionId;
-  const continuationId = resolveContinuationId({
-    sessionId: conversationId,
-    connectionId: credentials?.connectionId,
-    scope: "kiro",
-    ephemeral: sessionIdentity.ephemeral,
-  });
   const replay = applyKiroSessionReplay({
     conversationId,
     connectionId: credentials?.connectionId,
@@ -316,18 +310,14 @@ export function claudeToKiroRequest(model, body, stream, credentials) {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId,
-      agentContinuationId: continuationId,
-      agentTaskType: "vibe",
       currentMessage: {
         userInputMessage,
       },
       history: canonical.history,
     },
-    agentMode: "vibe",
   };
 
   if (profileArn) payload.profileArn = profileArn;
-  if (systemPrompt) payload.systemPrompt = systemPrompt;
   if (additionalModelRequestFields) {
     payload.additionalModelRequestFields = additionalModelRequestFields;
   }

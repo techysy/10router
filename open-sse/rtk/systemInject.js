@@ -6,6 +6,16 @@ import { FORMATS } from "../translator/formats.js";
 
 const SEP = "\n\n";
 
+// Append `prompt` as its own SEP-delimited segment unless it is already there as one,
+// so repeat injections (retries, or both injectors active) stay idempotent without
+// matching a substring of unrelated content.
+function appendSegment(content, prompt) {
+  const base = typeof content === "string" ? content : "";
+  if (!base) return prompt;
+  if (base.split(SEP).includes(prompt)) return base;
+  return `${base}${SEP}${prompt}`;
+}
+
 export function injectSystemPrompt(body, format, prompt) {
   if (!body || !prompt) return;
 
@@ -20,8 +30,11 @@ export function injectSystemPrompt(body, format, prompt) {
       // Antigravity wraps Gemini shape in body.request → injectGeminiSystem handles it
       injectGeminiSystem(body, prompt);
       return;
+    case FORMATS.KIRO:
+      injectKiroSystem(body, prompt);
+      return;
     default:
-      // OpenAI and OpenAI-shaped formats (responses/codex/cursor/kiro/ollama)
+      // OpenAI and OpenAI-shaped formats (responses/codex/cursor/ollama)
       injectMessagesSystem(body, prompt);
   }
 }
@@ -95,4 +108,31 @@ function injectGeminiSystem(body, prompt) {
     return;
   }
   target[key] = { parts: [{ text: prompt }] };
+}
+
+// Kiro shape: conversationState.{history[], currentMessage}. The prompt rides in the
+// first user turn's content — the same place the Kiro translators mirror the system
+// text via their contentPrefix.
+//
+// A top-level `systemPrompt` is deliberately NOT written: kiro.dev answers any body
+// carrying that field with 400 REQUEST_BODY_INVALID (see open-sse/executors/kiro.js),
+// so writing it here is what used to break every kr/ model while an RTK injector was active.
+function injectKiroSystem(body, prompt) {
+  const cs = body.conversationState;
+  if (!cs || typeof cs !== "object") return;
+
+  let target = null;
+  if (Array.isArray(cs.history)) {
+    for (const item of cs.history) {
+      if (item && item.userInputMessage) { target = item.userInputMessage; break; }
+    }
+  }
+  if (!target && cs.currentMessage?.userInputMessage) {
+    target = cs.currentMessage.userInputMessage;
+  }
+  if (!target) return;
+
+  try {
+    target.content = appendSegment(target.content, prompt);
+  } catch { /* frozen or proxied turn — fail open, never break the request */ }
 }

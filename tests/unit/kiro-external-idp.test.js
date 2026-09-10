@@ -92,7 +92,7 @@ describe("Kiro external_idp (CLIProxyAPI) import and refresh", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("adds CodeWhisperer external IdP headers and endpoint ordering", async () => {
+  it("adds CodeWhisperer external IdP headers and routes through Amazon Q first", async () => {
     const { KiroExecutor } = await import("../../open-sse/executors/kiro.js");
     const executor = new KiroExecutor();
     const credentials = {
@@ -105,8 +105,10 @@ describe("Kiro external_idp (CLIProxyAPI) import and refresh", () => {
     expect(headers.TokenType).toBe("EXTERNAL_IDP");
     expect(headers.tokentype).toBeUndefined();
 
+    // Amazon Q leads every auth method: the kiro.dev path gateway answers a modern
+    // payload with a terminal 400 REQUEST_BODY_INVALID (see getOrderedBaseUrls).
     expect(executor.buildUrl("claude-sonnet-4.5", true, 0, credentials)).toBe(
-      "https://codewhisperer.us-east-1.amazonaws.com/generateAssistantResponse"
+      "https://q.us-east-1.amazonaws.com/generateAssistantResponse"
     );
   });
 

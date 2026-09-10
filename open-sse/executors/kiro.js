@@ -127,12 +127,18 @@ async function readResponsePrefix(response, signal, maxBytes, timeoutMs) {
   return decoder.decode(concatChunks(chunks, totalBytes));
 }
 
+// The instruction goes into the current user turn, never into a top-level
+// `systemPrompt`: kiro.dev answers any body carrying that field with
+// 400 REQUEST_BODY_INVALID, so writing it there turned every repair retry into
+// a hard failure.
 function appendRepairInstruction(body, kind) {
   const repaired = structuredClone(body || {});
   const instruction = REPAIR_INSTRUCTIONS[kind] || "Retry the previous incomplete Kiro response.";
-  repaired.systemPrompt = repaired.systemPrompt
-    ? `${repaired.systemPrompt}\n\n${instruction}`
-    : instruction;
+  const msg = repaired?.conversationState?.currentMessage?.userInputMessage;
+  if (msg) {
+    const content = typeof msg.content === "string" ? msg.content : "";
+    msg.content = content ? `${content}\n\n${instruction}` : instruction;
+  }
   return repaired;
 }
 
@@ -259,36 +265,39 @@ export class KiroExecutor extends BaseExecutor {
       }
     }
 
+    // Current Kiro runtime surfaces (CLIRO parity): the Amazon endpoints expect the
+    // SSO bearer header plus the agent-mode markers. Without them the deprecated
+    // path gateway answers a modern payload with REQUEST_BODY_INVALID.
+    if (credentials?.accessToken) {
+      headers["x-amz-sso-bearer"] = credentials.accessToken;
+    }
+    headers["x-amzn-kiro-agent-mode"] = "spec";
+    headers["x-amzn-codewhisperer-machine-id"] = "kiro-desktop";
+    const profileArn = credentials?.providerSpecificData?.profileArn;
+    if (profileArn) {
+      headers["x-amzn-codewhisperer-profile-arn"] = profileArn;
+    }
+
     return headers;
   }
 
   /**
-   * Auth-aware endpoint ordering.
+   * Endpoint ordering: the Amazon surfaces always come first.
    *
-   * API-key Kiro connections use the Amazon Q surface. The legacy
-   * codewhisperer.* GenerateAssistantResponse endpoint can authenticate the key
-   * but rejects the same valid payload with REQUEST_BODY_INVALID. Since a 400
-   * is terminal in BaseExecutor, putting CodeWhisperer first prevents the working
-   * q.* endpoint from ever being tried. Keep q.* first only for api_key accounts.
+   * Kiro deprecated the legacy path-style GenerateAssistantResponse on
+   * runtime.*.kiro.dev (the IDE moved to POST / + x-amz-target). That path gateway
+   * now answers a valid modern payload with 400 REQUEST_BODY_INVALID, and a 400 is
+   * terminal in BaseExecutor — so leaving kiro.dev first meant a request could never
+   * fall through to a working surface. Every auth method therefore tries the Amazon
+   * hosts first: foreign tokens are rejected there with 401/403, which DO fall
+   * through, and q.* leads CodeWhisperer for the key-based methods.
    *
-   * The Kiro IDE gateway (runtime.*.kiro.dev) expects Kiro OIDC/social tokens
-   * and rejects TokenType=API_KEY. External IdP enterprise tokens instead
-   * use the CodeWhisperer surface, with the `TokenType: EXTERNAL_IDP` header.
-   * Other OAuth methods keep the default order (kiro.dev first) since their
-   * tokens are what that gateway accepts.
+   * The regionalize step matters for the same reason: idc/api_key/external_idp
+   * tokens are SSO access tokens minted in one region, while the configured
+   * baseUrls are hardcoded us-east-1.
    */
   getOrderedBaseUrls(credentials) {
     const baseUrls = this.getBaseUrls();
-    const authMethod = credentials?.providerSpecificData?.authMethod;
-    // IAM Identity Center (idc) tokens are AWS SSO access tokens — the same
-    // family as external_idp/api_key. The kiro.dev gateway rejects them with
-    // 403 "bearer token invalid", so they must hit the CodeWhisperer
-    // *.amazonaws.com surface, and in the region the token was minted in
-    // (the baseUrls are hardcoded us-east-1).
-    const isCodeWhispererSurface =
-      authMethod === "api_key" || authMethod === "external_idp" || authMethod === "idc";
-    if (!isCodeWhispererSurface) return baseUrls;
-
     const region = (credentials?.providerSpecificData?.region || "us-east-1").trim();
     const regionalize = (u) =>
       region && region !== "us-east-1" && u.includes("amazonaws.com")
@@ -297,15 +306,11 @@ export class KiroExecutor extends BaseExecutor {
 
     const amazon = baseUrls.filter((u) => u.includes("amazonaws.com")).map(regionalize);
     const others = baseUrls.filter((u) => !u.includes("amazonaws.com"));
-    if (authMethod === "api_key") {
-      const q = amazon.filter((u) => u.includes("://q."));
-      const remaining = amazon.filter((u) => !u.includes("://q."));
-      return q.length > 0
-        ? [...q, ...remaining, ...others]
-        : [...amazon, ...others];
-    }
-
-    return amazon.length > 0 ? [...amazon, ...others] : baseUrls;
+    const q = amazon.filter((u) => u.includes("://q."));
+    const remaining = amazon.filter((u) => !u.includes("://q."));
+    return q.length > 0
+      ? [...q, ...remaining, ...others]
+      : [...amazon, ...others];
   }
 
   buildUrl(model, stream, urlIndex = 0, credentials = null) {

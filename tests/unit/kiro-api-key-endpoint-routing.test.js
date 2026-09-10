@@ -20,26 +20,30 @@ describe("Kiro auth-aware endpoint routing", () => {
     ]);
   });
 
-  it("keeps Builder ID OAuth on the Kiro runtime surface", () => {
+  // Kiro retired the path-style GenerateAssistantResponse on runtime.*.kiro.dev: it
+  // answers a valid modern payload with 400 REQUEST_BODY_INVALID, and a 400 is terminal
+  // here, so kiro.dev must never be tried first for any auth method. Foreign tokens are
+  // rejected by the Amazon surfaces with 401/403, which do fall through.
+  it("routes Builder ID OAuth through Amazon Q first (kiro.dev path deprecated)", () => {
     expect(executor.getOrderedBaseUrls(credentials("builder-id"))).toEqual([
-      RUNTIME,
-      CODEWHISPERER,
       Q,
+      CODEWHISPERER,
+      RUNTIME,
     ]);
   });
 
-  it("keeps external IdP on CodeWhisperer before Amazon Q", () => {
+  it("routes external IdP through Amazon Q first", () => {
     expect(executor.getOrderedBaseUrls(credentials("external_idp"))).toEqual([
-      CODEWHISPERER,
       Q,
+      CODEWHISPERER,
       RUNTIME,
     ]);
   });
 
-  it("regionalizes AWS endpoints for IDC without changing Kiro runtime", () => {
+  it("regionalizes the Amazon endpoints for IDC while keeping Q first", () => {
     expect(executor.getOrderedBaseUrls(credentials("idc", "eu-west-1"))).toEqual([
-      "https://codewhisperer.eu-west-1.amazonaws.com/generateAssistantResponse",
       "https://q.eu-west-1.amazonaws.com/generateAssistantResponse",
+      "https://codewhisperer.eu-west-1.amazonaws.com/generateAssistantResponse",
       RUNTIME,
     ]);
   });
@@ -63,5 +67,36 @@ describe("Kiro auth-aware endpoint routing", () => {
       "AmazonCodeWhispererStreamingService.GenerateAssistantResponse"
     );
     expect(runtimeHeaders["X-Amz-Target"]).toBeUndefined();
+  });
+
+  // Current-runtime markers the Amazon surfaces require: without them the deprecated
+  // path gateway answers a modern payload with REQUEST_BODY_INVALID.
+  it("sends the current-runtime headers on every surface", () => {
+    const auth = {
+      accessToken: "sso-token",
+      providerSpecificData: {
+        authMethod: "idc",
+        profileArn: "arn:aws:codewhisperer:us-east-1:1:profile/ABC",
+      },
+    };
+
+    const headers = executor.buildHeaders(auth, true, Q);
+
+    expect(headers["x-amz-sso-bearer"]).toBe("sso-token");
+    expect(headers["x-amzn-kiro-agent-mode"]).toBe("spec");
+    expect(headers["x-amzn-codewhisperer-machine-id"]).toBe("kiro-desktop");
+    expect(headers["x-amzn-codewhisperer-profile-arn"]).toBe(
+      "arn:aws:codewhisperer:us-east-1:1:profile/ABC"
+    );
+  });
+
+  it("omits the profile-arn header when the connection has no profile", () => {
+    const auth = { accessToken: "sso-token", providerSpecificData: { authMethod: "api_key" } };
+
+    const headers = executor.buildHeaders(auth, true, Q);
+
+    expect(headers).not.toHaveProperty("x-amzn-codewhisperer-profile-arn");
+    expect(headers["x-amz-sso-bearer"]).toBe("sso-token");
+    expect(headers["x-amzn-kiro-agent-mode"]).toBe("spec");
   });
 });
