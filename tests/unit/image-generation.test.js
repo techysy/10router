@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { handleImageGenerationCore } from "../../open-sse/handlers/imageGenerationCore.js";
+import { PROVIDERS } from "../../open-sse/config/providers.js";
 
 const originalFetch = global.fetch;
 
@@ -351,7 +352,7 @@ describe("handleImageGenerationCore", () => {
         headers: expect.objectContaining({
           authorization: "Bearer codex-token",
           "chatgpt-account-id": "account-123",
-          version: "0.136.0",
+          version: PROVIDERS.codex.cliVersion,
         }),
       })
     );

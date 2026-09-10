@@ -1,5 +1,9 @@
 import { withCodexReviewModels } from "../models/helpers.js";
 
+// Codex CLI version the backend sees in the Version / User-Agent identity headers.
+// Single source: bump it here when the installed Codex CLI moves on.
+const CODEX_CLI_VERSION = "0.154.0";
+
 export default {
   id: "codex",
   priority: 30,
@@ -34,9 +38,10 @@ export default {
     baseUrl: "https://chatgpt.com/backend-api/codex/responses",
     format: "openai-responses",
     forceStream: true,
+    cliVersion: CODEX_CLI_VERSION,
     headers: {
       originator: "codex_cli_rs",
-      "User-Agent": "codex_cli_rs/0.136.0",
+      "User-Agent": `codex_cli_rs/${CODEX_CLI_VERSION}`,
     },
     usage: {
       url: "https://chatgpt.com/backend-api/wham/usage",
