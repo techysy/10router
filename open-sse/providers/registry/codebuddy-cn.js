@@ -73,6 +73,7 @@ export default {
     { id: "kimi-k3-1", name: "Kimi-K3 (1)" },
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
   ],
   oauth: {
     baseUrl: "https://copilot.tencent.com",

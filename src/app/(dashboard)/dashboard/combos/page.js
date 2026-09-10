@@ -314,15 +314,12 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">No models</span>
               ) : (
-                combo.models.slice(0, 3).map((model, index) => (
+                combo.models.map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
                     <span>{model}</span>
                     <CapacityBadges caps={getCaps?.(model)} />
                   </code>
                 ))
-              )}
-              {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
               )}
             </div>
             {/* Fusion: judge picker (Auto = first model) */}
@@ -487,7 +484,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
               {models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
-                models.slice(0, 3).map((model, index) => (
+                models.map((model, index) => (
                   <code
                     key={`${model}-${index}`}
                     className="group/chip inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5"
@@ -505,9 +502,6 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                     </button>
                   </code>
                 ))
-              )}
-              {models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{models.length - 3} {translate("more")}</span>
               )}
             </div>
           </div>
