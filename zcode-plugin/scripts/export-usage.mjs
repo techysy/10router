@@ -374,6 +374,32 @@ function mirasimLedgerFiles() {
 // only rows that actually consumed tokens to avoid zero-rows noise.
 const MIRASIM_PROVIDER_PREFIX = "mirasim-";
 
+// mirasim agents can be pointed at a 10Router instance (leg=direct, upstreamHost
+// = that instance's host). Those calls are already counted in 10Router's own
+// usageHistory — re-importing them would double-count (the row signatures can
+// never collide across the two ledgers, so server-side dedup cannot save us).
+// Heuristic: host is loopback/LAN-private AND (port is a common 10Router port
+// OR the host matches the --endpoint we're importing into).
+function isSelfHostedUpstream(upstreamHost, endpointUrl) {
+  if (!upstreamHost) return false;
+  let host = upstreamHost;
+  let port = null;
+  try {
+    const u = new URL(upstreamHost.includes("://") ? upstreamHost : `http://${upstreamHost}`);
+    host = u.hostname;
+    port = u.port ? Number(u.port) : 80;
+  } catch { /* bare host — fall through */ }
+  const isPrivate = host === "localhost" || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+  if (!isPrivate) return false;
+  if (endpointUrl) {
+    try {
+      const ep = new URL(endpointUrl);
+      if (ep.hostname === host) return true; // same machine as the 10Router we import into
+    } catch { /* ignore */ }
+  }
+  return port === 20127 || port === 20128 || port === 80 || port === 443;
+}
+
 function convertMirasimRow(e) {
   const tokens = {
     prompt_tokens: e.input || 0,
@@ -422,6 +448,8 @@ function collectMirasimEntries() {
   const entries = [];
   const seenIds = new Set();
   let skippedNoTokens = 0;
+  let skippedSelfHosted = 0;
+  const endpointUrl = args.exportFile ? null : args.endpoint; // offline export can't compare against an endpoint
   for (const fp of files) {
     const raw = fs.readFileSync(fp, "utf8");
     for (const line of raw.split("\n")) {
@@ -434,11 +462,14 @@ function collectMirasimEntries() {
         if (seenIds.has(e.id)) continue;
         seenIds.add(e.id);
       }
+      // Calls that went through a 10Router instance are already counted there.
+      if (isSelfHostedUpstream(e.upstreamHost, endpointUrl)) { skippedSelfHosted++; continue; }
       const consumed = (e.input || 0) + (e.output || 0) + (e.cacheRead || 0) + (e.cacheWrite || 0);
       if (!consumed) { skippedNoTokens++; continue; } // failed calls log zero tokens
       entries.push(convertMirasimRow(e));
     }
   }
+  if (skippedSelfHosted > 0) log(`mirasim: skipped ${skippedSelfHosted} rows routed via a 10Router instance (already counted there — anti double-count)`);
   if (skippedNoTokens > 0) log(`mirasim: skipped ${skippedNoTokens} rows without token counts (failed/empty calls)`);
   return entries;
 }
