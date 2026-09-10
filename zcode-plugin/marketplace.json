@@ -4,12 +4,12 @@
   "plugins": [
     {
       "name": "10router-sync",
-      "description": "Sync ZCode's local model-usage ledger into 10Router (/api/settings/database/import-usage).",
+      "description": "Sync ZCode, OpenCode or mirasim's local model-usage ledger into 10Router (/api/settings/database/import-usage).",
       "description_i18n": {
-        "en": "Sync ZCode's local model-usage ledger into 10Router (/api/settings/database/import-usage).",
-        "zh-CN": "将 ZCode 本地模型调用用量导出并导入 10Router。"
+        "en": "Sync ZCode, OpenCode or mirasim's local model-usage ledger into 10Router (/api/settings/database/import-usage).",
+        "zh-CN": "将 ZCode/OpenCode/mirasim 本地模型调用用量导出并导入 10Router。"
       },
-      "version": "0.3.0",
+      "version": "1.1.0",
       "source": "./"
     }
   ]

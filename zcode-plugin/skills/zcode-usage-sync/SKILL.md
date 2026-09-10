@@ -1,16 +1,16 @@
 ---
 name: zcode-usage-sync
-description: Export ZCode's local model-usage ledger into 10Router via /api/settings/database/import-usage. Use when the user asks to 导出/同步/导入 ZCode 使用量到 10Router, sync zcode usage, export usage to 10router, or asks how much they used ZCode and wants it recorded in 10Router stats. Also supports OpenCode (opencode.ai desktop) via --source opencode.
+description: Export ZCode, OpenCode or mirasim's local model-usage ledger into 10Router via /api/settings/database/import-usage. Use when the user asks to 导出/同步/导入 ZCode/OpenCode/mirasim 使用量到 10Router, sync zcode/mirasim usage, export usage to 10router, or asks how much they used ZCode/mirasim and wants it recorded in 10Router stats. OpenCode via --source opencode, mirasim via --source mirasim.
 ---
 
 # Usage Sync → 10Router
 
-Export this machine's ZCode **or OpenCode** model-usage ledger into 10Router's usage statistics.
+Export this machine's ZCode **or OpenCode** **or mirasim** model-usage ledger into 10Router's usage statistics.
 
 ## Preconditions (check before running)
 
 1. **10Router endpoint** — default `http://127.0.0.1:20127`. If the user runs 10Router elsewhere (NAS, LAN), ask or infer from context. For a NAS/remote instance use its address, e.g. `http://192.168.31.101:20127`. *(Online modes only — `--export` needs neither endpoint nor credentials.)*
-2. **Source** — `--source zcode` (default) or `--source opencode` (opencode.ai desktop app). OpenCode is **not** auto-detected — pass `--source opencode` explicitly to read the OpenCode ledger.
+2. **Source** — `--source zcode` (default), `--source opencode` (opencode.ai desktop app), or `--source mirasim` (mirasim desktop insights ledger). OpenCode and mirasim are **not** auto-detected — pass the flag explicitly.
 3. **Credential (one of)** —
    - Virtual key (recommended): created in 10Router dashboard → API Keys, format `sk-…`. Pass via `--key`.
    - Dashboard password: pass via `--password`.
@@ -53,6 +53,26 @@ node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --source opencode --endpoint 
 # Online import
 node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --source opencode --endpoint <URL> --key <sk-…>
 ```
+
+### mirasim desktop
+
+mirasim stores per-call usage in `~/.mirasim/insights/usage-YYYY-MM.ndjson` with full
+token metering (input/output/cacheRead/cacheWrite/reasoning). Use `--source mirasim`:
+
+```bash
+# Offline export
+node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --source mirasim --export mirasim-usage.json
+
+# Online dry-run
+node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --source mirasim --endpoint <URL> --key <sk-…> --dry-run
+
+# Online import
+node "$ZCODE_PLUGIN_ROOT/scripts/export-usage.mjs" --source mirasim --endpoint <URL> --key <sk-…>
+```
+
+Rows land under provider `mirasim-<protocol>` (mirasim-anthropic / mirasim-openai-responses /
+mirasim-openai-chat), cost 0 (plan-based relay). Failed calls without token consumption are
+skipped automatically; agent/leg/upstreamHost/effort/repo/workspace details ride in `meta`.
 
 ### Offline (export JSON, import elsewhere)
 

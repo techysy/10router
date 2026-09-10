@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * 10router usage exporter — supports ZCode *and* OpenCode.
+ * 10router usage exporter — supports ZCode, OpenCode *and* mirasim.
  *
  * Reads a local model-usage ledger (ZCode: ~/.zcode/cli/db/db.sqlite,
- * OpenCode: ~/.local/share/opencode/opencode.db) and either POSTs to
+ * OpenCode: ~/.local/share/opencode/opencode.db,
+ * mirasim: ~/.mirasim/insights/usage-*.ndjson) and either POSTs to
  * 10Router's /api/settings/database/import-usage (online) or writes a JSON
  * file for offline import.
  *
@@ -15,6 +16,7 @@
  * Source selection:
  *   --source zcode      (default) read ZCode ledger
  *   --source opencode   read OpenCode desktop ledger
+ *   --source mirasim    read mirasim desktop insights ledger
  *
  * Auth (online modes): one of
  *   --key sk-…            virtual proxy key from 10router dashboard (preferred)
@@ -25,6 +27,7 @@
  *   node export-usage.mjs --endpoint http://127.0.0.1:20127 --key sk-… --dry-run
  *   node export-usage.mjs --export zcode-usage.json
  *   node export-usage.mjs --source opencode --export opencode-usage.json
+ *   node export-usage.mjs --source mirasim --export mirasim-usage.json
  *   node export-usage.mjs --import opencode-usage.json --endpoint http://nas:20128 --key sk-…
  */
 
@@ -43,7 +46,7 @@ function parseArgs(argv) {
     endpoint: process.env.TENROUTER_ENDPOINT || "http://127.0.0.1:20127",
     key: process.env.TENROUTER_KEY || "",
     password: process.env.TENROUTER_PASSWORD || "",
-    source: "zcode", // "zcode" | "opencode"
+    source: "zcode", // "zcode" | "opencode" | "mirasim"
     limit: 0,
     dryRun: false,
     quiet: false,
@@ -71,6 +74,7 @@ Modes (pick at most one; default = read db + POST online):
 Source:
   --source zcode       (default) read ZCode ledger (~/.zcode/cli/db/db.sqlite)
   --source opencode    read OpenCode desktop ledger (~/.local/share/opencode/opencode.db)
+  --source mirasim     read mirasim insights ledger (~/.mirasim/insights/usage-*.ndjson)
 
 Options:
   --endpoint URL       10Router base URL (default http://127.0.0.1:20127)
@@ -86,8 +90,8 @@ Options:
     console.error("error: --export and --import are mutually exclusive");
     process.exit(2);
   }
-  if (!["zcode", "opencode"].includes(args.source)) {
-    console.error(`error: --source must be "zcode" or "opencode", got "${args.source}"`);
+  if (!["zcode", "opencode", "mirasim"].includes(args.source)) {
+    console.error(`error: --source must be "zcode", "opencode" or "mirasim", got "${args.source}"`);
     process.exit(2);
   }
   // Offline export needs neither endpoint nor credentials.
@@ -349,8 +353,99 @@ function collectOpencodeEntries() {
   return entries;
 }
 
+// ---------------------------------------------------------------------------
+// mirasim insights ledger (~/.mirasim/insights/usage-YYYY-MM.ndjson)
+// ---------------------------------------------------------------------------
+
+function mirasimLedgerFiles() {
+  const dir = path.join(os.homedir(), ".mirasim", "insights");
+  let files = [];
+  try {
+    files = fs.readdirSync(dir)
+      .filter((f) => /^usage-\d{4}-\d{2}\.ndjson$/.test(f))
+      .sort()
+      .map((f) => path.join(dir, f));
+  } catch { /* no insights dir */ }
+  return files;
+}
+
+// mirasim rows are ndjson with per-call token counts; `id` is unique per call.
+// HTTP >=400 rows are failed calls — mirasim logs 0 tokens on them, so keep
+// only rows that actually consumed tokens to avoid zero-rows noise.
+const MIRASIM_PROVIDER_PREFIX = "mirasim-";
+
+function convertMirasimRow(e) {
+  const tokens = {
+    prompt_tokens: e.input || 0,
+    completion_tokens: e.output || 0,
+  };
+  if (e.cacheRead) tokens.cache_read_input_tokens = e.cacheRead;
+  if (e.cacheWrite) tokens.cache_creation_input_tokens = e.cacheWrite;
+  if (e.reasoning) tokens.reasoning_tokens = e.reasoning;
+  const statusOk = (e.status || 0) >= 200 && (e.status || 0) < 400;
+  return {
+    timestamp: e.ts,
+    provider: MIRASIM_PROVIDER_PREFIX + String(e.provider || "unknown"),
+    model: e.model || "unknown",
+    connectionId: null,
+    apiKey: null,
+    endpoint: "mirasim://" + (e.agent || e.leg || "relay"),
+    cost: 0, // mirasim relay is plan-based, not metered API spend
+    status: statusOk ? "ok" : "error",
+    tokens,
+    meta: {
+      source: "mirasim",
+      mirasimCallId: e.id || null,
+      relayCallId: e.relayCallId || null,
+      agent: e.agent || null,
+      leg: e.leg || null,
+      viaRelay: e.viaRelay ?? null,
+      upstreamHost: e.upstreamHost || null,
+      effort: e.effort || null,
+      httpStatus: e.status ?? null,
+      durationMs: e.durationMs ?? null,
+      repo: e.repo || null,
+      workspace: e.workspace || null,
+      planUsage: true,
+    },
+  };
+}
+
+// Read every mirasim insights ledger and return converted usageHistory entries.
+function collectMirasimEntries() {
+  const files = mirasimLedgerFiles();
+  if (files.length === 0) {
+    console.error("error: no mirasim usage ledger found (~/.mirasim/insights/usage-*.ndjson)");
+    process.exit(1);
+  }
+
+  const entries = [];
+  const seenIds = new Set();
+  let skippedNoTokens = 0;
+  for (const fp of files) {
+    const raw = fs.readFileSync(fp, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      let e;
+      try { e = JSON.parse(line); } catch { continue; } // tolerate torn tail lines
+      if (!e || typeof e !== "object") continue;
+      // Dedup across months: mirasim ids are globally unique (uuid:uuid).
+      if (e.id) {
+        if (seenIds.has(e.id)) continue;
+        seenIds.add(e.id);
+      }
+      const consumed = (e.input || 0) + (e.output || 0) + (e.cacheRead || 0) + (e.cacheWrite || 0);
+      if (!consumed) { skippedNoTokens++; continue; } // failed calls log zero tokens
+      entries.push(convertMirasimRow(e));
+    }
+  }
+  if (skippedNoTokens > 0) log(`mirasim: skipped ${skippedNoTokens} rows without token counts (failed/empty calls)`);
+  return entries;
+}
+
 function collectEntries() {
   if (args.source === "opencode") return collectOpencodeEntries();
+  if (args.source === "mirasim") return collectMirasimEntries();
   return collectZcodeEntries();
 }
 
