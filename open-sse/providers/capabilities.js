@@ -163,9 +163,9 @@ export const MODEL_CAPABILITIES = {
   // sakana 报 1000000（等于“无上限”），pioneer/requesty/empiriolabs 一致报 131072，
   // 取后者作保守上限（maxOutput 是 claude.js adjustMaxTokens 的硬夹子）。
   "fugu-ultra":                 { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
-  // stealth/ox-alpha（commandcode）与 opencode-go 的 ox-alpha-free 同一模型，
-  // 但只有 opencode-go 一处条目，属单一来源。
-  "ox-alpha":                   { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  // （曾为 stealth/ox-alpha 写过一行：该 id 已下架，实为 glm-5.3-flash 的测试马甲——
+  // 同一家的 z-ai/glm-5.3-flash 才是正式 id。已知马甲不再声明，否则将来它作为
+  // “私有代号”重新出现在某家 reseller 列表里会被误当成独立模型。）
   // 腾讯混元 Hy4 Preview：9 处条目（含第一方 tencent-tokenhub）全部 in:text——
   // “预览版”名字里没有多模态线索，早先按视觉模型写过 vision:true 是错的。
   // 此处覆盖 commandcode / codebuddy-intl；codebuddy-cn 另有 provider 行

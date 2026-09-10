@@ -76,7 +76,6 @@ export default {
     { id: "sakana/fugu-ultra", name: "Fugu Ultra" },
     { id: "stepfun/Step-3.5-Flash", name: "Step 3.5 Flash" },
     { id: "stepfun/Step-3.7-Flash", name: "Step 3.7 Flash" },
-    { id: "stealth/ox-alpha", name: "Ox Alpha" },
     { id: "tencent/hy3-paid", name: "Tencent Hy3" },
     { id: "tencent/hy4-preview", name: "Tencent Hy4 Preview" },
     { id: "thinkingmachines/inkling", name: "Inkling" },
