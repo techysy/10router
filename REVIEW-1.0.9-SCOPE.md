@@ -150,7 +150,11 @@ muse-spark-1.3-contributor, omen-alpha …（含本次新增的 deepseek-v4.1-fl
 
 结论（**已解决**）：**种子对齐是独立的一步**（要连带补/改 6+ 条能力行，且 3 条得定 allowlist），不宜塞进本次修正。已记入 §7 未决事项。
 
-**→ 已完成（A8a）**：种子按公开目录补齐到 37 条 + 全量 `supportedFormats` 端点声明 + 两条 canonical 行（`muse-spark-1.3-contributor`、小写 `longcat-2.0`）+ `omen-alpha` 进 allowlist（floor 20 → 21，`--check` 仍绿）。上表里的**数值**几行（`glm-5.3`/`glm-5`、`qwen3.8-*`、`mimo-v2-*`、`hy3*` 等）属于**能力数值校准**，单独作为 A8b 处理（涉及「输出上限 > 窗口」这类既有异常），不在 A8a 范围。
+**→ 已完成（A8a）**：种子按公开目录补齐到 37 条 + 全量 `supportedFormats` 端点声明 + 两条 canonical 行（`muse-spark-1.3-contributor`、小写 `longcat-2.0`）+ `omen-alpha` 进 allowlist（floor 20 → 21，`--check` 仍绿）。
+
+**→ 已完成（A8b）**：上表里的**数值**几行（`glm-5.3`/`glm-5.2` → 1M/131072、`glm-5`/`glm-5.1` → 204800|200000/131072、`qwen3.8-max`/`-flash` → 1M/131072 且带视觉、`mimo-v2-pro`/`mimo-v2.5-pro` 去掉误标的 vision、`hy3`/`hy3-preview` → 256000/128000|64000、`grok-4.5` → 500000/500000、`gpt-5.6-luna` → 1050000）已按第一方重建为 **15 条 canonical 行**（另含 `mimo-v2-omni` 补 video/pdf、`kimi-k2.6`/`grok-4.6` 补 videoInput/pdf）。刻意保留保守值的两处：`kimi-k2.7-code`（我们 65536 < 第一方 262144）与 `hy4-preview`（1000000 < 1024000）。
+
+**教训（通用）**：`attachment` 不是视觉信号 —— models.dev 里 `qwen3.7-plus` 等条目的 `attachment:false` 但 `modalities.input` 含 `image/video`（“能不能带图片” 要看 `modalities.input`）。用错字段会把三个本来正确的 vision 行误改掉。
 
 ---
 

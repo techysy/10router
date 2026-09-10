@@ -118,6 +118,27 @@ export const MODEL_CAPABILITIES = {
   "vision-model":      { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000 },
   "coder-model":       { reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000 },
 
+  // opencode-go 公开目录里这批 id 都是「模型自己的名字」（换一家转售商也是同一个
+  // 模型），所以写 canonical 而不是 provider 行。通配 `*glm-5*` / `*qwen*max*` /
+  // `*qwen*` / `*mimo*` / `hy3*` / `*grok-4.5*` / `*gpt-5*` 都是跨供应商共享的兜底，
+  // 改它们会波及别人，因此只加精确行。来源都是第一方 models.dev 条目；与转售商冲突时
+  // 取第一方。
+  "glm-5.3":        { reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 }, // zai + zhipuai 一致；`*glm-5*` 给的 200000/128000 是 GLM-4.x 时代的旧值
+  "glm-5.2":        { reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 }, // zhipuai：窗口 1M
+  "glm-5.1":        { reasoning: true, thinkingFormat: "zai", contextWindow: 200000, maxOutput: 131072 }, // zhipuai：窗口与兜底同值，只有输出上限要改
+  "glm-5":          { reasoning: true, thinkingFormat: "zai", contextWindow: 204800, maxOutput: 131072 }, // zai + zhipuai（models.dev 已标 deprecated）
+  "qwen3.8-max":    { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 }, // alibaba：text+image+video+pdf
+  "qwen3.8-flash":  { vision: true, videoInput: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 }, // alibaba：text+image+video
+  "mimo-v2-pro":    { contextWindow: 1048576, maxOutput: 131072 }, // xiaomi：纯文本；`*mimo*` 既误标 vision 又把窗口写成 262144
+  "mimo-v2.5-pro":  { contextWindow: 1048576, maxOutput: 131072 }, // xiaomi：纯文本；`*mimo*v2.5*` 误标 vision+audioInput+videoInput（同族非 pro 才是多模态）
+  "mimo-v2-omni":   { vision: true, audioInput: true, videoInput: true, pdf: true, contextWindow: 262144, maxOutput: 131072 }, // xiaomi：text+image+audio+video+pdf
+  "hy3":            { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 256000, maxOutput: 128000 }, // tencent-tokenhub；`hy3*` 的 262144/262144（输出=窗口）无来源
+  "hy3-preview":    { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 256000, maxOutput: 64000 }, // tencent-tokenhub：预览版输出（64000）比正式版（128000）更小
+  "grok-4.5":       { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 500000 }, // xai：输出上限等于窗口，与 `*grok-4.6*` 同值
+  "grok-4.6":       { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 500000 }, // xai：与 `*grok-4.6*` 同值，仅补 pdf
+  "gpt-5.6-luna":   { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 }, // openai（第一方）；`*gpt-5*` 给的 400000 是 codex 系列的保守值
+  "kimi-k2.6":      { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", contextWindow: 262144, maxOutput: 262144 }, // moonshotai：与 `*kimi*k2*` 同值，仅补 videoInput
+
   // Kimi flagship + coding (platform + Kimi Code ids) — vision/video native
   "kimi-k3":           { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
   "k3":                { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
