@@ -8,6 +8,12 @@ import { getSettings } from "@/lib/localDb";
 
 const DEFAULT_PASSWORD = "123456";
 
+// Session lifetime. The token's `exp` and the cookie's `maxAge` are both derived
+// from this one value on purpose: with no maxAge at all the browser treats
+// `auth_token` as a session cookie and drops it on browser close, so a user who
+// is still well inside their 24h token gets logged out by closing a window.
+const SESSION_MAX_AGE_SEC = 24 * 60 * 60;
+
 // Placeholder values that ship in .env.example / old builds' source. A secret
 // the whole internet can guess is worse than no secret — fall back to the
 // auto-generated one instead of signing sessions with a public string.
@@ -52,7 +58,7 @@ export async function createDashboardAuthToken(claims = {}) {
   return new SignJWT({ authenticated: true, ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("24h")
+    .setExpirationTime(`${SESSION_MAX_AGE_SEC}s`)
     .sign(SECRET);
 }
 
@@ -83,6 +89,7 @@ export async function setDashboardAuthCookie(cookieStore, request, claims = {}) 
     secure: shouldUseSecureCookie(request),
     sameSite: "lax",
     path: "/",
+    maxAge: SESSION_MAX_AGE_SEC,
   });
 }
 
