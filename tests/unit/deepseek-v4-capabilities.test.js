@@ -34,9 +34,16 @@ describe("DeepSeek V4 capability resolution", () => {
     for (const { provider, id } of VISION_EXP) {
       const caps = getCapabilitiesForModel(provider, id);
       expect(`${provider}/${id} vision=${caps.vision}`).toBe(`${provider}/${id} vision=true`);
-      expect(caps.maxOutput).toBe(384000);
-      expect(caps.contextWindow).toBe(1000000);
     }
+    // The 1M/384000 numbers above are DeepSeek's published ceiling, not a law of
+    // nature: a reseller may override them with its own (more conservative)
+    // hints, and its id casing may not even hit the canonical row. Assert the
+    // canonical profile through a lookup that actually resolves to it.
+    expect(resolveStep("deepseek", "deepseek-v4-flash-vision-exp").step).toBe("canonical");
+    expect(getCapabilitiesForModel("deepseek", "deepseek-v4-flash-vision-exp")).toMatchObject({
+      maxOutput: 384000,
+      contextWindow: 1000000,
+    });
   });
 
   it("keeps plain V4 Flash / V4 Pro text-only", () => {

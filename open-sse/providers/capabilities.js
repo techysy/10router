@@ -239,14 +239,25 @@ export const PROVIDER_CAPABILITIES = {
     "deepseek-ai/deepseek-v4-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
   },
   // AMD Token Factory (Radeon Cloud) free shared endpoints — OpenAI protocol,
-  // text-only (image_url → 400), reasoning via reasoning_effort only (native
-  // `thinking` field → 400). DeepSeek defaults to no thinking; Qwen thinks by
-  // default (internal xhigh) and only accepts low/medium, so it cannot disable.
+  // reasoning via reasoning_effort only (native `thinking` field → 400). Every
+  // value below is from AMD's own per-model pages (「本端点上的行为」, 实测，
+  // 2026-09-09 修订) cross-checked against GET /v1/models; the two vision rows
+  // were additionally re-verified live (prompt_tokens_details.image_tokens > 0).
+  //   · DeepSeek-V4-Flash / -Vision-Exp — 1M ctx; thinking OFF unless asked;
+  //     reasoning_effort takes none|minimal|low|medium|high|xhigh|max.
+  //   · Qwen3.8-Flash-Next — 256K ctx, takes images, thinking ON by default and
+  //     switchable off via `none` (accepts none|low|medium|xhigh).
+  //   · MiniCPM5-2B — 128K ctx, text-only, returns no separate reasoning at all.
+  // The id casing is upstream's (TitleCase); canonical/pattern tables are
+  // case-sensitive, so the Vision-Exp row is what keeps this from falling to the
+  // lowercase `*deepseek-v4*` pattern and silently stripping images.
   // maxOutput: upstream publishes no output cap (max_tokens counts the total
-  // budget) — values here are conservative UI hints, not wire limits.
+  // prompt+output budget) — values here are conservative UI hints, not wire limits.
   "amd": {
-    "DeepSeek-V4-Flash":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
-    "Qwen3.8-Flash-Next": { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 32768 },
+    "DeepSeek-V4-Flash":            { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+    "DeepSeek-V4-Flash-Vision-Exp": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+    "Qwen3.8-Flash-Next":           { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 262144, maxOutput: 32768 },
+    "MiniCPM5-2B":                 { reasoning: false, contextWindow: 131072, maxOutput: 32768 },
   },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
