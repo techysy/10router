@@ -56,4 +56,32 @@ describe("Driver fallback chain", () => {
     const db = await getAdapter();
     expect(db.driver).toBe("sql.js");
   });
+
+  it("does not even load better-sqlite3 on Node >= 24", async () => {
+    // The addon SIGSEGVs while loading on Node 24 — a process-level crash that
+    // try/catch cannot survive — so the module must be skipped before the import.
+    // Asserting the factory is never called is what makes this a real guard:
+    // without the version check the import runs and only the catch saves us.
+    // The cases above leave their own doMock factories registered for this file,
+    // so clear them first — otherwise node:sqlite would still be the throwing stub.
+    vi.doUnmock("@/lib/db/adapters/betterSqliteAdapter.js");
+    vi.doUnmock("@/lib/db/adapters/nodeSqliteAdapter.js");
+    const betterFactory = vi.fn(() => {
+      throw new Error("better-sqlite3 was loaded on Node >= 24");
+    });
+    vi.doMock("@/lib/db/adapters/betterSqliteAdapter.js", () => ({
+      createBetterSqliteAdapter: betterFactory,
+    }));
+
+    const realNode = process.versions.node;
+    Object.defineProperty(process.versions, "node", { value: "24.0.0", configurable: true, writable: true });
+    try {
+      const { getAdapter } = await import("@/lib/db/driver.js");
+      const db = await getAdapter();
+      expect(betterFactory).not.toHaveBeenCalled();
+      expect(db.driver).toBe("node:sqlite");
+    } finally {
+      Object.defineProperty(process.versions, "node", { value: realNode, configurable: true, writable: true });
+    }
+  });
 });

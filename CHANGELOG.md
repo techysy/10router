@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 🐛 修复
+
+- **Node 24 上跳过 better-sqlite3 适配器（进程级崩溃修复）**：`better-sqlite3` 的原生插件在 Node ≥ 24 上加载即 SIGSEGV——这是 try/catch 兜不住的进程级崩溃，用户会看到整个服务直接死掉。现在在 `tryBetterSqlite()` 里先按 `process.versions.node` 主版本号判断，≥ 24 直接跳过该适配器，落到内建的 `node:sqlite`（或更后面的 sql.js 兜底）。新增回归用例锁住这一点：断言适配器工厂**一次都没被调用**（只断言“回退成功”是不够的——没有版本判断时 import 照样发生、只是被 catch 接住了）。
+
 ## v1.0.8 (2026-09-09)
 
 ### ✨ 新增功能
