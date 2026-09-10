@@ -310,9 +310,11 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
           </div>
           <div className="min-w-0 flex-1">
             <code className="block truncate font-mono text-sm font-medium">{combo.name}</code>
+            {/* Read-only summary: the card deliberately caps the chip list at 3
+                with a "+N more" tail — every model is editable in the edit modal. */}
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {combo.models.length === 0 ? (
-                <span className="text-xs text-text-muted italic">No models</span>
+                <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
@@ -322,7 +324,7 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                 ))
               )}
               {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
+                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} {translate("more")}</span>
               )}
             </div>
             {/* Fusion: judge picker (Auto = first model) */}
@@ -483,11 +485,14 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
               <code className="font-mono text-sm font-medium">{cap.label}</code>
               <span className="text-[10px] text-text-muted">— {translate(cap.desc)}</span>
             </div>
+            {/* This chip list is the adapter's only editor (hover reveals move
+                up/down + remove), so it must render every model: truncating it
+                would leave the 4th onward impossible to reorder or delete. */}
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
-                models.slice(0, 3).map((model, index) => (
+                models.map((model, index) => (
                   <code
                     key={`${model}-${index}`}
                     className="group/chip inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5"
@@ -505,9 +510,6 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                     </button>
                   </code>
                 ))
-              )}
-              {models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{models.length - 3} {translate("more")}</span>
               )}
             </div>
           </div>
