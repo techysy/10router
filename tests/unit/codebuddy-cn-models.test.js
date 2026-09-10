@@ -83,15 +83,18 @@ describe("CodeBuddy CN static model catalog", () => {
   it("carries DeepSeek-V4.1-Flash's published capabilities", () => {
     // Model card for V4.1-Flash: 1M in / 384K out, text+image in, reasoning on
     // by default but switchable (High default, plus a normal/no-thinking mode).
-    // The 384K ceiling matters: claude.js adjustMaxTokens clamps max_tokens to
-    // caps.maxOutput, so the old 50000 cut client requests down 7x.
+    // The output ceiling is the server's 128000, not the model card's 384K: this
+    // is the CN channel, whose product-config payload publishes maxOutputTokens
+    // and whose gateway enforces it. maxOutput is a real clamp (claude.js
+    // adjustMaxTokens), so over-declaring it would pass oversized max_tokens
+    // straight through. The canonical row keeps 384K for direct/reseller ids.
     expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash")).toMatchObject({
       vision: true,
       reasoning: true,
       thinkingFormat: "openai",
       thinkingCanDisable: true,
       contextWindow: 1000000,
-      maxOutput: 384000,
+      maxOutput: 128000,
     });
   });
 

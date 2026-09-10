@@ -239,6 +239,7 @@ muse-spark-1.3-contributor, omen-alpha …（含本次新增的 deepseek-v4.1-fl
 8. **cursor 模型目录测试改为离线**：它 mock 的 `global.fetch` 从未被使用（实现在 `cursorModels.js` 里走 `node:http2`，因为 `agent.api5.cursor.sh` 只支持 h2），所以两条用例一直在打真网络 → 一条永远不可能通过（已在 known-fails）、另一条“赌真实请求失败得快”随机把门禁刷红（§2.1）。现改 mock `http2` 传输层，文件耗时 1608ms → 19ms，`known-fails` 41 → 40。
 9. **V4.1-Flash 的官方 id 写 canonical 行**：`deepseek-flash` 是模型自身的名字（DeepSeek 自己定的新名，opencode-go 也挂着同名 alias），`deepseek-v4.1-flash` 是 opencode-go 文档主推的 id（CN 也有同名模型，靠 provider 行覆盖）——两个 id 各占一行 canonical，沿用 `-vision-exp` 的同一判定。当第一方把旧 id 改路由、而转售商语义未变时（`deepseek-v4-flash` / `deepseek-v4-pro`），**维持转售商侧的保守值**，只补注释说明（§3.1）。
 10. **id 以“该家自己的文档/目录”为准，models.dev 只做交叉验证**：`opencode-go/deepseek-flash` 在 models.dev 上名字对、id 却只是它挂的别名之一（主推 `deepseek-v4.1-flash`）。同名模型在转售商端可以挂多个 id，只信 models.dev 会漏 id（§3.1 教训，`cb4ba599`）。
+11. **CN 通道的输出上限以服务端 product-config 为准**：`codebuddy-cn` 的 `deepseek-v4.1-flash` 由 v1.0.8 的 384000（模型卡）回落为 **128000**（服务端 `maxOutputTokens`）。`maxOutput` 是真实夹取上限，取大了只是「放行超限请求」、取小了才误伤；CN 段其余行本就照服务端抄（`glm-5.3` 48000 / `minimax-m3` 128000），故统一口径。canonical 行保留 384K 供直连/转售 id 使用（provider 行优先，只影响 CN 这条通道）。
 
 ---
 

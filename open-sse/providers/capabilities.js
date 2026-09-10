@@ -317,10 +317,13 @@ export const PROVIDER_CAPABILITIES = {
     // 384K 输出。此前误标 vision:true 会让图片绕过 modality 剥离直接打到上游，
     // 而 50000 是改名前的旧值，会把 max_tokens 夹小 7 倍（claude.js adjustMaxTokens）。
     "deepseek-v4-pro":    { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
-    // DeepSeek-V4.1-Flash：1M 输入 / 384K 输出，文本+图像进，思考默认开但可关
-    // （模型卡：思考水平 High 默认，另有常规模式 / Low / Max）。384000 与
-    // *deepseek-v4* 通配、B.AI 的 V4 行一致；改名前的 50000 会把 max_tokens
-    // 夹小 7 倍（claude.js adjustMaxTokens）。
+    // DeepSeek-V4.1-Flash：1M 输入 / 128K 输出，文本+图像进，思考默认开但可关
+    // （模型卡：思考水平 High 默认，另有常规模式 / Low / Max）。输出上限取
+    // **服务端 product-config 的 maxOutputTokens=128000**，而不是模型卡的 384K：
+    // 这条通道的实际合同是 CN 网关公布的配额，与同段 glm-5.3 48000 /
+    // minimax-m3 128000 的取法一致。给 384000 会让 claude.js adjustMaxTokens
+    // 不夹取，把超过服务端上限的 max_tokens 原样放行（canonical 行仍是 384K，
+    // 供直连第一方/别家转售的 id 使用）。
     // 模型卡把 deepseek-flash / deepseek-v4-flash 列为“别名”：deepseek-flash 正是
     // V4.1-Flash 的官方 id（第一方 2026-09-10 起），canonical 行在
     // MODEL_CAPABILITIES；裸的 deepseek-v4-flash 在转售商端仍是纯文本，落到通配
@@ -329,7 +332,7 @@ export const PROVIDER_CAPABILITIES = {
     // opencode-go / B.AI，写这里只覆盖 CN 一家）。
     // 下面这行同样是 CAN 侧的 provider 行覆盖：canonical 行已给出同一套数值，这里是
     // 因为 CN 网关走 openai 思考格式且允许关闭思考（provider 行优先于 canonical）。
-    "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 128000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …); the
   // registry `name` is display-only and capability lookup matches on the raw

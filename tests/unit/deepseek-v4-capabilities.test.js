@@ -136,8 +136,10 @@ describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
   });
 
   it("keeps codebuddy-cn on its provider-exact override (openai thinking shape)", () => {
-    // The canonical row must not leak the `deepseek` thinking format into CN — its
-    // gateway is OpenAI-compatible, and the provider row wins over canonical.
+    // The canonical row must not leak into CN: its gateway is OpenAI-compatible
+    // (canonical uses the `deepseek` shape) and its published output ceiling is
+    // the server product-config's 128000, not the canonical 384000. The provider
+    // row wins on both counts.
     const step = resolveStep("codebuddy-cn", "deepseek-v4.1-flash");
     expect(`${step.step}:${step.key}`).toBe("provider:deepseek-v4.1-flash");
     expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash")).toMatchObject({
@@ -146,7 +148,7 @@ describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
       thinkingFormat: "openai",
       thinkingCanDisable: true,
       contextWindow: 1000000,
-      maxOutput: 384000,
+      maxOutput: 128000,
     });
   });
 });

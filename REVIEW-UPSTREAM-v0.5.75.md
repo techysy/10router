@@ -41,10 +41,10 @@
    （`e08ac6da`，2026-08-28 引入全局默认化），也**没有**它的收窄逻辑。
    也就是说：MiniMax 那类"严格网关"的原始 bug 我们大概率还在，而它的修法正好是
    我们该采用的最终形态（只给声明 `requireClaudeToolType` 的网关加 `type`）。
-3. **`807553e2` codebuddy-cn `deepseek-v4.1-flash`** — 我们已做，但**数值有分歧**：
-   上游写 `maxOutput: 128000`（注释称来自服务端 product-config payload），
-   我们写 `384000`（来自 DeepSeek 模型卡）。按本仓库"证据冲突取保守值"的既定决策，
-   这里可能需要回落到 128000。**待核对**（见 §7.2）。
+3. **`807553e2` codebuddy-cn `deepseek-v4.1-flash`** — 我们已做，数值分歧**已拍板**：
+   上游写 `maxOutput: 128000`（注释称来自服务端 product-config payload），我们原写
+   `384000`（来自 DeepSeek 模型卡）。已按“冲突取保守值”+ CN 通道以服务端为准回落为
+   **128000**（canonical 行仍保留 384K 供直连/别家转售）。
 
 ---
 
@@ -67,7 +67,7 @@
 
 | 提交 | 主题 | 我们的状态 |
 |---|---|---|
-| `807553e2` | codebuddy-cn：`deepseek-v4-flash` → `deepseek-v4.1-flash` | ✅ 已做（并且做得更多：CN 全量 13 模型 + `rateMultiplier` 徽章）。**但 `maxOutput` 数值有分歧**，见 §4.2 |
+| `807553e2` | codebuddy-cn：`deepseek-v4-flash` → `deepseek-v4.1-flash` | ✅ 已做（并且做得更多：CN 全量 13 模型 + `rateMultiplier` 徽章）。`maxOutput` 分歧**已拍板**：CN 行按服务端 product-config 回落为 **128000**（canonical 行仍 384K） |
 | `c7126411` | opencode-go：把 `deepseek-v4.1-flash` 排到目录最前 | ✅ 已覆盖，且**比上游更全**：我们有 `deepseek-v4.1-flash`（官方文档 id），上游最终目录里只有 `deepseek-flash`（名字叫 "DeepSeek V4.1 Flash"）。**不照抄** |
 
 ---
@@ -132,9 +132,10 @@
    - C2 qoder 是大改（3 个新文件 ~500 行 + executor），且必须按 v0.5.75 最终态取。
    - C3 CLI 选择器属 `cli/` 包，会牵动 CLI 的独立版本号。
    - 建议：**C1 进 1.1.0**（用户可见、边界清楚）；**C2 拆成独立一轮**；**C3 单独跟进**。
-2. **codebuddy-cn `deepseek-v4.1-flash` 的 `maxOutput`**：上游 128000（据称来自服务端
-   product-config）/ 我们 384000（模型卡）。按"冲突取保守值"的既定决策，
-   是否回落 128000？需要我再去服务端 product-config 核一次。
+2. ~~**codebuddy-cn `deepseek-v4.1-flash` 的 `maxOutput`**~~ —— **已拍板并落地**：
+   取服务端 product-config 的 **128000**（“证据冲突取保守值”的既定决策）。
+   canonical `deepseek-v4.1-flash` 行仍为 384K，供直连第一方 / 别家转售的同一 id 使用；
+   CN 的 provider 行优先于 canonical，所以只影响这条通道。
 3. **kiro（A2/A3）**：你手上有可用的 kiro 凭据做活体验证吗？
    没有的话只能按上游证据改 + 加单元测试守卫（我们 kiro 已有 2 例**已知失败**在基线里，
    正好属于同一族，移植时可一并处理或明确继续豁免）。
