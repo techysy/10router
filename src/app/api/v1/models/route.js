@@ -484,12 +484,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
       const customModelKindById = new Map();
-      // For JSON-catalog providers the imported list is authoritative; legacy
-      // customModels (which used to back the JSON import) are ignored to avoid
-      // duplication and stale entries.
-      const customModelIds = (jsonCatalog && jsonEnabled.length > 0)
-        ? []
-        : customModels
+      const customModelIds = customModels
         .filter((m) => {
           if (!m?.id) return false;
           const kind = getModelKind(m) || LLM_KIND;
