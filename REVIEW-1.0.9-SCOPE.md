@@ -103,6 +103,22 @@
 | `deepseek-v4-flash-vision-exp` | 提为 **canonical**，`vision:true` | 19 条 models.dev 一致（含 `huggingface/deepseek-ai/…`）；一行覆盖真正上架它的 4 家（commandcode / deepseek / opencode-go / B.AI） |
 | `codebuddy-cn` 死行 | 删 `glm-5.0`、`glm-4.7` | 目录已下架 |
 
+### 3.1 追加（`d3d4f8d5` / `c41b0940`）：V4.1-Flash 的官方 id
+
+按“CodeBuddy 是否也跟进 v4.1 flash”这个问题往下挖时，挖到第一方证据后发现**我们自己这边反而落后了**：
+
+| 项 | 第一方事实 | 我们的原状 | 处理 |
+|---|---|---|---|
+| `deepseek-flash` | 2026-09-10 更新日志：「Change the model name to deepseek-flash to call the latest V4.1 Flash model」，native multimodal | 两家（`deepseek` / `opencode-go`）都**没收录**；就算按需拉取回来，该 id 会落 `*deepseek*` 通配 → 128K / 64000 / vision:false（图片被剥、输出被夹小 6 倍） | 收录 id + 新增 canonical 行（1M / 384000 / vision，thinkingFormat 沿用 `deepseek` 形状） |
+| `deepseek-v4-flash` / `-vision-exp` | 官方已**退役**，为兼容「temporarily routed to V4.1 Flash」 | 转售商端仍是纯文本 V4-Flash | **不改**（取保守值），仅注释补上第一方路由事实 |
+| `deepseek-v4-pro` | 9/14 12:00 起也整体路由到 V4.1 Flash；同页 Models & Pricing 仍标 `Vision: Not supported` | `9a981d7d` 已改为纯文本 | **不改**（与官方表一致；V4.1 Pro 上线前语义会再翻一次，保守更稳） |
+
+第一方来源：`api-docs.deepseek.com/updates`（2026-09-10）与 `/quick_start/pricing`（`deepseek-flash` = DeepSeek-V4.1-Flash；1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考）。models.dev 交叉验证：`deepseek/deepseek-flash` 与 `opencode-go/deepseek-flash` 同报 text+image 1M/384000；`deepseek-v4.1-flash` 另有 24 家一致报 text+image。
+
+顺带反向确认：Step 1 把 `deepseek-v4-pro` 判为纯文本被官方表印证（`Vision: Not supported`）；`-vision-exp` 的 canonical `vision:true` 与 19+ 条来源一致；`384000` 与官方 `MAX OUTPUT: 384K` 相等。
+
+审计影响：`canonical 101 → 103`（1032 models / 865 chat），floor 仍 20，`--check` 退出 0；`opencode-go-models.test.js` 的精确清单同步（新 id 与同上游的 `v4-flash` 保持三端点声明一致）。
+
 ---
 
 ## 4. Step 2 ✅ 已完成
@@ -190,6 +206,7 @@
 6. **不做能力库生成器**：改为纯离线审计脚本 + CI 报告步骤（§5）。
 7. **旧支 `seed-code` 与 Seed-2.0 `code` 分开声明**（用户提供火山方舟模型列表作第一方依据）：旧支已标「即将下线」，32k 输出上限；两者互不套用（§4.2b）。
 8. **cursor 模型目录测试改为离线**：它 mock 的 `global.fetch` 从未被使用（实现在 `cursorModels.js` 里走 `node:http2`，因为 `agent.api5.cursor.sh` 只支持 h2），所以两条用例一直在打真网络 → 一条永远不可能通过（已在 known-fails）、另一条“赌真实请求失败得快”随机把门禁刷红（§2.1）。现改 mock `http2` 传输层，文件耗时 1608ms → 19ms，`known-fails` 41 → 40。
+9. **V4.1-Flash 的官方 id 写 canonical 行**：`deepseek-flash` 是模型自身的名字（DeepSeek 自己定的新名），`deepseek` 与 `opencode-go` 两家挂同一个裸 id，一行覆盖——沿用 `-vision-exp` 的同一判定。当第一方把旧 id 改路由、而转售商语义未变时（`deepseek-v4-flash` / `deepseek-v4-pro`），**维持转售商侧的保守值**，只补注释说明（§3.1）。
 
 ---
 
@@ -203,6 +220,7 @@
 6. **更新日志分区**：`CHANGELOG.md` 与三语 `public/i18n/changelog/*.md` 的 v1.0.8 段落里，有 5 个提交（`9ee15812`/`10b385e3`/`792542d2`/`eeeb4b73`/`1945f2fa`）补进去的条目，需按 1.0.9 / 1.1.0 重新分区。发版前一次性搬。
 7. **npm**：`1.0.7 → ?` 跳版发布，需显式授权（若先发 1.0.9 则发 1.0.9）。
 8. **gitee 镜像**：落后约 22 个提交，是否随发版一起推。
+9. **`apinex` / `qoder` 的 V4 行输出上限**：`apinex` 四行（`deepseek/v4-flash-0731` 等）没写 `maxOutput`，落到默认 64000；`qoder` 的 `dmodel` / `dfmodel` 写 65536。若它们实为直连 DeepSeek（真值 384K），属同一类“输出被夹小”；但缺各家自己的公开依据，未动（nvidia 见第 2 条）。
 
 ---
 
@@ -221,5 +239,5 @@
 
 **1.1.0**（1.0.9 之后）
 
-- [ ] 同上流程，tag `v1.1.0`；内容 = 徽章 + combos 修复 + DeepSeek 能力修正 + Step 1/2/3
+- [ ] 同上流程，tag `v1.1.0`；内容 = 徽章 + combos 修复 + DeepSeek 能力修正 + Step 1/2/3 + V4.1-Flash 官方 id（`d3d4f8d5`）
 - [ ] 本评审文档随本次提交归档
