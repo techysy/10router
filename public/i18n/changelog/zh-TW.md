@@ -8,7 +8,7 @@
 - **新增 AMD Token Factory 供應商**：AMD Radeon Cloud 免費共享 OpenAI 相容端點（`DeepSeek-V4-Flash` 1M 上下文 + `Qwen3.8-Flash-Next` 262K 上下文）；thinking 透過 reasoning_effort 控制，每個模型有獨立的檔位選擇器；形態與 NVIDIA NIM 相同
 - **Antigravity 配額主機修復**：配額 summary 改查正確的 daily host（與原生 IDE 一致），修復數字系統性偏差；百分比直讀後端值而非前端重算
 - **CodeBuddy 模型目錄對齊服務端（CN + 國際版）**：國際版按服務端目錄重排（新增 Hy4-Preview / Hy3 免費檔、GPT-5.6 Sol/Terra/Luna、GLM-5.3、Kimi-K3 等，移除已下線的舊模型）；CN 站同步對齊——`DeepSeek-V4.1-Flash` 取代 `DeepSeek-V4-Flash`，清掉重複的 `Kimi-K3 (1)`；兩站各模型都標上服務端公布的積分倍率
-- **模型列表顯示積分倍率徽章**：走免費額度的模型顯示綠色 `Free` 標籤，其餘顯示 `0.79x` 形式的倍率小標籤（hover 有說明）；供應商沒有積分體系時不顯示
+- **模型列表顯示積分倍率徽章**：走免費額度的模型顯示綠色 `free` 標籤，其餘顯示 `0.79x` 形式的倍率小標籤（hover 有說明）；供應商沒有積分體系時不顯示
 
 ### 🔒 安全加固
 - **API key HMAC secret 硬化**：內建兜底密文未設定時 production 啟動告警；新增實驗功能「金鑰簽署輪換」（預設關閉），自動產生每實例獨立密文；keyId 生成改用 `crypto.randomBytes`

@@ -48,7 +48,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                   variant={rateMultiplier === 0 ? "success" : "default"}
                   className={`shrink-0 cursor-help leading-none${rateMultiplier === 0 ? "" : " font-mono"}`}
                 >
-                  {rateMultiplier === 0 ? "Free" : `${rateMultiplier.toFixed(2)}x`}
+                  {rateMultiplier === 0 ? "free" : `${rateMultiplier.toFixed(2)}x`}
                 </Badge>
               </Tooltip>
             )}

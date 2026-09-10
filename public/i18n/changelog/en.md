@@ -8,7 +8,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **AMD Token Factory provider**: free shared OpenAI-compatible endpoints from AMD Radeon Cloud (`DeepSeek-V4-Flash` 1M context + `Qwen3.8-Flash-Next` 262K context); thinking via reasoning_effort with per-model level pickers; same shape as NVIDIA NIM
 - **Antigravity quota host fix**: quota summary now queries the correct daily host (matching the native IDE), fixing systematically stale numbers; percentage reads from the backend value instead of re-deriving in the frontend
 - **CodeBuddy catalogs aligned to the server (CN + intl)**: the international catalog is re-aligned (adds the Hy4-Preview / Hy3 free tier, GPT-5.6 Sol/Terra/Luna, GLM-5.3, Kimi-K3; drops retired models); the CN catalog now matches too — `DeepSeek-V4.1-Flash` supersedes `DeepSeek-V4-Flash` and the duplicate `Kimi-K3 (1)` slot is gone; every model on both gateways now carries the published credit multiplier
-- **Credit-multiplier badges on the model list**: free-quota models show a green `Free` chip, the rest show their modifier as `0.79x` (hover for an explanation); providers with no credit system show nothing
+- **Credit-multiplier badges on the model list**: free-quota models show a green `free` chip, the rest show their modifier as `0.79x` (hover for an explanation); providers with no credit system show nothing
 
 ### 🔒 Security
 - **API key HMAC secret hardening**: built-in fallback secret now triggers a production startup warning; experimental **Key secret rotation** (off by default) auto-generates a per-install secret; `generateKeyId` switched from `Math.random` to `crypto.randomBytes`
