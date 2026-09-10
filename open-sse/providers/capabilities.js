@@ -142,9 +142,11 @@ export const MODEL_CAPABILITIES = {
   // huggingface `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp` 等），一致报
   // text+image、1M 输入、384K 输出。thinkingFormat 沿用通配的 deepseek 形状，
   // 不改动这四家现有的请求报文。
-  // ⚠️ 裸的 `deepseek-v4-flash` 不是这个模型——它是纯文本（Ark 第一方
-  // `deepseek-v4-flash-ga-260731` 报 attach:false），因此刻意不给它写行，
-  // 让它继续落通配的 vision:false。
+  // ⚠️ 裸的 `deepseek-v4-flash` 不是这个模型——转售商端它是纯文本（Ark 第一方
+  // `deepseek-v4-flash-ga-260731` 报 attach:false），因此刻意不给它写行，让它继续
+  // 落通配的 vision:false。注意 DeepSeek 第一方自 2026-09-10 起把这个 id（连同
+  // `deepseek-v4-pro`）临时路由到多模态的 V4.1 Flash，但转售商仍挂纯文本
+  // V4-Flash，所以这里仍取保守值；需要视觉请走 `deepseek-flash`。
   "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
 
   // DeepSeek-V4.1-Flash 的官方 id。第一方 2026-09-10 更新日志把它定为新名——
@@ -302,10 +304,12 @@ export const PROVIDER_CAPABILITIES = {
     // （模型卡：思考水平 High 默认，另有常规模式 / Low / Max）。384000 与
     // *deepseek-v4* 通配、B.AI 的 V4 行一致；改名前的 50000 会把 max_tokens
     // 夹小 7 倍（claude.js adjustMaxTokens）。
-    // 模型卡把 deepseek-flash / deepseek-v4-flash 列为"别名"，但它们并不是同一
-    // 个模型——裸的 deepseek-v4-flash 是纯文本，落到通配即可，本表不留行；
-    // deepseek-v4-flash-vision-exp 是另一个多模态 id，走 MODEL_CAPABILITIES
-    // 的 canonical 行（五家共用，写这里只覆盖 CN 一家）。
+    // 模型卡把 deepseek-flash / deepseek-v4-flash 列为“别名”：deepseek-flash 正是
+    // V4.1-Flash 的官方 id（第一方 2026-09-10 起），canonical 行在
+    // MODEL_CAPABILITIES；裸的 deepseek-v4-flash 在转售商端仍是纯文本，落到通配
+    // 即可，本表不留行。deepseek-v4-flash-vision-exp 是另一个多模态 id，走
+    // MODEL_CAPABILITIES 的 canonical 行（四家共用：commandcode / deepseek /
+    // opencode-go / B.AI，写这里只覆盖 CN 一家）。
     "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …); the
