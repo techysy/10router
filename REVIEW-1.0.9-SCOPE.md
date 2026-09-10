@@ -103,21 +103,52 @@
 | `deepseek-v4-flash-vision-exp` | 提为 **canonical**，`vision:true` | 19 条 models.dev 一致（含 `huggingface/deepseek-ai/…`）；一行覆盖真正上架它的 4 家（commandcode / deepseek / opencode-go / B.AI） |
 | `codebuddy-cn` 死行 | 删 `glm-5.0`、`glm-4.7` | 目录已下架 |
 
-### 3.1 追加（`d3d4f8d5` / `c41b0940`）：V4.1-Flash 的官方 id
+### 3.1 追加（`d3d4f8d5` / `c41b0940` / `cb4ba599`）：V4.1-Flash 的官方 id
 
 按“CodeBuddy 是否也跟进 v4.1 flash”这个问题往下挖时，挖到第一方证据后发现**我们自己这边反而落后了**：
 
 | 项 | 第一方事实 | 我们的原状 | 处理 |
 |---|---|---|---|
-| `deepseek-flash` | 2026-09-10 更新日志：「Change the model name to deepseek-flash to call the latest V4.1 Flash model」，native multimodal | 两家（`deepseek` / `opencode-go`）都**没收录**；就算按需拉取回来，该 id 会落 `*deepseek*` 通配 → 128K / 64000 / vision:false（图片被剥、输出被夹小 6 倍） | 收录 id + 新增 canonical 行（1M / 384000 / vision，thinkingFormat 沿用 `deepseek` 形状） |
+| `deepseek-flash` | 2026-09-10 更新日志：「Change the model name to deepseek-flash to call the latest V4.1 Flash model」，native multimodal | 第一方 `deepseek` 与 `opencode-go` 都**没收录**；就算按需拉取回来，该 id 会落 `*deepseek*` 通配 → 128K / 64000 / vision:false（图片被剥、输出被夹小 6 倍） | 收录 id + 新增 canonical 行（1M / 384000 / vision，thinkingFormat 沿用 `deepseek` 形状） |
+| `deepseek-v4.1-flash` | **opencode-go 文档表主推的 id**（端点 `/v1/chat/completions`、`@ai-sdk/openai-compatible`）；`codebuddy-cn` 也有同名模型 | 同样没收录；会落 `*deepseek-v4*` 通配 → 数值对但 `vision:false` | `cb4ba599` 收录 + 加 canonical 行；CN 的同名模型继续走它自己的 provider 行（openai 思考格式 + 可关思考），provider 行优先不被串味 |
 | `deepseek-v4-flash` / `-vision-exp` | 官方已**退役**，为兼容「temporarily routed to V4.1 Flash」 | 转售商端仍是纯文本 V4-Flash | **不改**（取保守值），仅注释补上第一方路由事实 |
 | `deepseek-v4-pro` | 9/14 12:00 起也整体路由到 V4.1 Flash；同页 Models & Pricing 仍标 `Vision: Not supported` | `9a981d7d` 已改为纯文本 | **不改**（与官方表一致；V4.1 Pro 上线前语义会再翻一次，保守更稳） |
 
-第一方来源：`api-docs.deepseek.com/updates`（2026-09-10）与 `/quick_start/pricing`（`deepseek-flash` = DeepSeek-V4.1-Flash；1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考）。models.dev 交叉验证：`deepseek/deepseek-flash` 与 `opencode-go/deepseek-flash` 同报 text+image 1M/384000；`deepseek-v4.1-flash` 另有 24 家一致报 text+image。
+**教训（写下来免得再犯）**：id 不能只看 models.dev。`opencode-go/deepseek-flash` 在 models.dev 上报的名字确实是 DeepSeek V4.1 Flash，但它只是该家挂的**别名 id 之一**，官方文档表主推的是 `deepseek-v4.1-flash` —— 两个 id 都在它公开的 `/models` 目录里。同名（或同模型）在转售商端可以挂多个 id，收录时要以**该家自己的文档/目录**为准。
+
+第一方来源：`api-docs.deepseek.com/updates`（2026-09-10）与 `/quick_start/pricing`（`deepseek-flash` = DeepSeek-V4.1-Flash；1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考）；opencode-go 侧以 `opencode.ai/docs/zh-cn/go/` 的「模型 ID / 端点 / AI SDK 包」表为准。models.dev 交叉验证：`deepseek/deepseek-flash` 与 `opencode-go/deepseek-flash` 同报 text+image 1M/384000；`deepseek-v4.1-flash` 另有 24 家一致报 text+image。
 
 顺带反向确认：Step 1 把 `deepseek-v4-pro` 判为纯文本被官方表印证（`Vision: Not supported`）；`-vision-exp` 的 canonical `vision:true` 与 19+ 条来源一致；`384000` 与官方 `MAX OUTPUT: 384K` 相等。
 
-审计影响：`canonical 101 → 103`（1032 models / 865 chat），floor 仍 20，`--check` 退出 0；`opencode-go-models.test.js` 的精确清单同步（新 id 与同上游的 `v4-flash` 保持三端点声明一致）。
+审计影响：`canonical 101 → 104`（1033 models / 866 chat），floor 仍 20，`--check` 退出 0；`opencode-go-models.test.js` 的精确清单同步（两个新 id 与同上游的 `v4-flash` 保持三端点声明一致）。
+
+### 3.2 新发现（未修）：opencode-go 的静态种子清单严重陈旧
+
+查证 V4.1-Flash 时顺手发现 **opencode-go 的 `/models` 目录是公开的、无需鉴权**：
+
+```bash
+curl -s https://opencode.ai/zen/go/v1/models   # HTTP 200，37 条，object:list
+```
+
+拿它和我们的注册表对照：**官方 37 条，我们只有 18 条，官方有而我们缺 19 条、我们有而官方无 0 条**：
+
+```
+kimi-k3, longcat-2.0, kimi-k2.5, glm-5.3, glm-5, qwen3.8-max, qwen3.8-flash,
+qwen3.5-plus, mimo-v2-pro, mimo-v2-omni, hy3, hy3-preview, grok-4.5, grok-4.6,
+muse-spark-1.3-contributor, omen-alpha …（含本次新增的 deepseek-v4.1-flash）
+```
+
+不是 bug（该家已配置按需拉取，URL 就是同一个 `/models`），但用户首次连接时看到的静态清单会缺一半。真要对齐种子，得先解决三个落 floor 的 id 和几处**通配数值不准**：
+
+| id | 现状落点 | 问题 |
+|---|---|---|
+| `longcat-2.0` | floor | canonical 行是 `LongCat-2.0`（大写），canonical 查表**区分大小写** → 没命中 |
+| `muse-spark-1.3-contributor` | floor | 只有 `-1.1 / -1.2 / -1.2-contributor` 行，1.3 没行 |
+| `omen-alpha` | floor | 疑似未公开代号（与已删的 `ox-alpha` 同类） |
+| `glm-5.3` / `glm-5` | `*glm-5*` → 200000 / 128000 | GLM-5.3 真实窗口是 1M（CN 行给的是 1M / 48000） |
+| `qwen3.8-max` / `-flash` | `*qwen*max*` / `*qwen*` → 按 qwen 系列兜底 | 新代际数值未核 |
+
+结论：**种子对齐是独立的一步**（要连带补/改 6+ 条能力行，且 3 条得定 allowlist），不宜塞进本次修正。已记入 §7 未决事项。
 
 ---
 
@@ -206,7 +237,8 @@
 6. **不做能力库生成器**：改为纯离线审计脚本 + CI 报告步骤（§5）。
 7. **旧支 `seed-code` 与 Seed-2.0 `code` 分开声明**（用户提供火山方舟模型列表作第一方依据）：旧支已标「即将下线」，32k 输出上限；两者互不套用（§4.2b）。
 8. **cursor 模型目录测试改为离线**：它 mock 的 `global.fetch` 从未被使用（实现在 `cursorModels.js` 里走 `node:http2`，因为 `agent.api5.cursor.sh` 只支持 h2），所以两条用例一直在打真网络 → 一条永远不可能通过（已在 known-fails）、另一条“赌真实请求失败得快”随机把门禁刷红（§2.1）。现改 mock `http2` 传输层，文件耗时 1608ms → 19ms，`known-fails` 41 → 40。
-9. **V4.1-Flash 的官方 id 写 canonical 行**：`deepseek-flash` 是模型自身的名字（DeepSeek 自己定的新名），`deepseek` 与 `opencode-go` 两家挂同一个裸 id，一行覆盖——沿用 `-vision-exp` 的同一判定。当第一方把旧 id 改路由、而转售商语义未变时（`deepseek-v4-flash` / `deepseek-v4-pro`），**维持转售商侧的保守值**，只补注释说明（§3.1）。
+9. **V4.1-Flash 的官方 id 写 canonical 行**：`deepseek-flash` 是模型自身的名字（DeepSeek 自己定的新名，opencode-go 也挂着同名 alias），`deepseek-v4.1-flash` 是 opencode-go 文档主推的 id（CN 也有同名模型，靠 provider 行覆盖）——两个 id 各占一行 canonical，沿用 `-vision-exp` 的同一判定。当第一方把旧 id 改路由、而转售商语义未变时（`deepseek-v4-flash` / `deepseek-v4-pro`），**维持转售商侧的保守值**，只补注释说明（§3.1）。
+10. **id 以“该家自己的文档/目录”为准，models.dev 只做交叉验证**：`opencode-go/deepseek-flash` 在 models.dev 上名字对、id 却只是它挂的别名之一（主推 `deepseek-v4.1-flash`）。同名模型在转售商端可以挂多个 id，只信 models.dev 会漏 id（§3.1 教训，`cb4ba599`）。
 
 ---
 
@@ -221,6 +253,8 @@
 7. **npm**：`1.0.7 → ?` 跳版发布，需显式授权（若先发 1.0.9 则发 1.0.9）。
 8. **gitee 镜像**：落后约 22 个提交，是否随发版一起推。
 9. **`apinex` / `qoder` 的 V4 行输出上限**：`apinex` 四行（`deepseek/v4-flash-0731` 等）没写 `maxOutput`，落到默认 64000；`qoder` 的 `dmodel` / `dfmodel` 写 65536。若它们实为直连 DeepSeek（真值 384K），属同一类“输出被夹小”；但缺各家自己的公开依据，未动（nvidia 见第 2 条）。
+10. **opencode-go 静态种子陈旧（§3.2）**：官方公开目录 37 条、我们 18 条（缺 19 条）。要不要对齐种子？若对齐需连带处理：`longcat-2.0`（大小写不命中 canonical `LongCat-2.0`）、`muse-spark-1.3-contributor`、`omen-alpha` 三个落 floor 的 id，以及 `glm-5.3`（通配给 200000，真值 1M）、`qwen3.8-*` 两处通配数值要核实。建议作为独立的下一步，不塞进发版修正。
+11. **同级遗留（非本次引入）**：`open`/`xai` 等同为「公开 /models 目录 + 静态种子」的供应商，可用同一手法（curl 公开目录 vs 注册表）扫一遍种子新鲜度，产出一张表。
 
 ---
 
@@ -239,5 +273,5 @@
 
 **1.1.0**（1.0.9 之后）
 
-- [ ] 同上流程，tag `v1.1.0`；内容 = 徽章 + combos 修复 + DeepSeek 能力修正 + Step 1/2/3 + V4.1-Flash 官方 id（`d3d4f8d5`）
+- [ ] 同上流程，tag `v1.1.0`；内容 = 徽章 + combos 修复 + DeepSeek 能力修正 + Step 1/2/3 + V4.1-Flash 官方 id（`d3d4f8d5` + `cb4ba599`）
 - [ ] 本评审文档随本次提交归档
