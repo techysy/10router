@@ -7,6 +7,7 @@
 ### ✨ 新增
 - **新增 AMD Token Factory 供应商**：AMD Radeon Cloud 免费共享 OpenAI 兼容端点（`DeepSeek-V4-Flash` 1M 上下文 + `Qwen3.8-Flash-Next` 262K 上下文）；thinking 通过 reasoning_effort 控制，每个模型有独立的档位选择器；形态与 NVIDIA NIM 相同
 - **Antigravity 配额主机修复**：配额 summary 改查正确的 daily host（与原生 IDE 一致），修复数字系统性偏差；百分比直读后端值而非前端重算
+- **CodeBuddy 模型目录刷新**：CN 站补入已上架的 GPT-5.6 Sol/Terra/Luna、GPT-5.5、GPT-5.4、GPT-5.3-Codex、Gemini-3.5-Flash；国际版目录按服务端重排（新增 Hy4-Preview / Hy3 免费档、GPT-5.6 三档、GLM-5.3、Kimi-K3 等，移除已下线的旧模型），并标注每模型积分倍率
 
 ### 🔒 安全加固
 - **API key HMAC secret 硬化**：内置兜底密文未设置时 production 启动告警；新增实验功能「密钥签名轮换」（默认关），自动生成每实例独立密文；keyId 生成改用 `crypto.randomBytes`
@@ -19,6 +20,7 @@
 - **CodeBuddy CN 白名单误放行（PR #5）**：Claude Code 自身系统提示不再匹配 agent 身份白名单（此前触发 11128）
 - **GLM-4.6V-Flash 缺视觉能力（PR #5）**：免费视觉模型补注册正确的 capabilities
 - **DeepSeek effort "max" 被 SenseNova 拒绝（PR #5）**：钳位到 "xhigh" 兼容两家
+- **拉取/导入的模型默认停用（按需启用）**：「Import from /models」与「Fetch Qoder Models」批量拉回的模型不再一次全部启用刷屏——先落入「Disabled models」区，用到哪个点哪个；`/v1/models` 同步只下发已启用的模型（此前标了停用仍会下发）。手动单个添加仍立即启用
 
 ## v1.0.7 (2026-09-07)
 
