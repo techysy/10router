@@ -147,6 +147,16 @@ export const MODEL_CAPABILITIES = {
   // 让它继续落通配的 vision:false。
   "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
 
+  // DeepSeek-V4.1-Flash 的官方 id。第一方 2026-09-10 更新日志把它定为新名——
+  // 「Change the model name to deepseek-flash to call the latest V4.1 Flash
+  // model」，并写明是 native multimodal；同页 Models & Pricing 表逐项给出
+  // 1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考。
+  // 写成 canonical 而非 provider 行：opencode-go 挂的是同一个裸 id（models.dev
+  // 两边一致报 V4.1 Flash），一行覆盖两家。不给它写行的话 `deepseek-flash` 会落
+  // 到 `*deepseek*` 通配——那是 V3 时代的 128K / 64000 / vision:false，会把图片
+  // 静默剥掉、max_tokens 夹小 6 倍。
+  "deepseek-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+
   // ── models.dev 补齐（此前这些 id 全部落 DEFAULT_CAPABILITIES：vision 被剥、
   // contextWindow 200000、maxOutput 64000）──
   // 写 canonical 而非 provider 行的理由：这些 id 是模型自身的名字，reseller

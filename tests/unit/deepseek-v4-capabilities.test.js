@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import REGISTRY from "../../open-sse/providers/registry/index.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
+import { resolveStep } from "../../scripts/audit-capabilities.mjs";
 
 // Every DeepSeek V4 entry the registry actually offers, paired with its provider.
 const OFFERED = REGISTRY.flatMap((entry) =>
@@ -55,6 +56,47 @@ describe("DeepSeek V4 capability resolution", () => {
     expect(MULTIMODAL.length).toBeGreaterThan(0);
     for (const { provider, id } of MULTIMODAL) {
       expect(getCapabilitiesForModel(provider, id).vision).toBe(true);
+    }
+  });
+});
+
+// `deepseek-flash` is the official id DeepSeek introduced on 2026-09-10 for
+// V4.1-Flash ("Change the model name to deepseek-flash to call the latest V4.1
+// Flash model"), and opencode-go exposes the same bare id. Without a canonical row
+// the id falls through to the `*deepseek*` pattern — the V3.2 profile of 128K
+// context / 64000 output / no vision — so images are stripped and max_tokens is
+// clamped six times under the real ceiling.
+const OFFICIAL_ID = REGISTRY.flatMap((entry) =>
+  (entry.models || [])
+    .map((m) => (typeof m === "string" ? m : m.id))
+    .filter((id) => id === "deepseek-flash")
+    .map((id) => ({ provider: entry.id, id }))
+);
+
+describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
+  it("is offered by the first-party provider and by opencode-go", () => {
+    const providers = OFFICIAL_ID.map((m) => m.provider).sort();
+    expect(providers).toEqual(["deepseek", "opencode-go"]);
+  });
+
+  it("resolves from the canonical row, not the V3 *deepseek* wildcard", () => {
+    for (const { provider, id } of OFFICIAL_ID) {
+      const step = resolveStep(provider, id);
+      expect(`${provider}/${id} ${step.step}:${step.key}`).toBe(`${provider}/${id} canonical:${id}`);
+    }
+  });
+
+  it("carries the first-party V4.1-Flash profile", () => {
+    // Values from DeepSeek's Models & Pricing table: 1M context, MAX OUTPUT 384K,
+    // Vision ✓ (native multimodal), thinking on by default and switchable off.
+    for (const { provider, id } of OFFICIAL_ID) {
+      expect(getCapabilitiesForModel(provider, id)).toMatchObject({
+        vision: true,
+        reasoning: true,
+        thinkingFormat: "deepseek",
+        contextWindow: 1000000,
+        maxOutput: 384000,
+      });
     }
   });
 });

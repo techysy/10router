@@ -41,6 +41,11 @@ export default {
     },
   ],
   models: [
+    // V4.1-Flash 的官方 id（2026-09-10 起）。第一方更新日志：「Change the model
+    // name to deepseek-flash to call the latest V4.1 Flash model」，原生多模态、
+    // 1M 输入 / 384K 输出。下面的 v4-pro* / v4-flash* 是上一代命名，官方已将它们
+    // 退役并临时路由到 V4.1 Flash，保留只为不打断既有配置。
+    { id: "deepseek-flash", name: "DeepSeek V4.1 Flash" },
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
     { id: "deepseek-v4-pro-max", name: "DeepSeek V4 Pro Max", upstreamModelId: "deepseek-v4-pro" },
     { id: "deepseek-v4-pro-none", name: "DeepSeek V4 Pro No Thinking", upstreamModelId: "deepseek-v4-pro" },
