@@ -153,14 +153,16 @@
 | 1 | **A1** cookie maxAge | `536efe57` | ✅ |
 | 2 | **A4** #3905 tool type 作用域（含 MiniMax quirks） | 本提交 | ✅ |
 | 3 | **A2 + A3** kiro runtime surface / 顶层 systemPrompt | 本提交 | ✅ |
-| 4 | **A5 / A6 / A7** codex 三项（pattern 剥离、Version 头、新图像模型） | — | ⏳ |
-| 5 | **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账） | — | ⏳ |
-| 6 | **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证） | — | ⏳ |
-| 7 | **B1 / B2**（claude cache_control 预算、deepseek Anthropic tool type） | — | ⏳ |
-| 8 | **B4** antigravity 免费档与对账 | — | ⏳ |
-| 9 | **B8** gemini 中间工具响应 | — | ⏳ |
-| 10 | **C1** 视频生成（含安全项） | — | ⏳ |
-| 11 | 收尾：全量测试 + 门禁 + 三份基线 + capability 审计 → 打 1.1.0 tag | — | ⏳ |
+| 4 | **A5** codex 剥离 `\p{...}` tool schema pattern（#3922） | 本提交 | ✅ |
+| 5 | **A6** codex `Version` 头 + CLI 版本单一来源（含 providers 基线重建） | — | ⏳ |
+| 6 | **A7** codex/openai 新增 `gpt-image-2.5` 家族图像模型 | — | ⏳ |
+| 7 | **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账） | — | ⏳ |
+| 8 | **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证） | — | ⏳ |
+| 9 | **B1 / B2**（claude cache_control 预算、deepseek Anthropic tool type） | — | ⏳ |
+| 10 | **B4** antigravity 免费档与对账 | — | ⏳ |
+| 11 | **B8** gemini 中间工具响应 | — | ⏳ |
+| 12 | **C1** 视频生成（含安全项） | — | ⏳ |
+| 13 | 收尾：全量测试 + 门禁 + 三份基线 + capability 审计 → 打 1.1.0 tag | — | ⏳ |
 
 > A4 落地时确认的两件事：① 我们注册表里 `deepseek` **确实挂着** `https://api.deepseek.com/anthropic/v1/messages`（format: claude），
 > 所以 #3905 对我们不是理论风险；② 我们原本**两半都缺**（既没有默认化、也没有收窄），
