@@ -146,6 +146,41 @@ export const MODEL_CAPABILITIES = {
   // `deepseek-v4-flash-ga-260731` 报 attach:false），因此刻意不给它写行，
   // 让它继续落通配的 vision:false。
   "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+
+  // ── models.dev 补齐（此前这些 id 全部落 DEFAULT_CAPABILITIES：vision 被剥、
+  // contextWindow 200000、maxOutput 64000）──
+  // 写 canonical 而非 provider 行的理由：这些 id 是模型自身的名字，reseller
+  // （commandcode / tokenrouter / kilo / cline …）随时可能挂同一个 id，一行即可
+  // 覆盖；带 vendor 前缀的写法（sakana/fugu-ultra、meta/muse-spark-1.1）按
+  // baseModel 也能命中。thinkingFormat 一律 openai——这些上游都是 OpenAI 兼容
+  // 网关，与本文件 big-pickle / agnes-2.5-* 等既有行同一口径；非 OpenAI 兼容的
+  // 上游（DeepSeek 官方、Kimi、GLM）各走已有的 provider 行或专用 pattern。
+  // 来源：models.dev 快照，逐条注明条目；多家冲突时取保守值并说明。
+  "muse-spark-1.1":            { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.1；与既有-1.2-contributor-free(-1.3) 行同值
+  "muse-spark-1.2":            { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.2
+  "muse-spark-1.2-contributor":{ vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 }, // meta/muse-spark-1.2-contributor
+  // Sakana Fugu Ultra：各家都报 text+image、1M 输入；输出上限有两派——第一方
+  // sakana 报 1000000（等于“无上限”），pioneer/requesty/empiriolabs 一致报 131072，
+  // 取后者作保守上限（maxOutput 是 claude.js adjustMaxTokens 的硬夹子）。
+  "fugu-ultra":                 { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  // stealth/ox-alpha（commandcode）与 opencode-go 的 ox-alpha-free 同一模型，
+  // 但只有 opencode-go 一处条目，属单一来源。
+  "ox-alpha":                   { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  // 腾讯混元 Hy4 Preview：9 处条目（含第一方 tencent-tokenhub）全部 in:text——
+  // “预览版”名字里没有多模态线索，早先按视觉模型写过 vision:true 是错的。
+  // 此处覆盖 commandcode / codebuddy-intl；codebuddy-cn 另有 provider 行
+  // （thinkingCanDisable:false 是服务端口径，保留）。
+  "hy4-preview":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 64000 },
+  // OpenAI gpt-audio：输入 text+audio(+pdf)、输出 text+audio，无视觉。
+  "gpt-audio":                  { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
+  "gpt-audio-mini":             { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
+  "LongCat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // longcat/LongCat-2.0（第一方）；纯文本
+  "sensenova-6.8-flash-lite":   { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 }, // sensenova（第一方）
+  "venice-uncensored-1-2":      { vision: true, contextWindow: 128000, maxOutput: 8192 }, // venice（第一方）；无 reasoning
+  // Morph：第一方明说纯文本且 **不支持工具调用**（tools:false 必须显式写，
+  // DEFAULT_CAPABILITIES 里 tools 默认为 true）。
+  "morph-v3-large":             { tools: false, contextWindow: 32000, maxOutput: 32000 }, // morph（第一方）
+  "morph-v3-fast":              { tools: false, contextWindow: 16000, maxOutput: 16000 }, // morph（第一方）
 };
 
 const KIRO_GPT_5_6_CAPABILITIES = { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 };
@@ -244,7 +279,7 @@ export const PROVIDER_CAPABILITIES = {
     // and glm-5.3-flash are onlyReasoning:true BUT canDisableThinking:true, so
     // their thinking is switchable; the hy* models are forced always-on.
     "hy3":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 192000, maxOutput: 64000 },
-    "hy4-preview":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    "hy4-preview":        { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
     "glm-5.3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
     "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
     "kimi-k3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
@@ -461,7 +496,24 @@ export const PATTERN_CAPABILITIES = [
   { pattern: "*laguna-s-2.1*",  caps: { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 } },
   { pattern: "*laguna*",        caps: { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 } },
 
-  // ── Others ───────────────────────────────────────────────────────
+  // ── ByteDance Doubao-Seed 2.0 ─────────────────────────────────────────
+// 第一方是火山方舟（models.dev volcengine）；reseller 有 byteplus / tokenrouter /
+// kilo / qiniu-ai…，同一个模型在不同家写作 seed-2-0-*（带快照日期）或
+// Doubao-Seed-2.0-*（Ark 控制台显示名）。历史上一律落兜底。
+// 按“族”归并以避免每来一个新快照日期就补一行；值取第一方 volcengine 条目，
+// 各家 reseller 对 output 的报值分歧（32000 / 128000 / 131072）取第一方值。
+// （`Doubao-Seed-Code` 不带 2.0，与 2.0 的 code-preview 是否同一模型无据可查，
+// 刻意不匹配，继续落兜底。）
+{ pattern: "*seed-2-0-pro*",   caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 128000 } },
+{ pattern: "*seed-2.0-pro*",   caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 128000 } },
+{ pattern: "*seed-2-0-code*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 131072 } },
+{ pattern: "*seed-2.0-code*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 131072 } },
+{ pattern: "*seed-2-0-mini*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
+{ pattern: "*seed-2.0-mini*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
+{ pattern: "*seed-2-0-lite*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
+{ pattern: "*seed-2.0-lite*",  caps: { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 131072 } },
+
+// ── Others ───────────────────────────────────────────────────────
   { pattern: "*hunyuan*",       caps: { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 262144, maxOutput: 262144 } },
   { pattern: "hy3*",            caps: { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 262144, maxOutput: 262144 } },
   { pattern: "*step-*",         caps: { reasoning: true, thinkingFormat: "step", contextWindow: 128000 } },
