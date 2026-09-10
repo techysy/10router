@@ -20,7 +20,5 @@ export default {
     baseUrl: "https://api.longcat.chat/openai/v1/chat/completions",
     validateUrl: "https://api.longcat.chat/openai/v1/models",
   },
-  // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
-  // the provider detail page (behind the global model-JSON-import toggle).
   models: [{ id: "LongCat-2.0", name: "LongCat 2.0" }],
 };

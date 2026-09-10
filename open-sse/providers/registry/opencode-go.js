@@ -22,9 +22,8 @@ export default {
     usage: true,
     usageApikey: true,
   },
-  // Fetch Models uses the live authenticated /v1/models endpoint; the checked-in
-  // catalog is only a fallback for networks that cannot reach opencode.ai.
-  // GitHub fallback — used when the live source is unreachable/slow.
+  // Refresh Official Models pulls the live authenticated /v1/models endpoint;
+  // the checked-in catalog below is only a fallback seed.
   transport: {
     baseUrl: "https://opencode.ai/zen/go/v1/chat/completions",
     headers: {},

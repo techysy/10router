@@ -27,10 +27,6 @@ export default {
       "x-cli-environment": "cli",
     },
   },
-  // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
-  // the provider detail page (behind the global model-JSON-import toggle).
-  // Gitee mirror fallback — used when the GitHub source is unreachable/slow
-  // from the user's network (no CDN cache lag; raw.giteeusercontent.com CDN).
   models: [
     { id: "claude-fable-5", name: "Claude Fable 5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },

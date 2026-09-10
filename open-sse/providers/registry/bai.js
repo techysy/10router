@@ -2,7 +2,7 @@
 // and Anthropic Messages under one key. Docs: https://docs.b.ai/llmservice/api/
 // Bearer (or x-api-key) auth; GET /v1/models lists models tied to the credential.
 // Model IDs are per-credential — the static list below is a seed; use the
-// Fetch Models catalog JSON (or a validated connection) for the full set.
+// provider's authenticated /v1/models endpoint (Refresh Official Models) for the full set.
 export default {
   id: "bai",
   alias: "bai",

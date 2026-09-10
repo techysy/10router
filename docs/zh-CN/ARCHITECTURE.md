@@ -577,7 +577,6 @@ flowchart LR
 
 - [SQLite 驱动链](./sqlite-driver-chain.md)
 - [用量去重 usageKey 契约](./usage-usageKey-contract.md)
-- [JSON 模型目录机制](./json-model-catalog-mechanism.md)
 - [API Key 签名与密钥签名轮换](./api-key-signing-rotation.md)
 - [MITM 代理安全加固](./mitm-security-hardening.md)
 - [CodeBuddy 系统提示失忆修复](./CodeBuddy-agent-amnesia-fix.md)

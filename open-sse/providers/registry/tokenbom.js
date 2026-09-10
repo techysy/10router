@@ -1,7 +1,7 @@
 // TokenBom — new-api style OpenAI-compatible gateway (docs: https://tokenbom.com/welcome).
 // Bearer auth; chat + image generation under one key. Base: https://tokenbom.com/v1
-// Model IDs are per-credential (new-api catalog); seed list below + GitHub-hosted
-// JSON catalog (`providers/tokenbom.json`) surfaced via the Fetch Models button.
+// Model IDs are per-credential (new-api catalog); the seed list below can be
+// extended from the provider's /models endpoint (Import from /models).
 export default {
   id: "tokenbom",
   alias: "tokenbom",
