@@ -23,6 +23,7 @@
 - **DeepSeek effort "max" 被 SenseNova 拒絕（PR #5）**：鉗位到 "xhigh" 相容兩家
 - **拉取/匯入的模型預設停用（按需啟用）**：「Import from /models」與「Fetch Qoder Models」批次拉回的模型不再一次全部啟用洗版——先落入「Disabled models」區，用到哪個點哪個；`/v1/models` 同步只下發已啟用的模型（此前標了停用仍會下發）。手動單個新增仍立即啟用
 - **CodeBuddy CN 誤掛國際版模型（修正）**：此前 CN 目錄混入了只屬於國際版的 GPT/Gemini 家族，選中會報 model service info not found；現已移除（保留在國際版）並加測試守衛
+- **DeepSeek-V4.1-Flash 輸出上限被低估（修正）**：能力表把最大輸出寫成 50K（從改名前的舊 id 帶過來），客戶端請求會被據此截斷；已依模型卡更正為 1M 上下文 / 384K 輸出 / 支援圖像輸入 / 思考預設開且可關，並給該模型的兩個別名 id 補上同一套能力
 
 ## v1.0.7 (2026-09-07)
 

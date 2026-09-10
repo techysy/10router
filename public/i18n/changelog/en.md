@@ -23,6 +23,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **DeepSeek effort "max" rejected by SenseNova (PR #5)**: clamped to "xhigh" for cross-provider compatibility
 - **Fetched/imported models now default to disabled (enable on demand)**: bulk imports via "Import from /models" and "Fetch Qoder Models" no longer switch everything on at once — they land in the "Disabled models" area for you to enable as needed, and `/v1/models` now only serves enabled models (a disabled model was previously still listed). Single manual adds stay enabled
 - **CodeBuddy CN listing intl-only models (fixed)**: the CN catalog had picked up the GPT/Gemini family that only the international gateway serves, which failed with "model service info not found" when selected; removed from CN (kept in intl) with a test guard
+- **DeepSeek-V4.1-Flash output ceiling under-reported (fixed)**: its capabilities capped output at 50K (a leftover from the pre-rename id), which truncated client requests; corrected to the model card's 1M context / 384K output / image input / switchable thinking, and the model's two alias ids now carry the same caps
 
 ## v1.0.7 (2026-09-07)
 
