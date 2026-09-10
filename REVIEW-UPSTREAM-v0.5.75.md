@@ -84,7 +84,7 @@
 | A4 | `998bb3d9` | （#3905）Claude tool `type` 默认化的作用域 | ❌ 两边都没有：既无 `defaultClaudeToolType` 也无 `shouldDefaultClaudeToolType` | 建议**直接按最终形态**移植（一次到位：修 MiniMax + 不误伤 DeepSeek 的 Anthropic 端点） |
 | A5 | `781c18d8` | codex：剥离 `\p{...}` Unicode 属性 pattern | ❌ 缺（本地无 `utils/codexToolSchema.js`） | 新文件 60 行；Codex schema 校验器不认 Unicode property escape，一个 `pattern` 就 400 整个请求 |
 | A6 | `a7047a07` | codex：`Version` 头 + CLI 版本单一来源 | ⚠️ 本行初稿描述不准：我们**有** `Version` 头，但散在 **4 处 / 3 个值**（注册表头 UA `0.136.0`、图像处理器 UA+`version` `0.136.0`、连接测试探针 `0.136.0`、models 路由 `CODEX_CLIENT_VERSION` `0.144.6`） | ✅ 已按同法收敛（`57d9365e` 之后的 A6 提交）：统一到 `registry/codex.js` 的 `CODEX_CLI_VERSION = "0.154.0"`，三处身份头派生；models 路由的 `0.144.6` 是 `/codex/models?client_version=` 查询参数（按 `minimal_client_version` 过滤目录），**刻意保持独立**。身份版本是否影响后端行为**需活体验证** |
-| A7 | `832a3465` | codex / openai：新增图像模型 `gpt-image-2.5`、`-2.5-flare`、`-2.5-sunburst`、`gpt-image-2`、`gpt-image-1.5` | ❌ 缺：我们 openai 只有 `gpt-image-1`；codex 的图像模型是另一套命名（`gpt-5.x-image` 家族） | 纯加模型，低风险 |
+| A7 | `832a3465` | codex / openai：新增图像模型 `gpt-image-2.5`、`-2.5-flare`、`-2.5-sunburst`、`gpt-image-2`、`gpt-image-1.5` | ❌ 缺：我们 openai 只有 `gpt-image-1`；codex 的图像模型是另一套命名（`gpt-5.x-image` 家族） | ✅ 已移植（本提交）：Codex 5 个 + OpenAI 镜像 3 个。关键是 **tool-backed 路由**而不是列表本身：requests 模型固定 `gpt-5.5`、模型名进 `tools[0].model`、`action` 由参考图有无推导、`tool_choice` 钉死、`reasoning` 改 `medium`；旧式 `gpt-5.x-image` 保持 `stripImageSuffix` 原形状（有回归用例）。`multiImage` 声明在代码里**无消费者**（纯声明），加它只为与 UI 语义一致 |
 | A8 | `eee3515e` | opencode-go：补新发布的模型 | ❌ 缺 **10** 个：`glm-5.3`、`kimi-k3`、`longcat-2.0`、`qwen3.8-max`、`qwen3.8-flash`、`hy4-preview`、`hy3`、`grok-4.6`、`muse-spark-1.2-contributor`、`muse-spark-1.3-contributor` | **建议不照抄上游**：该 provider 的 `/models` 是公开无鉴权的（实测 37 个 id），我们比上游少 **18** 个 → 直接按活目录对齐（同时解决 §3.2 那条记账） |
 
 ---
@@ -157,7 +157,7 @@
 | 3 | **A2 + A3** kiro runtime surface / 顶层 systemPrompt | 本提交 | ✅ |
 | 4 | **A5** codex 剥离 `\p{...}` tool schema pattern（#3922） | 本提交 | ✅ |
 | 5 | **A6** codex `Version` 头 + CLI 版本单一来源（含 providers 基线重建） | 本提交 | ✅ |
-| 6 | **A7** codex/openai 新增 `gpt-image-2.5` 家族图像模型 | — | ⏳ |
+| 6 | **A7** codex/openai 新增 `gpt-image-2.5` 家族图像模型 | 本提交 | ✅ |
 | 7 | **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账） | — | ⏳ |
 | 8 | **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证） | — | ⏳ |
 | 9 | **B1 / B2**（claude cache_control 预算、deepseek Anthropic tool type） | — | ⏳ |

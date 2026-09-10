@@ -9,6 +9,16 @@ const CODEX_USER_AGENT = `codex_cli_rs/${CODEX_CLI_VERSION}`;
 const CODEX_ORIGINATOR = "codex_cli_rs";
 const CODEX_MODEL_SUFFIX = "-image";
 const CODEX_REF_DETAIL = "high";
+// Tool-backed image models: the request still goes to the Codex responses model, and the
+// picked model is passed through the `image_generation` tool instead.
+const CODEX_IMAGES_MAIN_MODEL = "gpt-5.5";
+const CODEX_TOOL_IMAGE_MODELS = new Set([
+  "gpt-image-1.5",
+  "gpt-image-2",
+  "gpt-image-2.5",
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+]);
 
 function decodeAccountId(idToken) {
   try {
@@ -25,6 +35,16 @@ function decodeAccountId(idToken) {
 
 function stripImageSuffix(model) {
   return model.endsWith(CODEX_MODEL_SUFFIX) ? model.slice(0, -CODEX_MODEL_SUFFIX.length) : model;
+}
+
+// Tool-backed models resolve to { responsesModel: the Codex model that actually serves the
+// call, toolModel: the image model named inside the tool }; every other model keeps the
+// legacy `stripImageSuffix(model)` shape with no tool model.
+function resolveCodexImageModels(model) {
+  if (CODEX_TOOL_IMAGE_MODELS.has(model)) {
+    return { responsesModel: CODEX_IMAGES_MAIN_MODEL, toolModel: model };
+  }
+  return { responsesModel: stripImageSuffix(model), toolModel: null };
 }
 
 function toDataUrl(input) {
@@ -167,21 +187,29 @@ export default {
     const single = toDataUrl(body.image);
     if (single) refs.push(single);
     const detail = body.image_detail || CODEX_REF_DETAIL;
+    const { responsesModel, toolModel } = resolveCodexImageModels(model);
     const imgTool = { type: "image_generation", output_format: (body.output_format || "png").toLowerCase() };
+    if (toolModel) {
+      // Tool-backed models derive generate/edit from whether references were supplied.
+      imgTool.action = refs.length > 0 ? "edit" : "generate";
+      imgTool.model = toolModel;
+    }
     if (body.size && body.size !== "") imgTool.size = body.size;
     if (body.quality && body.quality !== "") imgTool.quality = body.quality;
     if (body.background && body.background !== "") imgTool.background = body.background;
     return {
-      model: stripImageSuffix(model),
+      model: responsesModel,
       instructions: "",
       input: [{ type: "message", role: "user", content: buildContent(body.prompt, refs, detail) }],
       tools: [imgTool],
-      tool_choice: "auto",
+      // Pin the tool instead of leaving the choice to the model: the tool model was picked
+      // explicitly by the caller, so it must be the one that runs.
+      tool_choice: toolModel ? { type: "image_generation" } : "auto",
       parallel_tool_calls: false,
       prompt_cache_key: randomUUID(),
       stream: true,
       store: false,
-      reasoning: null,
+      reasoning: toolModel ? { effort: "medium", summary: "auto" } : null,
     };
   },
   // Custom: codex parses SSE → either pipe to client or collect b64

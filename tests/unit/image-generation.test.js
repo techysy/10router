@@ -368,6 +368,81 @@ describe("handleImageGenerationCore", () => {
     expect(responseBody.data[0].b64_json).toBe("base64codeximage");
   });
 
+  // Tool-backed Codex image models (gpt-image-2.5 family) do not map 1:1 onto the responses
+  // model: the call still goes to gpt-5.5 and the picked model rides in the image_generation
+  // tool, with tool_choice pinned and action derived from the references.
+  const codexImageSse = () =>
+    new Response(
+      [
+        "event: response.output_item.done",
+        'data: {"item":{"type":"image_generation_call","result":"base64codeximage"}}',
+        "",
+        "",
+      ].join("\n"),
+      { status: 200, headers: { "Content-Type": "text/event-stream" } }
+    );
+
+  const codexImageCall = (model, body = {}) =>
+    handleImageGenerationCore({
+      body: { prompt: "A futuristic city", size: "1024x1024", output_format: "png", ...body },
+      modelInfo: { provider: "codex", model },
+      credentials: {
+        accessToken: "codex-token",
+        providerSpecificData: { chatgptAccountId: "account-123" },
+      },
+      log: null,
+    });
+
+  it("generates image with Codex gpt-image-2.5 tool model", async () => {
+    global.fetch.mockResolvedValueOnce(codexImageSse());
+
+    const result = await codexImageCall("gpt-image-2.5");
+
+    expect(result.success).toBe(true);
+    const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(requestBody.model).toBe("gpt-5.5");
+    expect(requestBody.tools).toEqual([
+      { type: "image_generation", output_format: "png", size: "1024x1024", action: "generate", model: "gpt-image-2.5" },
+    ]);
+    expect(requestBody.tool_choice).toEqual({ type: "image_generation" });
+    expect(requestBody.reasoning).toEqual({ effort: "medium", summary: "auto" });
+
+    const responseBody = await result.response.json();
+    expect(responseBody.data[0].b64_json).toBe("base64codeximage");
+  });
+
+  it("derives action=edit for a tool-backed Codex image model when references are supplied", async () => {
+    global.fetch.mockResolvedValueOnce(codexImageSse());
+
+    const result = await codexImageCall("gpt-image-2.5-flare", {
+      image: "data:image/png;base64,iVBORw0KGgo=",
+    });
+
+    expect(result.success).toBe(true);
+    const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(requestBody.model).toBe("gpt-5.5");
+    expect(requestBody.tools[0].action).toBe("edit");
+    expect(requestBody.tools[0].model).toBe("gpt-image-2.5-flare");
+    // The reference rides in the user message as an input_image block.
+    expect(
+      requestBody.input[0].content.some((c) => c.type === "input_image" && c.image_url.startsWith("data:image/png"))
+    ).toBe(true);
+  });
+
+  it("keeps the legacy shape for non tool-backed Codex image models", async () => {
+    global.fetch.mockResolvedValueOnce(codexImageSse());
+
+    const result = await codexImageCall("gpt-5.5-image");
+
+    expect(result.success).toBe(true);
+    const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    // Strips the -image suffix, leaves the tool choice to the model, no reasoning override.
+    expect(requestBody.model).toBe("gpt-5.5");
+    expect(requestBody.tools).toEqual([{ type: "image_generation", output_format: "png", size: "1024x1024" }]);
+    expect(requestBody.tool_choice).toBe("auto");
+    expect(requestBody.reasoning).toBeNull();
+  });
+
   it("generates image with Cloudflare Workers AI JSON response", async () => {
     global.fetch.mockResolvedValueOnce(
       new Response(
