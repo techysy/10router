@@ -94,7 +94,7 @@
 
 ## 4. Step 2 ✅ 已完成
 
-兜底数从 **47 → 21**，且剩下的 21 个全部是「有意不声明」（见下）。`id 写着 vision 却 vision:false` 目前 0 条。
+兜底数从 **47 → 21**（后续 `Doubao-Seed-Code` 结掉后为 **20**），且剩下的全部是「有意不声明」（见下）。`id 写着 vision 却 vision:false` 目前 0 条。
 
 ### 4.1 新增 canonical 行 13 条（`MODEL_CAPABILITIES`）
 
@@ -127,16 +127,24 @@
 
 全部 vision + videoInput + reasoning + tools。
 
-### 4.3 明确不写行（21 个，写入守卫测试的 allowlist 并注明理由）
+### 4.2b 新增 pattern 行 1 条（旧支 `seed-code`）
+
+`*seed-code*` → 256000 / **32768**，vision + reasoning，**不给 videoInput**。
+
+火山方舟模型列表（第一方）里 `doubao-seed-code-preview-251028` 被标注**「即将下线」**，规格为「上下文窗口 256k / 最大输入 224k / 最大回答（默认 4k）32k / 最大思维链 32k」，能力为 深度思考 · 多模态理解 · 视觉定位 · 工具调用。它是**独立一支**，与 Seed-2.0 系列的 `code`（`doubao-seed-2-0-code-preview-260215`，262144 / 131072）不是同一模型；`*seed-code*` 与 `*seed-2-0-code*` 无公共子串，不会互相命中。reseller `zenmux` 报 64000 输出，偏大不取（32k 是保守下限，宁可少给不可越界）。
+
+### 4.3 明确不写行（20 个，写入守卫测试的 allowlist 并注明理由）
 
 | 类别 | 条目 | 理由 |
 |---|---|---|
 | 聚合器/元选择器（8） | `qoder/{auto,efficient,lite}`、`cursor/default`、`bazaarlink/auto:free`、`kilo-gateway/kilo-auto/{free,frontier,balanced}` | 上游每次请求自己挑真模型，静态表给不出准确值；沿用原逻辑落兜底 |
 | 私有代号（7） | `github/oswe-vscode-prime`、`github/goldeneye-free-auto`、`iflow/iflow-rome-30ba3b`、`dots/dots3-note-prev`、`morph/morph-dsv4flash`、`tokenrouter/miromind/mirothinker-1-7-*` ×2 | 无公开规格、models.dev 无条目 |
-| 证据冲突暂缓（3） | `kilo-gateway/kwaipilot/kat-coder-pro-v2.5:free`、`cline/kwaipilot/kat-coder-pro`、`volcengine-ark/Doubao-Seed-Code` | 见 §7.3 / §7.4 |
+| 证据冲突暂缓（2） | `kilo-gateway/kwaipilot/kat-coder-pro-v2.5:free`、`cline/kwaipilot/kat-coder-pro` | 见 §7.3 |
 | 非 chat 端点（3） | `sensenova/sensenova-u1.5-lite`、`sensenova/sensenova-u1-fast`、`venice/venice-sd35` | 注册表标 `kind:"image"`（text2img），由媒体处理器分发，不需要 chat caps |
 
 ### 4.4 守卫测试（新增 `tests/unit/capability-floor-allowlist.test.js`）
+
+另新增 `tests/unit/doubao-seed-capabilities.test.js` 4 条断言，遍历注册表把 Seed-2.0 家族与旧支 `seed-code` 分开钉死（含「两个 Ark 显示名不得塌成同一个」）。
 
 替代原先打算写的生成器脚本——手写映射比模糊自动匹配更准（审计中已出现过 `qoder/auto` 被误配到 `md morph/auto` 的假阳性）。5 条断言：
 
@@ -167,6 +175,7 @@
 4. **1.0.9 / 1.1.0 分界在徽章**（§0.2）。
 5. **`ox-alpha` 是马甲**：已下架，实为 `glm-5.3-flash` 的测试马甲 → 注册表条目与能力行都已删（§4.1）。
 6. **不做能力库生成器**：改为纯离线审计脚本 + CI 报告步骤（§5）。
+7. **旧支 `seed-code` 与 Seed-2.0 `code` 分开声明**（用户提供火山方舟模型列表作第一方依据）：旧支已标「即将下线」，32k 输出上限；两者互不套用（§4.2b）。
 
 ---
 
@@ -175,7 +184,7 @@
 1. **`nemotron`（已定）**：`nemotron-3-ultra` 系列（`nemotron-3-ultra-free` 行 + `*nemotron*` 通配）在我们表里本来就是纯文本 ✓；另一模型 `nemotron-3-nano-omni-30b-a3b-reasoning:free` 虽有多家来源报多模态，但**按用户决定不动**（落 `*nemotron*` 通配＝纯文本，图片会被剥掉）。已记入审计脚本的 `DISPUTED`，不再作为待办。
 2. **nvidia 的 `deepseek-ai/deepseek-v4-*`**：仓库写 `maxOutput:65536`（作者为 NIM 特意声明，注释说明「OpenAI 兼容、拒原生 thinking 字段」），而 models.dev 的 nvidia 条目报 393216。是保守值还是笔误？未动。
 3. **`kat-coder-pro-v2.5` / `kat-coder-pro`**：vercel 报 256000/80000 · text+image · reasoning；kilo/openrouter 报 262144/235929 · text-only · 无 reasoning。输出上限差 3 倍且工具/推理支持不一致，等第一方（kwaipilot）说明。
-4. **`Doubao-Seed-Code`**（volcengine-ark）：是否等同于 `doubao-seed-2-0-code-preview` 无据可查，故未被 `*seed-2.0-code*` 通配覆盖。
+4. **`Doubao-Seed-Code`（已定）**：经用户提供的火山方舟模型列表确认，它是**独立一支**旧模型（`doubao-seed-code-preview-251028`，官方标「即将下线」），不是 `doubao-seed-2-0-code-preview` → 已单列 `*seed-code*` 行（§4.2b），并加守卫测试防塌陷。**待你决定**：该条目是否像 `ox-alpha` 那样从注册表直接删掉（它当前仍可调用，只是官方已预告下线）。
 5. **1.0.8 的 GitHub Release 备注**：目前描述的 CN 修复/徽章按记账属于 1.0.9/1.1.0。是否把 1.0.8 备注裁到第一个 tag 的内容？
 6. **更新日志分区**：`CHANGELOG.md` 与三语 `public/i18n/changelog/*.md` 的 v1.0.8 段落里，有 5 个提交（`9ee15812`/`10b385e3`/`792542d2`/`eeeb4b73`/`1945f2fa`）补进去的条目，需按 1.0.9 / 1.1.0 重新分区。发版前一次性搬。
 7. **npm**：`1.0.7 → ?` 跳版发布，需显式授权（若先发 1.0.9 则发 1.0.9）。
