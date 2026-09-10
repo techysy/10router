@@ -6,10 +6,6 @@ export default {
   uiAlias: "cbcn",
   hidden: false,
   priority: 90,
-  // GitHub-hosted model catalog JSON — surfaced as a "Fetch Models" button on
-  // the provider detail page (behind the global model-JSON-import toggle).
-  // Gitee mirror fallback — used when the GitHub source is unreachable/slow
-  // from the user's network (no CDN cache lag; raw.giteeusercontent.com CDN).
   display: {
     name: "CodeBuddy CN",
     icon: "smart_toy",
@@ -73,6 +69,14 @@ export default {
     { id: "kimi-k3-1", name: "Kimi-K3 (1)" },
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
+    // GPT/Gemini family newly published on the server list.
+    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol" },
+    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra" },
+    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna" },
+    { id: "gpt-5.5", name: "GPT-5.5" },
+    { id: "gpt-5.4", name: "GPT-5.4" },
+    { id: "gpt-5.3-codex", name: "GPT-5.3-Codex" },
+    { id: "gemini-3.5-flash", name: "Gemini-3.5-Flash" },
   ],
   oauth: {
     baseUrl: "https://copilot.tencent.com",

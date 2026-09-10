@@ -17,15 +17,20 @@ describe("CodeBuddy international static model catalog", () => {
 
   it("keeps models confirmed available or temporarily unavailable", () => {
     const ids = entry.models.map((model) => model.id);
-    expect(ids).toEqual(expect.arrayContaining([
+    expect(ids).toEqual([
+      "hy4-preview",
+      "hy3",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.3-codex",
+      "gemini-3.5-flash",
+      "glm-5.3",
       "glm-5.2",
-      "glm-5.1",
-      "glm-5.0",
-      "glm-5v-turbo",
-      "minimax-m3",
-      "kimi-k2.7",
+      "kimi-k3",
       "kimi-k2.6",
-      "kimi-k2.5",
-    ]));
+    ]);
   });
 });
