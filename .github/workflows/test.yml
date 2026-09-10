@@ -42,6 +42,13 @@ jobs:
           node __baseline__/verify-oauth-urls.mjs
         working-directory: tests
 
+      # Informational: prints where every registry model resolves and flags floor /
+      # multimodal-name / dead-row problems, so the log shows the capability state.
+      # The gate is the vitest case in tests/unit/capability-floor-allowlist.test.js,
+      # which asserts the same invariants (and shares this script's tables).
+      - name: Capability audit
+        run: node --no-warnings scripts/audit-capabilities.mjs
+
       # Fails only on a test that passed in the baseline and fails now. To
       # re-baseline deliberately, download the artifact below and run
       # `node tests/__baseline__/snapshot-known-fails.mjs <results.json>`.
