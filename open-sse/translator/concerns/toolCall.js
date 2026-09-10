@@ -1,5 +1,7 @@
 // Tool call helper functions for translator
 
+import { FORMATS } from "../formats.js";
+
 // Anthropic tool_use.id must match: ^[a-zA-Z0-9_-]+$
 const TOOL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -149,5 +151,37 @@ export function fixMissingToolResponses(body) {
 
   body.messages = newMessages;
   return body;
+}
+
+// Stamp `type: "custom"` onto Claude-format tools that arrive without one.
+// Anthropic's tool schema allows omitting `type`, but a few strict Anthropic-compatible
+// gateways only accept the explicit modern shape (MiniMax rejects the legacy typeless
+// payload with its 2013 error). Tools already carrying a truthy `type` — `computer_use`,
+// `bash`, `web_search_20250305`, `custom` — are passed through untouched.
+//
+// Spread order matters: `{ ...tool, type: "custom" }` puts the default last so a truthy
+// value from the tool itself wins, while falsy ones (null/undefined/"") still get stamped.
+// `{ type: "custom", ...tool }` would let `type: null` survive.
+export function defaultClaudeToolType(tools) {
+  if (!Array.isArray(tools)) return tools;
+  return tools.map(tool => tool?.type ? tool : { ...tool, type: "custom" });
+}
+
+// Whether Claude-format tools need explicit `type` defaulting before dispatch.
+//
+// Only gateways that declare the `requireClaudeToolType` quirk get it. Stamping the type
+// onto *every* Claude-format request breaks the opposite kind of endpoint — the ones whose
+// Anthropic-compatible surface accepts only the legacy typeless shape. DeepSeek's
+// /anthropic/v1/messages whitelists tool `type` to its web_search_* variants and answers
+// HTTP 400 "unknown variant `custom`", which surfaced to clients as a persistent 503 (#3905).
+//
+// Keeping the decision here (instead of inline in the handler) makes the provider gate
+// unit-testable, and making another strict gateway work is now a one-line registry quirk.
+export function shouldDefaultClaudeToolType(provider, finalFormat, tools, PROVIDERS) {
+  return (
+    finalFormat === FORMATS.CLAUDE
+    && Array.isArray(tools)
+    && PROVIDERS?.[provider]?.quirks?.requireClaudeToolType === true
+  );
 }
 

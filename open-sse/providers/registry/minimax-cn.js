@@ -22,6 +22,9 @@ export default {
     headers: { ...CLAUDE_API_HEADERS },
     quirks: {
       dropOutputConfig: true,
+      // Rejects the legacy typeless Claude tool shape (error 2013); chatCore stamps
+      // `type: "custom"` for providers declaring this. See translator/concerns/toolCall.js.
+      requireClaudeToolType: true,
     },
     reasoningInject: {
       scope: "all",

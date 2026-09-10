@@ -147,21 +147,30 @@
 
 一条一提交、每条可独立回退（沿用"慢工出细活"的既定节奏）：
 
-1. **A1** cookie maxAge（1 行，先做掉）
-2. **A4** #3905 tool type 作用域（一次到位，含 MiniMax quirks）
-3. **A2 + A3** kiro runtime surface / 顶层 systemPrompt（先定 §7.3 再动手）
-4. **A5 / A6 / A7** codex 三项（pattern 剥离、Version 头、新图像模型）
-5. **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账）
-6. **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证）
-7. **B1 / B2**（claude cache_control 预算、deepseek Anthropic tool type）
-8. **B4** antigravity 免费档与对账
-9. **B8** gemini 中间工具响应
-10. **C1** 视频生成（含安全项）
-11. 收尾：全量测试 + 门禁 + 三份基线 + capability 审计 → 打 1.1.0 tag
+| # | 项 | 提交 | 状态 |
+|---|---|---|---|
+| — | CN `deepseek-v4.1-flash` 输出上限回落 128K（§7.2 拍板） | `9ca6dcc2` | ✅ |
+| 1 | **A1** cookie maxAge | `536efe57` | ✅ |
+| 2 | **A4** #3905 tool type 作用域（含 MiniMax quirks） | 本提交 | ✅ |
+| 3 | **A2 + A3** kiro runtime surface / 顶层 systemPrompt | — | ⏳（§7.3 未答：无凭据则按上游证据 + 单测） |
+| 4 | **A5 / A6 / A7** codex 三项（pattern 剥离、Version 头、新图像模型） | — | ⏳ |
+| 5 | **A8** opencode-go 按活目录对齐（补全 18 个，同时收口 §3.2 记账） | — | ⏳ |
+| 6 | **B3 / B7 / B5 / B6**（伪造行、stale lock、cline 信封、clinepass 认证） | — | ⏳ |
+| 7 | **B1 / B2**（claude cache_control 预算、deepseek Anthropic tool type） | — | ⏳ |
+| 8 | **B4** antigravity 免费档与对账 | — | ⏳ |
+| 9 | **B8** gemini 中间工具响应 | — | ⏳ |
+| 10 | **C1** 视频生成（含安全项） | — | ⏳ |
+| 11 | 收尾：全量测试 + 门禁 + 三份基线 + capability 审计 → 打 1.1.0 tag | — | ⏳ |
 
-> 每条落地时的验收口径照旧：全量回归 `failed` 不得超过基线（`known-fails.txt`），
-> 跑 `verify-no-regression.mjs` 门禁；改动 registry/capabilities 时补 capability 审计
-> （`floor` 不得增长，`--check` 退出码 0）；新增测试不得依赖真实网络。
+> A4 落地时确认的两件事：① 我们注册表里 `deepseek` **确实挂着** `https://api.deepseek.com/anthropic/v1/messages`（format: claude），
+> 所以 #3905 对我们不是理论风险；② 我们原本**两半都缺**（既没有默认化、也没有收窄），
+> 即 MiniMax 侧一直是坏的（error 2013），DeepSeek 侧反而“因缺而安全”——现在一次到位。
+> 其余 Claude 格式网关（glm / kimi / opencode-go / xiaomi-*）暂无 2013 类报告，
+> 保持无 `type`；日后出现同类报错只需给该家加一行 quirk。
+
+每条落地时的验收口径照旧：全量回归 `failed` 不得超过基线（`known-fails.txt`），
+跑 `verify-no-regression.mjs` 门禁；改动 registry/capabilities 时补 capability 审计
+（`floor` 不得增长，`--check` 退出码 0）；新增测试不得依赖真实网络。
 
 ---
 

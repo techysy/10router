@@ -28,6 +28,7 @@ import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
+import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isFreeModel, formatFreeRateLimitMessage } from "../utils/freeModel.js";
 
@@ -249,6 +250,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (getModelType(alias, model) === "tts" && translatedBody.messages) {
     translatedBody.messages = translatedBody.messages.filter(msg => msg.role !== "tool");
     delete translatedBody.tools;
+  }
+
+  // Claude-format tools: a few strict gateways reject the legacy typeless tool shape, so only
+  // those that declare the quirk get the explicit `type: "custom"`. Stamping it on every
+  // Claude-format request breaks the opposite kind of endpoint — DeepSeek's Anthropic surface
+  // 400s with "unknown variant `custom`" and clients saw a persistent 503 (#3905).
+  if (shouldDefaultClaudeToolType(provider, finalFormat, translatedBody.tools, PROVIDERS)) {
+    translatedBody.tools = defaultClaudeToolType(translatedBody.tools);
   }
 
   // Per-request opt-out: client can bypass all token savers via header
