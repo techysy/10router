@@ -102,7 +102,6 @@
 |---|---|---|---|
 | `muse-spark-1.1` / `-1.2` / `-1.2-contributor` | 1048576 / 131072 | vision+video+pdf，reasoning | `meta/muse-spark-*`（与既有 `-1.2-contributor-free` 行同值） |
 | `fugu-ultra` | 1000000 / 131072 | vision；输出取保守值 | `sakana/fugu-ultra` 第一方报 1000000（=无上限），reseller 一致报 131072 |
-| `ox-alpha` | 1000000 / 131072 | vision+video | 仅 `opencode-go/ox-alpha-free` 一处（单一来源） |
 | `hy4-preview` | 1000000 / 64000 | **纯文本**（9 处来源全部 `in:text`） | 含第一方 `tencent-tokenhub/hy4-preview` |
 | `gpt-audio` / `-mini` | 128000 / 16384 | `audioInput` + `audioOutput`，无视觉 | `kilo` + `openrouter` |
 | `LongCat-2.0` | 1000000 / 131072 | 纯文本 | `longcat`（第一方） |
@@ -113,6 +112,8 @@
 写 canonical 而非 provider 行的理由：这些 id 是模型自身的名字，reseller（commandcode / tokenrouter / kilo / cline …）随时可能挂同一个 id，一行覆盖全部；带 vendor 前缀的写法按 baseModel 也能命中。`thinkingFormat` 一律 `openai`（这些上游都是 OpenAI 兼容网关，与既有 `big-pickle` / `agnes-2.5-*` 行同口径）。
 
 `codebuddy-cn` 的 `hy4-preview` provider 行**保留**（`thinkingCanDisable:false` 是 CN 服务端口径），仅去掉错误的 `vision:true`。
+
+> 曾为 `ox-alpha` 写的一行已撤（`e71764f3`）：该 id 已下架，实为 `z-ai/glm-5.3-flash` 的**测试马甲**（正式 id 就在同一份 commandcode 目录里），同步从注册表删除了该条目。
 
 ### 4.2 新增 pattern 行 8 条（ByteDance Doubao-Seed 2.0 家族）
 
@@ -147,10 +148,14 @@
 
 ---
 
-## 5. Step 3 — 待做
+## 5. Step 3 ✅ 已完成（`d87207b2`）——不写生成器，改为审计脚本 + CI
 
-- `scripts/sync-capabilities.mjs`（dev-time，不引入运行时依赖）：显式 provider 映射 + id 规范化；只输出「缺失/冲突」diff 报告；优先第一方条目，第三方多家冲突时报警而非静默取值。**不提交 models.dev 快照**，按需抓取。
-- 不追求把兜底清零：Step 2 已把「可查证的」全部补上，剩下的靠 allowlist 显式化。
+原本计划的 `scripts/sync-capabilities.mjs`（自动从 models.dev 填值）**不做**：手写映射比模糊自动匹配更准（审计中已出现过 `qoder/auto` 被误配到 `md morph/auto` 的假阳性），而且守卫测试已保证「新模型必须显式表态」。取而代之：
+
+- 新增 `scripts/audit-capabilities.mjs`：**纯离线**（不联网、无依赖、不写文件、不读 models.dev 快照）。回放与 `getCapabilitiesForModel()` 相同的回退链，输出四张表——兜底模型（附 allowlist 理由）、名字含 `vision`/`vl`/`omni` 却解析成 `vision:false`、图片输出却没 `imageOutput`、provider 行里对已下架模型的死条目。支持 `--check`（有违例则退出码 1）。
+- 它同时是 floor allowlist 与解析链复刻的**唯一定义**：守卫测试改为 import 之，避免「脚本一份、测试一份」将来走偏。
+- `.github/workflows/test.yml` 在注册表基线之后增加一步 `Capability audit`（`node --no-warnings`，只报告不拦门），每次推送都能在 CI 日志里看到当前状态；门禁仍由 vitest 用例负责。
+- 死条目检查这次按 baseModel 做了供应商前缀归一化，修掉了上一版审计脚本把 `poolside/laguna-s-2.1` 误判成死条目的假阳性——当前报告为 0。
 
 ---
 
@@ -160,12 +165,14 @@
 2. **聚合器别名不写行**：维持落 `DEFAULT_CAPABILITIES` 的原逻辑，只在守卫测试里显式列 allowlist。
 3. **`hy4-preview` 是纯文本**（9 处来源佐证），CN 行的 `vision:true` 已去掉。
 4. **1.0.9 / 1.1.0 分界在徽章**（§0.2）。
+5. **`ox-alpha` 是马甲**：已下架，实为 `glm-5.3-flash` 的测试马甲 → 注册表条目与能力行都已删（§4.1）。
+6. **不做能力库生成器**：改为纯离线审计脚本 + CI 报告步骤（§5）。
 
 ---
 
 ## 7. 未决事项
 
-1. **`nemotron`**：`nemotron-3-ultra` 系列（`nemotron-3-ultra-free`、`*nemotron*` 通配）在我们表里**已经是纯文本** ✓，无需改动。但 `nemotron-3-nano-omni-30b-a3b-reasoning:free` 是**另一个模型**：nvidia 第一方 + deepinfra/crusoe/kilo/openrouter 报 `text+image+video+audio`，vultr 报纯文本。它现在落 `*nemotron*` 通配（纯文本）＝ 图片会被剥掉。证据冲突，**暂缓**（名字里的 `omni` 与多数来源一致，倾向"其实是多模态"，但没有第一方页面确认）。
+1. **`nemotron`（已定）**：`nemotron-3-ultra` 系列（`nemotron-3-ultra-free` 行 + `*nemotron*` 通配）在我们表里本来就是纯文本 ✓；另一模型 `nemotron-3-nano-omni-30b-a3b-reasoning:free` 虽有多家来源报多模态，但**按用户决定不动**（落 `*nemotron*` 通配＝纯文本，图片会被剥掉）。已记入审计脚本的 `DISPUTED`，不再作为待办。
 2. **nvidia 的 `deepseek-ai/deepseek-v4-*`**：仓库写 `maxOutput:65536`（作者为 NIM 特意声明，注释说明「OpenAI 兼容、拒原生 thinking 字段」），而 models.dev 的 nvidia 条目报 393216。是保守值还是笔误？未动。
 3. **`kat-coder-pro-v2.5` / `kat-coder-pro`**：vercel 报 256000/80000 · text+image · reasoning；kilo/openrouter 报 262144/235929 · text-only · 无 reasoning。输出上限差 3 倍且工具/推理支持不一致，等第一方（kwaipilot）说明。
 4. **`Doubao-Seed-Code`**（volcengine-ark）：是否等同于 `doubao-seed-2-0-code-preview` 无据可查，故未被 `*seed-2.0-code*` 通配覆盖。
