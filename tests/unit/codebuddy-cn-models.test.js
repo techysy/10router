@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import cn from "../../open-sse/providers/registry/codebuddy-cn.js";
 import intl from "../../open-sse/providers/registry/codebuddy-intl.js";
+import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 
 // Models CodeBuddy *international* (codebuddy.ai) resells. copilot.tencent.com
 // never published them, and open-sse/providers/capabilities.js has no
@@ -77,5 +78,30 @@ describe("CodeBuddy CN static model catalog", () => {
     // by deepseek-v4.1-flash.
     expect(ids).not.toContain("kimi-k3-1");
     expect(ids).not.toContain("deepseek-v4-flash");
+  });
+
+  it("carries DeepSeek-V4.1-Flash's published capabilities", () => {
+    // Model card for V4.1-Flash: 1M in / 384K out, text+image in, reasoning on
+    // by default but switchable (High default, plus a normal/no-thinking mode).
+    // The 384K ceiling matters: claude.js adjustMaxTokens clamps max_tokens to
+    // caps.maxOutput, so the old 50000 cut client requests down 7x.
+    expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash")).toMatchObject({
+      vision: true,
+      reasoning: true,
+      thinkingFormat: "openai",
+      thinkingCanDisable: true,
+      contextWindow: 1000000,
+      maxOutput: 384000,
+    });
+  });
+
+  it("resolves the V4.1-Flash alias ids to the same caps", () => {
+    // deepseek-v4-flash / deepseek-v4-flash-vision-exp are aliases of the same
+    // model (compatible routes for the retired V4-Flash ids). Without their own
+    // rows they fall through to the *deepseek-v4* pattern and lose vision.
+    const canonical = getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash");
+    for (const alias of ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
+      expect(getCapabilitiesForModel("codebuddy-cn", alias)).toEqual(canonical);
+    }
   });
 });

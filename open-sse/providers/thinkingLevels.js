@@ -52,7 +52,7 @@ const PATTERN_THINKING = [
   // → all 200), but values outside a model's supportedEfforts are silently
   // clamped, so the declared set stays authoritative for the picker. Models
   // that publish no supportedEfforts (glm-5.1 / glm-5v-turbo / kimi-k2.x /
-  // kimi-k3-1 / minimax-m3) fall through to the openai format default.
+  // kimi-k3 / minimax-m3) fall through to the openai format default.
   { provider: "codebuddy-cn", pattern: "glm-5.3*",     levels: ["low", "high", "max"] },
   { provider: "codebuddy-cn", pattern: "glm-5.2",      levels: ["high", "xhigh"] },
   { provider: "codebuddy-cn", pattern: "deepseek-v4*", levels: ["low", "high", "xhigh"] },

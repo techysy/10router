@@ -238,8 +238,17 @@ export const PROVIDER_CAPABILITIES = {
     "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
     "kimi-k3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
     "deepseek-v4-pro":    { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 50000 },
-    "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 50000 },
-    "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 384000 },
+    // DeepSeek-V4.1-Flash：1M 输入 / 384K 输出，文本+图像进，思考默认开但可关
+    // （模型卡：思考水平 High 默认，另有常规模式 / Low / Max）。其模型卡把
+    // deepseek-flash / deepseek-v4-flash / deepseek-v4-flash-vision-exp 列为
+    // 别名（旧 V4-Flash 的 id 保留为兼容路由），所以别名行带同一套能力——若
+    // 不写，裸的 deepseek-v4-flash 会落到 *deepseek-v4* 通配上，丢掉 vision 与
+    // openai 思考格式。
+    // 384000 与该通配、B.AI 的 V4 行、以及 CN 表自己的 vision-exp 行一致；
+    // 改名前的 50000 会把 max_tokens 夹小 7 倍（claude.js adjustMaxTokens）。
+    "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …); the
   // registry `name` is display-only and capability lookup matches on the raw
