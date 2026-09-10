@@ -95,13 +95,33 @@ describe("CodeBuddy CN static model catalog", () => {
     });
   });
 
-  it("resolves the V4.1-Flash alias ids to the same caps", () => {
-    // deepseek-v4-flash / deepseek-v4-flash-vision-exp are aliases of the same
-    // model (compatible routes for the retired V4-Flash ids). Without their own
-    // rows they fall through to the *deepseek-v4* pattern and lose vision.
-    const canonical = getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash");
-    for (const alias of ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
-      expect(getCapabilitiesForModel("codebuddy-cn", alias)).toEqual(canonical);
-    }
+  it("carries DeepSeek-V4-Pro's published capabilities (pure text)", () => {
+    // The V4.1-Flash model card describes V4-Pro as text→text, and models.dev
+    // agrees across every one of its 124 deepseek-v4-pro entries (attach:false),
+    // as does Ark's first-party deepseek-v4-pro-ga-260813. The row used to say
+    // vision:true — that let images skip the modality strip and reach an upstream
+    // that cannot read them — with a 50000 output ceiling inherited from the
+    // pre-rename id, which clamped max_tokens 7x (claude.js adjustMaxTokens).
+    expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4-pro")).toMatchObject({
+      vision: false,
+      reasoning: true,
+      thinkingFormat: "openai",
+      contextWindow: 1000000,
+      maxOutput: 384000,
+    });
+  });
+
+  it("leaves no row for the retired V4-Flash ids", () => {
+    // deepseek-v4-flash is a *different* (text-only) model, not an alias of
+    // V4.1-Flash: it is no longer offered here, so the table must not carry a
+    // row for it — the generic *deepseek-v4* pattern already resolves it as
+    // pure text at 1M / 384K. The multimodal sibling lives in MODEL_CAPABILITIES
+    // (five providers share that id, see deepseek-v4-capabilities.test.js).
+    expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4-flash")).toMatchObject({
+      vision: false,
+      contextWindow: 1000000,
+      maxOutput: 384000,
+    });
+    expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4-flash-vision-exp").vision).toBe(true);
   });
 });
