@@ -44,31 +44,33 @@ export default {
       url: "https://copilot.tencent.com/v2/billing/meter/get-user-resource",
     },
   },
+  // Catalog mirrors the model/credit list published on copilot.tencent.com.
+  // Models the server no longer lists are removed even when the chat endpoint
+  // still answers them — the published list is the contract. Drop log:
+  // glm-5.0 / glm-4.7 and hy4-preview-x (endpoint returns 11102 "model service
+  // info not found", see docs/zh-CN/codebuddy-cn-error-codes.md), plus
+  // glm-5.0-turbo / minimax-m2.7 / kimi-k2.5 / hy3-preview / deepseek-v3-2-volc
+  // (absent from the server list, though still answering 200), hy3-x (paid
+  // tier, not used here), kimi-k3-1 (spurious duplicate slot — the server lists
+  // only kimi-k3) and deepseek-v4-flash (superseded by deepseek-v4.1-flash).
+  // "-x" suffix = paid tier of the same model (free id rides the promo quota).
+  // rateMultiplier = credit cost multiplier published on the CN credit page
+  // (0 = rides the free quota). CN and intl share one credit system, so models
+  // present on both carry identical multipliers. Rendered as a badge by ModelRow.
   models: [
-    { id: "glm-5.2", name: "GLM-5.2" },
-    { id: "glm-5.1", name: "GLM-5.1" },
-    { id: "glm-5v-turbo", name: "GLM-5v-Turbo" },
-    { id: "minimax-m3", name: "MiniMax-M3" },
-    { id: "kimi-k2.7", name: "Kimi-K2.7-Code" },
-    { id: "kimi-k2.6", name: "Kimi-K2.6" },
-    // Catalog mirrors the server's product-config payload (fetched from
-    // copilot.tencent.com). Models the server no longer publishes are removed
-    // even when the chat endpoint still answers them — the published list is
-    // the contract. Drop log: glm-5.0 / glm-4.7 and hy4-preview-x (endpoint
-    // returns 11102 "model service info not found", see
-    // docs/zh-CN/codebuddy-cn-error-codes.md), plus glm-5.0-turbo /
-    // minimax-m2.7 / kimi-k2.5 / hy3-preview / deepseek-v3-2-volc (absent from
-    // the server list, though still answering 200) and hy3-x (paid tier, not
-    // used here).
-    // "-x" suffix = paid tier of the same model (free id rides the promo quota).
-    { id: "hy3", name: "Hy3" },
-    { id: "hy4-preview", name: "Hy4-Preview" },
-    { id: "glm-5.3", name: "GLM-5.3" },
-    { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
-    { id: "kimi-k3", name: "Kimi-K3" },
-    { id: "kimi-k3-1", name: "Kimi-K3 (1)" },
-    { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
-    { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
+    { id: "hy4-preview", name: "Hy4-Preview", rateMultiplier: 0 },
+    { id: "hy3", name: "Hy3", rateMultiplier: 0 },
+    { id: "glm-5v-turbo", name: "GLM-5v-Turbo", rateMultiplier: 0.71 },
+    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.79 },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.06 },
+    { id: "glm-5.2", name: "GLM-5.2", rateMultiplier: 0.79 },
+    { id: "glm-5.1", name: "GLM-5.1", rateMultiplier: 0.79 },
+    { id: "minimax-m3", name: "MiniMax-M3", rateMultiplier: 0.25 },
+    { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
+    { id: "kimi-k2.7", name: "Kimi-K2.7-Code", rateMultiplier: 0.57 },
+    { id: "kimi-k2.6", name: "Kimi-K2.6", rateMultiplier: 0.52 },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.03 },
+    { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro", rateMultiplier: 0.51 },
     // NOTE: the GPT/Gemini family (gpt-5.6-sol/terra/luna, gpt-5.5, gpt-5.4,
     // gpt-5.3-codex, gemini-3.5-flash) belongs to CodeBuddy *international*
     // (codebuddy.ai) ONLY — copilot.tencent.com never published them, and the

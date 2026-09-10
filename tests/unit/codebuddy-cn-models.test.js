@@ -19,21 +19,47 @@ const INTL_ONLY_FAMILY = [
 describe("CodeBuddy CN static model catalog", () => {
   it("lists exactly the models copilot.tencent.com publishes", () => {
     expect(cn.models.map((model) => model.id)).toEqual([
-      "glm-5.2",
-      "glm-5.1",
-      "glm-5v-turbo",
-      "minimax-m3",
-      "kimi-k2.7",
-      "kimi-k2.6",
-      "hy3",
       "hy4-preview",
+      "hy3",
+      "glm-5v-turbo",
       "glm-5.3",
       "glm-5.3-flash",
+      "glm-5.2",
+      "glm-5.1",
+      "minimax-m3",
       "kimi-k3",
-      "kimi-k3-1",
+      "kimi-k2.7",
+      "kimi-k2.6",
+      "deepseek-v4.1-flash",
       "deepseek-v4-pro",
-      "deepseek-v4-flash",
     ]);
+  });
+
+  it("carries the published credit multiplier on every model", () => {
+    // Rate card published by the CN credit page. 0 = rides the free quota.
+    const rates = Object.fromEntries(cn.models.map((m) => [m.id, m.rateMultiplier]));
+    expect(rates).toEqual({
+      "hy4-preview": 0,
+      hy3: 0,
+      "glm-5v-turbo": 0.71,
+      "glm-5.3": 0.79,
+      "glm-5.3-flash": 0.06,
+      "glm-5.2": 0.79,
+      "glm-5.1": 0.79,
+      "minimax-m3": 0.25,
+      "kimi-k3": 1.62,
+      "kimi-k2.7": 0.57,
+      "kimi-k2.6": 0.52,
+      "deepseek-v4.1-flash": 0.03,
+      "deepseek-v4-pro": 0.51,
+    });
+  });
+
+  it("shares the credit rate with intl on models both gateways serve", () => {
+    const intlRates = Object.fromEntries(intl.models.map((m) => [m.id, m.rateMultiplier]));
+    for (const m of cn.models) {
+      if (m.id in intlRates) expect(m.rateMultiplier).toBe(intlRates[m.id]);
+    }
   });
 
   it("does not carry the intl-only GPT/Gemini family", () => {
@@ -43,5 +69,13 @@ describe("CodeBuddy CN static model catalog", () => {
       expect(cnIds).not.toContain(id);
       expect(intlIds).toContain(id);
     }
+  });
+
+  it("does not carry retired or spurious ids", () => {
+    const ids = cn.models.map((model) => model.id);
+    // kimi-k3-1 was a spurious duplicate slot; deepseek-v4-flash is superseded
+    // by deepseek-v4.1-flash.
+    expect(ids).not.toContain("kimi-k3-1");
+    expect(ids).not.toContain("deepseek-v4-flash");
   });
 });
