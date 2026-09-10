@@ -149,15 +149,21 @@ export const MODEL_CAPABILITIES = {
   // V4-Flash，所以这里仍取保守值；需要视觉请走 `deepseek-flash`。
   "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
 
-  // DeepSeek-V4.1-Flash 的官方 id。第一方 2026-09-10 更新日志把它定为新名——
-  // 「Change the model name to deepseek-flash to call the latest V4.1 Flash
-  // model」，并写明是 native multimodal；同页 Models & Pricing 表逐项给出
-  // 1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考。
-  // 写成 canonical 而非 provider 行：opencode-go 挂的是同一个裸 id（models.dev
-  // 两边一致报 V4.1 Flash），一行覆盖两家。不给它写行的话 `deepseek-flash` 会落
-  // 到 `*deepseek*` 通配——那是 V3 时代的 128K / 64000 / vision:false，会把图片
-  // 静默剥掉、max_tokens 夹小 6 倍。
+  // DeepSeek-V4.1-Flash 有两个官方 id，各占一行，都写成 canonical（模型自身的名字，
+  // 多家 reseller 会复用）：
+  //   · `deepseek-flash` —— 第一方 2026-09-10 更新日志定的新名（「Change the model
+  //     name to deepseek-flash to call the latest V4.1 Flash model」），opencode-go
+  //     的 /models 目录里也挂着同名 id。
+  //   · `deepseek-v4.1-flash` —— opencode-go 官方文档表主推的 id；codebuddy-cn 的同名
+  //     模型走它自己的 provider 行（openai 思考格式，provider 行优先）。
+  // 两行同源：更新日志写明是 native multimodal，同页 Models & Pricing 表逐项给出
+  // 1M 输入 / MAX OUTPUT 384K / Vision ✓ / 思考默认开且可切非思考；models.dev 上
+  // `deepseek-v4.1-flash` 的 24 条条目一致报 text+image 1M/384000。
+  // 不写的话：`deepseek-flash` 落到 `*deepseek*` 通配（V3 时代的 128K / 64000 /
+  // vision:false），`deepseek-v4.1-flash` 落到 `*deepseek-v4*` 通配（1M/384000 但
+  // vision:false）——两者都会把图片在 modality 层静默剥掉。
   "deepseek-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+  "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
 
   // ── models.dev 补齐（此前这些 id 全部落 DEFAULT_CAPABILITIES：vision 被剥、
   // contextWindow 200000、maxOutput 64000）──
@@ -310,6 +316,8 @@ export const PROVIDER_CAPABILITIES = {
     // 即可，本表不留行。deepseek-v4-flash-vision-exp 是另一个多模态 id，走
     // MODEL_CAPABILITIES 的 canonical 行（四家共用：commandcode / deepseek /
     // opencode-go / B.AI，写这里只覆盖 CN 一家）。
+    // 下面这行同样是 CAN 侧的 provider 行覆盖：canonical 行已给出同一套数值，这里是
+    // 因为 CN 网关走 openai 思考格式且允许关闭思考（provider 行优先于 canonical）。
     "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 384000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …); the

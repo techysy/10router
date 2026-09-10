@@ -100,3 +100,46 @@ describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
     }
   });
 });
+
+// opencode-go's own docs table lists the V4.1-Flash id as `deepseek-v4.1-flash` (its
+// public /models catalog carries both that and `deepseek-flash`), and codebuddy-cn
+// serves the same id through its OpenAI-compatible gateway.
+const DOTTED_ID = REGISTRY.flatMap((entry) =>
+  (entry.models || [])
+    .map((m) => (typeof m === "string" ? m : m.id))
+    .filter((id) => id === "deepseek-v4.1-flash")
+    .map((id) => ({ provider: entry.id, id }))
+);
+
+describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
+  it("is offered by opencode-go and codebuddy-cn", () => {
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["codebuddy-cn", "opencode-go"]);
+  });
+
+  it("resolves from the canonical row where the provider has no override", () => {
+    const step = resolveStep("opencode-go", "deepseek-v4.1-flash");
+    expect(`${step.step}:${step.key}`).toBe("canonical:deepseek-v4.1-flash");
+    expect(getCapabilitiesForModel("opencode-go", "deepseek-v4.1-flash")).toMatchObject({
+      vision: true,
+      reasoning: true,
+      thinkingFormat: "deepseek",
+      contextWindow: 1000000,
+      maxOutput: 384000,
+    });
+  });
+
+  it("keeps codebuddy-cn on its provider-exact override (openai thinking shape)", () => {
+    // The canonical row must not leak the `deepseek` thinking format into CN — its
+    // gateway is OpenAI-compatible, and the provider row wins over canonical.
+    const step = resolveStep("codebuddy-cn", "deepseek-v4.1-flash");
+    expect(`${step.step}:${step.key}`).toBe("provider:deepseek-v4.1-flash");
+    expect(getCapabilitiesForModel("codebuddy-cn", "deepseek-v4.1-flash")).toMatchObject({
+      vision: true,
+      reasoning: true,
+      thinkingFormat: "openai",
+      thinkingCanDisable: true,
+      contextWindow: 1000000,
+      maxOutput: 384000,
+    });
+  });
+});

@@ -7,11 +7,13 @@ import { resolveTransport } from "../../open-sse/services/provider.js";
 const CHAT_ONLY = ["glm-5.2", "glm-5.1", "kimi-k2.7-code", "kimi-k2.6", "mimo-v2.5", "mimo-v2.5-pro"];
 // Models that also expose the Anthropic /messages endpoint
 const CLAUDE_CAPABLE = ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"];
-// Models that also expose the OpenAI /responses endpoint
-// deepseek-flash is DeepSeek's official V4.1-Flash id (same upstream model as the
-// legacy deepseek-v4-flash, which upstream routes to V4.1 Flash), so it carries the
-// same three-endpoint declaration as its siblings.
-const RESPONSES_CAPABLE = ["deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash"];
+// Models that also expose the OpenAI /responses endpoint.
+// deepseek-v4.1-flash is the id opencode-go's docs table publishes for V4.1 Flash;
+// deepseek-flash is the same model under DeepSeek's own name (both appear in the
+// provider's public /models catalog), and upstream routes the legacy
+// deepseek-v4-flash to V4.1 Flash as well — so all three carry the same
+// three-endpoint declaration as their siblings.
+const RESPONSES_CAPABLE = ["deepseek-v4.1-flash", "deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash"];
 
 // Mirror of chatCore's per-model transport guard: use the sourceFormat-matched
 // transport only when the model declares support for that sourceFormat.
@@ -26,7 +28,7 @@ describe("OpenCode Go model catalog", () => {
     const ids = (PROVIDER_MODELS["opencode-go"] || []).map((m) => m.id);
     expect(ids).toEqual([
       "gpt-5.6-luna", "glm-5.3-flash", "glm-5.2", "glm-5.1", "kimi-k2.7-code", "kimi-k2.6",
-      "deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
+      "deepseek-v4.1-flash", "deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
       "mimo-v2.5", "mimo-v2.5-pro",
       "minimax-m3", "minimax-m2.7", "minimax-m2.5",
       "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus",

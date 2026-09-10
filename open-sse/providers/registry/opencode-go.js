@@ -46,8 +46,12 @@ export default {
     { id: "glm-5.1", name: "GLM 5.1", supportedFormats: ["openai"] },
     { id: "kimi-k2.7-code", name: "Kimi K2.7 Code", supportedFormats: ["openai"] },
     { id: "kimi-k2.6", name: "Kimi K2.6", supportedFormats: ["openai"] },
-    // V4.1-Flash 的官方 id（与 deepseek 第一方同名）；其余 v4-* 是上一代命名。
-    { id: "deepseek-flash", name: "DeepSeek V4.1 Flash", supportedFormats: ["openai", "claude", "openai-responses"] },
+    // V4.1-Flash 在 opencode-go 有两个 id：官方文档表主推的 deepseek-v4.1-flash，
+    // 以及 /models 目录里同时列出的 deepseek-flash（与 DeepSeek 第一方同名）。
+    // 三端点声明与同一上游的 deepseek-v4-flash 一致——DeepSeek 已把那个 id 路由到
+    // V4.1 Flash，等于这条声明已经被现网验证过。
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", supportedFormats: ["openai", "claude", "openai-responses"] },
+    { id: "deepseek-flash", name: "DeepSeek V4.1 Flash (alias id)", supportedFormats: ["openai", "claude", "openai-responses"] },
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", supportedFormats: ["openai", "claude", "openai-responses"] },
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", supportedFormats: ["openai", "claude", "openai-responses"] },
     { id: "deepseek-v4-flash-vision-exp", name: "DeepSeek V4 Flash Vision (Exp)", supportedFormats: ["openai", "claude", "openai-responses"] },
