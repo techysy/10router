@@ -64,8 +64,12 @@
 | `17d667dd` | Fix：容量适配器的模型列表不再截断（第 4 个起无法管理/移除） |
 | `ed1e430f` | Fix：DeepSeek-V4.1-Flash 能力补全（1M / 384K 输出） |
 | `9a981d7d` | Fix：DeepSeek V4 能力纠错（§3 Step 1） |
-| `784a9e7b` | Docs：本评审文档 |
-| 本次 | Fix + Test：能力库补齐（§4 Step 2）+ 守卫测试 |
+| `dc07954e` | Fix：models.dev 可查证的能力兜底补齐（47 → 21）+ 守卫测试（§4 Step 2） |
+| `200939d4` | Fix：旧支 `Doubao-Seed-Code` 单列能力行（32k 上限），与 Seed-2.0-code 分开钉死（§4.2b） |
+| `e71764f3` | Fix：移除已下架的 `stealth/ox-alpha`（实为 `glm-5.3-flash` 的测试马甲） |
+| `d87207b2` | Chore：能力库审计脚本 `scripts/audit-capabilities.mjs` + CI 报告步骤（§5 Step 3） |
+| 本次 | Chore：cursor 模型目录测试改为**离线**（mock `http2` 传输层），消除门禁随机抖动（§2.1） |
+| `784a9e7b` · `fe51c336` · `1457cb03` · `4e83740f` · `2f914c60` | Docs：本评审文档、CLAUDE.md 审计说明 |
 
 ---
 
@@ -78,6 +82,15 @@
 落兜底等于 `DEFAULT_CAPABILITIES`：`vision:false`（`modality.js:65` 静默剥图）· `reasoning:false` · `contextWindow:200000` · `maxOutput:64000`（`claude.js:334` 夹 `max_tokens`）· `tools:true`。
 
 > ⚠️ **修正**：早先列的 `poolside` 两条「死条目」是**审计脚本的假阳性**——注册表里是 `poolside/laguna-s-2.1`（带供应商前缀），能力库键是 `laguna-s-2.1`；运行时按最后一段 baseModel 查得到（已实测命中 provider 行）。真正的死条目只有 `codebuddy-cn` 的 `glm-5.0`/`glm-4.7`，已在 Step 1 清掉。
+
+### 2.1 回归门禁的随机抖动（已修）
+
+排查记录，与能力库无关，但会随机把门禁刷红：
+
+- `tests/unit/cursor-models.test.js` 的两条网络用例 mock 的是 `global.fetch`，而 `open-sse/services/cursorModels.js` 走的是 `node:http2`（`agent.api5.cursor.sh` 只支持 HTTP/2，undici 支持不了）——原 mock 是**死代码**，两条用例实际都在打真网络。
+- 后果一：`fetches the account-specific catalog and caches it` 永远不可能通过（真端点对无凭证请求返回 415/403），已在 `known-fails.txt` 里。
+- 后果二：`fails open when the Cursor catalog request fails` 靠「真实请求失败得快」通过；服务内部超时是 `FETCH_TIMEOUT_MS = 10s`，而 vitest 默认 `testTimeout` 是 **5s**，所以真请求一旦慢过 5 秒，用例就被 vitest 判超时，报 **`STACK_TRACE_ERROR`**（vitest 的超时哨兵 Error，位置指向 `it()` 所在行）。实测：全量跑 3 次里抖红 1 次；`--testTimeout=800` 可稳定复现同一条哨兵错误。
+- 修复：改为 `vi.mock("http2")` 注入假传输层（假 session / 假 request），两条用例变成纯离线。文件耗时 **1608ms → 19ms**，连跑 5 次全绿；`fetches the account-specific catalog` 转为通过，已从 `known-fails.txt` 删除该条（41 → 40）。全仓库仅此一个文件存在「mock fetch 但实现走 h2」的问题（`open-sse/executors/cursor.js` 与 `services/cursorModels.js` 是唯一的 h2 使用方）。
 
 ---
 
@@ -176,6 +189,7 @@
 5. **`ox-alpha` 是马甲**：已下架，实为 `glm-5.3-flash` 的测试马甲 → 注册表条目与能力行都已删（§4.1）。
 6. **不做能力库生成器**：改为纯离线审计脚本 + CI 报告步骤（§5）。
 7. **旧支 `seed-code` 与 Seed-2.0 `code` 分开声明**（用户提供火山方舟模型列表作第一方依据）：旧支已标「即将下线」，32k 输出上限；两者互不套用（§4.2b）。
+8. **cursor 模型目录测试改为离线**：它 mock 的 `global.fetch` 从未被使用（实现在 `cursorModels.js` 里走 `node:http2`，因为 `agent.api5.cursor.sh` 只支持 h2），所以两条用例一直在打真网络 → 一条永远不可能通过（已在 known-fails）、另一条“赌真实请求失败得快”随机把门禁刷红（§2.1）。现改 mock `http2` 传输层，文件耗时 1608ms → 19ms，`known-fails` 41 → 40。
 
 ---
 
