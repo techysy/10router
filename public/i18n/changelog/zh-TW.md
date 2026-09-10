@@ -7,7 +7,7 @@
 ### ✨ 新增
 - **新增 AMD Token Factory 供應商**：AMD Radeon Cloud 免費共享 OpenAI 相容端點（`DeepSeek-V4-Flash` 1M 上下文 + `Qwen3.8-Flash-Next` 262K 上下文）；thinking 透過 reasoning_effort 控制，每個模型有獨立的檔位選擇器；形態與 NVIDIA NIM 相同
 - **Antigravity 配額主機修復**：配額 summary 改查正確的 daily host（與原生 IDE 一致），修復數字系統性偏差；百分比直讀後端值而非前端重算
-- **CodeBuddy 模型目錄刷新**：CN 站補入已上架的 GPT-5.6 Sol/Terra/Luna、GPT-5.5、GPT-5.4、GPT-5.3-Codex、Gemini-3.5-Flash；國際版目錄按服務端重排（新增 Hy4-Preview / Hy3 免費檔、GPT-5.6 三檔、GLM-5.3、Kimi-K3 等，移除已下線的舊模型），並標註每模型積分倍率
+- **CodeBuddy 國際版模型目錄刷新**：國際版目錄按服務端重排（新增 Hy4-Preview / Hy3 免費檔、GPT-5.6 Sol/Terra/Luna、GPT-5.5、GPT-5.4、GPT-5.3-Codex、Gemini-3.5-Flash、GLM-5.3、Kimi-K3 等，移除已下線的舊模型），並標註每模型積分倍率；CN 站目錄未變
 
 ### 🔒 安全加固
 - **API key HMAC secret 硬化**：內建兜底密文未設定時 production 啟動告警；新增實驗功能「金鑰簽署輪換」（預設關閉），自動產生每實例獨立密文；keyId 生成改用 `crypto.randomBytes`
@@ -21,6 +21,7 @@
 - **GLM-4.6V-Flash 缺視覺能力（PR #5）**：免費視覺模型補註冊正確的 capabilities
 - **DeepSeek effort "max" 被 SenseNova 拒絕（PR #5）**：鉗位到 "xhigh" 相容兩家
 - **拉取/匯入的模型預設停用（按需啟用）**：「Import from /models」與「Fetch Qoder Models」批次拉回的模型不再一次全部啟用洗版——先落入「Disabled models」區，用到哪個點哪個；`/v1/models` 同步只下發已啟用的模型（此前標了停用仍會下發）。手動單個新增仍立即啟用
+- **CodeBuddy CN 誤掛國際版模型（修正）**：此前 CN 目錄混入了只屬於國際版的 GPT/Gemini 家族，選中會報 model service info not found；現已移除（保留在國際版）並加測試守衛
 
 ## v1.0.7 (2026-09-07)
 

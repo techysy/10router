@@ -69,14 +69,11 @@ export default {
     { id: "kimi-k3-1", name: "Kimi-K3 (1)" },
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
-    // GPT/Gemini family newly published on the server list.
-    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol" },
-    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra" },
-    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna" },
-    { id: "gpt-5.5", name: "GPT-5.5" },
-    { id: "gpt-5.4", name: "GPT-5.4" },
-    { id: "gpt-5.3-codex", name: "GPT-5.3-Codex" },
-    { id: "gemini-3.5-flash", name: "Gemini-3.5-Flash" },
+    // NOTE: the GPT/Gemini family (gpt-5.6-sol/terra/luna, gpt-5.5, gpt-5.4,
+    // gpt-5.3-codex, gemini-3.5-flash) belongs to CodeBuddy *international*
+    // (codebuddy.ai) ONLY — copilot.tencent.com never published them, and the
+    // CN capabilities map below has no entry for them either. Do not re-add
+    // them here; they live in registry/codebuddy-intl.js.
   ],
   oauth: {
     baseUrl: "https://copilot.tencent.com",

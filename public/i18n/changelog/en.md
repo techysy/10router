@@ -7,7 +7,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 ### ✨ New
 - **AMD Token Factory provider**: free shared OpenAI-compatible endpoints from AMD Radeon Cloud (`DeepSeek-V4-Flash` 1M context + `Qwen3.8-Flash-Next` 262K context); thinking via reasoning_effort with per-model level pickers; same shape as NVIDIA NIM
 - **Antigravity quota host fix**: quota summary now queries the correct daily host (matching the native IDE), fixing systematically stale numbers; percentage reads from the backend value instead of re-deriving in the frontend
-- **CodeBuddy model catalog refresh**: CodeBuddy CN gains the newly published GPT-5.6 Sol/Terra/Luna, GPT-5.5, GPT-5.4, GPT-5.3-Codex and Gemini-3.5-Flash; the international catalog is re-aligned to the server (adds the Hy4-Preview / Hy3 free tier, the GPT-5.6 trio, GLM-5.3, Kimi-K3; drops retired models) with per-model credit multipliers
+- **CodeBuddy international catalog refresh**: the international catalog is re-aligned to the server (adds the Hy4-Preview / Hy3 free tier, GPT-5.6 Sol/Terra/Luna, GPT-5.5, GPT-5.4, GPT-5.3-Codex, Gemini-3.5-Flash, GLM-5.3, Kimi-K3; drops retired models) with per-model credit multipliers; the CN catalog is unchanged
 
 ### 🔒 Security
 - **API key HMAC secret hardening**: built-in fallback secret now triggers a production startup warning; experimental **Key secret rotation** (off by default) auto-generates a per-install secret; `generateKeyId` switched from `Math.random` to `crypto.randomBytes`
@@ -21,6 +21,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **GLM-4.6V-Flash missing vision (PR #5)**: free vision model now registered with correct capabilities
 - **DeepSeek effort "max" rejected by SenseNova (PR #5)**: clamped to "xhigh" for cross-provider compatibility
 - **Fetched/imported models now default to disabled (enable on demand)**: bulk imports via "Import from /models" and "Fetch Qoder Models" no longer switch everything on at once — they land in the "Disabled models" area for you to enable as needed, and `/v1/models` now only serves enabled models (a disabled model was previously still listed). Single manual adds stay enabled
+- **CodeBuddy CN listing intl-only models (fixed)**: the CN catalog had picked up the GPT/Gemini family that only the international gateway serves, which failed with "model service info not found" when selected; removed from CN (kept in intl) with a test guard
 
 ## v1.0.7 (2026-09-07)
 
