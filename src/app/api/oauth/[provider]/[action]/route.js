@@ -320,11 +320,18 @@ export async function POST(request, { params }) {
 
       const outcome = await completeXiaomiMimoFlow(body?.code);
       if (!outcome.ok) {
+        // These are shown verbatim in the modal, so they must say what to DO next:
+        // a decryption failure is almost always a copy problem (a truncated blob or
+        // a label copied along with it), never a permission problem.
         const messages = {
           empty_payload: "Paste the authorization code first.",
-          no_pending_session: "No active login session. Start the sign-in again.",
-          decrypt_failed: "Could not read that code — copy it again from the sign-in page.",
-          missing_api_key: "That code did not contain an API key.",
+          payload_too_short:
+            "That is too short to be the whole code — it is usually a long string of 100+ characters. Use the Copy button on the sign-in page, then paste it here.",
+          no_pending_session:
+            "This sign-in attempt is no longer active. Click Sign in via Browser to start again.",
+          decrypt_failed:
+            "That code does not match this sign-in. Copy the whole code from the sign-in page, or click Sign in via Browser for a fresh one.",
+          missing_api_key: "That code did not contain an API key. Start the sign-in again.",
         };
         return NextResponse.json(
           { status: "error", error: messages[outcome.error] || "Could not read that code." },

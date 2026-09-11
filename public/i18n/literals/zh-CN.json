@@ -1609,5 +1609,10 @@
   "Check Again": "再检查一次",
   "Authorization Code": "授权码",
   "Paste the authorization code shown in the browser": "粘贴浏览器中显示的授权码",
-  "Submit Code": "提交授权码"
+  "Submit Code": "提交授权码",
+  "That is too short to be the whole code — it is usually a long string of 100+ characters. Use the Copy button on the sign-in page, then paste it here.": "这串内容太短，不像完整的授权码 —— 它通常是一长串（100 个字符以上）。请在授权页点「复制」按钮，再粘贴到这里。",
+  "This sign-in attempt is no longer active. Click Sign in via Browser to start again.": "本次登录已失效。请点「通过浏览器登录」重新开始。",
+  "That code does not match this sign-in. Copy the whole code from the sign-in page, or click Sign in via Browser for a fresh one.": "这串授权码与本次登录不匹配。请从授权页复制完整的授权码，或点「通过浏览器登录」重新获取一个。",
+  "That code did not contain an API key. Start the sign-in again.": "这串授权码里没有 API Key。请重新登录一次。",
+  "The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.": "授权码是一长串字符（100 个以上）—— 请用授权页的「复制」按钮整串复制。"
 }

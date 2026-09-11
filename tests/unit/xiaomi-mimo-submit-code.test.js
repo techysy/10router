@@ -7,6 +7,7 @@ import {
   registerXiaomiMimoSession,
   clearXiaomiMimoSession,
   getXiaomiMimoSessionStatus,
+  stopXiaomiMimoProxy,
 } from "../../src/lib/oauth/utils/server.js";
 import { generateKeyPair } from "../../src/lib/oauth/providers/xiaomi-mimo.js";
 
@@ -124,12 +125,49 @@ describe("completeXiaomiMimoFlow (pasted authorization code)", () => {
     expect(outcome).toMatchObject({ ok: true, state: "state-wrapped" });
   });
 
-  it("reports empty input, a missing session and unreadable codes distinctly", async () => {
+  it("still accepts a pasted code after the local listener has stopped", async () => {
+    const privateKeyDer = pend("state-after-timeout");
+    const code = platformEncrypt(privateKeyDer, { uid: "u", sk: "sk-after-timeout" });
+
+    // What really happens on a slow sign-in: the 5-minute local listener times out
+    // and stops. The user is still holding the authorize page (whose code they must
+    // paste by hand), so dropping the keys here would break precisely the flow the
+    // paste box exists for — this is the bug the user hit.
+    stopXiaomiMimoProxy();
+
+    const outcome = await completeXiaomiMimoFlow(code);
+
+    expect(outcome).toMatchObject({ ok: true, state: "state-after-timeout" });
+  });
+
+  it("accepts a code copied together with its page label", async () => {
+    const privateKeyDer = pend("state-label");
+    const code = platformEncrypt(privateKeyDer, { uid: "u", sk: "sk-labelled" });
+
+    // The realistic paste: the user grabs the whole line, label included.
+    const outcome = await completeXiaomiMimoFlow(`授权码：${code}\n`);
+
+    expect(outcome).toMatchObject({ ok: true, state: "state-label" });
+  });
+
+  it("reports empty input, an incomplete paste, a missing session and unreadable codes distinctly", async () => {
     expect(await completeXiaomiMimoFlow("   ")).toEqual({ ok: false, error: "empty_payload" });
     expect(await completeXiaomiMimoFlow(null)).toEqual({ ok: false, error: "empty_payload" });
 
-    // No session at all — the UI must tell the user to restart the sign-in.
-    expect(await completeXiaomiMimoFlow("QUJD")).toEqual({ ok: false, error: "no_pending_session" });
+    // Far too short to hold nonce + key + tag — a copy problem, and the user must be
+    // told that rather than that their code is "wrong".
+    expect(await completeXiaomiMimoFlow("QUJD")).toEqual({ ok: false, error: "payload_too_short" });
+    expect(await completeXiaomiMimoFlow("not-a-real-code")).toEqual({
+      ok: false,
+      error: "payload_too_short",
+    });
+
+    // Plausible length, but no login is in flight.
+    const longEnough = Buffer.alloc(120, 7).toString("base64");
+    expect(await completeXiaomiMimoFlow(longEnough)).toEqual({
+      ok: false,
+      error: "no_pending_session",
+    });
 
     pend("state-x");
     // A real session exists, but this blob was encrypted for someone else.
@@ -139,10 +177,6 @@ describe("completeXiaomiMimoFlow (pasted authorization code)", () => {
     });
     const foreign = platformEncrypt(otherKey, { uid: "u", sk: "sk-other" });
     expect(await completeXiaomiMimoFlow(foreign)).toEqual({ ok: false, error: "decrypt_failed" });
-    expect(await completeXiaomiMimoFlow("not-a-real-code")).toEqual({
-      ok: false,
-      error: "decrypt_failed",
-    });
   });
 
   it("distinguishes a decoded-but-keyless payload from a failed decryption", async () => {
@@ -158,7 +192,8 @@ describe("completeXiaomiMimoFlow (pasted authorization code)", () => {
     pend("state-live-1");
     pend("state-live-2");
 
-    const outcome = await completeXiaomiMimoFlow("garbage");
+    // Long enough to look like a payload, so this is a genuine decrypt failure.
+    const outcome = await completeXiaomiMimoFlow(Buffer.alloc(120, 9).toString("base64"));
 
     expect(outcome).toEqual({ ok: false, error: "decrypt_failed" });
     // One stray payload must not abort concurrent logins.
@@ -176,6 +211,23 @@ describe("normalizeXiaomiMimoPayload", () => {
 
   it("passes a bare code through untouched", () => {
     expect(normalizeXiaomiMimoPayload("YWJj_-+/=")).toBe("YWJj_-+/=");
+  });
+
+  it("strips a label, wrapping quotes and a trailing full stop", () => {
+    expect(normalizeXiaomiMimoPayload("授权码：YWJjZGVm")).toBe("YWJjZGVm");
+    expect(normalizeXiaomiMimoPayload("验证码 YWJjZGVm")).toBe("YWJjZGVm");
+    expect(normalizeXiaomiMimoPayload("Authorization code: YWJjZGVm")).toBe("YWJjZGVm");
+    expect(normalizeXiaomiMimoPayload("`YWJjZGVm`")).toBe("YWJjZGVm");
+    // …but a payload that merely starts with those letters is never eaten: an ASCII
+    // label only counts when a separator follows it.
+    expect(normalizeXiaomiMimoPayload("codeXYWJj")).toBe("codeXYWJj");
+  });
+
+  it("accepts a bare u= value and survives malformed encoding", () => {
+    expect(normalizeXiaomiMimoPayload("u=YWJjZGVm")).toBe("YWJjZGVm");
+    // A stray '%' used to be able to throw out of decodeURIComponent.
+    expect(() => normalizeXiaomiMimoPayload("https://x/?u=YW%ZZ")).not.toThrow();
+    expect(normalizeXiaomiMimoPayload("https://x/?u=YW%ZZ")).not.toBe("");
   });
 
   it("returns an empty string for missing input", () => {

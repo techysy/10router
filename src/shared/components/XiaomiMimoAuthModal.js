@@ -323,6 +323,14 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                   </div>
                 )}
 
+                {/* Recovery: a code that will not decrypt means the sign-in attempt is
+                    stale, so re-issuing one must be one click away, not a dead end. */}
+                {error && (
+                  <Button onClick={handleStartOAuth} variant="outline" fullWidth>
+                    {translate("Sign in via Browser")}
+                  </Button>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium mb-2">{translate("Authorization Code")}</label>
                   <textarea
@@ -332,6 +340,9 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                     rows={3}
                     className="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg bg-background focus:outline-none focus:border-primary resize-none"
                   />
+                  <p className="text-xs text-text-muted mt-1">
+                    {translate("The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.")}
+                  </p>
                 </div>
 
                 <div className="flex gap-2">

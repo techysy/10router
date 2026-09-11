@@ -60,13 +60,23 @@ async function hit(port, query, headers = {}) {
 
 let proxy;
 
+// Sessions deliberately outlive the proxy listener (the platform's authorize page makes
+// the user paste a code by hand, so a key must survive a listener timeout), which means
+// stopping the proxy is NOT a way to reset them. Reset them explicitly instead.
+const TEST_STATES = ["s", "s1", "s2"];
+function resetSessions() {
+  for (const state of TEST_STATES) clearXiaomiMimoSession(state);
+}
+
 beforeEach(async () => {
   stopXiaomiMimoProxy();
+  resetSessions();
   proxy = await startXiaomiMimoProxy();
 });
 
 afterEach(() => {
   stopXiaomiMimoProxy();
+  resetSessions();
 });
 
 describe("xiaomi-mimo OAuth crypto", () => {
@@ -208,12 +218,20 @@ describe("xiaomi-mimo OAuth callback proxy", () => {
     expect(body).not.toContain("alert(1)");
   });
 
-  it("drops sessions when the proxy stops", () => {
+  it("keeps sessions alive when the proxy stops", () => {
+    // The listener is only the AUTOMATIC callback path. The authorize page also shows a
+    // code to paste by hand, and that path stays valid after the 5-minute listener
+    // times out — so stopping the listener must never drop the keys. It used to, which
+    // made a pasted code fail with "does not match this sign-in" exactly when a user
+    // fell back to pasting.
     const { privateKeyDer } = generateKeyPair();
     registerXiaomiMimoSession({ state: "s1", privateKeyDer });
     expect(getXiaomiMimoSessionStatus("s1")).not.toBeNull();
 
     stopXiaomiMimoProxy();
+    expect(getXiaomiMimoSessionStatus("s1")).not.toBeNull();
+
+    clearXiaomiMimoSession("s1");
     expect(getXiaomiMimoSessionStatus("s1")).toBeNull();
   });
 

@@ -124,6 +124,24 @@ describe("xiaomi-mimo wiring in the generic oauth route", () => {
     expect(branch).toContain('if (provider !== "xiaomi-mimo")');
     expect(branch).toContain('status: 400');
   });
+
+  it("keeps the submit-code messages translatable", () => {
+    // These strings are returned by the API and echoed by the modal, so they are
+    // translated by their own text as the key — but they live on the server, where
+    // the modal's literal sweep cannot see them. Miss one and the UI shows a lone
+    // English sentence, which is exactly what happened once.
+    const source = src();
+    const start = source.indexOf("const messages = {");
+    const block = source.slice(start, source.indexOf("};", start));
+    const messages = [...block.matchAll(/:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(messages.length).toBeGreaterThanOrEqual(5);
+
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const map = JSON.parse(read(`public/i18n/literals/${locale}.json`));
+      const missing = messages.filter((m) => !(m in map));
+      expect(missing, `${locale} is missing: ${missing.join(" | ")}`).toEqual([]);
+    }
+  });
 });
 
 describe("xiaomi-mimo dashboard wiring", () => {
@@ -171,6 +189,16 @@ describe("xiaomi-mimo dashboard wiring", () => {
     // Local-credential import uses the auto-import `apiKey`; the browser flow only
     // ever sees the redacted { uid, baseUrl } and is applied server-side by /exchange.
     expect(modal).not.toContain("accessToken");
+  });
+
+  it("gives a failed paste a way forward instead of a dead end", () => {
+    const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
+    // A code that will not decrypt means the attempt is stale, so re-issuing one has
+    // to be reachable from the error state itself.
+    const errorBlock = modal.slice(modal.indexOf("Recovery: a code that will not decrypt"), modal.indexOf("<div>"));
+    expect(errorBlock).toContain("handleStartOAuth");
+    // …and the length warning prevents most of those failures in the first place.
+    expect(modal).toContain("The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.");
   });
 
   it("translates every user-visible string it renders", () => {

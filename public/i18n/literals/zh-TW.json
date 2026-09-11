@@ -404,5 +404,10 @@
   "Authorization Code": "授權碼",
   "Paste the authorization code shown in the browser": "貼上瀏覽器中顯示的授權碼",
   "Checking...": "檢查中……",
-  "Submit Code": "提交授權碼"
+  "Submit Code": "提交授權碼",
+  "That is too short to be the whole code — it is usually a long string of 100+ characters. Use the Copy button on the sign-in page, then paste it here.": "這串內容太短，不像完整的授權碼 —— 它通常是一長串（100 個字元以上）。請在授權頁點「複製」按鈕，再貼到這裡。",
+  "This sign-in attempt is no longer active. Click Sign in via Browser to start again.": "本次登入已失效。請點「透過瀏覽器登入」重新開始。",
+  "That code does not match this sign-in. Copy the whole code from the sign-in page, or click Sign in via Browser for a fresh one.": "這串授權碼與本次登入不符。請從授權頁複製完整的授權碼，或點「透過瀏覽器登入」重新取得一個。",
+  "That code did not contain an API key. Start the sign-in again.": "這串授權碼裡沒有 API Key。請重新登入一次。",
+  "The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.": "授權碼是一長串字元（100 個以上）—— 請用授權頁的「複製」按鈕整串複製。"
 }

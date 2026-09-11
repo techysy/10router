@@ -795,13 +795,23 @@ export function clearXiaomiMimoSession(state) {
 }
 
 /**
+ * Minimum plausible size of the encrypted payload.
+ *
+ * Wire format needs 12-byte nonce + 32-byte ephemeral public key + 16-byte GCM tag +
+ * at least 1 byte of ciphertext = 61 raw bytes, i.e. 84 base64 characters. Anything
+ * shorter cannot be a payload — that is a copy problem, not a key mismatch, and the
+ * user needs to hear exactly that difference.
+ */
+const MIN_XIAOMI_MIMO_PAYLOAD_CHARS = 60;
+
+/**
  * Normalize a browser-delivered encrypted payload.
  *
- * The same blob arrives three ways: as the `u` query param on the local callback,
- * as a bare code copied off the platform's authorize page, and — when the user
- * grabs the address bar or surrounding page text — wrapped in a URL. Node's base64
- * decoder already tolerates base64url characters and whitespace, so only the URL
- * wrapper has to be unwrapped here.
+ * The same blob arrives four ways: as the `u` query param on the local callback, as a
+ * bare code copied off the platform's authorize page, as `u=<payload>` without a URL,
+ * and as the whole page text — which drags a label ("授权码：…", "Authorization code: …")
+ * and wrapping quotes along with it. Getting any of that wrong trips the GCM tag and
+ * looks like "the code is wrong", so be forgiving here instead of blaming the user.
  *
  * @param {string} input
  * @returns {string} payload, or "" when nothing usable was supplied
@@ -809,8 +819,25 @@ export function clearXiaomiMimoSession(state) {
 export function normalizeXiaomiMimoPayload(input) {
   let value = String(input ?? "").trim();
   if (!value) return "";
-  const wrapped = value.match(/[?&](?:u|code)=([^&\s]+)/);
-  if (wrapped) value = decodeURIComponent(wrapped[1]);
+
+  // A pasted URL/query — also covers a bare `u=<payload>` with no URL around it.
+  const wrapped = value.match(/(?:^|[?&])(?:u|code)=([^&\s]+)/);
+  if (wrapped) {
+    try {
+      value = decodeURIComponent(wrapped[1]);
+    } catch {
+      value = wrapped[1]; // A stray '%' must not become a 500
+    }
+  }
+
+  // A label copied together with the code. ASCII labels require a separator so a
+  // payload that merely starts with those letters is never eaten.
+  value = value
+    .replace(/^(?:授权码|验证码)\s*[:：=]?\s*/, "")
+    .replace(/^(?:authorization\s*code|code)\s*[:：=]\s*/i, "");
+  // Wrapping punctuation from copy buttons, markdown or quotes; and a trailing
+  // sentence punctuation mark from "…code. " style pages.
+  value = value.replace(/^[`'"“”‘’<([{]+/, "").replace(/[`'"“”‘’>)\]},.;:。，；：]+$/, "");
   return value.replace(/\s+/g, "");
 }
 
@@ -832,11 +859,14 @@ export function normalizeXiaomiMimoPayload(input) {
  *
  * @param {string} rawPayload
  * @returns {Promise<{ok: true, state: string, result: object}
- *   | {ok: false, error: "empty_payload"|"no_pending_session"|"missing_api_key"|"decrypt_failed"}>}
+ *   | {ok: false, error: "empty_payload"|"payload_too_short"|"no_pending_session"|"missing_api_key"|"decrypt_failed"}>}
  */
 export async function completeXiaomiMimoFlow(rawPayload) {
   const payload = normalizeXiaomiMimoPayload(rawPayload);
   if (!payload) return { ok: false, error: "empty_payload" };
+  if (payload.length < MIN_XIAOMI_MIMO_PAYLOAD_CHARS) {
+    return { ok: false, error: "payload_too_short" };
+  }
 
   const pending = [...xiaomiMimoSessions.entries()].filter(([, s]) => s.status === "pending");
   if (pending.length === 0) return { ok: false, error: "no_pending_session" };
@@ -867,7 +897,13 @@ export async function completeXiaomiMimoFlow(rawPayload) {
     return { ok: true, state, result: session.result };
   }
 
-  return { ok: false, error: openedWithoutKey ? "missing_api_key" : "decrypt_failed" };
+  const failed = openedWithoutKey ? "missing_api_key" : "decrypt_failed";
+  // Length + pending count only — the payload itself is a credential container and
+  // must never be written to a log.
+  console.warn(
+    `[xiaomi-mimo oauth] code rejected (${failed}): ${payload.length} chars, ${pending.length} pending session(s)`,
+  );
+  return { ok: false, error: failed };
 }
 
 /**
@@ -973,9 +1009,12 @@ export function stopXiaomiMimoProxy() {
   if (xiaomiMimoProxyTimeout) { clearTimeout(xiaomiMimoProxyTimeout); xiaomiMimoProxyTimeout = null; }
   if (xiaomiMimoProxyServer) { xiaomiMimoProxyServer.close(); xiaomiMimoProxyServer = null; }
   xiaomiMimoProxyPort = null;
-  // No callback can arrive once the listener is down, so drop every pending
-  // session — each holds an X25519 private key and they would otherwise
-  // accumulate for the process lifetime (one per /authorize call).
-  xiaomiMimoSessions.clear();
+  // Stop LISTENING only. The local listener is the automatic callback path; the
+  // platform's authorize page also shows a code for the user to paste by hand, and
+  // that path is still perfectly usable after this listener is gone. Dropping the
+  // pending keys here (as this used to) meant a pasted code failed with "this code
+  // does not match this sign-in" the moment the 5-minute listener timed out — i.e.
+  // exactly when a user gives up on the callback and reaches for the paste box.
+  // registerXiaomiMimoSession() is what bounds the map, by pendingTtlMs.
 }
 
