@@ -4,6 +4,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## v1.1.0 (2026-09-11)
 
+> **Version note**: v1.0.9 was skipped and never released — its planned content (Xiaomi MiMo desktop support, etc.) was folded into this release, which grew to minor-level scope; the version number moved straight to v1.1.0. No v1.0.9 tag or artifacts exist.
+
 ### ✨ New
 
 - **Xiaomi MiMo Desktop support (one provider, two ways to sign in)**: `xiaomi-mimo` now accepts both an sk- API key (cloud API) and a Xiaomi MiMo desktop-app account — the desktop-exclusive `mimo-x-pro-preview` / `mimo-x-flash-preview` only accept the account cookie, so an API key alone cannot reach them. Both credentials share one provider card; enable whichever you need.
