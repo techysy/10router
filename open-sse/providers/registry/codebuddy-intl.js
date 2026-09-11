@@ -63,6 +63,11 @@ export default {
   // A listed model may still fail for one account (gemini-3.5-flash answers the
   // live 429 / code 14003 "too many requests" on a rate-limited account) — that
   // is an account/quota state, not a catalog error, so it stays advertised.
+  // Same rule for gpt-6-astra, which answers 11134 "the model provider is
+  // temporarily unavailable, please retry later or switch" (HTTP 500) while the
+  // very same id has answered 200 — an upstream availability flap, not a catalog
+  // error. Only 11102 ("model service info not found") means the id is wrong.
+  // Error-code reference: docs/zh-CN/codebuddy-cn-error-codes.md.
   models: [
     { id: "hy4-preview", name: "Hy4-Preview", rateMultiplier: 0 },
     { id: "hy3", name: "Hy3", rateMultiplier: 0 },

@@ -10,13 +10,14 @@
 | `11101` | 400 | Non-stream chat request is currently not supported | **可修(代码)** | executor | 强制 `stream=true`(CodeBuddy 只支持流式)；10router 为非流式客户端本地聚合 |
 | `11128` | 400 | Illegal API invocation from an unapproved channel | **间歇风控** | 服务端 | 无配置可解；等锁恢复/降请求形态/换号。见下方专节 |
 | `11133` | 400 | the request parameters were rejected by the model provider (`model_param_invalid`) | **多为客户端/上游缺陷** | mirasim/上游 | 二分请求侧 vs 响应侧定位；workaround 换 hy4。见相关文档 |
+| `11134` | 500 | the model provider is temporarily unavailable, please retry later or switch… | **上游临时不可用** | 上游 | 等上游自报的 reset 时间；**不是目录错误，勿因此下架模型**。见下方专节 |
 | `11150` | 400 | reasoning effort value is not supported by the current model | **可修(代码)** | executor | DeepSeek 系不支持 `auto/off` → 请求侧 `auto→high`、`off→删字段`(commit `167f272f`) |
 | `11151` | 400 | assistant 带 reasoning | **上游格式** | 上游 | 上游对 assistant 消息携带 reasoning 的校验；规避请求形态 |
 | `6004` | 429 | 您的使用量已超出频率限制，将于…重置 | **配额限流** | 服务端 | 等 CodeBuddy 返回的 reset 时间自动恢复；正常配额消耗 |
 | `401` | 401 | 鉴权服务请求失败 | **token/网络** | 上游 | 多为一过性网络/鉴权超时，重试；持续则查 token 有效性 |
 | `402` | 402 | (billing) | **余额/额度** | 上游 | 账号余额或免费额度耗尽，充值/换号 |
 
-> 记忆口诀：**`11150`/`11101` = 代码可修；`11133` = 客户端序列化/上游格式（10router 多只能兜底）；`11128` = 服务端间歇风控（非 bug）；`6004`/`429` = 配额限流（等重置）。**
+> 记忆口诀：**`11150`/`11101` = 代码可修；`11133` = 客户端序列化/上游格式（10router 多只能兜底）；`11134` = 上游暂时不服务（**认得 id，勿下架**）；`11128` = 服务端间歇风控（非 bug）；`6004`/`429` = 配额限流（等重置）。**
 
 ## 二、各错误码详解与修复
 
@@ -49,6 +50,20 @@ CodeBuddy 对"请求参数不符合模型要求"的笼统表达（`extError.code
 1. **响应侧空 name（10router 可修）**：codebuddy 把一次工具调用拆成两条流式 tool_calls，后续 chunk 重复带 `function.name:""`。标准客户端用空 name 覆盖累积名 → `unknown tool ""` → 重发空名请求 → 11133。修复：`open-sse/utils/stream.js` PASSTHROUGH 分支删空 `name`(commit `48e39b44`)。
 2. **请求侧序列化丢 name（10router 无法修复）**：客户端(如 **mirasim** 内 dsh)自己把 assistant tool_calls 的 name 序列化丢空，10router 的 `ensureToolCallIds` 只补 `id` 不改 name → 空名已到 codebuddy。workaround：换 **hy4-preview**（mirasim 对其序列化正常），或 10router 返回友好错误。
 3. **多轮才触发**：单轮(15-17 MSG)正常，**多轮(54 MSG)** 后历史里出现 tool_calls/tool 响应不匹配才暴露。诊断手法：切**官方 DeepSeek** 复现拿清晰报错("assistant message with 'tool_calls' must be followed by tool messages…")定位真正根因。
+
+### 11134 — 模型提供方暂时不可用（上游临时状态，勿当目录问题）
+
+原文：`the model provider is temporarily unavailable, please retry later or switch [to another model]`，HTTP **500**。
+
+**2026-09-11 在 CodeBuddy 国际版观测到**：`gpt-6-astra` 连续 3 次均返回该码，而同一 id 早前探测过 **200** —— 即同一模型在"可用 / 暂不可用"之间摆动，是上游侧的临时状态，与 10router 的目录、鉴权、请求形态均无关。
+
+**判据（避免误删模型）**：目录级错误是 `11102`（`model service info not found`，**400**）—— 那是"上游不认这个 id"。`11134` 说明**上游认这个 id，只是暂时不服务它**。因此：
+
+- **不要**因为一时调不通就把模型从注册表删掉（同 `11102` 与 `11134` 的区别就是判据）；
+- 10router 侧按上游给的 reset 秒数做冷却/重试，或 fallback 到其它模型；
+- 与 `gemini-3.5-flash` 的 `429 / code 14003` 同类：**账号或上游的临时状态不算目录错误**（见 `open-sse/providers/registry/codebuddy-intl.js` 头部注释第 (2)/(3) 条旁的相关说明）。
+
+> 注：本文件以 CN 为主命名，但错误码空间是 CN/intl **共用**的（`11102`/`11133`/`11134` 两边都见过），故 intl 观测到的码也记在此处。
 
 ### 11150 — DeepSeek 系不支持 reasoning_effort auto/off（可修，已提交）
 
