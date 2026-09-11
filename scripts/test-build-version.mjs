@@ -26,7 +26,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -75,7 +75,7 @@ function lastRelease() {
 }
 
 /** Minimal semver compare, enough for `X.Y.Z[-test.N]`: <0, 0, >0. */
-function compareSemver(a, b) {
+export function compareSemver(a, b) {
   const parse = (v) => {
     const [core, ...pre] = v.split("-");
     return { nums: core.split(".").map(Number), pre: pre.join("-") };
@@ -112,11 +112,13 @@ function compareSemver(a, b) {
  * the version line — which is how a revert once threw away a finished fix. So
  * revert refuses unless every changed line in every file is a version line.
  */
+
+// Match the assignment itself, not the word "version": a script named
+// `test-version` (or any comment mentioning versions) would otherwise pass and be
+// discarded by the revert.
+export const VERSION_LINE = /^[+-]\s*(?:"version"\s*:\s*"|version\s*=)/;
+
 function assertVersionOnlyChanges() {
-  // Match the assignment itself, not the word "version": a script named
-  // `test-version` (or any comment mentioning versions) would otherwise pass and be
-  // discarded by the revert.
-  const VERSION_LINE = /^[+-]\s*(?:"version"\s*:\s*"|version\s*=)/;
   const offenders = [];
   for (const file of VERSION_FILES) {
     const diff = git(["diff", "-U0", "--", file]);
@@ -132,56 +134,61 @@ function assertVersionOnlyChanges() {
   }
 }
 
-const [, , arg] = process.argv;
+function main() {
+  const [, , arg] = process.argv;
 
-if (!arg || arg === "--check" || arg === "-c") {
-  const rows = VERSION_FILES.map((f) => `${f}=${readVersion(f)}`);
-  const dirty = git(["status", "--porcelain", "--", ...VERSION_FILES]).trim();
-  console.log(`release tag: ${lastRelease() || "(none)"}`);
-  console.log(rows.join("  "));
-  console.log(dirty ? "stamped (uncommitted)" : "clean");
-  process.exit(0);
-}
-
-if (arg === "--revert" || arg === "-r") {
-  assertVersionOnlyChanges();
-  const changed = VERSION_FILES.filter((f) => git(["status", "--porcelain", "--", f]).trim());
-  if (!changed.length) {
-    console.log("nothing to revert — no version stamp present");
+  if (!arg || arg === "--check" || arg === "-c") {
+    const rows = VERSION_FILES.map((f) => `${f}=${readVersion(f)}`);
+    const dirty = git(["status", "--porcelain", "--", ...VERSION_FILES]).trim();
+    console.log(`release tag: ${lastRelease() || "(none)"}`);
+    console.log(rows.join("  "));
+    console.log(dirty ? "stamped (uncommitted)" : "clean");
     process.exit(0);
   }
-  git(["checkout", "--", ...changed]);
-  console.log(`reverted: ${changed.join(", ")}`);
+
+  if (arg === "--revert" || arg === "-r") {
+    assertVersionOnlyChanges();
+    const changed = VERSION_FILES.filter((f) => git(["status", "--porcelain", "--", f]).trim());
+    if (!changed.length) {
+      console.log("nothing to revert — no version stamp present");
+      process.exit(0);
+    }
+    git(["checkout", "--", ...changed]);
+    console.log(`reverted: ${changed.join(", ")}`);
+    console.log(VERSION_FILES.map((f) => `${f}=${readVersion(f)}`).join("  "));
+    process.exit(0);
+  }
+
+  const target = arg;
+  const force = process.argv.includes("--force");
+  if (!/^\d+\.\d+\.\d+-test\.\d+$/.test(target) && !force) {
+    console.error(`refusing to stamp "${target}" — test builds must look like X.Y.Z-test.N (use --force to override)`);
+    process.exit(1);
+  }
+  const released = lastRelease();
+  if (released && compareSemver(target, released) <= 0) {
+    console.error(
+      `refusing to stamp "${target}" — not greater than the last release (${released}).\n` +
+        `A lower version makes the in-app updater offer a downgrade on the machine you are about to test.`,
+    );
+    process.exit(1);
+  }
+
+  const current = readVersion("package.json");
+  if (current === target) {
+    console.log(`already stamped ${target}`);
+    process.exit(0);
+  }
+  for (const file of ["package.json", "cli/package.json", "desktop/package.json"]) {
+    writeJsonVersion(file, readVersion(file), target);
+  }
+  // Keep fnOS in lockstep with npm/desktop; the same script the fpk build runs.
+  execFileSync(process.execPath, [join(ROOT, "scripts", "sync-manifest-version.mjs")], { cwd: ROOT });
+
+  console.log(`stamped ${current} -> ${target} (${VERSION_FILES.length} files, uncommitted)`);
   console.log(VERSION_FILES.map((f) => `${f}=${readVersion(f)}`).join("  "));
-  process.exit(0);
+  console.log(`remember: node scripts/test-build-version.mjs --revert   # after testing`);
 }
 
-const target = arg;
-const force = process.argv.includes("--force");
-if (!/^\d+\.\d+\.\d+-test\.\d+$/.test(target) && !force) {
-  console.error(`refusing to stamp "${target}" — test builds must look like X.Y.Z-test.N (use --force to override)`);
-  process.exit(1);
-}
-const released = lastRelease();
-if (released && compareSemver(target, released) <= 0) {
-  console.error(
-    `refusing to stamp "${target}" — not greater than the last release (${released}).\n` +
-      `A lower version makes the in-app updater offer a downgrade on the machine you are about to test.`,
-  );
-  process.exit(1);
-}
-
-const current = readVersion("package.json");
-if (current === target) {
-  console.log(`already stamped ${target}`);
-  process.exit(0);
-}
-for (const file of ["package.json", "cli/package.json", "desktop/package.json"]) {
-  writeJsonVersion(file, readVersion(file), target);
-}
-// Keep fnOS in lockstep with npm/desktop; the same script the fpk build runs.
-execFileSync(process.execPath, [join(ROOT, "scripts", "sync-manifest-version.mjs")], { cwd: ROOT });
-
-console.log(`stamped ${current} -> ${target} (${VERSION_FILES.length} files, uncommitted)`);
-console.log(VERSION_FILES.map((f) => `${f}=${readVersion(f)}`).join("  "));
-console.log(`remember: node scripts/test-build-version.mjs --revert   # after testing`);
+// Only when run as a CLI — importing this module (tests) must not touch the repo.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
