@@ -31,6 +31,16 @@ npm run cli:pack       # build + npm pack from root
 cd cli && npm run dev  # nodemon watch
 ```
 
+Local test build (stamp a throwaway version, build, replace in place, verify):
+```bash
+npm run test-version 1.1.0-test.1   # 三处 package.json + fnos manifest 同号, uncommitted
+npm run test-version -- --check     # 看当前状态; --revert 回退 (refuses if those files carry other changes)
+```
+Never rebuild with a **released** version number — that is how 1.0.8 ended up with three different payloads
+under one version. Full flow (Windows desktop / fnOS fpk), verification method and traps:
+`docs/zh-CN/local-build-and-verify.md`. Note `ELECTRON_RUN_AS_NODE=1` in your shell makes `10Router.exe`
+run as plain Node (no tray, no logs, silent exit) — looks exactly like a broken build.
+
 Tests (vitest, in `tests/`, an **independent** ESM package — not wired into root `npm test`):
 ```bash
 npm install                             # ROOT deps first — tests import from src/ which needs `open`, `undici`, etc.
