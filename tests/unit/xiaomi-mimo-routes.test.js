@@ -104,6 +104,26 @@ describe("xiaomi-mimo wiring in the generic oauth route", () => {
   it("stops the proxy on stop-proxy", () => {
     expect(src()).toContain('else if (provider === "xiaomi-mimo") stopXiaomiMimoProxy();');
   });
+
+  it("accepts a pasted authorization code and reports the session it opened", () => {
+    expect(src()).toContain('if (action === "submit-code")');
+    expect(src()).toContain("completeXiaomiMimoFlow(body?.code)");
+    // The payload carries no state, so the client is told which session matched and
+    // then finishes through /exchange — the sk- key itself must not be echoed back.
+    expect(src()).toContain("state: outcome.state");
+    expect(src()).toMatch(/result: \{ uid: outcome\.result\.uid, baseUrl: outcome\.result\.baseUrl \}/);
+    expect(src()).not.toMatch(/accessToken: outcome\.result\.accessToken/);
+  });
+
+  it("serves submit-code for xiaomi-mimo only", () => {
+    const source = src();
+    const branch = source.slice(
+      source.indexOf('if (action === "submit-code")'),
+      source.indexOf('if (action === "exchange")'),
+    );
+    expect(branch).toContain('if (provider !== "xiaomi-mimo")');
+    expect(branch).toContain('status: 400');
+  });
 });
 
 describe("xiaomi-mimo dashboard wiring", () => {
@@ -131,6 +151,26 @@ describe("xiaomi-mimo dashboard wiring", () => {
     const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
     expect(modal).toMatch(/Desktop/);
     expect(modal).toContain("hasDesktopSession");
+  });
+
+  it("offers a paste-code field for the platform's code page", () => {
+    const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
+    // The platform may show a code instead of calling our localhost redirect, so
+    // "Check Again" on its own would dead-end the user on that page.
+    expect(modal).toContain("/api/oauth/xiaomi-mimo/submit-code");
+    expect(modal).toContain("Submit Code");
+    expect(modal).toContain("Check Again");
+    expect(modal).toContain("<textarea");
+    // The code carries no state, so the flow finishes with the session the server
+    // reported rather than assuming the one the client generated.
+    expect(modal).toContain("finishExchange(data.state || oauthState)");
+  });
+
+  it("never lets the sk- key itself reach the modal", () => {
+    const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
+    // Local-credential import uses the auto-import `apiKey`; the browser flow only
+    // ever sees the redacted { uid, baseUrl } and is applied server-side by /exchange.
+    expect(modal).not.toContain("accessToken");
   });
 
   it("surfaces the locked cookie store as an actionable step", () => {

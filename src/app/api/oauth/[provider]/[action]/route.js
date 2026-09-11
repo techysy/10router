@@ -38,6 +38,7 @@ import {
   registerXiaomiMimoSession,
   getXiaomiMimoSessionStatus,
   clearXiaomiMimoSession,
+  completeXiaomiMimoFlow,
 } from "@/lib/oauth/utils/server";
 import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
@@ -306,6 +307,39 @@ export async function POST(request, { params }) {
       else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier });
       else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });
       return NextResponse.json({ success: ok });
+    }
+
+    if (action === "submit-code") {
+      // Xiaomi MiMo: the platform's authorize page may SHOW A CODE instead of calling
+      // our localhost redirect, so the user has to paste it back. That code is the very
+      // same ECDH+AES-GCM payload the callback carries, so it goes through the same
+      // decrypt-and-store path (see completeXiaomiMimoFlow).
+      if (provider !== "xiaomi-mimo") {
+        return NextResponse.json({ error: "submit-code only supported for xiaomi-mimo" }, { status: 400 });
+      }
+
+      const outcome = await completeXiaomiMimoFlow(body?.code);
+      if (!outcome.ok) {
+        const messages = {
+          empty_payload: "Paste the authorization code first.",
+          no_pending_session: "No active login session. Start the sign-in again.",
+          decrypt_failed: "Could not read that code — copy it again from the sign-in page.",
+          missing_api_key: "That code did not contain an API key.",
+        };
+        return NextResponse.json(
+          { status: "error", error: messages[outcome.error] || "Could not read that code." },
+          { status: 400 },
+        );
+      }
+
+      // The payload carries no state, so report which session matched: the client needs
+      // it for /exchange, which applies the sk- key server-side (it never reaches the
+      // browser — see the poll-status branch for the same redaction rule).
+      return NextResponse.json({
+        status: "done",
+        state: outcome.state,
+        result: { uid: outcome.result.uid, baseUrl: outcome.result.baseUrl },
+      });
     }
 
     if (action === "exchange") {

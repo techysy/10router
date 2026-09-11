@@ -23,12 +23,15 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   const [error, setError] = useState(null);
   const [oauthUrl, setOauthUrl] = useState(null);
   const [oauthState, setOauthState] = useState(null);
+  const [authCode, setAuthCode] = useState("");
+  const [submittingCode, setSubmittingCode] = useState(false);
 
   const detect = async () => {
     setPhase("detecting");
     setError(null);
     setDetectResult(null);
     setOauthUrl(null);
+    setAuthCode("");
     setDesktopLocked(false);
 
     const res = await fetch("/api/oauth/xiaomi-mimo/auto-import");
@@ -53,6 +56,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       setError(null);
       setDetectResult(null);
       setOauthUrl(null);
+      setAuthCode("");
       setDesktopLocked(false);
 
       try {
@@ -113,6 +117,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   // Start browser OAuth fallback
   const handleStartOAuth = async () => {
     setError(null);
+    setAuthCode("");
     try {
       const state = crypto.randomUUID();
       const res = await fetch(`/api/oauth/xiaomi-mimo/authorize?state=${state}`);
@@ -129,6 +134,52 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     }
   };
 
+  // Finish a completed session: the server applies the sk- key and creates the
+  // connection, so the credential itself never passes through the browser.
+  const finishExchange = async (state) => {
+    const exRes = await fetch("/api/oauth/xiaomi-mimo/exchange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    const exData = await exRes.json();
+    if (!exData.success) {
+      throw new Error(exData.error || "Exchange failed");
+    }
+    onSuccess?.(exData.connection);
+    onClose();
+  };
+
+  // Submit a pasted authorization code. The platform's page shows a code instead of
+  // calling our localhost redirect; that code is the very same encrypted payload the
+  // callback would carry, so the server decrypts it against the pending session. It
+  // carries no state either, so the response reports which session it opened.
+  const handleSubmitCode = async () => {
+    const code = authCode.trim();
+    if (!code) {
+      setError("Paste the authorization code first.");
+      return;
+    }
+    setSubmittingCode(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/oauth/xiaomi-mimo/submit-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "done") {
+        throw new Error(data.error || "Could not read that code.");
+      }
+      await finishExchange(data.state || oauthState);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmittingCode(false);
+    }
+  };
+
   // Poll OAuth result, then exchange it for a connection
   const handlePollOAuth = async () => {
     if (!oauthState) return;
@@ -138,18 +189,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       const data = await res.json();
 
       if (data.status === "done" && data.result) {
-        const exRes = await fetch("/api/oauth/xiaomi-mimo/exchange", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: oauthState }),
-        });
-        const exData = await exRes.json();
-        if (exData.success) {
-          onSuccess?.(exData.connection);
-          onClose();
-        } else {
-          throw new Error(exData.error || "Exchange failed");
-        }
+        await finishExchange(oauthState);
       } else if (data.status === "error") {
         throw new Error(data.error || "OAuth failed");
       } else {
@@ -267,17 +307,46 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
               <div className="flex flex-col gap-2">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Browser opened. Complete the Xiaomi sign-in, then click <strong>Check Again</strong>.
+                    Browser opened. Complete the Xiaomi sign-in there.
+                  </p>
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mt-1 opacity-80">
+                    The page may show an authorization code — paste it below. If it came back
+                    automatically instead, click <strong>Check Again</strong>.
                   </p>
                 </div>
+
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Authorization Code</label>
+                  <textarea
+                    value={authCode}
+                    onChange={(e) => setAuthCode(e.target.value)}
+                    placeholder="Paste the authorization code shown in the browser"
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg bg-background focus:outline-none focus:border-primary resize-none"
+                  />
+                </div>
+
                 <div className="flex gap-2">
-                  <Button onClick={handlePollOAuth} fullWidth>
+                  <Button
+                    onClick={handleSubmitCode}
+                    disabled={submittingCode || !authCode.trim()}
+                    fullWidth
+                  >
+                    {submittingCode ? "Checking..." : "Submit Code"}
+                  </Button>
+                  <Button onClick={handlePollOAuth} variant="outline" fullWidth>
                     Check Again
                   </Button>
-                  <Button onClick={onClose} variant="ghost" fullWidth>
-                    Cancel
-                  </Button>
                 </div>
+                <Button onClick={onClose} variant="ghost" fullWidth>
+                  Cancel
+                </Button>
               </div>
             )}
           </>

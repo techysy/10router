@@ -768,9 +768,10 @@ const xiaomiMimoSessions = new Map();
 
 export function registerXiaomiMimoSession({ state, privateKeyDer }) {
   if (!state || !privateKeyDer) return false;
-  // Bound the map: each entry holds an X25519 private key, and a flow that is
-  // never completed would otherwise retain it for the process lifetime.
-  const cutoff = Date.now() - XIAOMI_MIMO_CONFIG.timeoutMs;
+  // Bound the map: each entry holds an X25519 private key. The window is the
+  // PASTE-CODE window, not the callback window — the platform's authorize page makes
+  // the user copy a code by hand, so a key has to outlive the local listener.
+  const cutoff = Date.now() - XIAOMI_MIMO_CONFIG.pendingTtlMs;
   for (const [key, s] of xiaomiMimoSessions) {
     if (s.createdAt < cutoff) xiaomiMimoSessions.delete(key);
   }
@@ -791,6 +792,82 @@ export function getXiaomiMimoSessionStatus(state) {
 
 export function clearXiaomiMimoSession(state) {
   xiaomiMimoSessions.delete(state);
+}
+
+/**
+ * Normalize a browser-delivered encrypted payload.
+ *
+ * The same blob arrives three ways: as the `u` query param on the local callback,
+ * as a bare code copied off the platform's authorize page, and — when the user
+ * grabs the address bar or surrounding page text — wrapped in a URL. Node's base64
+ * decoder already tolerates base64url characters and whitespace, so only the URL
+ * wrapper has to be unwrapped here.
+ *
+ * @param {string} input
+ * @returns {string} payload, or "" when nothing usable was supplied
+ */
+export function normalizeXiaomiMimoPayload(input) {
+  let value = String(input ?? "").trim();
+  if (!value) return "";
+  const wrapped = value.match(/[?&](?:u|code)=([^&\s]+)/);
+  if (wrapped) value = decodeURIComponent(wrapped[1]);
+  return value.replace(/\s+/g, "");
+}
+
+/**
+ * Decrypt a payload against every pending session and store the credential in
+ * whichever session's private key opened it.
+ *
+ * Both entry points funnel through here:
+ *   • the local callback proxy (`?u=`), and
+ *   • a pasted authorization code (POST …/submit-code).
+ *
+ * MiMo Desktop's own login engine does the same thing (its `loginCode()` walks up
+ * to 8 pending keys), because the platform never echoes a state: attribution IS
+ * "which pending key decrypts it", so every key must be tried.
+ *
+ * A failure deliberately leaves every session untouched — with several logins in
+ * flight one stray payload must not abort the others, and a synchronous caller
+ * (the paste route) reports the error directly instead.
+ *
+ * @param {string} rawPayload
+ * @returns {Promise<{ok: true, state: string, result: object}
+ *   | {ok: false, error: "empty_payload"|"no_pending_session"|"missing_api_key"|"decrypt_failed"}>}
+ */
+export async function completeXiaomiMimoFlow(rawPayload) {
+  const payload = normalizeXiaomiMimoPayload(rawPayload);
+  if (!payload) return { ok: false, error: "empty_payload" };
+
+  const pending = [...xiaomiMimoSessions.entries()].filter(([, s]) => s.status === "pending");
+  if (pending.length === 0) return { ok: false, error: "no_pending_session" };
+
+  const { decryptCallback } = await import("../providers/xiaomi-mimo.js");
+  let openedWithoutKey = false;
+
+  for (const [state, session] of pending) {
+    let decrypted;
+    try {
+      decrypted = decryptCallback(session.privateKeyDer, payload);
+    } catch {
+      continue; // Wrong key for this session — try the next one
+    }
+    if (!decrypted.sk) {
+      // The AES-GCM tag verified, so this IS our payload — it just is not a
+      // credential. Report that precisely instead of blaming the key.
+      openedWithoutKey = true;
+      continue;
+    }
+
+    session.status = "done";
+    session.result = {
+      uid: decrypted.uid,
+      accessToken: decrypted.sk,
+      baseUrl: decrypted.url || XIAOMI_MIMO_CONFIG.defaultBaseUrl,
+    };
+    return { ok: true, state, result: session.result };
+  }
+
+  return { ok: false, error: openedWithoutKey ? "missing_api_key" : "decrypt_failed" };
 }
 
 /**
@@ -825,8 +902,8 @@ export function startXiaomiMimoProxy() {
         return;
       }
 
-      // Try each pending session's private key — the callback URL carries no
-      // state param, so we attempt decryption with every pending key.
+      // The callback URL carries no state param, so decryption is attributed purely by
+      // "which pending key opens the payload" — see completeXiaomiMimoFlow.
       const pendingSessions = [...xiaomiMimoSessions.entries()]
         .filter(([, s]) => s.status === "pending");
 
@@ -837,37 +914,15 @@ export function startXiaomiMimoProxy() {
       }
 
       try {
-        const { decryptCallback } = await import("../providers/xiaomi-mimo.js");
-        let result = null;
-        let matchedState = null;
-
-        for (const [state, session] of pendingSessions) {
-          try {
-            result = decryptCallback(session.privateKeyDer, u);
-            matchedState = state;
-            break;
-          } catch {
-            // Wrong key for this session — try next
-          }
-        }
-
-        if (!result || !matchedState) {
-          throw new Error("Could not decrypt with any pending session key");
-        }
-
-        if (!result.sk) {
-          throw new Error("Decrypted payload missing sk (API key)");
-        }
-
-        // Store result only in the matched session
-        const session = xiaomiMimoSessions.get(matchedState);
-        if (session) {
-          session.status = "done";
-          session.result = {
-            uid: result.uid,
-            accessToken: result.sk,
-            baseUrl: result.url || XIAOMI_MIMO_CONFIG.defaultBaseUrl,
-          };
+        const outcome = await completeXiaomiMimoFlow(u);
+        if (!outcome.ok) {
+          throw new Error(
+            outcome.error === "no_pending_session"
+              ? "No active OAuth session. Please restart the login flow."
+              : outcome.error === "missing_api_key"
+                ? "Decrypted payload missing sk (API key)"
+                : "Could not decrypt with any pending session key",
+          );
         }
 
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });

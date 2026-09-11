@@ -142,7 +142,12 @@ export const XIAOMI_MIMO_CONFIG = {
   defaultBaseUrl: "https://api.xiaomimimo.com/v1",
   kn: "mimocode",
   callbackPath: "/",
-  timeoutMs: 300000, // 5 minutes
+  timeoutMs: 300000, // 5 minutes — how long the local callback listener waits
+  // How long a pending private key stays usable for a PASTED authorization code.
+  // The platform's code page makes the user copy the code by hand, so the local
+  // 5-minute window is far too short; MiMo Desktop keeps its own pending keys for
+  // 24 h for exactly this reason (pendingKeyTtlMs in its login engine).
+  pendingTtlMs: 24 * 60 * 60 * 1000,
 };
 
 export const TRAE_CONFIG = {
