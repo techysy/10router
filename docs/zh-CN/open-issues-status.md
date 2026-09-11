@@ -15,8 +15,9 @@
 | [#9](https://github.com/techysy/10router/issues/9) | 安全审计反馈（v1.0.7）11 项清单 | ✅ 1 项已修 / 🟡 4 项部分 / ❌ 6 项未修 | ⏸ **保持 open**（追踪单） |
 | [#10](https://github.com/techysy/10router/issues/10) | 内容过滤（`finish_reason: "sensitive"`、0 输出）时重试 combo fallback | 诊断正确，**未实现**；设计要点见 §3 | ⏸ **保持 open**（功能请求） |
 | [#13](https://github.com/techysy/10router/issues/13) | 小米桌面版专属模型未登录时抛原始 502，且被误判为限流进 30s 冷却 | 根因链已逐环验证；需错误分类 + 中文提示 + 事前徽章三件事 | ⏸ **open**（下版待办，见 §4） |
+| [#14](https://github.com/techysy/10router/issues/14) | 新增连接后禁用态要刷新才可见；且禁用区无 Test 按钮 | 后端**本就支持**测被禁用模型（禁用表只做可见性过滤）；问题在 dashboard 不刷禁用态 + 禁用区只给裸 chip | ⏸ **open**（见 §5） |
 
-**为什么 #9 / #10 / #13 不关**：#9 有 2 项高危（#2 凭据明文、#3 默认口令）确实未动，关掉等于把问题埋掉；#10 是可实现但尚未实现的功能请求，留作 backlog 条目；#13 是新记的下版待办。
+**为什么 #9 / #10 / #13 / #14 不关**：#9 有 2 项高危（#2 凭据明文、#3 默认口令）确实未动，关掉等于把问题埋掉；#10 是可实现但尚未实现的功能请求，留作 backlog 条目；#13 / #14 是新记的下版待办。
 
 ---
 
@@ -177,7 +178,40 @@ HTTP 502: [xiaomi-mimo/mimo-x-flash-preview] [502]: Xiaomi MiMo account session 
 
 ---
 
-## 5. 关联：`gpt-6-astra` 倍率修正（`1b962154`，当时未推送）
+## 5. Issue #14 —— 「全禁用 + 逐个启用」的体验断层
+
+两个咬在一起的问题：
+
+**A（真 bug）新增连接后禁用态要刷新才可见。** 服务端在该 provider 的**第一个连接**建立时会批量禁用全部内置 LLM 模型（`src/lib/db/repos/connectionsRepo.js:198-208`，`isFirstConnection` 定义在 `:108-111`），但 dashboard 的两条新增路径都**只刷连接、不刷禁用列表**（单条：`page.js:996 handleSaveApiKey` 只 `await fetchConnections()`；批量：`page.js:2049 onBulkDone={fetchConnections}`），而挂载时是两者都刷（`page.js:602-605`）—— 所以刷新页面就对了。后果：界面显示「全部启用」，但 `/v1/models` 对客户端什么也不返回（读的是同一份禁用表），用户无从判断问题在哪。
+
+**B（体验断层）刷新之后的禁用区是个死胡同。** 禁用区渲染的是裸 chip（`page.js:1464-1474`）：只有 `+` 图标与原始 id，唯一动作是「恢复」。对比启用区的 `ModelRow`，它**丢掉了全部信息与全部动作**：
+
+| | 启用区（`ModelRow`） | 禁用区（裸 chip） |
+|---|---|---|
+| 显示名 / 容量徽章 / 思考后缀 | ✅ | ❌ |
+| 积分倍率 / `free` 促销徽章 | ✅ | ❌ |
+| **Test 按钮** | ✅ | ❌ |
+| 主操作 | 禁用 | 启用 |
+
+于是唯一评测路径变成「先启用 → 再测 → 不好再禁用」—— **为了让一个模型可测，必须先把它对客户端暴露**。
+
+### 关键结论：后端本就支持测被禁用的模型
+
+全仓 `getDisabledModels` / `isDisabled` 的消费者只有四处（禁用表 CRUD、`/api/models`、`/api/v1/models`、首次连接时写入），**`src/sse/handlers/chat.js` 与 `open-sse/` 里零命中** —— 禁用表**只做可见性过滤，不在请求时强制**，知道 id 照样能调用。测试链路（`handleTestModel` → `/api/models/test` → `ping.js` → loopback `/v1/...`）也不查禁用表，且按钮显示条件本就与禁用无关（`page.js:1354,1380`）。
+
+→ **所以 B 是纯 UI 缺口，服务端不需要任何改动。**
+
+### 建议修法
+
+- **A. 补刷新**（小，先做）：两条路径都改成同时刷 `fetchConnections()` + `fetchDisabledModels()`，最好抽一个 `refreshAfterConnectionChange()`；按仓库惯例用**源码文本断言**加守卫用例。
+- **B. 禁用区复用 `ModelRow`**：保留显示名/徽章并接上 `onTest`，主操作从「✕ 禁用」变「+ 启用」。
+- **C. 批量评测**（加分）：给禁用区一个「测试全部」，结果直接标在 chip 上（现有 `testStatus` 着色与 `oneByOne` 结果集已具备）。首次添加供应商时「20+ 个模型逐个点」是这个默认姿势最大的时间成本。
+
+详见 https://github.com/techysy/10router/issues/14
+
+---
+
+## 6. 关联：`gpt-6-astra` 倍率修正（`1b962154`，当时未推送）
 
 | | |
 |---|---|
@@ -192,7 +226,7 @@ HTTP 502: [xiaomi-mimo/mimo-x-flash-preview] [502]: Xiaomi MiMo account session 
 
 ---
 
-## 6. 待办清单
+## 7. 待办清单
 
 - [ ] 推送 `1b962154`（未推送，1 个提交；推送只触发 CI，不发版）
 - [ ] #9-3 去掉默认口令兜底 + 首次强制设密（小，收益最大）
@@ -203,6 +237,9 @@ HTTP 502: [xiaomi-mimo/mimo-x-flash-preview] [502]: Xiaomi MiMo account session 
 - [ ] #9-8 会话时长与限流持久化
 - [ ] #10 内容过滤重试（等原始 SSE 尾部定论）
 - [ ] #13 小米桌面版专属模型：错误分类（不进冷却）+ 中文可执行提示 + 事前徽章（见 §4）
+- [ ] #14-A 新增连接后补刷禁用列表（**小，收益直接**：现在 dashboard 会在禁用态上“说谎”）
+- [ ] #14-B 禁用区复用 `ModelRow`（带 Test + 保留徽章），支持「先测再启用」
+- [ ] #14-C 禁用区「测试全部」批量评测（可选）
 - [ ] 决定 `gpt-6-astra` 修正的发布方式（并入下版 / 补丁版）
 
 ---
