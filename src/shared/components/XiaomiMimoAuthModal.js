@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button } from "@/shared/components";
+import { translate } from "@/i18n/runtime";
 
 /**
  * Xiaomi MiMo Auth Modal
@@ -42,7 +43,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     } else {
       setPhase("not-found");
       setDesktopLocked(Boolean(data.desktopLocked));
-      setError(data.error || "Xiaomi MiMo Desktop credentials not found on this machine.");
+      setError(translate(data.error || "Xiaomi MiMo Desktop credentials not found on this machine."));
     }
   };
 
@@ -70,12 +71,12 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
         } else {
           setPhase("not-found");
           setDesktopLocked(Boolean(data.desktopLocked));
-          setError(data.error || "Xiaomi MiMo Desktop credentials not found on this machine.");
+          setError(translate(data.error || "Xiaomi MiMo Desktop credentials not found on this machine."));
         }
       } catch {
         if (!cancelled) {
           setPhase("not-found");
-          setError("Failed to read local Xiaomi MiMo Desktop credentials.");
+          setError(translate("Failed to read local Xiaomi MiMo Desktop credentials."));
         }
       }
     })();
@@ -103,7 +104,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Import failed");
+        throw new Error(translate(data.error || "Import failed"));
       }
 
       onSuccess?.(data.connection);
@@ -127,7 +128,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
         setOauthState(data.state);
         window.open(data.authorizeUrl, "_blank", "width=600,height=700");
       } else {
-        throw new Error(data.error || "Failed to start OAuth");
+        throw new Error(translate(data.error || "Failed to start OAuth"));
       }
     } catch (err) {
       setError(err.message);
@@ -144,7 +145,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     });
     const exData = await exRes.json();
     if (!exData.success) {
-      throw new Error(exData.error || "Exchange failed");
+      throw new Error(translate(exData.error || "Exchange failed"));
     }
     onSuccess?.(exData.connection);
     onClose();
@@ -157,7 +158,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   const handleSubmitCode = async () => {
     const code = authCode.trim();
     if (!code) {
-      setError("Paste the authorization code first.");
+      setError(translate("Paste the authorization code first."));
       return;
     }
     setSubmittingCode(true);
@@ -170,7 +171,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       });
       const data = await res.json();
       if (!res.ok || data.status !== "done") {
-        throw new Error(data.error || "Could not read that code.");
+        throw new Error(translate(data.error || "Could not read that code."));
       }
       await finishExchange(data.state || oauthState);
     } catch (err) {
@@ -191,9 +192,9 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       if (data.status === "done" && data.result) {
         await finishExchange(oauthState);
       } else if (data.status === "error") {
-        throw new Error(data.error || "OAuth failed");
+        throw new Error(translate(data.error || "OAuth failed"));
       } else {
-        setError("Authorization not completed yet. Finish in the browser, then click Check Again.");
+        setError(translate("Authorization not completed yet. Finish in the browser, then click Check Again."));
       }
     } catch (err) {
       setError(err.message);
@@ -201,7 +202,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Connect Xiaomi MiMo" onClose={onClose}>
+    <Modal isOpen={isOpen} title={translate("Connect Xiaomi MiMo")} onClose={onClose}>
       <div className="flex flex-col gap-4">
         {/* Detecting */}
         {phase === "detecting" && (
@@ -211,9 +212,9 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                 progress_activity
               </span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Reading local credentials...</h3>
+            <h3 className="text-lg font-semibold mb-2">{translate("Reading local credentials...")}</h3>
             <p className="text-sm text-text-muted">
-              Checking Xiaomi MiMo Desktop&apos;s local profile (auth.json + cookie store)
+              {translate("Checking Xiaomi MiMo Desktop's local profile (auth.json + cookie store)")}
             </p>
           </div>
         )}
@@ -225,16 +226,17 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
               <div className="flex gap-2">
                 <span className="material-symbols-outlined text-green-600 dark:text-green-400">check_circle</span>
                 <div className="text-sm text-green-800 dark:text-green-200">
-                  <p className="font-medium">Xiaomi MiMo Desktop credentials found!</p>
+                  <p className="font-medium">{translate("Xiaomi MiMo Desktop credentials found!")}</p>
                   <p className="mt-1 opacity-80">
-                    UID: {detectResult.uid || "—"} · Source: {detectResult.source?.split(/[\\/]/).pop()}
+                    {translate("UID")}: {detectResult.uid || "—"} · {translate("Source")}:{" "}
+                    {detectResult.source?.split(/[\\/]/).pop()}
                   </p>
                   <p className="mt-1 opacity-80">
                     {detectResult.hasDesktopSession
-                      ? "Desktop account session detected — Preview models will be available."
+                      ? translate("Desktop account session detected — Preview models will be available.")
                       : detectResult.desktopLocked
-                        ? "Desktop is running and is holding its credential store — quit it to unlock the Preview models (the API key alone covers the cloud models)."
-                        : "No Desktop account session found — the API key alone is enough for the cloud models."}
+                        ? translate("Desktop is running and is holding its credential store — quit it to unlock the Preview models (the API key alone covers the cloud models).")
+                        : translate("No Desktop account session found — the API key alone is enough for the cloud models.")}
                   </p>
                 </div>
               </div>
@@ -248,10 +250,10 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
 
             <div className="flex gap-2">
               <Button onClick={handleImport} fullWidth>
-                Connect with Local Credentials
+                {translate("Connect with Local Credentials")}
               </Button>
               <Button onClick={onClose} variant="ghost" fullWidth>
-                Cancel
+                {translate("Cancel")}
               </Button>
             </div>
           </>
@@ -265,7 +267,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                 progress_activity
               </span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Connecting...</h3>
+            <h3 className="text-lg font-semibold mb-2">{translate("Connecting...")}</h3>
           </div>
         )}
 
@@ -277,14 +279,14 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                 <span className="material-symbols-outlined text-amber-600 dark:text-amber-400">info</span>
                 <div className="text-sm text-amber-800 dark:text-amber-200">
                   <p className="font-medium">
-                    {desktopLocked ? "Quit Xiaomi MiMo Desktop and retry" : "Local credentials not found"}
+                    {desktopLocked ? translate("Quit Xiaomi MiMo Desktop and retry") : translate("Local credentials not found")}
                   </p>
                   <p className="mt-1 opacity-80">{error}</p>
                   <p className="mt-2 opacity-80">
                     {desktopLocked
-                      ? "The desktop app keeps an exclusive lock on its credential store while it runs."
-                      : "Make sure Xiaomi MiMo Desktop is installed and you are signed in, then retry."}{" "}
-                    Or sign in via browser below.
+                      ? translate("The desktop app keeps an exclusive lock on its credential store while it runs.")
+                      : translate("Make sure Xiaomi MiMo Desktop is installed and you are signed in, then retry.")}{" "}
+                    {translate("Or sign in via browser below.")}
                   </p>
                 </div>
               </div>
@@ -297,21 +299,21 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                   variant="outline"
                   fullWidth
                 >
-                  Retry Local Detect
+                  {translate("Retry Local Detect")}
                 </Button>
                 <Button onClick={handleStartOAuth} fullWidth>
-                  Sign in via Browser
+                  {translate("Sign in via Browser")}
                 </Button>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Browser opened. Complete the Xiaomi sign-in there.
+                    {translate("Browser opened. Complete the Xiaomi sign-in there.")}
                   </p>
                   <p className="text-sm text-blue-800 dark:text-blue-200 mt-1 opacity-80">
-                    The page may show an authorization code — paste it below. If it came back
-                    automatically instead, click <strong>Check Again</strong>.
+                    {translate("The page may show an authorization code — paste it below. If it came back automatically instead, click")}{" "}
+                    <strong>{translate("Check Again")}</strong>.
                   </p>
                 </div>
 
@@ -322,11 +324,11 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Authorization Code</label>
+                  <label className="block text-sm font-medium mb-2">{translate("Authorization Code")}</label>
                   <textarea
                     value={authCode}
                     onChange={(e) => setAuthCode(e.target.value)}
-                    placeholder="Paste the authorization code shown in the browser"
+                    placeholder={translate("Paste the authorization code shown in the browser")}
                     rows={3}
                     className="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg bg-background focus:outline-none focus:border-primary resize-none"
                   />
@@ -338,14 +340,14 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                     disabled={submittingCode || !authCode.trim()}
                     fullWidth
                   >
-                    {submittingCode ? "Checking..." : "Submit Code"}
+                    {submittingCode ? translate("Checking...") : translate("Submit Code")}
                   </Button>
                   <Button onClick={handlePollOAuth} variant="outline" fullWidth>
-                    Check Again
+                    {translate("Check Again")}
                   </Button>
                 </div>
                 <Button onClick={onClose} variant="ghost" fullWidth>
-                  Cancel
+                  {translate("Cancel")}
                 </Button>
               </div>
             )}

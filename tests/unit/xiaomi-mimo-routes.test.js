@@ -173,6 +173,21 @@ describe("xiaomi-mimo dashboard wiring", () => {
     expect(modal).not.toContain("accessToken");
   });
 
+  it("translates every user-visible string it renders", () => {
+    const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
+    expect(modal).toContain('import { translate } from "@/i18n/runtime"');
+
+    // Every key the modal asks for must exist in the Chinese locales, otherwise
+    // translate() silently falls back to English and the UI ships half-translated.
+    const keys = [...modal.matchAll(/translate\(\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(keys.length).toBeGreaterThan(20);
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const map = JSON.parse(read(`public/i18n/literals/${locale}.json`));
+      const missing = [...new Set(keys)].filter((k) => !(k in map));
+      expect(missing, `${locale} is missing: ${missing.join(" | ")}`).toEqual([]);
+    }
+  });
+
   it("surfaces the locked cookie store as an actionable step", () => {
     const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
     expect(modal).toContain("desktopLocked");
