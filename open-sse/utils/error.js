@@ -55,6 +55,28 @@ export async function writeStreamError(writer, statusCode, message) {
  * @param {object} [executor] - Optional executor with parseError() override for provider-specific parsing
  * @returns {Promise<{statusCode: number, message: string, resetsAtMs?: number}>}
  */
+
+// Google surfaces (Gemini Code Assist / Antigravity cloudcode-pa) answer a flagged
+// account with 403 VALIDATION_REQUIRED and bury the only actionable part — a one-click
+// "Verify your account" URL — inside the error JSON (BaseExecutor.parseError passes the
+// raw body through verbatim). Surface the URL instead of the JSON wall.
+const VALIDATION_REASON_MARKER = "VALIDATION_REQUIRED";
+const VALIDATION_URL_RE = /"validation_url"\s*:\s*"([^"]+)"/;
+
+export function buildAccountValidationMessage(bodyText) {
+  if (!bodyText || !bodyText.includes(VALIDATION_REASON_MARKER)) return null;
+  const match = VALIDATION_URL_RE.exec(bodyText);
+  if (!match) return null;
+  let url = match[1];
+  try {
+    url = JSON.parse(`"${url}"`); // unescape \/ and friends from the JSON encoding
+  } catch { /* keep the raw capture — still a usable URL */ }
+  return (
+    "Google requires account verification (VALIDATION_REQUIRED). "
+    + `Open this URL in a browser signed in to the affected account, complete "Verify your account", then retry: ${url}`
+  );
+}
+
 export async function parseUpstreamError(response, executor = null) {
   let bodyText = "";
   try {
@@ -63,15 +85,24 @@ export async function parseUpstreamError(response, executor = null) {
     bodyText = "";
   }
 
+  const validationMessage = buildAccountValidationMessage(bodyText);
+
   // Let executor-specific parser extract provider-specific fields (e.g. codex resetsAtMs)
   if (executor && typeof executor.parseError === "function") {
     try {
       const parsed = executor.parseError(response, bodyText);
       if (parsed && typeof parsed === "object") {
-        const msg = parsed.message || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
+        const msg = validationMessage
+          || parsed.message
+          || DEFAULT_ERROR_MESSAGES[response.status]
+          || `Upstream error: ${response.status}`;
         return { statusCode: parsed.status || response.status, message: msg, resetsAtMs: parsed.resetsAtMs };
       }
     } catch { /* fall through to default parsing */ }
+  }
+
+  if (validationMessage) {
+    return { statusCode: response.status, message: validationMessage };
   }
 
   let message = "";
