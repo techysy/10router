@@ -2,6 +2,29 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.1.0 (2026-09-11)
+
+### ✨ New
+
+- **Xiaomi MiMo Desktop support (one provider, two ways to sign in)**: `xiaomi-mimo` now accepts both an sk- API key (cloud API) and a Xiaomi MiMo desktop-app account — the desktop-exclusive `mimo-x-pro-preview` / `mimo-x-flash-preview` only accept the account cookie, so an API key alone cannot reach them. Both credentials share one provider card; enable whichever you need.
+- **Xiaomi MiMo authorization-code sign-in**: after the official authorize page opens in your browser, you can **paste the code shown on that page** straight into the dialog to finish signing in — even if the local callback never connected, or already timed out. The credential is decrypted server-side only and never passes through the browser.
+- **CodeBuddy international catalog completed**: every entry was re-checked against the live gateway with real requests, adding five models that were served but missing (GLM-5.1 / GLM-5v-Turbo / MiniMax-M3 / Kimi-K2.7 / DeepSeek-V4.1-Flash) plus `GPT 6.0 Astra`.
+- **opencode-go catalog aligned with the official public list (18 models), with a declared endpoint per model**: some models used to fail outright because a missing endpoint declaration sent them down the wrong path; each one now declares its endpoint from the official table.
+- **New `gpt-image-2.5` image-model family for Codex / OpenAI**: `gpt-image-2.5` (incl. `-flare` / `-sunburst`), `gpt-image-2`, `gpt-image-1.5` — text-to-image, editing, and multi-image references.
+- **Credit-multiplier badge supports limited-time free promos**: the badge shows green `free` during the promo and **automatically** returns to the real multiplier when it ends — no one has to remember to change it back.
+
+### 🐛 Fixed
+
+- **Windows desktop upgrades no longer silently discard old data**: the desktop data directory is also Electron's own config directory, so Chromium fills it with files first and makes it look "non-empty", permanently skipping the old-data migration. The check is now "does the directory already contain our own database".
+- **Several real Xiaomi MiMo authorization-code bugs**: the decrypted payload layout was reversed (the actual cause of `decrypt_failed`), the platform requires `app=MiMo`, the callback path is now a random string, and the result is handed back with a 302; pasting a code also keeps working after the callback listener times out.
+- **Kiro requests no longer carry a top-level `systemPrompt`** (kiro.dev answers it with an immediate 400 and no retry); endpoint order now prefers the Amazon surface.
+- **Claude tool `type` is now decided per provider**: this fixes MiniMax's Claude endpoint (rejected tools without `type`) without breaking DeepSeek's Claude endpoint (which only accepts its own `type` values).
+- **Codex strips `\p{...}` regexes it cannot parse from tool schemas**: previously a single property escape in a tool parameter `pattern` failed the whole request with a 400, identically for every account.
+- **`better-sqlite3` is skipped on Node 24**: its native addon crashes the process on load there, which used to take the whole server down.
+- **AMD Token Factory catalog and capabilities rebuilt from live measurements**: missing chat models were added and a "text-only" misclassification was fixed (images were being silently dropped).
+- **CodeBuddy CN's DeepSeek-V4.1-Flash output ceiling lowered to the server-published 128K**: asking for more never errors, it just makes over-limit requests more likely to hit a 400.
+- **One provider no longer stores two contradictory disabled-model records**: this fixes models that appeared not to be disabled.
+
 ## v1.0.8 (2026-09-09)
 
 ### ✨ New
