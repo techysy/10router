@@ -45,6 +45,12 @@ npm run test-version -- --revert         # 测完回退（只在「改动全是�
 
 ## 2. Windows 桌面版
 
+> **想省事就用一键脚本**：`cd desktop; .\test-local.ps1` —— 它把下面 2.1~2.5 整套串成一条命令：
+> 退托盘 → 盖测试号 → 构建 `cli/app` → 打包 → 替换/安装 → 启动 → 验证 → **自动回退版本号**（中途失败也会回退）。
+> 常用开关：`-Mode install`（真跑安装器）、`-SkipAppBuild`（复用已有 `cli/app`）、
+> `-Marker "<字面量>"`（顺带断言产物里含该标记）、`-Version X.Y.Z-test.N`（指定测试号）。
+> 下面各节是它每一步在做什么，以及为什么必须那么做。
+
 ### 2.1 先选路：就地替换，还是真装一遍？
 
 | 目的 | 走哪条 | 大致耗时 |
@@ -245,6 +251,7 @@ INSTALL_CHANNEL=desktop DATA_DIR="/tmp/verify-data" "$INST/10Router.exe" custom-
 | `cli/scripts/build-cli.js` | 构建 `cli/app`（sidecar 代码，平台无关） |
 | `desktop/main.js` | 托盘壳：单实例锁、健康预检、spawn sidecar |
 | `desktop/build.ps1` / `build.sh` | 一键打包（构建 cli/app → npm install → electron-builder），**不含**安装与验证 |
+| `desktop/test-local.ps1` | 一键**本地测试轮**：退托盘 → 盖号 → 构建 → 替换/安装 → 启动 → 验证 → 回退（§2） |
 | `.github/workflows/build-desktop-win.yml` | 正式 Windows 产物（tag `v*` 触发） |
 | `.github/workflows/build-fpk.yml` | 正式 fpk 产物（x86/arm × url/iframe） |
 | `desktop/README.md` / `fnos-packaging/README.md` | 两个形态各自的打包细节 |
