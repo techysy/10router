@@ -30,6 +30,18 @@ describe("xiaomi-mimo provider icon", () => {
     // 143 张 provider 图标里 135 张是 128×128；换图必须缩到这个尺寸
     expect(buf.readUInt32BE(16)).toBe(128);
     expect(buf.readUInt32BE(20)).toBe(128);
+    // color type 6 = RGBA：瓦片必须带 alpha，不能是压白底的不透明白方块
+    expect(buf[25]).toBe(6);
+  });
+
+  it("stays distinguishable from MiMo Code Free's orange mark", () => {
+    // mimo-free 的 display name 就是 "MiMo Code Free"，两者同属小米 MiMo Code
+    // 家族。本图用的是桌面客户端自己的 mono 图标（黑底 #000000 + 米白 #ffffee，
+    // 饱和像素 ≈ 0%），mimo-free 是 #ff6600 的橙标（饱和像素 84%）—— 用同一套
+    // 橙色会让人在卡片列表里分不清，所以两者不能是同一份资源。
+    const free = path.join(root, "public", "providers", "mimo-free.png");
+    expect(fs.existsSync(free)).toBe(true);
+    expect(fs.readFileSync(iconFile).equals(fs.readFileSync(free))).toBe(false);
   });
 
   it("stays reachable through every registered alias", () => {
