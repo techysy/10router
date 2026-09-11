@@ -20,17 +20,25 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [MITM Proxy Security Hardening](/docs/en/mitm-security-hardening.md) — the four security fixes (TLS verification, 0600 root CA key, no blind port-443 kill, hosts cleanup).
 - [Mirasim-bundled dsh tool_call id/name loss](/docs/en/mirasim-dsh-toolcall-loss.md) — third-party bug causing 11133/`unknown tool ""`; 10Router does not work around it.
 - [Monochrome Tray Icons](/docs/en/tray-icon-monochrome.md) — the alpha-channel trap of macOS template images and Windows' dual theme registries (taskbar ≠ app mode).
+- [Xiaomi MiMo Desktop adaptation](/docs/zh-CN/xiaomi-mimo-desktop.md) (zh-only) — design A (dual auth on the existing `xiaomi-mimo`): credential paths per platform, the authorization-code flow, byte-exact protocol parity with the official client, and post-mortems of the 7 pitfalls.
+- [Xiaomi MiMo model list — four-source cross-check](/docs/zh-CN/xiaomi-mimo-model-sources.md) (zh-only) — official catalog vs models.dev vs desktop client vs live endpoint, settling the Preview ownership and `mimo-v2.5-pro-ultraspeed`.
+- [Adding a custom provider with an Agent](/docs/zh-CN/agent-add-custom-provider.md) (zh-only) — the walkthrough for driving 10Router through an agent to register a new provider.
+- [ZCode plan proxy feasibility](/docs/zh-CN/zcode-plan-proxy-feasibility.md) (zh-only) — feasibility analysis for wiring a ZCode subscription channel into 10Router.
 
 ### CodeBuddy CN compatibility layers
 
 - [Error Codes Reference](/docs/en/codebuddy-cn-error-codes.md) — quick classification of 11101/11128/11133/11150/11151 + 429/401/402 with fixes.
 - [Agent System Prompt Amnesia Fix](/docs/en/CodeBuddy-agent-amnesia-fix.md) — whitelist to stop our own agents' prompts from being wiped (amnesia).
 - [reasoning_effort Compatibility Fix](/docs/en/CodeBuddy-reasoning-effort-fix.md) — DeepSeek models reject `auto`/`off`; mapped to `high`/dropped.
+- [CN account bulk import](/docs/zh-CN/codebuddy-cn-account-import.md) (zh-only) — importing several `codebuddy-cn` accounts at once.
 
 ### Repo operations
 
 - [Contributors cache residue](/docs/en/contributors-cache-residue.md) — why the sidebar showed 248 upstream contributors after the fork detach; triage the three data sources and let the cache rebuild (no history rewrite).
 - [v1.0.7 Release Review](/docs/zh-CN/release-review-v1.0.7.md) — per-commit review of the 23 commits in v1.0.7 (zh-only): security fixes verified, upstream v0.5.69 re-implementation audit, test regression gate, tag/SignPath checklist.
+- [Local test build & verify](/docs/zh-CN/local-build-and-verify.md) (zh-only) — one flow for Windows desktop and fnOS fpk: build → replace in place → verify, plus the uncommitted `X.Y.Z-test.N` scheme.
+- [v1.1.0 release-scope review](/docs/zh-CN/release-review-v1.1.0.md) (zh-only) — the scope/decision record for 1.1.0 (written while 1.0.9 was still planned; 1.0.9 was voided and folded into 1.1.0).
+- [Upstream v0.5.69 → v0.5.75 triage](/docs/zh-CN/upstream-triage-v0.5.75.md) (zh-only) — item-by-item triage of seven upstream releases: what gets re-implemented here and why.
 
 ---
 
@@ -50,17 +58,25 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [MITM 代理安全加固](/docs/zh-CN/mitm-security-hardening.md) — 四项安全修复（TLS 校验、root CA 私钥 0600、不再盲杀 443、hosts 清理）。
 - [Mirasim 内嵌 dsh 工具调用 id/name 丢失](/docs/zh-CN/mirasim-dsh-toolcall-loss.md) — 第三方 bug 导致 11133 / `unknown tool ""`，10Router 不做适配。
 - [托盘图标单色化](/docs/zh-CN/tray-icon-monochrome.md) — mac template 的 alpha 陷阱与 Windows 双主题注册表（任务栏 ≠ 应用模式）。
+- [小米 MiMo 桌面版适配](/docs/zh-CN/xiaomi-mimo-desktop.md) — 设计 A（折进既有 `xiaomi-mimo` 做双认证）：各平台凭据路径、授权码流程、与官方客户端逐字节的协议对齐，以及 7 个坑的真因复盘。
+- [小米 MiMo 模型清单：四方交叉](/docs/zh-CN/xiaomi-mimo-model-sources.md) — 官方目录 / models.dev / 桌面客户端 / 端点实测四方对比，定 Preview 归属与 `mimo-v2.5-pro-ultraspeed`。
+- [用 Agent 添加自定义供应商](/docs/zh-CN/agent-add-custom-provider.md) — 通过 agent 驱动 10Router 注册新供应商的完整走法。
+- [ZCode 订阅渠道接入可行性](/docs/zh-CN/zcode-plan-proxy-feasibility.md) — 把 ZCode 订阅渠道接进 10Router 的可行性分析。
 
 ### CodeBuddy CN 兼容层
 
 - [上游错误码速查与修复](/docs/zh-CN/codebuddy-cn-error-codes.md) — 快速区分 11101/11128/11133/11150/11151 及 429/401/402 并给出修复/出路。
 - [Agent 系统提示失忆修复](/docs/zh-CN/CodeBuddy-agent-amnesia-fix.md) — 白名单放行自家 Agent 提示，避免"失忆"。
 - [reasoning_effort 兼容修复](/docs/zh-CN/CodeBuddy-reasoning-effort-fix.md) — DeepSeek 模型不支持 `auto`/`off`，映射为 `high`/删除。
+- [CN 账号批量导入](/docs/zh-CN/codebuddy-cn-account-import.md) — 一次性导入多个 `codebuddy-cn` 账号。
 
 ### 仓库运维
 
 - [Contributors 残留上游贡献者](/docs/zh-CN/contributors-cache-residue.md) — fork detach 后侧边栏为何显示 248 个上游贡献者；三数据源定位 + 等缓存重建（勿重写历史）。
 - [v1.0.7 发版审查](/docs/zh-CN/release-review-v1.0.7.md) — v1.0.7 全部 23 笔提交逐笔审查（安全修复验证/上游 v0.5.69 重实现审计/回归门禁/打 tag 与 SignPath 检查单）。
+- [本地测试构建与验证](/docs/zh-CN/local-build-and-verify.md) — Windows 桌面版 / fnOS fpk 共用一条流程：构建 → 就地替换 → 验证，及不入库的 `X.Y.Z-test.N` 测试版本号。
+- [v1.1.0 发版范围评审](/docs/zh-CN/release-review-v1.1.0.md) — 1.1.0 的范围与逐项决策记录（写于 1.0.9 尚在计划时；1.0.9 已作废并入 1.1.0）。
+- [上游 v0.5.69 → v0.5.75 分诊](/docs/zh-CN/upstream-triage-v0.5.75.md) — 上游七个版本逐项分诊：哪些在本仓重实现、哪些不并，以及依据。
 
 ---
 
