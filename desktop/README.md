@@ -84,4 +84,19 @@ cd desktop
 
 ## 版本同步
 
-三处版本号一起改:`cli/package.json`、`desktop/package.json`、`ChangeLog.md`。
+三处版本号一起改：`cli/package.json`、`desktop/package.json`、`ChangeLog.md`。
+
+## 本地测试构建
+
+把未发布的改动装进本机测，不要用已发布版本号重建（会得到「同号不同内容」的产物）：
+
+```powershell
+npm run test-version 1.1.0-test.1        # 盖测试版本号（三处 package.json + fnos manifest）
+node cli/scripts/build-cli.js
+cd desktop; npx electron-builder --win --dir
+# 停掉托盘 → 替换 resources/app 与 resources/app.asar（保留 elevate.exe）→ 启动
+npm run test-version -- --revert          # 测完回退
+```
+
+完整流程、验证方法与踩坑（含 `ELECTRON_RUN_AS_NODE` 会让 exe 以纯 Node 秒退这个坑）：
+见 `docs/zh-CN/local-build-and-verify.md`。
