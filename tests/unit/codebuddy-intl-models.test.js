@@ -68,19 +68,20 @@ describe("CodeBuddy international static model catalog", () => {
     expect(byId["kimi-k2.7"]).toMatchObject({ name: "Kimi-K2.7-Code", rateMultiplier: 0.57 });
   });
 
-  it("derives the single estimated multiplier (gpt-6-astra) from a price ratio", () => {
-    // Astra is the one row whose multiplier CodeBuddy does not publish. The
-    // OpenCode Go price table lists it at exactly 5x Sol on all four columns
-    // (input/output/cache-read/cache-write) and in both token tiers, and Sol's
-    // 3.47 is published — so the estimate is 5x that. Pinned as a derivation
-    // (not as a magic constant) so a future edit has to re-check the price
-    // source instead of nudging the number.
+  it("pins gpt-6-astra's measured multiplier, not the superseded estimate", () => {
+    // v1.1.0 shipped 17.35 here — a ratio estimate off the OpenCode Go price
+    // table, where Astra sits at exactly 5x Sol. The real credit system does
+    // not follow that ratio, so the measured 6.67 replaces it. Asserted as an
+    // exact value on purpose: the ratio's derivation is dead, and the negative
+    // assertion below is what stops anyone from re-deriving it from Sol.
     const byId = Object.fromEntries(entry.models.map((model) => [model.id, model]));
-    expect(byId["gpt-6-astra"]).toMatchObject({ name: "GPT 6.0 Astra" });
-    expect(byId["gpt-6-astra"].rateMultiplier).toBe(17.35);
-    expect(byId["gpt-6-astra"].rateMultiplier).toBeCloseTo(byId["gpt-5.6-sol"].rateMultiplier * 5, 10);
-    // it is an estimate, so it must never be silently the same as a permanent
-    // "rides the free quota" claim
+    expect(byId["gpt-6-astra"]).toMatchObject({ name: "GPT 6.0 Astra", rateMultiplier: 6.67 });
+    expect(byId["gpt-6-astra"].rateMultiplier).not.toBeCloseTo(
+      byId["gpt-5.6-sol"].rateMultiplier * 5,
+      10,
+    );
+    // it has a real multiplier, so it must never carry a permanent
+    // "rides the free quota" claim nor a promo window
     expect(byId["gpt-6-astra"].promoFreeUntil).toBeUndefined();
   });
 

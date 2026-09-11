@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 🐛 修复
+
+- **修正 `gpt-6-astra` 的积分倍率：`17.35` → `6.67`**。1.1.0 出厂的那个 17.35 是**估算值**，不是公布值 —— 当时仓库、`~/.codebuddy`、官网定价页都取不到 CodeBuddy 的积分数字，于是拿 OpenCode Go 价目表用比值法推（Astra 在四列与两个档位上恰好都是 Sol 的 5 倍，Sol 的 3.47 是公布值 → 3.47 × 5 = 17.35）。实际积分体系并不遵循这个比值，实测为 **6.67**；该估算与其推算方法一并作废，注册表注释里写明「不要再拿外部价目表反推这家的倍率」。用例改为钉住实测值，并**反向断言**它不再等于 Sol × 5，防止有人照着旧注释把比值法再推一遍。
+
 ## v1.1.0 (2026-09-11)
 
 ### ✨ 新功能
@@ -12,7 +18,7 @@
 - **新增 Codex / OpenAI 的 `gpt-image-2.5` 图像模型家族**：Codex 侧加入 `gpt-image-2.5`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`、`gpt-image-2`、`gpt-image-1.5`（`kind:"image"`，声明 `["text2img","edit","multiImage"]`），OpenAI 目录镜像 `2.5` 三兄弟。关键不在列表而在**路由形状** —— 这几个是 **tool-backed**：请求仍然打到 Codex 的 responses 模型 `gpt-5.5`，被选中的图像模型改由 `image_generation` 工具携带（`tools[0].model`）、`action` 由“有没有参考图”推成 `generate`/`edit`、`tool_choice` 从 `"auto"` 钉成 `{type:"image_generation"}`、`reasoning` 从 `null` 换成 `{effort:"medium",summary:"auto"}`；旧式 `gpt-5.x-image` 继续走 `stripImageSuffix` 的原始形状（有回归用例守着）。新增 `tests/unit/codex-image-models.test.js` 7 例，含**双向漂移**守卫：handler 里的 `CODEX_TOOL_IMAGE_MODELS` 集合必须与注册表声明 `multiImage` 的 codex 图像模型**完全一致**（解析走 `getModelsByProviderId("codex")` —— 模型表按 registry alias `cx` 挂载，直接用 `getProviderModels("codex")` 会拿到空数组）；`image-generation.test.js` 加 3 例（generate / 带参考图 → edit / 旧式模型保持原形状）。变异验证：handler 集合少一个 id → 恰好漂移用例变红；`if (toolModel)` 改 `if (false)` → 恰好 2 例新用例变红、旧式用例仍绿。`multiImage` 在代码里**无消费者**（纯声明），加它只为与 UI 语义一致。
 - **小米 MiMo 授权码登录（浏览器显示授权码时可直接粘贴完成）**：官方授权页在把控制权交回本地回调之前就会把授权码显示出来，于是存在两条合法路径 —— 自动回调（本地 `127.0.0.1` 临时端口，5 分钟超时）与**手动粘贴**。粘贴是一等公民而非兜底：服务端会话（含 X25519 私钥）保留 **24 小时**，所以回调监听器超时后粘贴仍然有效（早期把两者绑在同一超时上，超时即失效，用户看到的是「授权码不对」）。凭据仍只在服务端解密、绝不经过浏览器。配套把模态框接入 i18n（zh-CN / zh-TW），并让所有服务端返回的失败原因（`empty_payload` / `payload_too_short` / `no_pending_session` / `decrypt_failed` / `missing_api_key`）都有对应文案 —— 否则中文界面里会孤零零冒出一句英文；守卫用例锁死「每个服务端消息都必须有 locale 条目」。
 - **积分倍率徽章支持限时免费促销（会自己过期）**：CodeBuddy 国际版给 `deepseek-v4.1-flash` 做了两周限时免费，但徽章原本只有「倍率」一个维度，而 `rateMultiplier: 0` 的语义是「永久走免费额度」—— 真按 0 写，促销结束后会一直宣称免费，并破坏「CN 与 intl 同一 id 倍率必须相等」这条不变量。现在把「付费倍率」与「促销窗口」拆成两个事实：新增 `promoFreeUntil`（ISO 日期，UTC），窗口内徽章显示绿色 `free`、tooltip 写明「积分倍率: 0.03x — 限时免费至 2026-09-24」，过了当天零点自动回落到 `0.03x`，不需要有人记得改回来，倍率本身保持公布值不动。判定逻辑抽成可单测的纯函数（`src/shared/utils/promoFree.js`），日期不可解析时按「无促销」处理而不是「永久免费」。
-- **CodeBuddy 国际版目录补齐（含一个估算倍率）**：国际版网关是 OpenAI 直通，未登记的 id 可以**用真实请求探**，于是拿它逐个核对了线上到底服务什么 —— 补进 5 个真实存在却缺失的模型（`glm-5.1` / `glm-5v-turbo` / `minimax-m3` / `kimi-k2.7` / `deepseek-v4.1-flash`，倍率沿用 CN 同一套积分表），以及 `gpt-6-astra`（`gpt-6` / `gpt-6.0` / 各种 `-astra-*` 变体全是 11102，只有它答 200）。它是全表**唯一没有官方倍率**的一行：仓库、`~/.codebuddy`、官网定价页都取不到数，因此按 OpenCode Go 价目表用**比值法**估算 —— 该表里 Astra 在四列（输入/输出/缓存读/缓存写）与两个档位上都恰好是 Sol 的 5 倍，而 Sol 的 3.47 是公布值，得 **17.35**；注释里写明这是预估值与推算链，测试锁的是推算关系而不是魔数。另记下 `kimi-k2.5` 虽答 200 但**故意不收**（不在公布积分表里，CN 同理）。
+- **CodeBuddy 国际版目录补齐（含一个后经修正的估算倍率）**：国际版网关是 OpenAI 直通，未登记的 id 可以**用真实请求探**，于是拿它逐个核对了线上到底服务什么 —— 补进 5 个真实存在却缺失的模型（`glm-5.1` / `glm-5v-turbo` / `minimax-m3` / `kimi-k2.7` / `deepseek-v4.1-flash`，倍率沿用 CN 同一套积分表），以及 `gpt-6-astra`（`gpt-6` / `gpt-6.0` / 各种 `-astra-*` 变体全是 11102，只有它答 200）。它是全表**唯一没有官方倍率**的一行：仓库、`~/.codebuddy`、官网定价页都取不到数，因此按 OpenCode Go 价目表用**比值法**估算 —— 该表里 Astra 在四列（输入/输出/缓存读/缓存写）与两个档位上都恰好是 Sol 的 5 倍，而 Sol 的 3.47 是公布值，得 **17.35**（⚠️ **该值后经实测修正为 `6.67`，见 Unreleased**）；注释里写明这是预估值与推算链，测试锁的是推算关系而不是魔数。另记下 `kimi-k2.5` 虽答 200 但**故意不收**（不在公布积分表里，CN 同理）。
 
 ### 🐛 修复
 
