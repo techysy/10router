@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { readFile, access, constants } from "fs/promises";
-import { homedir } from "os";
-import { join } from "path";
+// Path resolution for MiMo Desktop's on-disk stores is owned by the engine
+// module (same source as the cookie store) so the two can never drift apart.
+import { desktopAuthJsonPaths } from "open-sse/shared/mimoAccount.js";
 
 /**
  * GET /api/oauth/xiaomi-mimo/auto-import
- * Auto-detect Xiaomi MiMo credentials from the local MiMoCode / Desktop auth.json.
+ * Auto-detect Xiaomi MiMo credentials from MiMo Desktop's local auth.json.
  *
- * Sources (in priority order):
- *   1. ~/.local/share/mimocode/auth.json  → xiaomi field
- *   2. %APPDATA%/Xiaomi MiMo/auth.json    → (Windows)
- *   3. ~/Library/Application Support/mimocode/auth.json (macOS)
+ * Source: $XDG_DATA_HOME/mimocode/auth.json (else ~/.local/share/mimocode/auth.json)
+ * — the credential dir Desktop hands to its bundled engine as `authDataDir`.
+ * NOTE: this is deliberately NOT the Electron profile dir; auth.json never lives
+ * there, and the retired mimocode CLI used this same dir, so there is no
+ * CLI-specific path to probe.
  *
  * auth.json shape:
  * {
@@ -27,34 +29,12 @@ import { join } from "path";
  * credential never round-trips through the browser.
  */
 
-function getCandidatePaths() {
-  const home = homedir();
-  const paths = [];
-
-  // MiMoCode / MiMo Desktop shared data dir (cross-platform XDG)
-  paths.push(join(home, ".local", "share", "mimocode", "auth.json"));
-
-  // Windows: also check USERPROFILE-based XDG
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
-    // Desktop's own storage (may have separate credentials in the future)
-    paths.push(join(appData, "Xiaomi MiMo", "auth.json"));
-  }
-
-  // macOS
-  if (process.platform === "darwin") {
-    paths.push(join(home, "Library", "Application Support", "mimocode", "auth.json"));
-  }
-
-  return paths;
-}
-
 /**
  * GET /api/oauth/xiaomi-mimo/auto-import
  */
 export async function GET() {
   try {
-    const candidates = getCandidatePaths();
+    const candidates = desktopAuthJsonPaths();
 
     let authPath = null;
     for (const candidate of candidates) {

@@ -27,18 +27,19 @@ vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
   default: (...args) => fetchMock(...args),
 }));
 
-import { readDesktopPassToken, getMimoAccountUsage, getMimoAccountCookie, invalidateMimoAccountCookieCache } from "../../open-sse/shared/mimoAccount.js";
+import { readDesktopPassToken, getMimoAccountUsage, getMimoAccountCookie, invalidateMimoAccountCookieCache, desktopCookiePath } from "../../open-sse/shared/mimoAccount.js";
 import { getXiaomiMimoUsage } from "../../open-sse/services/usage/xiaomi-mimo.js";
 
-/** Same platform branch the module uses, computed independently. */
+// The module owns the on-disk layout now (including APPDATA/XDG overrides), so the
+// platform branches are asserted independently in xiaomi-mimo-paths.test.js and
+// this file consumes the real helper instead of duplicating the derivation.
+//
+// The sandbox assertion is part of the accessor on purpose: these cases WRITE
+// fixtures, and a mis-pinned env once put a fixture on a real Desktop profile.
 function cookieDbPath() {
-  const base =
-    process.platform === "win32"
-      ? ["AppData", "Roaming"]
-      : process.platform === "darwin"
-        ? ["Library", "Application Support"]
-        : [".config"];
-  return path.join(FAKE.home, ...base, "Xiaomi MiMo", "Partitions", "xiaomi-account", "Network", "Cookies");
+  const file = desktopCookiePath();
+  assertSandboxed(file);
+  return file;
 }
 
 let hasSqlite = true;
@@ -48,7 +49,24 @@ try {
   hasSqlite = false;
 }
 
+/**
+ * Fixtures must never land outside the sandbox. The cookie path is derived from
+ * APPDATA/XDG_*, and a wrong env pin once wrote a fixture over a real Desktop
+ * profile — so refuse loudly instead of trusting the caller.
+ *
+ * Compared on resolved paths: FAKE.home is built with forward slashes while the
+ * module returns path.join() separators (backslashes on Windows).
+ */
+function assertSandboxed(file) {
+  const root = path.resolve(FAKE.home);
+  const resolved = path.resolve(file);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error(`Refusing to touch a file outside the sandbox: ${file}`);
+  }
+}
+
 async function writeCookieDb(file, rows) {
+  assertSandboxed(file);
   const { DatabaseSync } = await import("node:sqlite");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
@@ -58,13 +76,30 @@ async function writeCookieDb(file, rows) {
   db.close();
 }
 
+const ENV_KEYS = ["APPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME"];
+const savedEnv = {};
+const SANDBOX_APPDATA = `${FAKE.home}/AppData/Roaming`;
+const SANDBOX_XDG_CONFIG = `${FAKE.home}/.config`;
+
 beforeEach(() => {
+  // The module resolves its paths from APPDATA / XDG_* (redirected Windows
+  // profiles, XDG layouts), so the sandbox must PIN them — not merely hope they
+  // are unset. Without this the win32 branch escapes FAKE.home and a fixture
+  // write lands on the developer's REAL Desktop profile.
+  for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
+  process.env.APPDATA = SANDBOX_APPDATA;
+  process.env.XDG_CONFIG_HOME = SANDBOX_XDG_CONFIG;
+  delete process.env.XDG_DATA_HOME;
   fetchMock.mockReset();
   fs.rmSync(FAKE.home, { recursive: true, force: true });
   invalidateMimoAccountCookieCache();
 });
 
 afterEach(() => {
+  for (const key of ENV_KEYS) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
   fs.rmSync(FAKE.home, { recursive: true, force: true });
 });
 

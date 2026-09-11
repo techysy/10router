@@ -36,15 +36,60 @@ const LOCKED_CODES = new Set(["EBUSY", "EPERM", "EACCES"]);
 const _cache = new Map(); // key -> { cookie, at }
 const _inflight = new Map(); // key -> Promise<cookie|null>
 
-function desktopCookiePath() {
+// ─── MiMo Desktop on-disk layout ───────────────────────────────────────────
+// MiMo Desktop is an Electron app and keeps TWO independent stores:
+//   • its Electron profile  — the Chromium cookie DB holding the passToken
+//   • its credential dir    — the auth.json its bundled engine reads/writes
+// They live in different roots, so they are resolved separately — but both in
+// this one module, so the two can never drift apart.
+
+const DESKTOP_APP_NAME = "Xiaomi MiMo";
+
+/**
+ * MiMo Desktop's Electron userData dir (Chromium profile root).
+ * Windows honours APPDATA (redirected/roaming profiles), macOS uses Library and
+ * Linux follows XDG_CONFIG_HOME — Electron's own per-platform resolution.
+ */
+export function desktopUserDataDir() {
   const home = os.homedir();
   if (process.platform === "win32") {
-    return path.join(home, "AppData", "Roaming", "Xiaomi MiMo", "Partitions", "xiaomi-account", "Network", "Cookies");
+    return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), DESKTOP_APP_NAME);
   }
   if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "Xiaomi MiMo", "Partitions", "xiaomi-account", "Network", "Cookies");
+    return path.join(home, "Library", "Application Support", DESKTOP_APP_NAME);
   }
-  return path.join(home, ".config", "Xiaomi MiMo", "Partitions", "xiaomi-account", "Network", "Cookies");
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), DESKTOP_APP_NAME);
+}
+
+/**
+ * MiMo Desktop's account-partition cookie DB (holds the passToken).
+ * A running Desktop holds it with an exclusive lock — see readDesktopPassToken().
+ */
+export function desktopCookiePath() {
+  return path.join(desktopUserDataDir(), "Partitions", "xiaomi-account", "Network", "Cookies");
+}
+
+/**
+ * Where MiMo Desktop keeps auth.json — NOT inside its Electron profile.
+ *
+ * Desktop starts its bundled engine with `authDataDir: Vs`, where
+ *   Vs = $XDG_DATA_HOME/mimocode  ||  ~/.local/share/mimocode
+ * i.e. the XDG *data* dir on every platform — macOS included, no ~/Library here.
+ * The standalone mimocode CLI is retired, but it wrote to this same dir, so one
+ * path covers both and no CLI-specific candidate exists.
+ *
+ * When XDG_DATA_HOME is set the default location is still listed second: a user
+ * who changed the variable after signing in keeps a working fallback.
+ *
+ * @returns {string[]} candidates, most authoritative first
+ */
+export function desktopAuthJsonPaths() {
+  const home = os.homedir();
+  const fallback = path.join(home, ".local", "share", "mimocode");
+  const xdg = process.env.XDG_DATA_HOME;
+  const primary = xdg ? path.join(xdg, "mimocode") : fallback;
+  const dirs = primary === fallback ? [primary] : [primary, fallback];
+  return dirs.map((dir) => path.join(dir, "auth.json"));
 }
 
 /**
