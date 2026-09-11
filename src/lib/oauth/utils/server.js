@@ -1,6 +1,6 @@
 import http from "http";
 import { URL } from "url";
-import { CODEX_CONFIG, TRAE_CONFIG, WINDSURF_CONFIG, ZED_HOSTED_CONFIG } from "../constants/oauth.js";
+import { CODEX_CONFIG, TRAE_CONFIG, WINDSURF_CONFIG, XIAOMI_MIMO_CONFIG, ZED_HOSTED_CONFIG } from "../constants/oauth.js";
 
 // Loopback origin guard for local callback proxies.
 // Legit OAuth redirects are top-level navigations (no `Origin` header); a cross-site
@@ -753,5 +753,174 @@ export function stopZedProxy() {
   if (zedProxyTimeout) { clearTimeout(zedProxyTimeout); zedProxyTimeout = null; }
   if (zedProxyServer) { zedProxyServer.close(); zedProxyServer = null; }
   zedProxyPort = null;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Xiaomi MiMo Desktop OAuth callback proxy
+// Receives the ECDH-encrypted `u` param, decrypts it, stores the session.
+// ───────────────────────────────────────────────────────────────────────────
+
+let xiaomiMimoProxyServer = null;
+let xiaomiMimoProxyPort = null;
+let xiaomiMimoProxyTimeout = null;
+
+const xiaomiMimoSessions = new Map();
+
+export function registerXiaomiMimoSession({ state, privateKeyDer }) {
+  if (!state || !privateKeyDer) return false;
+  // Bound the map: each entry holds an X25519 private key, and a flow that is
+  // never completed would otherwise retain it for the process lifetime.
+  const cutoff = Date.now() - XIAOMI_MIMO_CONFIG.timeoutMs;
+  for (const [key, s] of xiaomiMimoSessions) {
+    if (s.createdAt < cutoff) xiaomiMimoSessions.delete(key);
+  }
+  xiaomiMimoSessions.set(state, {
+    privateKeyDer,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+  return true;
+}
+
+export function getXiaomiMimoSessionStatus(state) {
+  const s = xiaomiMimoSessions.get(state);
+  if (!s) return null;
+  // Don't leak the private key to the client
+  return { status: s.status, result: s.result || null, error: s.error || null };
+}
+
+export function clearXiaomiMimoSession(state) {
+  xiaomiMimoSessions.delete(state);
+}
+
+/**
+ * Start the Xiaomi Desktop OAuth callback proxy.
+ * @returns {Promise<{success: boolean, port?: number, callbackUrl?: string, reason?: string}>}
+ */
+export function startXiaomiMimoProxy() {
+  return new Promise((resolve) => {
+    if (xiaomiMimoProxyServer) {
+      resolve({
+        success: true,
+        port: xiaomiMimoProxyPort,
+        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}/`,
+      });
+      return;
+    }
+
+    const server = http.createServer(async (req, res) => {
+      // Origin guard
+      if (!isLoopbackOrigin(req.headers.origin)) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
+
+      const url = new URL(req.url, "http://127.0.0.1");
+      const u = url.searchParams.get("u");
+
+      if (!u) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "Missing encrypted payload (u parameter)."));
+        return;
+      }
+
+      // Try each pending session's private key — the callback URL carries no
+      // state param, so we attempt decryption with every pending key.
+      const pendingSessions = [...xiaomiMimoSessions.entries()]
+        .filter(([, s]) => s.status === "pending");
+
+      if (pendingSessions.length === 0) {
+        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "No active OAuth session. Please restart the login flow."));
+        return;
+      }
+
+      try {
+        const { decryptCallback } = await import("../providers/xiaomi-mimo.js");
+        let result = null;
+        let matchedState = null;
+
+        for (const [state, session] of pendingSessions) {
+          try {
+            result = decryptCallback(session.privateKeyDer, u);
+            matchedState = state;
+            break;
+          } catch {
+            // Wrong key for this session — try next
+          }
+        }
+
+        if (!result || !matchedState) {
+          throw new Error("Could not decrypt with any pending session key");
+        }
+
+        if (!result.sk) {
+          throw new Error("Decrypted payload missing sk (API key)");
+        }
+
+        // Store result only in the matched session
+        const session = xiaomiMimoSessions.get(matchedState);
+        if (session) {
+          session.status = "done";
+          session.result = {
+            uid: result.uid,
+            accessToken: result.sk,
+            baseUrl: result.url || XIAOMI_MIMO_CONFIG.defaultBaseUrl,
+          };
+        }
+
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(true, "Xiaomi account linked. You can close this tab."));
+        console.log("[xiaomi-mimo oauth] callback decrypted");
+      } catch (err) {
+        console.error("[xiaomi-mimo oauth] decrypt failed:", err.message);
+        // The callback URL carries no state, so a failure cannot be attributed
+        // to a specific session. With a single pending session the attribution
+        // is still unambiguous, so surface the error there. With several in
+        // flight, marking them all would let one stray local request abort
+        // every concurrent login — fail just this request and leave the
+        // sessions pending so the UI can retry.
+        if (pendingSessions.length === 1) {
+          const [, only] = pendingSessions[0];
+          only.status = "error";
+          only.error = err.message;
+        }
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, `Decryption failed: ${err.message}`));
+      }
+    });
+
+    server.on("error", (err) => {
+      console.log("[xiaomi-mimo oauth] listen error:", err.message);
+      resolve({ success: false, reason: err.message });
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      xiaomiMimoProxyServer = server;
+      xiaomiMimoProxyPort = server.address().port;
+      xiaomiMimoProxyTimeout = setTimeout(() => {
+        console.log("[xiaomi-mimo oauth] timeout, stopping");
+        stopXiaomiMimoProxy();
+      }, XIAOMI_MIMO_CONFIG.timeoutMs);
+      console.log(`[xiaomi-mimo oauth] listening on port ${xiaomiMimoProxyPort}`);
+      resolve({
+        success: true,
+        port: xiaomiMimoProxyPort,
+        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}/`,
+      });
+    });
+  });
+}
+
+export function stopXiaomiMimoProxy() {
+  console.log(`[xiaomi-mimo oauth] stopping (port ${xiaomiMimoProxyPort || "-"})`);
+  if (xiaomiMimoProxyTimeout) { clearTimeout(xiaomiMimoProxyTimeout); xiaomiMimoProxyTimeout = null; }
+  if (xiaomiMimoProxyServer) { xiaomiMimoProxyServer.close(); xiaomiMimoProxyServer = null; }
+  xiaomiMimoProxyPort = null;
+  // No callback can arrive once the listener is down, so drop every pending
+  // session — each holds an X25519 private key and they would otherwise
+  // accumulate for the process lifetime (one per /authorize call).
+  xiaomiMimoSessions.clear();
 }
 
