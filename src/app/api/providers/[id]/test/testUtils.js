@@ -92,6 +92,12 @@ const OAUTH_TEST_CONFIG = {
     authPrefix: "Bearer ",
   },
   "codebuddy-cn": { tokenExists: true },
+  // Same shape as CN: the connection carries an OAuth access token and the
+  // gateway exposes no cheap token-validation endpoint, so presence of the
+  // token *is* the probe. Missing this entry made the dashboard's Test button
+  // answer "Provider test not supported" for an otherwise healthy intl account
+  // (routing was never affected — only this test path).
+  "codebuddy-intl": { tokenExists: true },
   kimchi: {
     url: KIMCHI_CONFIG.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers",
     method: "GET",
@@ -869,6 +875,25 @@ case "llm7": {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
           body: JSON.stringify({ model: getDefaultModel("codebuddy-cn"), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+        }, effectiveProxy);
+        const valid = res.status !== 401 && res.status !== 403;
+        return { valid, error: valid ? null : "Invalid API key" };
+      }
+      case "codebuddy-intl": {
+        // International gateway (codebuddy.ai) — same OpenAI-compatible,
+        // stream-only surface as CN. The IDE-channel headers are required (an
+        // unapproved channel answers 11128) and `stream:false` can be rejected
+        // outright (11101), so the verdict must stay auth-only (401/403) —
+        // do NOT tighten it to `res.ok` or this case reports failure forever.
+        const baseUrl = PROVIDERS["codebuddy-intl"]?.baseUrl || "https://www.codebuddy.ai/v2/chat/completions";
+        const res = await fetchWithConnectionProxy(baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${connection.apiKey}`,
+            ...(PROVIDERS["codebuddy-intl"]?.headers || {}),
+          },
+          body: JSON.stringify({ model: getDefaultModel("codebuddy-intl"), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };

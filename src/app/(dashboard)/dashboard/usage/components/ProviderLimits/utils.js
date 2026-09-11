@@ -586,10 +586,14 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "codebuddy-cn":
-        // CodeBuddy CN mixes recurring refill packs ("Monthly"/"Weekly"/...)
-        // with one-shot bonus packs ("Bonus Pack N"). Forward `recurring`
-        // so the UI can show "Expires in" for bonus packs (whose resetAt is
-        // a hard expiry, not a refresh) instead of "Reset in".
+      case "codebuddy-intl":
+        // CodeBuddy (CN and intl share one usage payload shape — same fetcher in
+        // open-sse/services/usage/codebuddy-cn.js) mixes recurring refill packs
+        // ("Monthly"/"Weekly"/...) with one-shot bonus packs ("Bonus Pack N").
+        // Forward `recurring` so the UI can show "Expires in" for bonus packs
+        // (whose resetAt is a hard expiry, not a refresh) instead of "Reset in".
+        // Without the intl label it fell through to `default:`, which drops
+        // `recurring`, so intl bonus packs read "Reset in" and never expired.
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
