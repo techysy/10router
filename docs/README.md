@@ -39,6 +39,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [Local test build & verify](/docs/zh-CN/local-build-and-verify.md) (zh-only) — one flow for Windows desktop and fnOS fpk: build → replace in place → verify, plus the uncommitted `X.Y.Z-test.N` scheme.
 - [v1.1.0 release-scope review](/docs/zh-CN/release-review-v1.1.0.md) (zh-only) — the scope/decision record for 1.1.0 (written while 1.0.9 was still planned; 1.0.9 was voided and folded into 1.1.0).
 - [Upstream v0.5.69 → v0.5.75 triage](/docs/zh-CN/upstream-triage-v0.5.75.md) (zh-only) — item-by-item triage of seven upstream releases: what gets re-implemented here and why.
+- [Open issues status](/docs/zh-CN/open-issues-status.md) (zh-only) — every open issue checked against the current code: the 11-item security audit with `file:line` evidence (1 fixed / 4 partial / 6 open), the content-filter retry design, and the v1.0.8 packaging post-mortem.
 
 ---
 
@@ -77,6 +78,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 - [本地测试构建与验证](/docs/zh-CN/local-build-and-verify.md) — Windows 桌面版 / fnOS fpk 共用一条流程：构建 → 就地替换 → 验证，及不入库的 `X.Y.Z-test.N` 测试版本号。
 - [v1.1.0 发版范围评审](/docs/zh-CN/release-review-v1.1.0.md) — 1.1.0 的范围与逐项决策记录（写于 1.0.9 尚在计划时；1.0.9 已作废并入 1.1.0）。
 - [上游 v0.5.69 → v0.5.75 分诊](/docs/zh-CN/upstream-triage-v0.5.75.md) — 上游七个版本逐项分诊：哪些在本仓重实现、哪些不并，以及依据。
+- [未关闭 Issue 现状汇总](/docs/zh-CN/open-issues-status.md) — 全部 open issue 逐一对照当前代码核查：11 项安全审计的逐项状态（✅1 / 🟡4 / ❌6，附 `文件:行` 证据）、内容过滤重试的设计要点、v1.0.8 产物不一致的复盘。
 
 ---
 
