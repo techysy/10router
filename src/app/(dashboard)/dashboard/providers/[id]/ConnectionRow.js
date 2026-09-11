@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { translate } from "@/i18n/runtime";
+import { extractAccountsVerificationUrl } from "@/shared/utils/validationUrl";
 import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
 import CooldownTimer from "./CooldownTimer";
@@ -114,8 +115,14 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
 
   // Determine effective status (override unavailable if cooldown expired)
   const effectiveStatus = (connection.testStatus === "unavailable" && !isCooldown)
-    ? "active"  // Cooldown expired u2192 treat as active
+    ? "active"  // Cooldown expired → treat as active
     : connection.testStatus;
+
+  // Google VALIDATION_REQUIRED errors surface their "Verify your account" URL in
+  // the message text — render it as a jump link instead of a dead red string.
+  const verificationUrl = connection.isActive !== false
+    ? extractAccountsVerificationUrl(connection.lastError)
+    : null;
 
   const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
 
@@ -181,6 +188,16 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               <span className="max-w-full truncate text-xs text-red-500 sm:max-w-[300px]" title={connection.lastError}>
                 {connection.lastError}
               </span>
+            )}
+            {verificationUrl && (
+              <a
+                href={verificationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-xs text-blue-500 underline hover:text-blue-400"
+              >
+                {translate("Verify your account")}
+              </a>
             )}
             <span className="text-xs text-text-muted">#{connection.priority}</span>
             {connection.globalPriority && (

@@ -19,6 +19,7 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
+import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 
 // OAuth provider test endpoints
 const OAUTH_TEST_CONFIG = {
@@ -197,6 +198,21 @@ function parseProviderErrorMessage(bodyText, fallback) {
   return bodyText.trim() || fallback;
 }
 
+/**
+ * Error message for a failed cloudcode-pa probe (antigravity / gemini-cli).
+ *
+ * Google gates a risk-flagged account with 403 VALIDATION_REQUIRED and puts the
+ * one-click "Verify your account" URL inside the response body. Surface that URL —
+ * the bare error.message ("Verify your account to continue.") leaves the user with
+ * no next step. Exported for unit tests.
+ */
+export function buildCloudCodeProbeError(bodyText, fallbackStatus) {
+  return (
+    buildAccountValidationMessage(bodyText) ||
+    parseProviderErrorMessage(bodyText, `API returned ${fallbackStatus}`)
+  );
+}
+
 async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProxy = null) {
   const userAgent = connection.provider === "antigravity"
     ? "google-api-nodejs-client/9.15.1 vscode-antigravity/1.107.0"
@@ -217,7 +233,7 @@ async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProx
   const bodyText = await res.text().catch(() => "");
   return {
     valid: false,
-    error: parseProviderErrorMessage(bodyText, `API returned ${res.status}`),
+    error: buildCloudCodeProbeError(bodyText, res.status),
     status: res.status,
   };
 }

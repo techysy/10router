@@ -15,6 +15,7 @@ import { translate } from "@/i18n/runtime";
 import { useNotificationStore } from "@/store/notificationStore";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { extractAccountsVerificationUrl } from "@/shared/utils/validationUrl";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -1981,9 +1982,24 @@ export default function ProviderDetailPage() {
             );
           })()}
         </div>
-        {!!modelsTestError && (
-          <p className="text-xs text-red-500 mb-3 break-words">{modelsTestError}</p>
-        )}
+        {!!modelsTestError && (() => {
+          const verificationUrl = extractAccountsVerificationUrl(modelsTestError);
+          return (
+            <p className="text-xs text-red-500 mb-3 break-words">
+              {modelsTestError}{" "}
+              {verificationUrl && (
+                <a
+                  href={verificationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 underline hover:text-blue-400"
+                >
+                  {translate("Verify your account")}
+                </a>
+              )}
+            </p>
+          );
+        })()}
         {renderModelsSection()}
       </Card>
 
