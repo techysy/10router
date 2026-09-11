@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip } from "@/shared/components";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
@@ -47,6 +47,7 @@ export default function ProviderDetailPage() {
   const [providerNode, setProviderNode] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
@@ -97,6 +98,12 @@ export default function ProviderDetailPage() {
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
 
   const openOAuthConnection = () => {
+    // Xiaomi MiMo supports both auth modes and has its own local-credential flow,
+    // so it gets a dedicated modal instead of the generic PKCE one.
+    if (providerId === "xiaomi-mimo") {
+      setShowXiaomiMimoModal(true);
+      return;
+    }
     setShowOAuthModal(true);
   };
 
@@ -2010,6 +2017,13 @@ export default function ProviderDetailPage() {
           providerInfo={providerInfo}
           onSuccess={handleOAuthSuccess}
           onClose={() => setShowOAuthModal(false)}
+        />
+      )}
+      {providerId === "xiaomi-mimo" && (
+        <XiaomiMimoAuthModal
+          isOpen={showXiaomiMimoModal}
+          onSuccess={handleOAuthSuccess}
+          onClose={() => setShowXiaomiMimoModal(false)}
         />
       )}
       {providerId === "iflow" && (

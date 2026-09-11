@@ -33,6 +33,11 @@ import {
   registerZedSession,
   getZedSessionStatus,
   clearZedSession,
+  startXiaomiMimoProxy,
+  stopXiaomiMimoProxy,
+  registerXiaomiMimoSession,
+  getXiaomiMimoSessionStatus,
+  clearXiaomiMimoSession,
 } from "@/lib/oauth/utils/server";
 import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
@@ -89,6 +94,27 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url);
 
     if (action === "authorize") {
+      // Xiaomi MiMo: custom ECDH flow. Start the local callback proxy, mint an
+      // X25519 keypair and register it against the state the client generated.
+      if (provider === "xiaomi-mimo") {
+        const state = searchParams.get("state");
+        if (!state) {
+          return NextResponse.json({ error: "Missing state" }, { status: 400 });
+        }
+        const started = await startXiaomiMimoProxy();
+        if (!started.success) {
+          return NextResponse.json({ error: started.reason || "Failed to start callback listener" }, { status: 500 });
+        }
+        const { generateKeyPair, buildAuthorizeUrl, getKeyName } = await import("@/lib/oauth/providers/xiaomi-mimo.js");
+        const { publicKey, privateKeyDer } = generateKeyPair();
+        registerXiaomiMimoSession({ state, privateKeyDer });
+        return NextResponse.json({
+          authorizeUrl: buildAuthorizeUrl(publicKey, started.callbackUrl, getKeyName()),
+          callbackUrl: started.callbackUrl,
+          state,
+        });
+      }
+
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
       // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
       const reservedParams = new Set(["redirect_uri"]);
@@ -153,6 +179,22 @@ export async function GET(request, { params }) {
       else if (provider === "zed") session = getZedSessionStatus(state);
       else if (provider === "xai") session = getXaiSessionStatus(state);
       else if (provider === "codex") session = getCodexSessionStatus(state);
+      else if (provider === "xiaomi-mimo") {
+        const xm = getXiaomiMimoSessionStatus(state);
+        if (!xm) return NextResponse.json({ status: "unknown" });
+        if (xm.status === "done" && xm.result) {
+          // Redact the credential: the API key stays on the server and is applied
+          // by /exchange, so it never has to reach the browser. The session is kept
+          // until exchange consumes it (unlike the code-based flows above).
+          return NextResponse.json({ status: xm.status, result: { uid: xm.result.uid, baseUrl: xm.result.baseUrl } });
+        }
+        if (xm.status === "error") {
+          const payload = { status: xm.status, error: xm.error };
+          clearXiaomiMimoSession(state);
+          return NextResponse.json(payload);
+        }
+        return NextResponse.json({ status: xm.status });
+      }
       else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
       if (!session) return NextResponse.json({ status: "unknown" });
       if (session.status === "done" || session.status === "error") {
@@ -173,6 +215,7 @@ export async function GET(request, { params }) {
       else if (provider === "zed") stopZedProxy();
       else if (provider === "xai") stopXaiProxy();
       else if (provider === "codex") stopCodexProxy();
+      else if (provider === "xiaomi-mimo") stopXiaomiMimoProxy();
       else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
       return NextResponse.json({ success: true });
     }
@@ -267,6 +310,46 @@ export async function POST(request, { params }) {
 
     if (action === "exchange") {
       const { code, redirectUri, codeVerifier, state, meta } = body;
+
+      // Xiaomi MiMo: the decrypted session already holds the sk- key server-side.
+      if (provider === "xiaomi-mimo") {
+        if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
+        const session = getXiaomiMimoSessionStatus(state);
+        if (!session || session.status !== "done" || !session.result?.accessToken) {
+          return NextResponse.json({ error: "OAuth session not completed" }, { status: 400 });
+        }
+        try {
+          const connection = await createProviderConnection({
+            provider: "xiaomi-mimo",
+            authType: "api_key",
+            accessToken: session.result.accessToken,
+            refreshToken: null,
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            email: session.result.uid ? `${session.result.uid}@xiaomi` : null,
+            displayName: session.result.uid ? `Xiaomi ${session.result.uid}` : "Xiaomi MiMo",
+            providerSpecificData: {
+              uid: session.result.uid || null,
+              baseUrl: session.result.baseUrl || "https://api.xiaomimimo.com/v1",
+              authMethod: "oauth",
+              provider: "Xiaomi MiMo Desktop",
+            },
+            testStatus: "active",
+          });
+          clearXiaomiMimoSession(state);
+          stopXiaomiMimoProxy();
+          return NextResponse.json({
+            success: true,
+            connection: {
+              id: connection.id,
+              provider: connection.provider,
+              email: connection.email,
+              displayName: connection.displayName,
+            },
+          });
+        } catch (err) {
+          return NextResponse.json({ error: err.message }, { status: 500 });
+        }
+      }
 
       // Trae/Windsurf: code is either a raw callback URL or a pasted token.
       // exchangeTokens() handles both paths; no PKCE, skip codex JWT extraction.
