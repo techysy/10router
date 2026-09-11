@@ -12,14 +12,30 @@ function legacyDir() {
   return path.join(os.homedir(), `.${LEGACY_APP_NAME}`);
 }
 
+// The only state a pre-SQLite 10Router install kept in the data-dir root.
+// Keep in sync with LEGACY_JSON_FILES in src/lib/dataDir.js (this file is CJS
+// and mirrors that ESM module; dataDir-migration.test.js pins both).
+const LEGACY_JSON_FILES = ["db.json", "usage.json", "disabledModels.json", "request-details.json"];
+
+// Does this dir already hold 10Router state? Mere non-emptiness is NOT an
+// equivalent test: on Windows the data dir (%APPDATA%/10router) is also
+// Electron's userData profile, so Cache/, GPUCache/, Local State … would keep
+// it non-empty forever and silently pin the migration off.
+function hasAppData(dir) {
+  if (fs.existsSync(path.join(dir, "db", "data.sqlite"))) return true;
+  return LEGACY_JSON_FILES.some((name) => fs.existsSync(path.join(dir, name)));
+}
+
 // One-time migration from 9Router data dir (mirrors src/lib/dataDir.js).
+// force:false so a file we already own (a generated mitm/rootCA.key, say) is
+// never replaced by the legacy copy.
 function migrateLegacyData() {
   try {
     const legacy = legacyDir();
     const next = defaultDir();
     if (!fs.existsSync(legacy)) return;
-    if (fs.existsSync(next) && fs.readdirSync(next).length > 0) return;
-    fs.cpSync(legacy, next, { recursive: true });
+    if (hasAppData(next)) return;
+    fs.cpSync(legacy, next, { recursive: true, force: false });
     console.log(`[migration] copied legacy data dir ${legacy} → ${next}`);
   } catch (e) {
     console.warn(`[migration] failed to migrate ${legacyDir()} → ${defaultDir()}: ${e?.message}`);
