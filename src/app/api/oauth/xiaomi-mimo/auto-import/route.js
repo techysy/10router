@@ -70,10 +70,15 @@ export async function GET() {
     // Whether Desktop's account session is readable — this is what unlocks the
     // Desktop-exclusive Preview models. The token itself stays on the server.
     let hasDesktopSession = false;
+    // A running Desktop holds an exclusive lock on its cookie store. Import can
+    // still succeed (the sk- key alone covers the cloud models) — but Preview
+    // models need that session, so tell the user why it is missing.
+    let desktopLocked = false;
     try {
       const { readDesktopPassToken } = await import("open-sse/shared/mimoAccount.js");
       hasDesktopSession = Boolean(await readDesktopPassToken());
     } catch (e) {
+      desktopLocked = e?.code === "DESKTOP_LOCKED";
       console.log("[xiaomi-mimo] passToken read failed (non-fatal):", e.message);
     }
 
@@ -81,7 +86,10 @@ export async function GET() {
       return NextResponse.json({
         found: false,
         hasDesktopSession,
-        error: `Xiaomi MiMo Desktop auth file not found. Checked:\n${candidates.join("\n")}\n\nMake sure Xiaomi MiMo Desktop is installed and you are signed in.`,
+        desktopLocked,
+        error: desktopLocked
+          ? "Xiaomi MiMo Desktop is running and is holding its credential store, so no local credentials could be read. Quit the desktop app completely (including the tray icon) and retry."
+          : `Xiaomi MiMo Desktop auth file not found. Checked:\n${candidates.join("\n")}\n\nMake sure Xiaomi MiMo Desktop is installed and you are signed in.`,
       });
     }
 
@@ -93,6 +101,7 @@ export async function GET() {
       return NextResponse.json({
         found: false,
         hasDesktopSession,
+        desktopLocked,
         error: "auth.json is not valid JSON. Please sign in to Xiaomi MiMo Desktop again.",
       });
     }
@@ -102,6 +111,7 @@ export async function GET() {
       return NextResponse.json({
         found: false,
         hasDesktopSession,
+        desktopLocked,
         error: "No Xiaomi credentials found in auth.json. Please sign in to Xiaomi MiMo Desktop.",
       });
     }
@@ -112,6 +122,7 @@ export async function GET() {
       return NextResponse.json({
         found: false,
         hasDesktopSession,
+        desktopLocked,
         error: "Xiaomi key does not appear to be a valid API key (expected sk- prefix).",
       });
     }
@@ -125,6 +136,7 @@ export async function GET() {
       baseUrl: metadata.base_url || "https://api.xiaomimimo.com/v1",
       source: authPath,
       hasDesktopSession,
+      desktopLocked,
     });
   } catch (error) {
     console.log("Xiaomi MiMo auto-import error:", error);

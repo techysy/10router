@@ -27,6 +27,9 @@ const API_UA =
   "miNative PC/Normal Windows_NT/10.0.19045 SDKV/1.0.0 DEVT/PC DEVS/Windows APP/miaccount_desktop APPV/0.1.0";
 const SSO_UA = "MiClaw/1.0";
 const COOKIE_TTL_MS = 30 * 60 * 1000;
+// Windows surfaces a sharing violation on the Desktop's cookie db as EBUSY;
+// POSIX gives EACCES/EPERM (or EBUSY under flock).
+const LOCKED_CODES = new Set(["EBUSY", "EPERM", "EACCES"]);
 
 // Per-account session caches (keyed by passToken hash) so multiple Xiaomi
 // accounts / connections can rotate without clobbering each other.
@@ -61,8 +64,18 @@ async function readDesktopAccountCookies() {
   const tmp = path.join(os.tmpdir(), `10router-mimo-cookies-${process.pid}-${crypto.randomBytes(4).toString("hex")}.db`);
   try {
     fs.copyFileSync(src, tmp);
-  } catch {
-    return null; // locked by a running Desktop
+  } catch (err) {
+    // A running Xiaomi MiMo Desktop keeps an *exclusive* lock on its cookie db:
+    // on Windows even a plain read fails (EBUSY, verified against the installed
+    // client), so there is nothing to read around. Surface it as a typed error
+    // instead of pretending the session is absent — otherwise "quit the app" is
+    // indistinguishable from "never signed in", and both look like a silent no-op.
+    if (LOCKED_CODES.has(err?.code)) {
+      const locked = new Error("Xiaomi MiMo Desktop is holding its cookie store (quit the app and retry)");
+      locked.code = "DESKTOP_LOCKED";
+      throw locked;
+    }
+    return null; // missing/unreadable for any other reason
   }
   try {
     fs.chmodSync(tmp, 0o600);
@@ -118,7 +131,9 @@ export async function readDesktopPassToken() {
     const jar = await readDesktopAccountCookies();
     if (!jar?.passToken) return null;
     return { passToken: jar.passToken, userId: jar.userId || null, cUserId: jar.cUserId || null };
-  } catch {
+  } catch (err) {
+    // Let the callers tell "locked" apart from "no session" and act on it.
+    if (err?.code === "DESKTOP_LOCKED") throw err;
     return null;
   }
 }
@@ -209,9 +224,18 @@ async function acquireServiceCookie(passJar, proxyOptions) {
  * @param {object|null} providerSpecificData - may carry `mimoPassToken` override
  */
 async function getServiceCookie(providerSpecificData, proxyOptions) {
-  const passJar = providerSpecificData?.mimoPassToken
+  let passJar = providerSpecificData?.mimoPassToken
     ? { passToken: providerSpecificData.mimoPassToken, userId: providerSpecificData.mimoUserId, cUserId: providerSpecificData.mimoCUserId }
-    : await readDesktopAccountCookies();
+    : null;
+  if (!passJar) {
+    try {
+      passJar = await readDesktopAccountCookies();
+    } catch (err) {
+      // Usage must degrade, never throw — but keep the reason diagnosable.
+      if (err?.code === "DESKTOP_LOCKED") return { cookie: null, reason: "desktop-locked" };
+      throw err;
+    }
+  }
   if (!passJar) return { cookie: null, reason: "no-pass-token" };
 
   // One cached session per passToken — accounts/connections rotate independently.
@@ -276,7 +300,7 @@ export async function getMimoAccountCookie(providerSpecificData = null, proxyOpt
 export async function getMimoAccountUsage(providerSpecificData = null, proxyOptions = null) {
   const { cookie, reason } = await getServiceCookie(providerSpecificData, proxyOptions);
   if (!cookie) {
-    return { error: reason === "no-pass-token" ? "no-session" : "session-failed" };
+    return { error: reason === "no-pass-token" || reason === "desktop-locked" ? "no-session" : "session-failed" };
   }
   try {
     const res = await proxyAwareFetch(

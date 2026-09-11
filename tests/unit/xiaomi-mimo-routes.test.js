@@ -34,6 +34,11 @@ describe("xiaomi-mimo api-key route", () => {
   it("does not reflect upstream bodies on failure", () => {
     expect(src()).toContain("SSRF hardening");
   });
+
+  it("reports a locked Desktop session without failing the import", () => {
+    expect(src()).toContain('e?.code === "DESKTOP_LOCKED"');
+    expect(src()).toContain("desktopLocked");
+  });
 });
 
 describe("xiaomi-mimo auto-import route", () => {
@@ -53,6 +58,14 @@ describe("xiaomi-mimo auto-import route", () => {
   it("checks the MiMoCode auth.json locations", () => {
     expect(src()).toContain("mimocode");
     expect(src()).toContain("auth.json");
+  });
+
+  it("tells the user to quit the Desktop app when its cookie store is locked", () => {
+    expect(src()).toContain('e?.code === "DESKTOP_LOCKED"');
+    expect(src()).toContain("desktopLocked");
+    expect(src()).toMatch(/Quit the desktop app completely/);
+    // A locked store must not fail the import — only the Preview session is missing.
+    expect(src()).toContain("found: true");
   });
 });
 
@@ -118,6 +131,12 @@ describe("xiaomi-mimo dashboard wiring", () => {
     const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
     expect(modal).toMatch(/Desktop/);
     expect(modal).toContain("hasDesktopSession");
+  });
+
+  it("surfaces the locked cookie store as an actionable step", () => {
+    const modal = read("src/shared/components/XiaomiMimoAuthModal.js");
+    expect(modal).toContain("desktopLocked");
+    expect(modal).toMatch(/Quit Xiaomi MiMo Desktop and retry/);
   });
 
   it("does not forward the passToken from the modal", () => {

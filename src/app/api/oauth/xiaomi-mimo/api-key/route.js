@@ -57,12 +57,17 @@ export async function POST(request) {
     // Account-session credential, for the Desktop-exclusive models. Prefer a
     // server-side read so it never has to round-trip through the client.
     let session = { passToken: mimoPassToken || null, userId: mimoUserId || null, cUserId: mimoCUserId || null };
+    // A running Desktop locks its cookie store, so the session read can fail — the
+    // import itself does not depend on it (the sk- key covers the cloud models),
+    // but Preview models do, so report the reason instead of swallowing it.
+    let desktopLocked = false;
     if (!session.passToken) {
       try {
         const { readDesktopPassToken } = await import("open-sse/shared/mimoAccount.js");
         const desktop = await readDesktopPassToken();
         if (desktop) session = { passToken: desktop.passToken, userId: desktop.userId, cUserId: desktop.cUserId };
       } catch (e) {
+        desktopLocked = e?.code === "DESKTOP_LOCKED";
         console.log("[xiaomi-mimo] passToken read failed (non-fatal):", e.message);
       }
     }
@@ -99,6 +104,7 @@ export async function POST(request) {
         validated,
         modelCount,
         updated: true,
+        desktopLocked,
         connection: {
           id: existing.id,
           provider: existing.provider,
@@ -132,6 +138,7 @@ export async function POST(request) {
       success: true,
       validated,
       modelCount,
+      desktopLocked,
       connection: {
         id: connection.id,
         provider: connection.provider,

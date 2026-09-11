@@ -112,6 +112,36 @@ describe.skipIf(!hasSqlite)("xiaomi-mimo Desktop cookie store", () => {
       .filter((f) => f.startsWith(`10router-mimo-cookies-${process.pid}-`));
     expect(leftovers).toEqual([]);
   });
+
+  it("reports a running Desktop as DESKTOP_LOCKED instead of a silent null", async () => {
+    // Verified against the installed Windows client: while Xiaomi MiMo Desktop
+    // runs, its cookie db is locked *exclusively* — even a plain readFileSync
+    // fails with EBUSY, so this cannot be read around.
+    await writeCookieDb(cookieDbPath(), [["passToken", "pt-secret", ".account.xiaomi.com"]]);
+    const busy = new Error("EBUSY: resource busy or locked");
+    busy.code = "EBUSY";
+    const spy = vi.spyOn(fs, "copyFileSync").mockImplementation(() => {
+      throw busy;
+    });
+
+    await expect(readDesktopPassToken()).rejects.toMatchObject({ code: "DESKTOP_LOCKED" });
+
+    // Usage paths must degrade rather than throw.
+    await expect(getMimoAccountUsage()).resolves.toEqual({ error: "no-session" });
+    await expect(getMimoAccountCookie()).resolves.toBeNull();
+    spy.mockRestore();
+  });
+
+  it("treats a non-lock read failure as an absent session, not a lock", async () => {
+    await writeCookieDb(cookieDbPath(), [["passToken", "pt-secret", ".account.xiaomi.com"]]);
+    const gone = new Error("ENOENT");
+    gone.code = "ENOENT";
+    const spy = vi.spyOn(fs, "copyFileSync").mockImplementationOnce(() => {
+      throw gone;
+    });
+    expect(await readDesktopPassToken()).toBeNull();
+    spy.mockRestore();
+  });
 });
 
 describe("xiaomi-mimo account session degradation", () => {

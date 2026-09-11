@@ -19,6 +19,7 @@ import { Modal, Button } from "@/shared/components";
 export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   const [phase, setPhase] = useState("detecting"); // detecting | found | not-found | importing
   const [detectResult, setDetectResult] = useState(null);
+  const [desktopLocked, setDesktopLocked] = useState(false);
   const [error, setError] = useState(null);
   const [oauthUrl, setOauthUrl] = useState(null);
   const [oauthState, setOauthState] = useState(null);
@@ -28,6 +29,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     setError(null);
     setDetectResult(null);
     setOauthUrl(null);
+    setDesktopLocked(false);
 
     const res = await fetch("/api/oauth/xiaomi-mimo/auto-import");
     const data = await res.json();
@@ -36,6 +38,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       setPhase("found");
     } else {
       setPhase("not-found");
+      setDesktopLocked(Boolean(data.desktopLocked));
       setError(data.error || "Xiaomi MiMo Desktop credentials not found on this machine.");
     }
   };
@@ -50,6 +53,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       setError(null);
       setDetectResult(null);
       setOauthUrl(null);
+      setDesktopLocked(false);
 
       try {
         const res = await fetch("/api/oauth/xiaomi-mimo/auto-import");
@@ -61,6 +65,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
           setPhase("found");
         } else {
           setPhase("not-found");
+          setDesktopLocked(Boolean(data.desktopLocked));
           setError(data.error || "Xiaomi MiMo Desktop credentials not found on this machine.");
         }
       } catch {
@@ -187,7 +192,9 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                   <p className="mt-1 opacity-80">
                     {detectResult.hasDesktopSession
                       ? "Desktop account session detected — Preview models will be available."
-                      : "No Desktop account session found — the API key alone is enough for the cloud models."}
+                      : detectResult.desktopLocked
+                        ? "Desktop is running and is holding its credential store — quit it to unlock the Preview models (the API key alone covers the cloud models)."
+                        : "No Desktop account session found — the API key alone is enough for the cloud models."}
                   </p>
                 </div>
               </div>
@@ -229,10 +236,14 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
               <div className="flex gap-2 items-start">
                 <span className="material-symbols-outlined text-amber-600 dark:text-amber-400">info</span>
                 <div className="text-sm text-amber-800 dark:text-amber-200">
-                  <p className="font-medium">Local credentials not found</p>
+                  <p className="font-medium">
+                    {desktopLocked ? "Quit Xiaomi MiMo Desktop and retry" : "Local credentials not found"}
+                  </p>
                   <p className="mt-1 opacity-80">{error}</p>
                   <p className="mt-2 opacity-80">
-                    Make sure Xiaomi MiMo Desktop is installed and you are signed in, then retry.
+                    {desktopLocked
+                      ? "The desktop app keeps an exclusive lock on its credential store while it runs."
+                      : "Make sure Xiaomi MiMo Desktop is installed and you are signed in, then retry."}{" "}
                     Or sign in via browser below.
                   </p>
                 </div>
