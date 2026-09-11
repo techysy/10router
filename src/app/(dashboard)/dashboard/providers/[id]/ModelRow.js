@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
+import { isPromoFree } from "@/shared/utils/promoFree";
 import { translate } from "@/i18n/runtime";
 
 export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
@@ -9,6 +10,12 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
   // 0 = rides the free quota. Shown as a badge only when the provider declares
   // one — most providers have no credit system and stay unbadged.
   const rateMultiplier = typeof model.rateMultiplier === "number" ? model.rateMultiplier : null;
+  // A dated promo (registry `promoFreeUntil`) shows the same green `free` badge
+  // while it runs and drops back to the real multiplier once it closes — the
+  // published multiplier is never overwritten, so nothing needs cleaning up by
+  // hand and the CN/intl shared-credit parity stays intact.
+  const promoFree = rateMultiplier !== null && rateMultiplier > 0 && isPromoFree(model);
+  const displayMultiplier = promoFree ? 0 : rateMultiplier;
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -35,20 +42,22 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
-            {rateMultiplier !== null && (
+            {displayMultiplier !== null && (
               <Tooltip
                 text={
-                  rateMultiplier === 0
+                  promoFree
+                    ? translate("Credit multiplier") + `: ${rateMultiplier}x — ` + translate("promo free until") + ` ${model.promoFreeUntil}`
+                    : displayMultiplier === 0
                     ? translate("Credit multiplier") + ": 0x — " + translate("rides the free quota")
-                    : translate("Credit multiplier") + `: ${rateMultiplier}x`
+                    : translate("Credit multiplier") + `: ${displayMultiplier}x`
                 }
               >
                 <Badge
                   size="sm"
-                  variant={rateMultiplier === 0 ? "success" : "default"}
-                  className={`shrink-0 cursor-help leading-none${rateMultiplier === 0 ? "" : " font-mono"}`}
+                  variant={displayMultiplier === 0 ? "success" : "default"}
+                  className={`shrink-0 cursor-help leading-none${displayMultiplier === 0 ? "" : " font-mono"}`}
                 >
-                  {rateMultiplier === 0 ? "free" : `${rateMultiplier.toFixed(2)}x`}
+                  {displayMultiplier === 0 ? "free" : `${displayMultiplier.toFixed(2)}x`}
                 </Badge>
               </Tooltip>
             )}
