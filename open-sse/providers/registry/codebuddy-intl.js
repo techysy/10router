@@ -52,6 +52,9 @@ export default {
   //  (2) rateMultiplier is read off the CN credit page: CN and intl share one
   //      credit system, so a model present on both carries an identical
   //      multiplier (holds for every currently overlapping id).
+  //  (3) exactly one entry carries an ESTIMATED multiplier instead of a
+  //      published one — gpt-6-astra, which has no CodeBuddy credit figure
+  //      anywhere reachable. See the note on that row for the derivation.
   // Kept out on purpose even though a probe answers 200: kimi-k2.5 (absent from
   // the published credit list — the CN catalog drops it for the same reason),
   // deepseek-v4-pro / deepseek-v4-flash / glm-5.3-flash (11102), kimi-k2-thinking,
@@ -63,6 +66,22 @@ export default {
   models: [
     { id: "hy4-preview", name: "Hy4-Preview", rateMultiplier: 0 },
     { id: "hy3", name: "Hy3", rateMultiplier: 0 },
+    // gpt-6-astra is the only GPT-6 id this gateway answers: gpt-6, gpt-6.0,
+    // gpt-6-astra-review|-thinking|-mini|-pro|-high|-codex, gpt-6.1-astra,
+    // gpt-6.5-astra and gpt-5.6-astra all come back 11102.
+    //
+    // Its multiplier is an ESTIMATE, not a published value — no CodeBuddy
+    // credit figure for it exists in the repo, in ~/.codebuddy, or on
+    // codebuddy.ai (the pricing page is an app shell with no data). Derivation:
+    // the OpenCode Go price table lists Astra at exactly 5x Sol on all four
+    // columns (input / output / cache-read / cache-write) and in both the
+    // <=272K and >272K tiers, and Sol carries a published 3.47 right below —
+    // so 3.47 x 5 = 17.35. The ratio method is used on purpose: it is
+    // insensitive to whether the two tables agree on absolute levels (they do
+    // not — see the gpt-5.4 / gpt-5.5 rows of open-sse/providers/pricing.js,
+    // which share one price but differ 2x in credits). Replace with the
+    // official number if one ever appears.
+    { id: "gpt-6-astra", name: "GPT 6.0 Astra", rateMultiplier: 17.35 },
     { id: "gpt-5.6-sol", name: "GPT-5.6-Sol", rateMultiplier: 3.47 },
     { id: "gpt-5.6-terra", name: "GPT-5.6-Terra", rateMultiplier: 1.39 },
     { id: "gpt-5.6-luna", name: "GPT-5.6-Luna", rateMultiplier: 0.14 },
