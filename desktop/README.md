@@ -46,7 +46,7 @@ cd desktop
 .\build.ps1 -SkipAppBuild   # 源码没变时复用已有 cli/app,省一次 Next build
 ```
 
-产物:`dist\10Router-Setup-<版本>.exe`(NSIS 安装包,支持 `/S` 静默安装)+
+产物:`dist\10Router-Setup-<版本>.exe`(NSIS 安装包;`/S` 静默安装**需直接执行安装器**才生效,见 docs/zh-CN/local-build-and-verify.md 2.5 节)+
 `dist\10Router-Portable-<版本>.exe`(便携版,双击即用)。
 
 ### macOS(需 mac 机器)

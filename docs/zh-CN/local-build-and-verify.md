@@ -44,17 +44,31 @@ npm run test-version -- --revert         # 测完回退（只在「改动全是�
 
 ## 2. Windows 桌面版
 
-### 2.1 构建
+### 2.1 先选路：就地替换，还是真装一遍？
+
+| 目的 | 走哪条 | 大致耗时 |
+|---|---|---|
+| **只验证代码改对了**（日常迭代，首选） | `--dir` 产物**就地替换**（§2.2） | 构建 ~2 分钟 + 替换 ~10 秒 |
+| **验证安装器/升级覆盖/快捷方式本身** | 出 `Setup.exe` **静默覆盖安装**（§2.5） | 构建 ~3 分钟 + 安装 ~40 秒 |
+
+两条路的构建前缀相同：
 
 ```bash
-npm run test-version 1.1.0-test.1
+npm install                                        # 全新 clone 才需要（root）
+cd cli && npm install && cd ..                     # cli 的 esbuild 依赖
+npm run test-version 1.1.1-test.2                  # 必须在构建**前**盖章：版本号会进文件名与包内容
 node cli/scripts/build-cli.js                      # → cli/app（Next standalone，平台无关）
-cd desktop && npx electron-builder --win --dir     # → dist/win-unpacked（不生成安装包，最快）
+cd desktop
+npx electron-builder --win --dir                   # 路 1：dist/win-unpacked（不出安装包，最快）
+npx electron-builder --win nsis --x64              # 路 2：只出 nsis 安装包（省掉 portable/nsis-web）
 ```
 
 - `cli/app` 必须**先**构建：桌面包用 `extraResources` 直接引用它，不复制内容。
-- 只想验证代码是否生效时用 `--dir`（约 40 秒）；需要交给别人装才用
-  `npx electron-builder --win --x64` 出 NSIS/portable。
+- 测试号必须**严格大于**当前 `git tag`（§1）；`npm run test-version` 会自己校验，不用手算。
+- 不带 target 的 `npx electron-builder --win` 会出全量（nsis + portable + nsis-web）。本地只装一遍时
+  用 `--win nsis --x64`，省一半时间。
+- 本地构建**不签名**（SignPath 只在 CI 配）：日志里 `no signing info identified, signing is skipped`
+  是正常的，安装时 SmartScreen 可能拦一下。
 - `desktop/README.md` 另有 `build.ps1` 一键脚本与 macOS 流程。
 
 ### 2.2 就地替换（不重新安装）
@@ -80,8 +94,13 @@ cp -f desktop/dist/win-unpacked/resources/app.asar "$INST/resources/app.asar"
 ### 2.3 启动 —— 以及那个最贵的坑
 
 ```bash
-(unset ELECTRON_RUN_AS_NODE; cmd //c start "" "$(cygpath -w "$INST/10Router.exe")")
+unset ELECTRON_RUN_AS_NODE
+powershell -NoProfile -Command "Start-Process -FilePath '$(cygpath -w "$INST/10Router.exe")'"
 ```
+
+> **别用 `cmd //c start "" "路径"`。** Git Bash 会把那个空标题 `""` 吃掉，于是 `start` 把
+> **exe 路径当成窗口标题**：它只弹一个 cmd 窗口、什么都不启动，而且**退出码是 0**、没有任何报错。
+> 现象与「打包坏了」极像，很容易查错方向。非要用 `start` 就给个非空标题（`start "10Router" "路径"`）。
 
 **必须清掉 `ELECTRON_RUN_AS_NODE`。** 这个变量一旦存在于环境里，`10Router.exe` 会以
 **纯 Node** 模式执行：没有托盘、没有窗口、`whenReady` 之前的代码就跑完了、进程秒退、
@@ -111,6 +130,32 @@ tail -2 "$APPDATA/10router-desktop/logs/tray.log"               # start server /
 
 若托盘没起来而端口却被占：说明已有一个实例在跑，新实例会走 external 模式。
 先 `taskkill` 干净，再启动。
+
+### 2.5 真装一遍（静默覆盖安装）
+
+只在需要验证**安装器本身**（升级覆盖、快捷方式、卸载项）时走这条；验证代码用 §2.2 的就地替换。
+
+```bash
+taskkill //IM 10Router.exe //F                     # 必须先停：安装器要覆盖 resources/app
+sleep 4
+cd desktop/dist
+./"10Router Setup 1.1.1-test.2.exe" /S             # 直接执行；装完不会自动启动
+```
+
+**坑在这里：`/S` 只在「直接执行 exe」时有效。** 经 `cmd /c start /wait "…exe" /S` 转一手会
+**静默什么都不做** —— 返回 0、没有任何报错、文件一个都不动，极易误判成「装好了但没生效」。
+
+装完用版本号确认到底装没装（比看进程可靠）：
+
+```bash
+INST="$LOCALAPPDATA/Programs/10Router"
+node -e "console.log(require(process.argv[1]).version)" "$INST/resources/app/package.json"
+stat -c '%y %n' "$INST/resources/app/package.json"     # mtime 应就是刚刚
+```
+
+`resources/app` 正是 `extraResources` 里的 `cli/app`，所以它的 `package.json` 版本号 == 你盖的测试号。
+另外两点：**静默安装不会自动拉起应用**（跳过 `runAfterFinish`），要按 §2.3 手动启动；
+覆盖安装不动数据目录（`%APPDATA%\10router`），`db/data.sqlite` 原样保留。
 
 ## 3. fnOS / NAS 的 fpk
 
@@ -186,6 +231,9 @@ INSTALL_CHANNEL=desktop DATA_DIR="/tmp/verify-data" "$INST/10Router.exe" custom-
 | 包内 grep 不到新代码 | 产物目录不是 `.next` 而是 `.next-cli-build`；或搜的函数名被压缩改名了 |
 | 提示找不到 `elevate.exe` 相关能力 | `--dir` 产物本来就没有，替换时别删安装器留下的那份 |
 | 测试后版本号回不干净 | 用 `npm run test-version -- --revert`，不要手敲 `git checkout --`（§1） |
+| `cmd //c start "" "…exe"` 像什么都没发生 | 空标题被 Git Bash 吃掉，exe 路径被当成窗口标题（§2.3） |
+| `Setup.exe /S` 返回 0 但版本没变 | 经 `cmd /c start /wait` 转手会让它静默空转；必须直接执行 exe（§2.5） |
+| 装完应用不会自己起来 | 静默安装跳过 `runAfterFinish`，按 §2.3 手动启动（§2.5） |
 
 ## 6. 相关文件
 
@@ -195,6 +243,7 @@ INSTALL_CHANNEL=desktop DATA_DIR="/tmp/verify-data" "$INST/10Router.exe" custom-
 | `scripts/sync-manifest-version.mjs` | `fnos-packaging/manifest` ← 根 `package.json` |
 | `cli/scripts/build-cli.js` | 构建 `cli/app`（sidecar 代码，平台无关） |
 | `desktop/main.js` | 托盘壳：单实例锁、健康预检、spawn sidecar |
+| `desktop/build.ps1` / `build.sh` | 一键打包（构建 cli/app → npm install → electron-builder），**不含**安装与验证 |
 | `.github/workflows/build-desktop-win.yml` | 正式 Windows 产物（tag `v*` 触发） |
 | `.github/workflows/build-fpk.yml` | 正式 fpk 产物（x86/arm × url/iframe） |
 | `desktop/README.md` / `fnos-packaging/README.md` | 两个形态各自的打包细节 |
