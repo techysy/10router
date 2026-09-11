@@ -52,10 +52,13 @@ export default {
   models: [
     // Desktop-exclusive — served by the account-service route, which only accepts
     // OpenAI format, so supportedFormats pins them to the openai transport.
+    // NOTE: 客户端测试专属模型 —— 不在任何公开目录（models.dev / 桌面版自带快照）里，
+    // 程序本体也不含，账号服务端侧下发，属正常；来源 = 上游 PR #3921。
     { id: "mimo-x-pro-preview", name: "MiMo-X-Pro-Preview", upstreamModelId: "xiaomi/mimo-x-pro-preview", supportedFormats: ["openai"] },
     { id: "mimo-x-flash-preview", name: "MiMo-X-Flash-Preview", upstreamModelId: "xiaomi/mimo-x-flash-preview", supportedFormats: ["openai"] },
     // Cloud API models (api.xiaomimimo.com/v1)
     { id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" },
+    { id: "mimo-v2.5-pro-ultraspeed", name: "MiMo V2.5 Pro Ultraspeed" },
     { id: "mimo-v2.5", name: "MiMo V2.5" },
     { id: "mimo-v2-omni", name: "MiMo V2 Omni" },
     { id: "mimo-v2-flash", name: "MiMo V2 Flash" },
