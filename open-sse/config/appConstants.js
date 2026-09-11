@@ -207,7 +207,7 @@ export const OAUTH_ENDPOINTS = {
 };
 
 let _appVersion;
-function getAppPackageVersion() {
+export function getAppPackageVersion() {
   if (_appVersion) return _appVersion;
   try {
     const require = createRequire(import.meta.url);
