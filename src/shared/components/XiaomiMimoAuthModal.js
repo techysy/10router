@@ -23,6 +23,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
   const [desktopLocked, setDesktopLocked] = useState(false);
   const [error, setError] = useState(null);
   const [oauthUrl, setOauthUrl] = useState(null);
+  const [manualUrl, setManualUrl] = useState(null);
   const [oauthState, setOauthState] = useState(null);
   const [authCode, setAuthCode] = useState("");
   const [submittingCode, setSubmittingCode] = useState(false);
@@ -32,6 +33,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
     setError(null);
     setDetectResult(null);
     setOauthUrl(null);
+    setManualUrl(null);
     setAuthCode("");
     setDesktopLocked(false);
 
@@ -57,6 +59,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       setError(null);
       setDetectResult(null);
       setOauthUrl(null);
+      setManualUrl(null);
       setAuthCode("");
       setDesktopLocked(false);
 
@@ -125,6 +128,7 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
       const data = await res.json();
       if (data.authorizeUrl) {
         setOauthUrl(data.authorizeUrl);
+        setManualUrl(data.manualUrl || null);
         setOauthState(data.state);
         window.open(data.authorizeUrl, "_blank", "width=600,height=700");
       } else {
@@ -343,6 +347,20 @@ export default function XiaomiMimoAuthModal({ isOpen, onSuccess, onClose }) {
                   <p className="text-xs text-text-muted mt-1">
                     {translate("The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.")}
                   </p>
+                  {manualUrl && (
+                    // The platform's own code-display page: the same request as the popup,
+                    // except it renders the code for copying instead of handing it to a
+                    // listener. The fallback when the popup or the localhost hand-off
+                    // does not show a code at all.
+                    <a
+                      href={manualUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block text-xs text-primary hover:underline mt-2"
+                    >
+                      {translate("Open the code page")}
+                    </a>
+                  )}
                 </div>
 
                 <div className="flex gap-2">

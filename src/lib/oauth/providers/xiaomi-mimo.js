@@ -98,6 +98,13 @@ export function decryptCallback(privateKeyDer, encryptedB64) {
 
 /**
  * Build the browser authorization URL.
+ *
+ * Parameter-for-parameter identical to the official client's builder, because the
+ * platform keys its behaviour off them: `app` in particular selects which client the
+ * authorization code is minted for. Omitting it (as this once did) makes the page
+ * hand back a blob the platform encrypted for a different key — the code looks right,
+ * is the right size, and no key we hold can open it.
+ *
  * @param {string} publicKey — base64 SPKI from generateKeyPair()
  * @param {string} redirectUri — e.g. http://localhost:12345/
  * @param {string} [keyName] — optional stable key name
@@ -110,7 +117,25 @@ export function buildAuthorizeUrl(publicKey, redirectUri, keyName) {
     kn: XIAOMI_MIMO_CONFIG.kn,
   });
   if (keyName) params.set("key_name", keyName);
+  params.set("app", XIAOMI_MIMO_CONFIG.app);
   return `${XIAOMI_MIMO_CONFIG.platformUrl}/authorize?${params.toString()}`;
+}
+
+/**
+ * The platform's own "show me the code" page — the same authorize request except the
+ * payload is rendered for the user to copy instead of being handed to a listener.
+ * This is the manual half of the official client's flow, and the one to reach for when
+ * the localhost callback cannot be reached (remote dashboard, blocked local network).
+ * @param {string} publicKey
+ * @param {string} [keyName]
+ * @returns {string}
+ */
+export function buildManualAuthorizeUrl(publicKey, keyName) {
+  return buildAuthorizeUrl(
+    publicKey,
+    `${XIAOMI_MIMO_CONFIG.platformUrl}/authorize/code/callback`,
+    keyName,
+  );
 }
 
 /**

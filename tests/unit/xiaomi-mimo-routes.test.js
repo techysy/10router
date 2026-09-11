@@ -76,6 +76,10 @@ describe("xiaomi-mimo wiring in the generic oauth route", () => {
     expect(src()).toContain("startXiaomiMimoProxy");
     expect(src()).toContain("registerXiaomiMimoSession({ state, privateKeyDer })");
     expect(src()).toMatch(/return NextResponse\.json\(\{\s*authorizeUrl/);
+    // Both URLs the official client hands its UI: the automatic one and the platform's
+    // code-display page, so a user whose localhost callback is unreachable can still
+    // get a copyable code from the page that is designed to show one.
+    expect(src()).toContain("manualUrl: buildManualAuthorizeUrl(publicKey, keyName)");
   });
 
   it("redacts the API key from poll-status", () => {

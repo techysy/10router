@@ -8,6 +8,7 @@ import {
   generateKeyPair,
   decryptCallback,
   buildAuthorizeUrl,
+  buildManualAuthorizeUrl,
   getKeyName,
 } from "../../src/lib/oauth/providers/xiaomi-mimo.js";
 import {
@@ -54,8 +55,18 @@ function encryptRawFor(clientPublicKeyB64, plaintext) {
 const encryptFor = (clientPublicKeyB64, payload) =>
   encryptRawFor(clientPublicKeyB64, JSON.stringify(payload));
 
-async function hit(port, query, headers = {}) {
-  return fetch(`http://127.0.0.1:${port}/${query}`, { headers });
+async function hit(port, query, headers = {}, init = {}) {
+  // The listener only answers on its per-listener secret path (that path IS the
+  // anti-CSRF capability), so tests must address it through the URL it handed out.
+  const base = proxy?.callbackUrl || `http://127.0.0.1:${port}/`;
+  const url = new URL(base);
+  if (query) url.search = query.startsWith("?") ? query : `?${query}`;
+  return fetch(url.toString(), { headers, ...init });
+}
+
+/** Hit an arbitrary path — used to prove anything but the secret path is refused. */
+async function hitPath(port, path, headers = {}) {
+  return fetch(`http://127.0.0.1:${port}${path}`, { headers });
 }
 
 let proxy;
@@ -118,6 +129,28 @@ describe("xiaomi-mimo OAuth crypto", () => {
     expect(url.searchParams.get("kn")).toBe("mimocode");
   });
 
+  it("sends app=MiMo, like the official client's builder", () => {
+    // The platform selects which client the authorization code is minted for from this
+    // parameter. Without it the page returns a blob encrypted for a DIFFERENT key, so
+    // the code is well-formed and the right size yet no key we hold can open it.
+    const url = new URL(buildAuthorizeUrl("PUB", "http://localhost:1234/", "key-1"));
+    expect(url.searchParams.get("app")).toBe("MiMo");
+    expect(url.searchParams.get("key_name")).toBe("key-1");
+  });
+
+  it("offers the platform's own code-display page as the manual fallback", () => {
+    const url = new URL(buildManualAuthorizeUrl("PUB", "key-1"));
+    expect(url.pathname).toBe("/authorize");
+    // Identical request, except the payload is rendered for the user to copy instead of
+    // being handed to a listener — the manual half of the official flow.
+    expect(url.searchParams.get("pk")).toBe("PUB");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://platform.xiaomimimo.com/authorize/code/callback",
+    );
+    expect(url.searchParams.get("kn")).toBe("mimocode");
+    expect(url.searchParams.get("app")).toBe("MiMo");
+  });
+
   it("derives a stable key name", () => {
     expect(getKeyName()).toBe(getKeyName());
     expect(getKeyName()).toMatch(/^10router-xmd-[0-9a-f]{8}$/);
@@ -125,29 +158,41 @@ describe("xiaomi-mimo OAuth crypto", () => {
 });
 
 describe("xiaomi-mimo OAuth callback proxy", () => {
-  it("binds loopback and reports a callback url", () => {
+  it("binds loopback and reports an unguessable callback path", () => {
     expect(proxy.success).toBe(true);
-    expect(proxy.callbackUrl).toBe(`http://127.0.0.1:${proxy.port}/`);
+    // The path is a capability: the platform fetches exactly this URL, and a page that
+    // cannot guess it cannot reach the handler at all.
+    expect(proxy.callbackUrl).toMatch(
+      new RegExp(`^http://127\\.0\\.0\\.1:${proxy.port}/callback/[0-9a-f]{32}$`),
+    );
   });
 
-  it("rejects a cross-origin request (login-CSRF from a web page)", async () => {
-    const res = await hit(proxy.port, "", { Origin: "https://attacker.example" });
-    expect(res.status).toBe(403);
+  it("refuses anything but the secret callback path (login-CSRF from a web page)", async () => {
+    // Replaces the old loopback-Origin guard: that one had to go because the platform's
+    // own https page is the legitimate caller. The secret path protects the same asset
+    // — an attacker page cannot know it, and cannot guess it.
+    const res = await hitPath(proxy.port, "/", { Origin: "https://attacker.example" });
+    expect(res.status).toBe(404);
+    expect(await res.text()).not.toContain("u=");
   });
 
-  it("allows a navigation redirect that carries no Origin", async () => {
-    const res = await hit(proxy.port, "");
-    expect(res.status).toBe(400); // reached the handler: missing `u`
+  it("reports a missing payload to the platform instead of rendering a page", async () => {
+    const res = await hit(proxy.port, "", {}, { redirect: "manual" });
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get("location"));
+    expect(location.origin).toBe("https://platform.xiaomimimo.com");
+    expect(location.pathname).toBe("/authorize/callback");
+    expect(location.searchParams.get("status")).toBe("error");
+    expect(location.searchParams.get("message")).toBe("missing_data");
   });
 
-  it("allows a loopback Origin", async () => {
-    const res = await hit(proxy.port, "", { Origin: "http://127.0.0.1:3000" });
-    expect(res.status).toBe(400);
-  });
-
-  it("reports an error when no session is pending", async () => {
-    const res = await hit(proxy.port, "?u=AAAA");
-    expect(res.status).toBe(500);
+  it("serves a cross-origin call from the platform login page", async () => {
+    // The platform's page calls this listener with fetch() from its own https origin,
+    // which a loopback-only guard used to reject — silently breaking every sign-in.
+    const origin = "https://platform.xiaomimimo.com";
+    const preflight = await fetch(proxy.callbackUrl, { method: "OPTIONS", headers: { Origin: origin } });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
   });
 
   it("stores the decrypted key on the matched session", async () => {
@@ -155,9 +200,15 @@ describe("xiaomi-mimo OAuth callback proxy", () => {
     registerXiaomiMimoSession({ state: "s1", privateKeyDer });
 
     const u = encryptFor(publicKey, { uid: "uid-9", sk: "sk-live" });
-    const res = await hit(proxy.port, `?u=${encodeURIComponent(u)}`);
+    const res = await hit(proxy.port, `?u=${encodeURIComponent(u)}`, {}, { redirect: "manual" });
 
-    expect(res.status).toBe(200);
+    // Success is reported by redirecting the platform's page to its own callback URL,
+    // exactly as the official client does — the page then closes out its sign-in UI.
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get("location"));
+    expect(location.pathname).toBe("/authorize/callback");
+    expect(location.searchParams.get("status")).toBe("success");
+
     const status = getXiaomiMimoSessionStatus("s1");
     expect(status.status).toBe("done");
     expect(status.result.accessToken).toBe("sk-live");
@@ -181,9 +232,10 @@ describe("xiaomi-mimo OAuth callback proxy", () => {
     registerXiaomiMimoSession({ state: "s1", privateKeyDer: a.privateKeyDer });
     registerXiaomiMimoSession({ state: "s2", privateKeyDer: b.privateKeyDer });
 
-    const res = await hit(proxy.port, "?u=AAAA");
+    const res = await hit(proxy.port, "?u=AAAA", {}, { redirect: "manual" });
 
-    expect(res.status).toBe(400);
+    // Reported to the platform's page as a failure; the in-flight logins stay untouched.
+    expect(res.status).toBe(302);
     // One stray request must not abort every in-flight login.
     expect(getXiaomiMimoSessionStatus("s1").status).toBe("pending");
     expect(getXiaomiMimoSessionStatus("s2").status).toBe("pending");
@@ -193,29 +245,31 @@ describe("xiaomi-mimo OAuth callback proxy", () => {
     const { privateKeyDer } = generateKeyPair();
     registerXiaomiMimoSession({ state: "s1", privateKeyDer });
 
-    const res = await hit(proxy.port, "?u=AAAA");
+    const res = await hit(proxy.port, "?u=AAAA", {}, { redirect: "manual" });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
     const status = getXiaomiMimoSessionStatus("s1");
     expect(status.status).toBe("error");
     expect(status.error).toMatch(/decrypt/i);
   });
 
-  it("never reflects the submitted payload into the error page", async () => {
-    // Decrypt failures are swallowed per session and replaced with a constant
-    // message, so the rendered page must never contain the submitted bytes.
+  it("reports an unreadable payload to the platform, without reflecting it", async () => {
+    // Failures are reported to the platform's page by redirect (there is no page of ours
+    // left to render), and the constant message means the submitted bytes can never
+    // travel back — the Location must stay a fixed platform URL.
     const { publicKey, privateKeyDer } = generateKeyPair();
     registerXiaomiMimoSession({ state: "s1", privateKeyDer });
 
     const u = encryptRawFor(publicKey, "<script>alert(1)</script>");
-    const res = await hit(proxy.port, `?u=${encodeURIComponent(u)}`);
+    const res = await hit(proxy.port, `?u=${encodeURIComponent(u)}`, {}, { redirect: "manual" });
+    const location = res.headers.get("location") || "";
     const body = await res.text();
 
-    expect(res.status).toBe(400);
-    expect(body).toContain("Authentication Failed");
-    expect(body).toContain("Could not decrypt with any pending session key");
-    expect(body).not.toContain("<script>alert(1)</script>");
+    expect(res.status).toBe(302);
+    expect(location).toContain("/authorize/callback?status=error&message=decrypt_failed");
+    expect(location).not.toContain("alert");
     expect(body).not.toContain("alert(1)");
+    expect(body).not.toContain(u);
   });
 
   it("keeps sessions alive when the proxy stops", () => {
@@ -261,13 +315,19 @@ describe("xiaomi-mimo OAuth security invariants (source)", () => {
     expect(source).not.toContain("for (const [, session] of pendingSessions) {");
   });
 
-  it("keeps the loopback origin guard on the proxy", () => {
+  it("keeps a per-listener secret callback path", () => {
+    // This replaced the loopback-Origin guard, which could never pass for the platform's
+    // own https login page (it was rejecting the one legitimate cross-origin caller).
     const source = fs.readFileSync(srcPath("src/lib/oauth/utils/server.js"), "utf-8");
-    expect(source).toContain("if (!isLoopbackOrigin(req.headers.origin))");
+    expect(source).toContain('`/callback/${crypto.randomBytes(16).toString("hex")}`');
+    expect(source).toContain("if (url.pathname !== callbackPath)");
   });
 
-  it("renders callback pages through the escaped house renderer", () => {
+  it("reports the hand-off to the platform's own callback page", () => {
     const source = fs.readFileSync(srcPath("src/lib/oauth/utils/server.js"), "utf-8");
-    expect(source).toContain("renderCodexResultPage(false, `Decryption failed: ${err.message}`)");
+    // Mirroring the official client: the page that opened the sign-in is the one that
+    // must be told how it went, otherwise its UI hangs with no success state.
+    expect(source).toContain("/authorize/callback");
+    expect(source).toContain('xiaomiMimoPlatformCallbackUrl("success")');
   });
 });

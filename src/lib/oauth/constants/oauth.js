@@ -141,6 +141,10 @@ export const XIAOMI_MIMO_CONFIG = {
   platformUrl: process.env.MIMO_PLATFORM_URL || "https://platform.xiaomimimo.com",
   defaultBaseUrl: "https://api.xiaomimimo.com/v1",
   kn: "mimocode",
+  // Identifies us as the MiMo client to the platform. The official builder always
+  // sends it; without it the platform mints the authorization code for a different
+  // client, so the blob it hands back cannot be decrypted by the key we registered.
+  app: "MiMo",
   callbackPath: "/",
   timeoutMs: 300000, // 5 minutes — how long the local callback listener waits
   // How long a pending private key stays usable for a PASTED authorization code.

@@ -106,11 +106,16 @@ export async function GET(request, { params }) {
         if (!started.success) {
           return NextResponse.json({ error: started.reason || "Failed to start callback listener" }, { status: 500 });
         }
-        const { generateKeyPair, buildAuthorizeUrl, getKeyName } = await import("@/lib/oauth/providers/xiaomi-mimo.js");
+        const { generateKeyPair, buildAuthorizeUrl, buildManualAuthorizeUrl, getKeyName } =
+          await import("@/lib/oauth/providers/xiaomi-mimo.js");
         const { publicKey, privateKeyDer } = generateKeyPair();
         registerXiaomiMimoSession({ state, privateKeyDer });
+        const keyName = getKeyName();
         return NextResponse.json({
-          authorizeUrl: buildAuthorizeUrl(publicKey, started.callbackUrl, getKeyName()),
+          authorizeUrl: buildAuthorizeUrl(publicKey, started.callbackUrl, keyName),
+          // The platform's code-display page. Official clients surface both and let the
+          // user fall back to copying a code when the localhost callback is unreachable.
+          manualUrl: buildManualAuthorizeUrl(publicKey, keyName),
           callbackUrl: started.callbackUrl,
           state,
         });

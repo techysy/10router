@@ -1,4 +1,5 @@
 import http from "http";
+import crypto from "node:crypto";
 import { URL } from "url";
 import { CODEX_CONFIG, TRAE_CONFIG, WINDSURF_CONFIG, XIAOMI_MIMO_CONFIG, ZED_HOSTED_CONFIG } from "../constants/oauth.js";
 
@@ -763,6 +764,23 @@ export function stopZedProxy() {
 let xiaomiMimoProxyServer = null;
 let xiaomiMimoProxyPort = null;
 let xiaomiMimoProxyTimeout = null;
+// The only origin allowed to call the listener cross-origin: the platform's own login
+// page, which is what hands us the payload.
+const XIAOMI_MIMO_PLATFORM_ORIGIN = new URL(XIAOMI_MIMO_CONFIG.platformUrl).origin;
+// Per-listener secret path. The platform's authorize page fetches this URL and hands
+// the encrypted payload to it, so the path doubles as the capability that keeps a
+// random web page from talking to the listener at all — which is why the official
+// client randomises it, and why it is what replaces a loopback-only Origin check
+// (the platform page is an https origin and could never pass one).
+let xiaomiMimoCallbackPath = null;
+
+/** Where the platform's page expects to be told how the hand-off went. */
+function xiaomiMimoPlatformCallbackUrl(status, message) {
+  const url = new URL(`${XIAOMI_MIMO_CONFIG.platformUrl}/authorize/callback`);
+  url.searchParams.set("status", status);
+  if (message) url.searchParams.set("message", message);
+  return url.toString();
+}
 
 const xiaomiMimoSessions = new Map();
 
@@ -916,25 +934,52 @@ export function startXiaomiMimoProxy() {
       resolve({
         success: true,
         port: xiaomiMimoProxyPort,
-        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}/`,
+        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}${xiaomiMimoCallbackPath}`,
       });
       return;
     }
 
+    const callbackPath =
+      xiaomiMimoCallbackPath ||
+      (xiaomiMimoCallbackPath = `/callback/${crypto.randomBytes(16).toString("hex")}`);
+
     const server = http.createServer(async (req, res) => {
-      // Origin guard
-      if (!isLoopbackOrigin(req.headers.origin)) {
-        res.writeHead(403);
-        res.end("Forbidden");
+      // The platform's login page calls this listener from its own https origin, so the
+      // origin CANNOT be restricted to loopback (doing so silently broke the whole
+      // hand-off). The anti-abuse property comes from the unguessable callback path
+      // below plus the fact that the payload only opens with our X25519 private key —
+      // the same shape the official client uses.
+      const origin = req.headers.origin || "";
+      const cors =
+        origin === XIAOMI_MIMO_PLATFORM_ORIGIN
+          ? {
+              "Access-Control-Allow-Origin": origin,
+              "Access-Control-Allow-Methods": "GET, OPTIONS",
+              "Access-Control-Allow-Headers": "*",
+              "Access-Control-Max-Age": "600",
+              Vary: "Origin",
+            }
+          : { Vary: "Origin" };
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, cors);
+        res.end();
         return;
       }
 
       const url = new URL(req.url, "http://127.0.0.1");
-      const u = url.searchParams.get("u");
+      if (url.pathname !== callbackPath) {
+        res.writeHead(404, cors);
+        res.end("Not Found");
+        return;
+      }
 
+      // From here on, failures are reported to the platform's page (a 302 it follows),
+      // never as a page we render — that is what closes out its sign-in UI.
+      const u = url.searchParams.get("u");
       if (!u) {
-        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderCodexResultPage(false, "Missing encrypted payload (u parameter)."));
+        res.writeHead(302, { ...cors, Location: xiaomiMimoPlatformCallbackUrl("error", "missing_data") });
+        res.end();
         return;
       }
 
@@ -943,26 +988,18 @@ export function startXiaomiMimoProxy() {
       const pendingSessions = [...xiaomiMimoSessions.entries()]
         .filter(([, s]) => s.status === "pending");
 
-      if (pendingSessions.length === 0) {
-        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderCodexResultPage(false, "No active OAuth session. Please restart the login flow."));
-        return;
-      }
-
       try {
         const outcome = await completeXiaomiMimoFlow(u);
         if (!outcome.ok) {
           throw new Error(
-            outcome.error === "no_pending_session"
-              ? "No active OAuth session. Please restart the login flow."
-              : outcome.error === "missing_api_key"
-                ? "Decrypted payload missing sk (API key)"
-                : "Could not decrypt with any pending session key",
+            outcome.error === "missing_api_key"
+              ? "Decrypted payload missing sk (API key)"
+              : "Could not decrypt with any pending session key",
           );
         }
 
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderCodexResultPage(true, "Xiaomi account linked. You can close this tab."));
+        res.writeHead(302, { ...cors, Location: xiaomiMimoPlatformCallbackUrl("success") });
+        res.end();
         console.log("[xiaomi-mimo oauth] callback decrypted");
       } catch (err) {
         console.error("[xiaomi-mimo oauth] decrypt failed:", err.message);
@@ -977,8 +1014,8 @@ export function startXiaomiMimoProxy() {
           only.status = "error";
           only.error = err.message;
         }
-        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderCodexResultPage(false, `Decryption failed: ${err.message}`));
+        res.writeHead(302, { ...cors, Location: xiaomiMimoPlatformCallbackUrl("error", "decrypt_failed") });
+        res.end();
       }
     });
 
@@ -998,7 +1035,7 @@ export function startXiaomiMimoProxy() {
       resolve({
         success: true,
         port: xiaomiMimoProxyPort,
-        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}/`,
+        callbackUrl: `http://127.0.0.1:${xiaomiMimoProxyPort}${callbackPath}`,
       });
     });
   });
@@ -1009,6 +1046,8 @@ export function stopXiaomiMimoProxy() {
   if (xiaomiMimoProxyTimeout) { clearTimeout(xiaomiMimoProxyTimeout); xiaomiMimoProxyTimeout = null; }
   if (xiaomiMimoProxyServer) { xiaomiMimoProxyServer.close(); xiaomiMimoProxyServer = null; }
   xiaomiMimoProxyPort = null;
+  // A new listener gets a fresh secret path.
+  xiaomiMimoCallbackPath = null;
   // Stop LISTENING only. The local listener is the automatic callback path; the
   // platform's authorize page also shows a code for the user to paste by hand, and
   // that path is still perfectly usable after this listener is gone. Dropping the
