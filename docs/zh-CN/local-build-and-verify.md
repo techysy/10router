@@ -16,7 +16,7 @@ npm 上还停在 1.0.7 —— 事后谁也无法凭版本号判断手上那份�
 
 ```bash
 npm run test-version -- --check          # 看四处版本号 + 是否已盖章 + 最新 tag
-npm run test-version 1.1.0-test.1        # 盖测试版本号（不提交）
+npm run test-version 1.1.1-test.1        # 盖测试版本号（不提交）
 npm run test-version -- --revert         # 测完回退（只在「改动全是版本行」时才会执行）
 ```
 
@@ -32,8 +32,9 @@ npm run test-version -- --revert         # 测完回退（只在「改动全是�
 脚本内置三条约束，都是为了不再重演历史事故：
 
 - **必须是 `X.Y.Z-test.N` 形态**，防止测试号被当成正式发布物（`--force` 可越过）。
-- **必须大于最新 git tag**：语义化版本里 `1.1.0-test.1 > 1.0.8`，而 `1.0.8-test.1 < 1.0.8`。
-  若小于等于当前发布版，真机上已在用的旧版本会把这次测试包当成「降级」而不提示更新。
+- **必须大于最新 git tag**（`--check` 会打印当前 tag）：取最新 tag 的**补丁位 +1** 再挂 `-test.N`
+  —— 例如当前 tag 是 `v1.1.0`，就盖 `1.1.1-test.N`。语义化版本里 `1.1.1-test.1 > 1.1.0 > 1.0.8`，
+  而 `1.0.8-test.1 < 1.0.8`：小于等于当前发布版时，真机上在用的旧版本会把它当成降级而不提示更新。
 - **`--revert` 拒绝吃掉无关改动**：`git checkout -- <file>` 会丢弃该文件**全部**未提交改动，
   不只是版本行 —— 这个脚本的 `assertVersionOnlyChanges()` 在回退前逐文件检查
   「git diff 的每一行是否都与 version 有关」，否则直接拒绝并列出文件，让你先 commit 或 stash。
@@ -56,7 +57,7 @@ npm run test-version -- --revert         # 测完回退（只在「改动全是�
 ```bash
 npm install                                        # 全新 clone 才需要（root）
 cd cli && npm install && cd ..                     # cli 的 esbuild 依赖
-npm run test-version 1.1.1-test.2                  # 必须在构建**前**盖章：版本号会进文件名与包内容
+npm run test-version 1.1.1-test.1                  # 必须在构建**前**盖章：版本号会进文件名与包内容
 node cli/scripts/build-cli.js                      # → cli/app（Next standalone，平台无关）
 cd desktop
 npx electron-builder --win --dir                   # 路 1：dist/win-unpacked（不出安装包，最快）
@@ -139,7 +140,7 @@ tail -2 "$APPDATA/10router-desktop/logs/tray.log"               # start server /
 taskkill //IM 10Router.exe //F                     # 必须先停：安装器要覆盖 resources/app
 sleep 4
 cd desktop/dist
-./"10Router Setup 1.1.1-test.2.exe" /S             # 直接执行；装完不会自动启动
+./"10Router Setup 1.1.1-test.1.exe" /S             # 直接执行；装完不会自动启动
 ```
 
 **坑在这里：`/S` 只在「直接执行 exe」时有效。** 经 `cmd /c start /wait "…exe" /S` 转一手会
@@ -162,7 +163,7 @@ stat -c '%y %n' "$INST/resources/app/package.json"     # mtime 应就是刚刚
 与 Windows 同源的目录（`fnos-packaging/`）与同一套版本号：
 
 ```bash
-npm run test-version 1.1.0-test.1
+npm run test-version 1.1.1-test.1
 npm run prebuild:fpk     # manifest version ← package.json（测试号随之进 fpk 文件名）
 npm run build            # → .next/standalone
 ```
