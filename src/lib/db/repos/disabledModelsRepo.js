@@ -3,54 +3,157 @@ import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 
 const SCOPE = "disabledModels";
 
+// ───────────────────────────────────────────────────────────────────────────
+// Key normalisation.
+//
+// A provider answers to several names: its id, its registry `alias`, its
+// `uiAlias`, and anything listed in `aliases[]`. Call sites disagreed about which
+// one to store a disabled-model row under — the first-connection default-disable
+// used the id (`PROVIDER_ID_TO_ALIAS`), while the dashboard page reads and writes
+// the name `getProviderAlias()` gives it (`uiAlias || alias || id`). One provider
+// therefore ended up with two rows holding the same ids (`xiaomi-mimo` + `mimo`),
+// and a toggle written under one name is invisible to a reader consulting the
+// other: a model the user just enabled stays disabled, or vice versa.
+//
+// So every entry point here resolves its key to the storage name, reads the UNION
+// of all names for that provider, and writes a single collapsed row. Reads also
+// publish the result under every known name, so a lookup by any of them resolves
+// instead of silently reporting "nothing disabled".
+// ───────────────────────────────────────────────────────────────────────────
+
+let keyGroups = null;
+
+async function loadKeyGroups() {
+  if (keyGroups) return keyGroups;
+  const toCanonical = new Map();
+  const byCanonical = new Map();
+  try {
+    const mod = await import("open-sse/providers/registry/index.js");
+    const registry = mod.default || mod.REGISTRY || [];
+    for (const entry of registry) {
+      const canonical = entry.uiAlias || entry.alias || entry.id;
+      if (!canonical) continue;
+      const names = new Set(
+        [entry.id, entry.alias, entry.uiAlias, ...(Array.isArray(entry.aliases) ? entry.aliases : [])].filter(Boolean)
+      );
+      const group = byCanonical.get(canonical) || new Set();
+      for (const name of names) {
+        toCanonical.set(name, canonical);
+        group.add(name);
+      }
+      byCanonical.set(canonical, group);
+    }
+  } catch (error) {
+    // A registry hiccup must never break model toggles — fall back to plain keys.
+    console.log("Disabled-model key map unavailable:", error?.message || error);
+  }
+  keyGroups = { toCanonical, byCanonical };
+  return keyGroups;
+}
+
+/** The single name a provider's disabled-model row is stored under. */
+export async function resolveDisabledKey(key) {
+  if (!key) return key;
+  const { toCanonical } = await loadKeyGroups();
+  return toCanonical.get(key) || key;
+}
+
+/** All names denoting the same provider as `key`, plus its storage name. */
+async function siblingKeys(key) {
+  const { toCanonical, byCanonical } = await loadKeyGroups();
+  const canonical = toCanonical.get(key) || key;
+  const names = byCanonical.get(canonical);
+  const keys = new Set(names ? [...names] : []);
+  keys.add(key);
+  keys.add(canonical);
+  return { canonical, keys: [...keys] };
+}
+
+/**
+ * Every provider's disabled model ids, keyed by the storage name AND by every
+ * alias of that provider.
+ *
+ * When a provider somehow has rows under more than one name, the row under the
+ * storage name wins: that is the row the dashboard reads and writes, so it carries
+ * the user's latest intent. A legacy row under another name is only consulted when
+ * there is no storage-name row at all (otherwise the stale duplicate would undo an
+ * include the user just made).
+ */
 export async function getDisabledModels() {
   const db = await getAdapter();
   const rows = db.all(`SELECT key, value FROM kv WHERE scope = ?`, [SCOPE]);
+  const { toCanonical, byCanonical } = await loadKeyGroups();
+
+  const groups = new Map(); // canonical -> { own: Set|null, union: Set }
+  for (const r of rows) {
+    const canonical = toCanonical.get(r.key) || r.key;
+    let group = groups.get(canonical);
+    if (!group) {
+      group = { own: null, union: new Set() };
+      groups.set(canonical, group);
+    }
+    const ids = parseJson(r.value, []) || [];
+    if (r.key === canonical) group.own = new Set(ids);
+    for (const id of ids) group.union.add(id);
+  }
+
   const out = {};
-  for (const r of rows) out[r.key] = parseJson(r.value, []);
+  for (const [canonical, group] of groups) {
+    const ids = [...(group.own || group.union)];
+    out[canonical] = ids;
+    const names = byCanonical.get(canonical);
+    if (names) for (const name of names) out[name] = ids;
+  }
   return out;
 }
 
 export async function getDisabledByProvider(providerAlias) {
-  const db = await getAdapter();
-  const row = db.get(`SELECT value FROM kv WHERE scope = ? AND key = ?`, [SCOPE, providerAlias]);
-  return row ? (parseJson(row.value, []) || []) : [];
+  if (!providerAlias) return [];
+  const all = await getDisabledModels();
+  return all[providerAlias] || [];
 }
+
+const WRITE_ROW = `INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`;
+const DELETE_ROW = `DELETE FROM kv WHERE scope = ? AND key = ?`;
 
 // Atomic read-merge-write inside a transaction (no JS yield mid-transaction).
 export async function disableModels(providerAlias, ids) {
   if (!providerAlias || !Array.isArray(ids)) return;
   const db = await getAdapter();
+  const { canonical, keys } = await siblingKeys(providerAlias);
+  const current = await getDisabledByProvider(providerAlias);
   db.transaction(() => {
-    const row = db.get(`SELECT value FROM kv WHERE scope = ? AND key = ?`, [SCOPE, providerAlias]);
-    const current = row ? (parseJson(row.value, []) || []) : [];
     const merged = [...new Set([...current, ...ids])];
-    db.run(
-      `INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`,
-      [SCOPE, providerAlias, stringifyJson(merged)]
-    );
+    db.run(WRITE_ROW, [SCOPE, canonical, stringifyJson(merged)]);
+    // Collapse rows this provider left under another name — otherwise a stale
+    // duplicate keeps re-adding ids the user has since enabled.
+    for (const key of keys) {
+      if (key === canonical) continue;
+      db.run(DELETE_ROW, [SCOPE, key]);
+    }
   });
 }
 
 export async function enableModels(providerAlias, ids) {
   if (!providerAlias) return;
   const db = await getAdapter();
+  const { canonical, keys } = await siblingKeys(providerAlias);
+  const clearing = !Array.isArray(ids) || ids.length === 0;
+  const current = clearing ? [] : await getDisabledByProvider(providerAlias);
   db.transaction(() => {
-    if (!Array.isArray(ids) || ids.length === 0) {
-      db.run(`DELETE FROM kv WHERE scope = ? AND key = ?`, [SCOPE, providerAlias]);
+    let next = [];
+    if (!clearing) {
+      const removeSet = new Set(ids);
+      next = current.filter((id) => !removeSet.has(id));
+    }
+    if (next.length === 0) {
+      for (const key of keys) db.run(DELETE_ROW, [SCOPE, key]);
       return;
     }
-    const row = db.get(`SELECT value FROM kv WHERE scope = ? AND key = ?`, [SCOPE, providerAlias]);
-    const current = row ? (parseJson(row.value, []) || []) : [];
-    const removeSet = new Set(ids);
-    const next = current.filter((id) => !removeSet.has(id));
-    if (next.length === 0) {
-      db.run(`DELETE FROM kv WHERE scope = ? AND key = ?`, [SCOPE, providerAlias]);
-    } else {
-      db.run(
-        `INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`,
-        [SCOPE, providerAlias, stringifyJson(next)]
-      );
+    db.run(WRITE_ROW, [SCOPE, canonical, stringifyJson(next)]);
+    for (const key of keys) {
+      if (key === canonical) continue;
+      db.run(DELETE_ROW, [SCOPE, key]);
     }
   });
 }
