@@ -109,8 +109,15 @@ describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
 });
 
 // opencode-go's own docs table lists the V4.1-Flash id as `deepseek-v4.1-flash` (its
-// public /models catalog carries both that and `deepseek-flash`), and codebuddy-cn
-// serves the same id through its OpenAI-compatible gateway.
+// public /models catalog carries both that and `deepseek-flash`), and both
+// CodeBuddy gateways serve the same id: codebuddy-cn through its
+// OpenAI-compatible gateway (provider row below) and codebuddy-intl likewise
+// (verified live —
+// the intl gateway answers the id with a 200, and it is the model the upstream
+// PR about "international CodeBuddy + 4.1" was pointing at).
+// codebuddy-intl carries no provider row of its own (its gateway publishes no
+// per-model metadata), so its entire catalog — this id included — resolves from
+// the canonical/pattern rows, exactly like glm-5.3 / kimi-k3 there.
 const DOTTED_ID = REGISTRY.flatMap((entry) =>
   (entry.models || [])
     .map((m) => (typeof m === "string" ? m : m.id))
@@ -119,8 +126,8 @@ const DOTTED_ID = REGISTRY.flatMap((entry) =>
 );
 
 describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
-  it("is offered by opencode-go and codebuddy-cn", () => {
-    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["codebuddy-cn", "opencode-go"]);
+  it("is offered by opencode-go and both CodeBuddy gateways", () => {
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["codebuddy-cn", "codebuddy-intl", "opencode-go"]);
   });
 
   it("resolves from the canonical row where the provider has no override", () => {
