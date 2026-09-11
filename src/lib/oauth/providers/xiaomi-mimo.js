@@ -15,16 +15,19 @@ import { XIAOMI_MIMO_CONFIG } from "../constants/oauth.js";
 /**
  * Generate an X25519 keypair for the OAuth handshake.
  * @returns {{ publicKey: string, privateKeyDer: Buffer }}
- *   publicKey     — base64 SPKI (for the `pk` URL param)
+ *   publicKey     — base64url SPKI (for the `pk` URL param)
  *   privateKeyDer — PKCS8 DER Buffer (for ECDH later)
  */
 export function generateKeyPair() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("x25519");
 
   const publicKeyDer = publicKey.export({ format: "der", type: "spki" });
-  // SPKI for X25519 is 44 bytes; the raw 32-byte key is the last 32 bytes.
-  // But the platform expects the full base64 SPKI — pass as-is.
-  const publicKeyB64 = publicKeyDer.toString("base64");
+  // The platform imports `pk` with a base64url decoder, so it must be base64url and
+  // not standard base64: `+` and `/` are not in that alphabet, and a strict decoder
+  // drops them, corrupting the DER into a different (or unimportable) key — after
+  // which every code is encrypted to a key we do not hold. The official client
+  // encodes it exactly this way.
+  const publicKeyB64 = publicKeyDer.toString("base64url");
 
   const privateKeyDer = privateKey.export({ format: "der", type: "pkcs8" });
 
@@ -34,27 +37,40 @@ export function generateKeyPair() {
 /**
  * Decrypt the `u` query parameter from the Xiaomi OAuth callback.
  *
- * Wire format (base64-decoded):
- *   bytes 0..11   — 12-byte AES-GCM nonce
- *   bytes 12..43  — 32-byte ephemeral public key (raw X25519)
+ * Wire format (base64url-decoded), byte-for-byte as the official client's
+ * `decryptCallback` reads it:
+ *   bytes 0..31    — 32-byte ephemeral public key (raw X25519)
+ *   bytes 32..43   — 12-byte AES-GCM nonce
  *   bytes 44..n-16 — ciphertext
  *   last 16 bytes  — GCM auth tag
+ *
+ * NOTE the ephemeral key comes FIRST. This file used to read the nonce first (the
+ * two fields swapped), which is why every real authorization code failed as
+ * "does not match this sign-in": the nonce was taken from the first 12 bytes of
+ * the public key, so ECDH derived the wrong secret and the GCM tag never verified.
+ * Our own round-trip tests could not see it — they encrypted with the same wrong
+ * layout they decrypted with.
  *
  * Key derivation: SHA256(ECDH(clientPrivateKey, ephemeralPublicKey))
  *
  * @param {Buffer} privateKeyDer — PKCS8 DER private key from generateKeyPair()
- * @param {string} encryptedB64  — the `u` query param value (base64)
+ * @param {string} encryptedB64  — the `u` query param value (base64url)
  * @returns {{ uid: string|null, sk: string|null, url: string }}
  */
 export function decryptCallback(privateKeyDer, encryptedB64) {
-  const raw = Buffer.from(encryptedB64, "base64");
+  // The platform emits base64url, but a code copied by hand can come back with the
+  // standard alphabet mixed in (`+`/`/` from a re-encoder, or `%2B` already decoded
+  // upstream). The base64url decoder SKIPS characters outside its alphabet, which
+  // would silently corrupt the whole payload, so normalise first.
+  const normalized = String(encryptedB64 || "").replace(/\+/g, "-").replace(/\//g, "_");
+  const raw = Buffer.from(normalized, "base64url");
 
-  if (raw.length < 12 + 32 + 16 + 1) {
+  if (raw.length < 32 + 12 + 16 + 1) {
     throw new Error(`Encrypted payload too short: ${raw.length} bytes`);
   }
 
-  const nonce = raw.subarray(0, 12);
-  const ephemeralPubRaw = raw.subarray(12, 44);
+  const ephemeralPubRaw = raw.subarray(0, 32);
+  const nonce = raw.subarray(32, 44);
   const ciphertextAndTag = raw.subarray(44);
   const tag = ciphertextAndTag.subarray(ciphertextAndTag.length - 16);
   const ciphertext = ciphertextAndTag.subarray(0, ciphertextAndTag.length - 16);

@@ -44,8 +44,9 @@ function platformEncrypt(clientPrivateKeyDer, payload) {
   ]);
 
   // SPKI's X25519 prefix is 12 bytes, then the raw 32-byte key.
+  // Layout mirrors the platform: ephemeral public key FIRST, then the nonce.
   const ephemeralRaw = ephemeral.publicKey.export({ format: "der", type: "spki" }).subarray(12);
-  return Buffer.concat([nonce, ephemeralRaw, ciphertext, cipher.getAuthTag()]).toString("base64");
+  return Buffer.concat([ephemeralRaw, nonce, ciphertext, cipher.getAuthTag()]).toString("base64url");
 }
 
 /** Register a pending session and remember it for cleanup. */

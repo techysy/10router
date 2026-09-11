@@ -28,8 +28,12 @@ const srcPath = (rel) => path.join(here, "..", "..", rel);
  * key. This lets the whole decrypt path be exercised without any credentials.
  */
 function encryptRawFor(clientPublicKeyB64, plaintext) {
+  // Mirrors the platform's own encrypter, byte for byte: it imports `pk` with a
+  // base64url decoder, and lays the payload out as ephemeral-pubkey FIRST, then the
+  // nonce. A helper that agrees with our decrypter instead of with the platform is
+  // worth nothing — that is exactly how the swapped layout survived a green suite.
   const clientPub = crypto.createPublicKey({
-    key: Buffer.from(clientPublicKeyB64, "base64"),
+    key: Buffer.from(clientPublicKeyB64, "base64url"),
     format: "der",
     type: "spki",
   });
@@ -49,7 +53,7 @@ function encryptRawFor(clientPublicKeyB64, plaintext) {
   // SPKI DER for X25519 = 12-byte prefix + 32-byte raw key
   const ephRaw = ephPub.export({ format: "der", type: "spki" }).subarray(12);
 
-  return Buffer.concat([nonce, ephRaw, ciphertext, tag]).toString("base64");
+  return Buffer.concat([ephRaw, nonce, ciphertext, tag]).toString("base64url");
 }
 
 const encryptFor = (clientPublicKeyB64, payload) =>
@@ -106,6 +110,63 @@ describe("xiaomi-mimo OAuth crypto", () => {
     const u = encryptFor(publicKey, { uid: "u-2", sk: "sk-2" });
 
     expect(decryptCallback(privateKeyDer, u).url).toBe("https://api.xiaomimimo.com/v1");
+  });
+
+  it("reads the official wire layout: ephemeral pubkey first, then the nonce", () => {
+    // Pinned against the official client's decrypter, which slices exactly this way.
+    // Reading the nonce first (the two leading fields swapped) breaks EVERY real code
+    // while still passing a round-trip against our own encrypter — which is how this
+    // shipped: the code is the right length and no key opens it.
+    const { publicKey, privateKeyDer } = generateKeyPair();
+    const { publicKey: ephPub, privateKey: ephPriv } = crypto.generateKeyPairSync("x25519");
+    const clientPub = crypto.createPublicKey({
+      key: Buffer.from(publicKey, "base64url"),
+      format: "der",
+      type: "spki",
+    });
+    const key = crypto
+      .createHash("sha256")
+      .update(crypto.diffieHellman({ privateKey: ephPriv, publicKey: clientPub }))
+      .digest();
+    const nonce = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
+    const ct = Buffer.concat([cipher.update('{"uid":"u-3","sk":"sk-3"}', "utf8"), cipher.final()]);
+    const ephRaw = ephPub.export({ format: "der", type: "spki" }).subarray(12);
+    const official = Buffer.concat([ephRaw, nonce, ct, cipher.getAuthTag()]).toString("base64url");
+
+    // sanity: the layout really is pub-then-nonce
+    expect(Buffer.from(official, "base64url").subarray(0, 32)).toEqual(ephRaw);
+    expect(Buffer.from(official, "base64url").subarray(32, 44)).toEqual(nonce);
+
+    expect(decryptCallback(privateKeyDer, official).sk).toBe("sk-3");
+  });
+
+  it("still decrypts a payload re-encoded with the standard base64 alphabet", () => {
+    // A hand-copied code can arrive with `+`/`/` instead of `-`/`_`; decoding it as
+    // base64url naively would drop those characters and destroy a valid payload.
+    const { publicKey, privateKeyDer } = generateKeyPair();
+    const payload = { uid: "u-4", sk: "sk-4" };
+    const urlSafe = encryptFor(publicKey, payload);
+    const raw = Buffer.from(urlSafe, "base64url");
+    const standard = raw.toString("base64");
+
+    expect(decryptCallback(privateKeyDer, urlSafe).sk).toBe("sk-4");
+    expect(decryptCallback(privateKeyDer, standard).sk).toBe("sk-4");
+  });
+
+  it("encodes pk as base64url, so the platform decodes the DER we intended", () => {
+    // `+` and `/` are outside the base64url alphabet; an importer that drops them
+    // rebuilds a DIFFERENT public key and mints a code for a key we cannot open.
+    for (let i = 0; i < 40; i++) {
+      const { publicKey } = generateKeyPair();
+      expect(publicKey).not.toMatch(/[+/=]/);
+      const der = Buffer.from(publicKey, "base64url");
+      expect(der.length).toBe(44);
+      // round-trips back to an importable X25519 public key
+      expect(
+        crypto.createPublicKey({ key: der, format: "der", type: "spki" }).asymmetricKeyType,
+      ).toBe("x25519");
+    }
   });
 
   it("rejects a payload shorter than nonce+pubkey+tag", () => {
