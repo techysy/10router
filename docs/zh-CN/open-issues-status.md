@@ -14,8 +14,9 @@
 | [#12](https://github.com/techysy/10router/issues/12) | `GET /v1/models` 500 `jsonCatalog is not defined`（v1.0.8） | 代码侧早已修复，报告人拉到的是**唯一未带修正的 1.0.8 产物**（ghcr 镜像） | ✅ **已关闭** |
 | [#9](https://github.com/techysy/10router/issues/9) | 安全审计反馈（v1.0.7）11 项清单 | ✅ 1 项已修 / 🟡 4 项部分 / ❌ 6 项未修 | ⏸ **保持 open**（追踪单） |
 | [#10](https://github.com/techysy/10router/issues/10) | 内容过滤（`finish_reason: "sensitive"`、0 输出）时重试 combo fallback | 诊断正确，**未实现**；设计要点见 §3 | ⏸ **保持 open**（功能请求） |
+| [#13](https://github.com/techysy/10router/issues/13) | 小米桌面版专属模型未登录时抛原始 502，且被误判为限流进 30s 冷却 | 根因链已逐环验证；需错误分类 + 中文提示 + 事前徽章三件事 | ⏸ **open**（下版待办，见 §4） |
 
-**为什么 #9 / #10 不关**：#9 有 2 项高危（#2 凭据明文、#3 默认口令）确实未动，关掉等于把问题埋掉；#10 是可实现但尚未实现的功能请求，留作 backlog 条目。
+**为什么 #9 / #10 / #13 不关**：#9 有 2 项高危（#2 凭据明文、#3 默认口令）确实未动，关掉等于把问题埋掉；#10 是可实现但尚未实现的功能请求，留作 backlog 条目；#13 是新记的下版待办。
 
 ---
 
@@ -135,7 +136,48 @@ happy path 上只多了一个「等首个内容 chunk」的缓冲，而这本来
 
 ---
 
-## 4. 关联：`gpt-6-astra` 倍率修正（`1b962154`，当时未推送）
+## 4. Issue #13 —— 小米桌面版专属模型的报错要改成「友好提醒」
+
+> 记为下个版本的待办。以下为逐环验证过的根因链。
+
+### 现象
+
+调用桌面版**专属**模型（`mimo-x-pro-preview` / `mimo-x-flash-preview`）而本机没有 MiMo Desktop 账号会话时，客户端拿到：
+
+```
+HTTP 502: [xiaomi-mimo/mimo-x-flash-preview] [502]: Xiaomi MiMo account session unavailable. Sign in to MiMo Desktop once so its passToken is present, then retry. (reset after 30s)
+```
+
+### 根因链
+
+| 环节 | 位置 | 事实 |
+|---|---|---|
+| 抛出原始异常 | `open-sse/executors/xiaomi-mimo.js:75-80` | 取不到桌面版 cookie 时 `throw new Error("Xiaomi MiMo account session unavailable. …its passToken is present…")` —— 写给自己看的调试文案直接成了用户可见的 API 错误 |
+| 匹配不到任何规则 | `open-sse/services/accountFallback.js:48-49` | `// Default: transient cooldown for any unmatched error` |
+| 落到默认瞬时冷却 | `open-sse/config/errorConfig.js:39` | `TRANSIENT_COOLDOWN_MS = 30 * 1000` ← 这才是 `(reset after 30s)` 的来源 |
+| 事前零提示 | `open-sse/providers/registry/xiaomi-mimo.js:57-58` | 两个 Preview 行是「裸」的，没有任何字段说明「只认桌面版 Cookie，API key 到不了」 |
+
+### 为什么必须修（不只是文案问题）
+
+「没登录」被当成「被限流」处理，后果不止难看：
+
+1. **不会自愈** —— 30 秒后重试必然以同样方式失败，但 `(reset after 30s)` 在诱导调用方重试；
+2. **连累同 provider 其他账号/模型** —— 账号被打了 `rateLimitedUntil`，影响正常调度；
+3. **用户唯一的发现途径就是撞一次 502** —— 启用前完全看不到前提条件。
+
+正确语义是 **fail fast**：这是「需要用户完成一次动作」的终态错误，不该进冷却、不该被当作可重试的 502。
+
+### 建议修法（三件事）
+
+- **A. 错误分类**：给这类「需完成一次绑定」的失败一个可判别的类型（如 `MIMO_DESKTOP_SESSION_REQUIRED`），并让 fallback 层显式排除它（不打冷却、不污染同 provider 其他账号）。
+- **B. 文案 + 本地化**：改为「该模型需要小米 MiMo 桌面版账号。请先在「添加账号」里完成一次 MiMo 授权码登录，再重试。」按仓库惯例给该消息加 zh-CN / zh-TW locale 条目，并加守卫用例锁住。
+- **C. 事前提示**：注册表给这两个模型加 `requiresSession`（或通用 `hint`）字段，dashboard 模型行显示「需小米 MiMo 桌面版登录」徽章 + tooltip 指引。（模型字段无白名单：`open-sse/providers/schema.js` 只强制 `id` + `category`，加字段安全。）
+
+原文：https://github.com/techysy/10router/issues/13
+
+---
+
+## 5. 关联：`gpt-6-astra` 倍率修正（`1b962154`，当时未推送）
 
 | | |
 |---|---|
@@ -150,7 +192,7 @@ happy path 上只多了一个「等首个内容 chunk」的缓冲，而这本来
 
 ---
 
-## 5. 待办清单
+## 6. 待办清单
 
 - [ ] 推送 `1b962154`（未推送，1 个提交；推送只触发 CI，不发版）
 - [ ] #9-3 去掉默认口令兜底 + 首次强制设密（小，收益最大）
@@ -160,6 +202,7 @@ happy path 上只多了一个「等首个内容 chunk」的缓冲，而这本来
 - [ ] #9-6 更新器完整性校验 + CORS 收紧
 - [ ] #9-8 会话时长与限流持久化
 - [ ] #10 内容过滤重试（等原始 SSE 尾部定论）
+- [ ] #13 小米桌面版专属模型：错误分类（不进冷却）+ 中文可执行提示 + 事前徽章（见 §4）
 - [ ] 决定 `gpt-6-astra` 修正的发布方式（并入下版 / 补丁版）
 
 ---
