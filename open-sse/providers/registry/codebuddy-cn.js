@@ -13,9 +13,10 @@ export default {
     website: "https://copilot.tencent.com",
     notice: {
       signupUrl: "https://copilot.tencent.com",
-      // 网页版控制台(积分/用量都在这里看)——provider 页右上角按钮指向它,
+      // 网页版 = 在线 agent 页面(WorkBuddy 工作台);积分/用量控制台仍在
+      // signupUrl(copilot.tencent.com)——provider 页右上角按钮指向 webUrl,
       // 替代默认的 "Get API Key"(该渠道的密钥本来就不走自动认证引导)。
-      webUrl: "https://copilot.tencent.com",
+      webUrl: "https://www.workbuddy.cn/app",
     },
   },
   category: "oauth",

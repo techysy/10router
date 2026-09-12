@@ -14,7 +14,8 @@ export default {
     website: "https://www.codebuddy.ai",
     notice: {
       signupUrl: "https://www.codebuddy.ai",
-      webUrl: "https://www.codebuddy.ai",   // 网页版(同 codebuddy-cn,见彼处注释)
+      // 网页版 = 在线 agent 页面(/agents);积分/用量控制台仍在 signupUrl。
+      webUrl: "https://www.codebuddy.ai/agents",
     },
   },
   category: "oauth",
