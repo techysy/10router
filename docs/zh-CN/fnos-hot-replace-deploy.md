@@ -104,6 +104,7 @@ sudo /usr/local/bin/appcenter-cli start 10router
 | 数据会不会丢 | 不会——数据在 `/vol4/@appdata/10router`，热替换只动 `@appcenter` 下的代码目录 |
 | `appcenter-cli status` 看着像脱离管理 | 其输出格式和 `list` 不同；判状态用 `sudo appcenter-cli list` |
 | 想看进程环境变量 | `/proc/<pid>/environ` 连 root 都读不了（fnOS ptrace 保护）；去看应用的配置文件 |
+| **装上去的是旧代码**（marker 缺失/功能没出现） | **构建机 checkout 不自动跟 main**：只 fetch 没 pull 就构建=旧代码；增量 `.next` 还会让部分新字符串假命中。铁律：构建前 `git pull --ff-only` 并核对 HEAD==origin/main；服务端有变更 `rm -rf .next` 干净重建；marker 按 dashboard(`.next/server/`)/open-sse(源文件) 两处各验一个。详见 `test-report-nas-stale-checkout.md` |
 
 ## 6. 相关文件
 
@@ -111,5 +112,6 @@ sudo /usr/local/bin/appcenter-cli start 10router
 |---|---|
 | `docs/zh-CN/local-build-and-verify.md` | 测试版本号规则（`X.Y.Z-test.N`）、Windows 就地替换、fpk 全量安装通道、验证方法论 |
 | `.github/workflows/build-fpk.yml` | standalone 需补拷的外部目录权威清单（§1） |
+| `docs/zh-CN/test-report-INDEX.md` | 事故复盘总索引（含 NAS 场景报告，一篇一文件） |
 | 31.31: `~/.hermes/skills/productivity/fnos-app-development/references/nextjs-standalone-hotfix-redeploy.md` | 本流程的原始出处（Hermes skill，含 10Router 诊断经验） |
 | 31.31: `~/.hermes/skills/productivity/fnos-app-development/references/appcenter-auto-restart.md` | 72s 自动拉起的排查记录（TRIMEVENT） |
