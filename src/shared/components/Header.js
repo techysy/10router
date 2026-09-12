@@ -241,7 +241,8 @@ export default function Header({ onMenuClick, onDesktopMenuClick, showMenuButton
       </div>
 
       {/* Desktop sidebar collapse button — flips with state: expanded shows the
-          collapse arrow (menu_open), collapsed shows the hamburger (menu). */}
+          collapse arrow (menu_open), collapsed mirrors the SAME icon so the arrow
+          points the other way (hamburger felt off — user picked mirrored icon). */}
       {onDesktopMenuClick && (
         <button
           onClick={onDesktopMenuClick}
@@ -250,7 +251,11 @@ export default function Header({ onMenuClick, onDesktopMenuClick, showMenuButton
           aria-label={sidebarCollapsed ? translate("Expand sidebar") : translate("Collapse sidebar")}
           aria-expanded={!sidebarCollapsed}
         >
-          <span className="material-symbols-outlined">{sidebarCollapsed ? "menu" : "menu_open"}</span>
+          <span
+            className={`material-symbols-outlined transition-transform duration-200 ${sidebarCollapsed ? "-scale-x-100" : ""}`}
+          >
+            menu_open
+          </span>
         </button>
       )}
 
