@@ -6,6 +6,7 @@ import { Card, Button, Modal } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 
 // ── ModelRow ───────────────────────────────────────────────────
 export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
@@ -43,6 +44,14 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
           </span>
         </div>
         {isFree && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">FREE</span>}
+        {model.requiresSession && (
+          <span
+            className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded cursor-help"
+            title={translate("Requires MiMo Desktop sign-in — API key alone cannot reach this model")}
+          >
+            {translate("Desktop sign-in")}
+          </span>
+        )}
         {isCustom && (
           <button onClick={onDeleteAlias} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" title="Remove custom model">
             <span className="material-symbols-outlined text-sm">close</span>

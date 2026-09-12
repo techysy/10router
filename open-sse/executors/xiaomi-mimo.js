@@ -74,9 +74,17 @@ export class XiaomiMimoExecutor extends DefaultExecutor {
 
     const cookie = await getMimoAccountCookie(credentials?.providerSpecificData, proxyOptions);
     if (!cookie) {
-      throw new Error(
-        "Xiaomi MiMo account session unavailable. Sign in to MiMo Desktop once so its passToken is present, then retry.",
+      // No MiMo Desktop session = a CONFIGURATION state, not a transient fault:
+      // retrying after a cooldown fails identically and the cooldown would taint
+      // sibling accounts. The exact wording is load-bearing — errorConfig's
+      // fallback rule "mimo desktop account" matches it (cooldown 0 = fail fast,
+      // no account lock, no "(reset after 30s)" on the client) and the zh-CN /
+      // zh-TW literals are keyed on it. Keep them in sync.
+      const err = new Error(
+        "This model requires the Xiaomi MiMo desktop account. Sign in to MiMo Desktop once, then retry.",
       );
+      err.code = "MIMO_DESKTOP_SESSION_REQUIRED";
+      throw err;
     }
     credentials[COOKIE_KEY] = cookie;
     const result = await super.execute(args);

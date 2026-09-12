@@ -3,7 +3,7 @@ import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
 import { translate } from "@/i18n/runtime";
 
-export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, onEnable, caps, thinkingSuffix }) {
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   // Credit cost multiplier (registry `rateMultiplier`, published per model by
   // credit-metered providers such as codebuddy-cn / codebuddy-intl / kiro).
@@ -100,6 +100,17 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           >
             <span className="material-symbols-outlined text-sm">close</span>
           </button>
+        ) : onEnable ? (
+          // Disabled-model rows: the primary action flips to "+ enable" (green),
+          // everything else (name, badges, Test, Copy) stays identical to active
+          // rows so users can evaluate a model BEFORE exposing it. Issue #14-B.
+          <button
+            onClick={onEnable}
+            className="ml-auto rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-green-500/10 hover:text-green-500"
+            title={translate("Enable this model")}
+          >
+            <span className="material-symbols-outlined text-sm">add</span>
+          </button>
         ) : onDisable ? (
           <button
             onClick={onDisable}
@@ -130,6 +141,7 @@ ModelRow.propTypes = {
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,
   onDisable: PropTypes.func,
+  onEnable: PropTypes.func,
   caps: PropTypes.object,
   thinkingSuffix: PropTypes.string,
 };

@@ -61,6 +61,11 @@ export const ERROR_RULES = [
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },
+  // Missing MiMo Desktop session is a CONFIGURATION state (executors/xiaomi-mimo.js),
+  // not a transient fault: cooldown 0 = account never locked, combo falls through
+  // immediately with zero wait, and the client sees the friendly message without
+  // a misleading "(reset after 30s)".
+  { text: "mimo desktop account",     cooldownMs: 0 },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },

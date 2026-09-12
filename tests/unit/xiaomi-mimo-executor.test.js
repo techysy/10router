@@ -60,7 +60,7 @@ describe("xiaomi-mimo executor", () => {
   it("fails fast when a Preview call has no account session", async () => {
     await expect(
       ex.execute({ model: "mimo-x-pro-preview", body: {}, stream: true, credentials: {}, log: null }),
-    ).rejects.toThrow(/account session unavailable/);
+    ).rejects.toThrow(/requires the Xiaomi MiMo desktop account/);
   });
 
   it("flattens content-part arrays to plain strings", () => {

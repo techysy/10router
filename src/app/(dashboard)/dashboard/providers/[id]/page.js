@@ -336,6 +336,15 @@ export default function ProviderDetailPage() {
     }
   }, [providerStorageAlias]);
 
+  // A provider's FIRST connection triggers the server-side default-disable of
+  // every built-in LLM model (connectionsRepo) — refresh connections AND the
+  // disabled list together, or the UI keeps claiming "all enabled" until a
+  // manual reload while /v1/models (same table) serves nothing. Issue #14-A.
+  const refreshAfterConnectionChange = useCallback(async () => {
+    await fetchConnections();
+    await fetchDisabledModels();
+  }, [fetchConnections, fetchDisabledModels]);
+
   const handleDisableModel = async (modelId) => {
     try {
       const res = await fetch("/api/models/disabled", {
@@ -994,7 +1003,7 @@ export default function ProviderDetailPage() {
       }
 
       if (res.ok) {
-        await fetchConnections();
+        await refreshAfterConnectionChange();
         setShowAddApiKeyModal(false);
         return;
       }
@@ -1457,32 +1466,44 @@ export default function ProviderDetailPage() {
           );
         })()}
 
-        {/* Disabled models — restorable (built-in catalog + fetched/imported customs) */}
+        {/* Disabled models — restorable (built-in catalog + fetched/imported customs).
+            Full ModelRow (name/caps/multiplier badges + Test + Copy), NOT bare chips:
+            the point of the default "all disabled" posture is to evaluate a model
+            BEFORE exposing it to clients, so a disabled row must be testable. #14-B */}
         {(disabledDisplayModels.length > 0 || disabledCustomModelRows.length > 0) && (
           <div className="w-full mt-2">
             <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
-            <div className="flex flex-wrap gap-2">
-              {disabledDisplayModels.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleEnableModel(m.id)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                  title="Restore model"
-                >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
-                  {m.id}
-                </button>
+            <div className="flex flex-wrap gap-3">
+              {disabledCustomModelRows.map((model) => (
+                <ModelRow
+                  key={`custom-${model.fullModel}`}
+                  model={{ id: model.id, name: model.name }}
+                  fullModel={`${providerDisplayAlias}/${model.id}`}
+                  copied={copied}
+                  onCopy={copy}
+                  testStatus={modelTestResults[model.id]}
+                  onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
+                  isTesting={testingModelIds.has(model.id)}
+                  onEnable={() => handleToggleCustomModel(model.id, true)}
+                  isCustom={false}
+                  isFree={false}
+                />
               ))}
-              {disabledCustomModelRows.map((m) => (
-                <button
-                  key={`custom-${m.fullModel}`}
-                  onClick={() => handleToggleCustomModel(m.id, true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                  title="Restore model"
-                >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
-                  {m.id}
-                </button>
+              {disabledDisplayModels.map((model) => (
+                <ModelRow
+                  key={model.id}
+                  model={model}
+                  fullModel={`${providerDisplayAlias}/${model.id}`}
+                  copied={copied}
+                  onCopy={copy}
+                  testStatus={modelTestResults[model.id]}
+                  onTest={connections.length > 0 || isFreeNoAuth ? () => handleTestModel(model.id) : undefined}
+                  isTesting={testingModelIds.has(model.id)}
+                  onEnable={() => handleEnableModel(model.id)}
+                  isFree={model.isFree}
+                  caps={getCaps(`${providerId}/${model.id}`)}
+                  thinkingSuffix={resolveThinkingSuffix(model.id)}
+                />
               ))}
             </div>
           </div>
@@ -2080,7 +2101,7 @@ export default function ProviderDetailPage() {
         error={addConnectionError}
         existingNames={connections.map((c) => c.name).filter(Boolean)}
         onSave={handleSaveApiKey}
-        onBulkDone={fetchConnections}
+        onBulkDone={refreshAfterConnectionChange}
         onClose={() => {
           setAddConnectionError("");
           setShowAddApiKeyModal(false);
