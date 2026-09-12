@@ -28,6 +28,9 @@ $DesktopDir = $PSScriptRoot
 $RepoDir = Split-Path $DesktopDir -Parent
 $AppDir = Join-Path $RepoDir "cli\app"
 $Inst = Join-Path $env:LOCALAPPDATA "Programs\10Router"
+# electron-builder 产物目录放工作区外:ZCode/杀软的文件监视会抓住工作区内新写的
+# app.asar 句柄,导致下一次构建清理 dist 时 "being used by another process" 而失败。
+$EbOutDir = Join-Path $env:TEMP "10router-eb-out"
 
 function Step($n, $msg) { Write-Host "[$n] $msg" -ForegroundColor Cyan }
 function Die($msg) { Write-Host "✗ $msg" -ForegroundColor Red; exit 1 }
@@ -90,10 +93,10 @@ try {
         Step 4 "electron-builder --win --dir"
         Push-Location $DesktopDir
         try {
-            npx electron-builder --win --dir
+            npx electron-builder --win --dir "-c.directories.output=$EbOutDir"
             if ($LASTEXITCODE -ne 0) { Die "electron-builder 失败" }
         } finally { Pop-Location }
-        $unpacked = Join-Path $DesktopDir "dist\win-unpacked"
+        $unpacked = Join-Path $EbOutDir "win-unpacked"
 
         # ---------- 5a) 就地替换(重命名式交换:失败不留半成品) ----------
         Step 5 "就地替换 resources\(app + app.asar)"
@@ -134,12 +137,12 @@ try {
         Step 4 "electron-builder --win nsis --x64(只打安装包一档)"
         Push-Location $DesktopDir
         try {
-            npx electron-builder --win nsis --x64
+            npx electron-builder --win nsis --x64 "-c.directories.output=$EbOutDir"
             if ($LASTEXITCODE -ne 0) { Die "electron-builder 失败" }
         } finally { Pop-Location }
-        $setup = Get-ChildItem (Join-Path $DesktopDir "dist") -Filter "10Router Setup *.exe" |
+        $setup = Get-ChildItem $EbOutDir -Filter "10Router Setup *.exe" |
                  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if (-not $setup) { Die "没找到 dist\10Router Setup *.exe" }
+        if (-not $setup) { Die "没找到 $EbOutDir\10Router Setup *.exe" }
 
         # ---------- 5b) 静默安装:**直接**起进程,/S 才有效 ----------
         Step 5 "静默安装 $($setup.Name)(直接执行,/S)"
