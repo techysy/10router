@@ -10,9 +10,11 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   isEligibleCbcnConnection,
+  isEligibleCbIntlConnection,
   mapDailyCheckinStatus,
-  msUntilNextSlot,
+  msUntilNextTick,
   runCodebuddyCheckinTick,
+  runCodebuddyIntlSessionTick,
 } from "../../src/sse/services/codebuddyCheckin.js";
 
 // Build a fake unverified JWT whose payload carries the given claims.
@@ -100,17 +102,17 @@ describe("isEligibleCbcnConnection", () => {
   });
 });
 
-describe("msUntilNextSlot", () => {
-  it("returns a positive delay bounded within a 00-06 slot day (0, ~30h]", () => {
-    const now = Date.parse("2026-09-04T10:00:00.000Z");
-    const delay = msUntilNextSlot(now, () => 0);
+describe("msUntilNextTick", () => {
+  it("returns a positive delay bounded to one ~2h cadence plus jitter", () => {
+    const now = Date.parse("2026-09-12T10:00:00.000Z");
+    const delay = msUntilNextTick(now, () => 0);
     expect(delay).toBeGreaterThan(0);
-    expect(delay).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+    expect(delay).toBeLessThanOrEqual(2.2 * 60 * 60 * 1000);
   });
 
   it("is injectable and deterministic via rand=0.5", () => {
-    const now = Date.parse("2026-09-04T00:10:00.000Z");
-    const delay = msUntilNextSlot(now, () => 0.5);
+    const now = Date.parse("2026-09-12T00:10:00.000Z");
+    const delay = msUntilNextTick(now, () => 0.5);
     expect(delay).toBeGreaterThan(0);
   });
 });
@@ -165,5 +167,96 @@ describe("runCodebuddyCheckinTick", () => {
     const loadConnections = vi.fn(async () => [cnConn({ provider: "codebuddy-intl" })]);
     const results = await runCodebuddyCheckinTick({ loadConnections });
     expect(results).toEqual([]);
+  });
+
+  it("memo: an account confirmed done today is skipped entirely (no network)", async () => {
+    const memo = new Map();
+    memo.set("cb-done", new Date().toLocaleDateString("sv-SE")); // local YYYY-MM-DD
+    const loadConnections = vi.fn(async () => [cnConn({ id: "cb-done" }), cnConn({ id: "cb-new" })]);
+    const checkinConnection = vi.fn(async () => ({ status: "checked-in" }));
+
+    const results = await runCodebuddyCheckinTick({ loadConnections, checkinConnection, memo });
+
+    expect(checkinConnection).toHaveBeenCalledTimes(1);
+    expect(checkinConnection.mock.calls[0][0].id).toBe("cb-new");
+    expect(results).toEqual([{ id: "cb-new", name: "<account>", status: "checked-in" }]);
+  });
+
+  it("memo: a checked-in/already outcome is recorded for the rest of the day", async () => {
+    const memo = new Map();
+    const loadConnections = vi.fn(async () => [cnConn({ id: "cb-1" })]);
+    const checkinConnection = vi.fn(async () => ({ status: "already" }));
+
+    await runCodebuddyCheckinTick({ loadConnections, checkinConnection, memo });
+
+    expect(memo.get("cb-1")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("isEligibleCbIntlConnection", () => {
+  function intlConn(overrides = {}) {
+    const token = makeToken({ iss: "https://codebuddy.ai/realms/cb", sub: "uid-i1" });
+    return {
+      id: "cbi-1",
+      provider: "codebuddy-intl",
+      authType: "oauth",
+      isActive: true,
+      accessToken: token,
+      name: "<account>",
+      ...overrides,
+    };
+  }
+
+  it("is true for an active codebuddy-intl connection with a codebuddy-issuer token", () => {
+    expect(isEligibleCbIntlConnection(intlConn())).toBe(true);
+  });
+
+  it("rejects non-codebuddy-intl providers", () => {
+    expect(isEligibleCbIntlConnection(intlConn({ provider: "codebuddy-cn" }))).toBe(false);
+  });
+
+  it("rejects inactive connections and missing tokens", () => {
+    expect(isEligibleCbIntlConnection(intlConn({ isActive: false }))).toBe(false);
+    expect(isEligibleCbIntlConnection(intlConn({ accessToken: null }))).toBe(false);
+  });
+
+  it("rejects a token without a codebuddy issuer", () => {
+    expect(
+      isEligibleCbIntlConnection(intlConn({ accessToken: makeToken({ iss: "https://workbuddy.cn/x" }) })),
+    ).toBe(false);
+  });
+});
+
+describe("runCodebuddyIntlSessionTick", () => {
+  it("probes only eligible intl connections and records session-ok in the memo", async () => {
+    const memo = new Map();
+    const ok = { id: "cbi-ok", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) };
+    const skip = { id: "cbi-skip", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) };
+    memo.set("cbi-skip", new Date().toLocaleDateString("sv-SE"));
+    const loadConnections = vi.fn(async () => [ok, skip]);
+    const probeConnection = vi.fn(async () => ({ status: "session-ok" }));
+
+    const results = await runCodebuddyIntlSessionTick({ loadConnections, probeConnection, memo });
+
+    expect(probeConnection).toHaveBeenCalledTimes(1);
+    expect(probeConnection.mock.calls[0][0].id).toBe("cbi-ok");
+    expect(results).toEqual([{ id: "cbi-ok", name: "cbi-ok", status: "session-ok" }]);
+    expect(memo.has("cbi-ok")).toBe(true);
+  });
+
+  it("fail-open: probe errors become per-account failures, never a throw", async () => {
+    const loadConnections = vi.fn(async () => [
+      { id: "a", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) },
+      { id: "b", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) },
+    ]);
+    const probeConnection = vi.fn(async (conn) => {
+      if (conn.id === "a") throw new Error("boom");
+      return { status: "failed", error: "http_500" };
+    });
+
+    const results = await runCodebuddyIntlSessionTick({ loadConnections, probeConnection });
+    const byId = Object.fromEntries(results.map((r) => [r.id, r.status]));
+    expect(byId.a).toBe("failed");
+    expect(byId.b).toBe("failed");
   });
 });

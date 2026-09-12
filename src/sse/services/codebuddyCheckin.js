@@ -1,20 +1,47 @@
-// CodeBuddy CN auto daily check-in (experimental).
-// Checks every active codebuddy-cn connection into the CodeBuddy CN "billing
-// meter" once per day at a random 00:00-06:00 local slot, so free daily
-// quota is renewed without user action. Fail-open everywhere: a tick error or
-// a single connection failure never rejects the whole run or kills the server.
+// CodeBuddy auto daily check-in (CN) + daily active-session probe (intl).
+//
+// CN: checks every active codebuddy-cn connection into the CodeBuddy CN
+// "billing meter" (daily-checkin) so free daily quota is renewed without user
+// action. The scheduler ticks ALL DAY (~every 2h + jitter): an account is
+// attempted only until the day's check-in is confirmed (status endpoint or a
+// successful POST), then it is memoized for the rest of the local day — no
+// more repeated "已签到" churn across the day.
+//
+// intl: CodeBuddy's activity campaign grants daily credits (Free 30 / Pro 50)
+// to accounts with ≥1 valid conversation request that day (official docs:
+// "当天有对话请求即视为活跃用户"). There is no claim endpoint, so the intl
+// pass sends one minimal stream chat request per active codebuddy-intl
+// connection per day on a free-tier model (rateMultiplier 0, ~0 credit cost),
+// memoized the same way. Experimental, separate settings toggle.
+//
+// Fail-open everywhere: a tick error or a single connection failure never
+// rejects the whole run or kills the server.
 
 import * as log from "../utils/logger.js";
 
 const DAILY_CHECKIN_URL = "https://www.codebuddy.cn/v2/billing/meter/daily-checkin";
 const STATUS_URL = "https://www.codebuddy.cn/v2/billing/meter/checkin-activity-status";
 
-// Random daily slot window: 00:00 - 06:00 local time (exclusive of 06:00).
-const SLOT_HOUR_MIN = 0;
-const SLOT_HOUR_MAX = 6; // upper bound exclusive for Math.floor(rand*(max-min))
+// intl daily active-session probe. Free-tier model (rateMultiplier 0) so the
+// request itself costs ~0 credits; body shape mirrors executors/codebuddy-intl
+// (stream-only gateway: leading system prompt + user content as typed blocks,
+// otherwise 11101 invalid request).
+const INTL_CHAT_URL = "https://www.codebuddy.ai/v2/chat/completions";
+const INTL_PROBE_MODEL = "hy4-preview";
+const INTL_PROBE_MAX_TOKENS = 16;
+
+// All-day cadence: retry every ~2h (plus jitter) until each account is done
+// for the day; the per-day memo keeps already-done accounts fully idle.
+const TICK_MS = 2 * 60 * 60 * 1000;
+const TICK_JITTER_MS = 10 * 60 * 1000;
 
 let started = false;
 let timerHandle = null;
+
+// connId -> local "YYYY-MM-DD" the account was last confirmed done. In-memory
+// only: after a restart the next pass re-verifies once via the status endpoint
+// (CN) / one probe (intl). The manual check-in route never sees this memo.
+const checkedDayByConn = new Map();
 
 // ─── Pure helpers (unit-testable, no I/O) ──────────────────────────────────
 
@@ -36,6 +63,18 @@ function isCodeBuddyCnRealm(iss) {
   );
 }
 
+// intl tokens are issued by the codebuddy.ai side; matching the "codebuddy"
+// family keeps a workbuddy/other realm out without over-fitting the realm URL.
+function isCodeBuddyRealm(iss) {
+  return typeof iss === "string" && iss.includes("codebuddy");
+}
+
+function dayKey(nowMs = Date.now()) {
+  const d = new Date(nowMs);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /**
  * Eligibility: an active codebuddy-cn OAuth connection whose access token is
  * signed by a CodeBuddy CN Keycloak realm (has an access token at all).
@@ -48,6 +87,19 @@ export function isEligibleCbcnConnection(conn) {
   if (conn.isActive === false) return false;
   const claims = decodeJwt(conn.accessToken) || {};
   return isCodeBuddyCnRealm(claims.iss || "");
+}
+
+/**
+ * Eligibility for the intl daily active-session probe.
+ * @param {object} conn
+ * @returns {boolean}
+ */
+export function isEligibleCbIntlConnection(conn) {
+  if (!conn || !conn.accessToken) return false;
+  if (conn.provider !== "codebuddy-intl") return false;
+  if (conn.isActive === false) return false;
+  const claims = decodeJwt(conn.accessToken) || {};
+  return isCodeBuddyRealm(claims.iss || "");
 }
 
 function isIdempotentAlready(msg) {
@@ -71,27 +123,15 @@ export function mapDailyCheckinStatus({ httpStatus, code, msg } = {}) {
 }
 
 /**
- * Random delay (ms) until the next 00:00-06:00 local daily slot, strictly in
- * the future within roughly (0, ~30h]. `rand` is injectable for tests.
+ * Delay (ms) until the next all-day tick: fixed ~2h cadence plus jitter so
+ * many instances don't tick in lockstep. `rand` is injectable for tests.
  * @param {number} [nowMs]
  * @param {() => number} [rand] 0..1 uniform
  * @returns {number}
  */
-export function msUntilNextSlot(nowMs = Date.now(), rand = Math.random) {
-  const now = new Date(nowMs);
-  const hour = SLOT_HOUR_MIN + Math.floor(rand() * (SLOT_HOUR_MAX - SLOT_HOUR_MIN));
-  const minute = Math.floor(rand() * 60);
-  const target = new Date(now);
-  target.setHours(hour, minute, 0, 0);
-  let diff = target.getTime() - now.getTime();
-  if (diff <= 0) {
-    // Past today → next day (also keeps the timer far enough from the loop edge).
-    target.setDate(target.getDate() + 1);
-    diff = target.getTime() - now.getTime();
-  }
-  // Sanity guard: never schedule a pathological 0ms/loop. In tests callers pass
-  // a deterministic rand so this is only a belt-and-braces floor.
-  return Math.max(diff, 1000);
+export function msUntilNextTick(nowMs = Date.now(), rand = Math.random) {
+  const jitter = Math.floor(rand() * TICK_JITTER_MS);
+  return Math.max(TICK_MS + jitter, 1000);
 }
 
 function isNonServerRuntime() {
@@ -111,17 +151,25 @@ async function loadActiveConnections() {
   return getProviderConnections({ provider: "codebuddy-cn" });
 }
 
-async function isEnabledSetting() {
-  const { getSettings } = await import("../../lib/localDb.js");
-  const settings = await getSettings();
-  return settings.codeBuddyCheckin === true;
+async function loadIntlConnections() {
+  const { getProviderConnections } = await import("../../lib/db/repos/connectionsRepo.js");
+  return getProviderConnections({ provider: "codebuddy-intl" });
+}
+
+async function loadSettingsSafe() {
+  try {
+    const { getSettings } = await import("../../lib/localDb.js");
+    return await getSettings();
+  } catch {
+    return {};
+  }
 }
 
 // Reuse the existing proactive refresh pipeline (refreshes + persists the new
 // access token) exactly like backgroundTokenRefresh on a 401.
-async function refreshOne(connection) {
+async function refreshOne(provider, connection) {
   const { checkAndRefreshToken } = await import("./tokenRefresh.js");
-  const creds = await checkAndRefreshToken("codebuddy-cn", connection, { force: true });
+  const creds = await checkAndRefreshToken(provider, connection, { force: true });
   return creds?.accessToken ? creds : null;
 }
 
@@ -182,7 +230,7 @@ async function postStatus(accessToken, uid, proxyOptions) {
   return { httpStatus: res.status, body };
 }
 
-// Is the account already signed in today? Used by the boot safety pass so we
+// Is the account already signed in today? Used by the scheduled pass so we
 // don't re-check-in accounts that already renewed.
 function isCheckedInToday(status) {
   const data = status?.body?.data || {};
@@ -196,7 +244,7 @@ function isCheckedInToday(status) {
  * @returns {Promise<{status: string, error?: string}>}
  */
 async function checkinOne(conn, deps) {
-  const refresh = deps?.refreshConnection || refreshOne;
+  const refresh = deps?.refreshConnection || ((c) => refreshOne("codebuddy-cn", c));
   let accessToken = conn.accessToken;
   const claims = decodeJwt(accessToken) || {};
   const uid = claims.sub || conn.id;
@@ -225,7 +273,7 @@ async function checkinOne(conn, deps) {
   return { status: "failed", error: "unexpected" };
 }
 
-// Prefer status-check to skip already-checked-in accounts (boot safety pass).
+// Prefer status-check to skip already-checked-in accounts.
 async function checkinIfNotDone(conn, deps) {
   const proxyOptions = proxyOptionsOf(conn);
   const claims = decodeJwt(conn.accessToken) || {};
@@ -239,13 +287,85 @@ async function checkinIfNotDone(conn, deps) {
   return checkinOne(conn, deps);
 }
 
+// One intl active-session probe (with a single 401 → refresh → retry).
+async function probeOne(conn, deps) {
+  const refresh = deps?.refreshConnection || ((c) => refreshOne("codebuddy-intl", c));
+  let accessToken = conn.accessToken;
+  const proxyOptions = proxyOptionsOf(conn);
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await postIntlProbe(accessToken, proxyOptions);
+      if (result.httpStatus >= 200 && result.httpStatus < 300) return { status: "session-ok" };
+      if (result.httpStatus === 401 && attempt === 0) {
+        log.info("CB_INTL_SESSION", "401 on active-session probe, refreshing token once", {
+          id: conn.id,
+        });
+        const refreshed = await refresh(conn);
+        if (refreshed?.accessToken) accessToken = refreshed.accessToken;
+        else return { status: "failed", error: "refresh_failed" };
+        continue;
+      }
+      return { status: "failed", error: result.msg || `http_${result.httpStatus}` };
+    } catch (err) {
+      return { status: "failed", error: err?.message || String(err) };
+    }
+  }
+  return { status: "failed", error: "unexpected" };
+}
+
+async function postIntlProbe(accessToken, proxyOptions) {
+  const { proxyAwareFetch } = await import("open-sse/utils/proxyFetch.js");
+  const { default: registry } = await import("open-sse/providers/registry/codebuddy-intl.js");
+  const headers = {
+    ...(registry?.transport?.headers || {}),
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+  const body = JSON.stringify({
+    model: INTL_PROBE_MODEL,
+    stream: true,
+    max_tokens: INTL_PROBE_MAX_TOKENS,
+    messages: [
+      { role: "system", content: "You are CodeBuddy Code." },
+      { role: "user", content: [{ type: "text", text: "hi" }] },
+    ],
+  });
+  const res = await proxyAwareFetch(
+    INTL_CHAT_URL,
+    { method: "POST", headers, body },
+    proxyOptions
+  );
+  // Stream-only gateway: 2xx means a valid session was established — drain and
+  // discard the SSE body (a few tokens on a rateMultiplier-0 model).
+  let msg = "";
+  if (res.ok && res.body) {
+    try {
+      await res.text();
+    } catch {
+      /* drain best-effort */
+    }
+  } else {
+    try {
+      const text = await res.text();
+      msg = (text || "").slice(0, 200);
+    } catch {
+      /* ignore */
+    }
+  }
+  return { httpStatus: res.status, msg };
+}
+
 /**
- * One tick: list active codebuddy-cn connections and check each in. Fail-open
- * (never rejects on a single account error). `skipIfCheckedToday` uses the
- * status endpoint first (boot safety) to avoid duplicate renewals.
+ * One CN tick: list active codebuddy-cn connections and check each in. Fail-open
+ * (never rejects on a single account error). With `memo`, accounts confirmed
+ * done for the local day are skipped entirely (no network) and successful
+ * outcomes are recorded. The manual check-in route passes no memo.
  *
  * @param {{ loadConnections?: Function, refreshConnection?: Function,
- *           checkinConnection?: Function, skipIfCheckedToday?: boolean }} [deps]
+ *           checkinConnection?: Function, skipIfCheckedToday?: boolean,
+ *           memo?: Map }} [deps]
  * @returns {Promise<Array<{id: string, name: string, status: string, error?: string}>>}
  */
 export async function runCodebuddyCheckinTick(deps = {}) {
@@ -274,10 +394,22 @@ export async function runCodebuddyCheckinTick(deps = {}) {
     ids: eligible.map((c) => c.id).filter(Boolean),
   });
 
+  const memo = deps.memo || null;
+  const today = dayKey();
+  const checkin = deps.checkinConnection || (deps.skipIfCheckedToday ? checkinIfNotDone : checkinOne);
+
   for (const conn of eligible) {
     try {
-      const checkin = deps.checkinConnection || (deps.skipIfCheckedToday ? checkinIfNotDone : checkinOne);
+      if (memo && memo.get(conn.id) === today) {
+        log.debug("CB_CN_CHECKIN", `${conn.name || conn.id}: 已确认今日完成,跳过`, {
+          id: conn.id,
+        });
+        continue;
+      }
       const outcome = await checkin(conn, deps);
+      if (memo && (outcome.status === "checked-in" || outcome.status === "already")) {
+        memo.set(conn.id, today);
+      }
       results.push({
         id: conn.id,
         name: conn.name || conn.id,
@@ -304,18 +436,97 @@ export async function runCodebuddyCheckinTick(deps = {}) {
   return results;
 }
 
+/**
+ * One intl tick: one free-tier chat request per active codebuddy-intl
+ * connection so the day's "活跃赠送" credits are granted. Same memo/fail-open
+ * contract as the CN tick.
+ *
+ * @param {{ loadConnections?: Function, refreshConnection?: Function,
+ *           probeConnection?: Function, memo?: Map }} [deps]
+ * @returns {Promise<Array<{id: string, name: string, status: string, error?: string}>>}
+ */
+export async function runCodebuddyIntlSessionTick(deps = {}) {
+  const results = [];
+  const load = deps.loadConnections || loadIntlConnections;
+  let connections = [];
+  try {
+    connections = await load();
+  } catch (err) {
+    log.warn("CB_INTL_SESSION", "Tick: failed to load codebuddy-intl connections (swallowed)", {
+      error: err?.message ?? String(err),
+    });
+    return results;
+  }
+
+  const eligible = (Array.isArray(connections) ? connections : []).filter(isEligibleCbIntlConnection);
+  if (eligible.length === 0) {
+    log.debug("CB_INTL_SESSION", "Tick: no eligible codebuddy-intl connections", {
+      total: Array.isArray(connections) ? connections.length : 0,
+    });
+    return results;
+  }
+
+  log.info("CB_INTL_SESSION", "Daily active-session pass started", {
+    eligible: eligible.length,
+    ids: eligible.map((c) => c.id).filter(Boolean),
+  });
+
+  const memo = deps.memo || null;
+  const today = dayKey();
+
+  for (const conn of eligible) {
+    try {
+      if (memo && memo.get(conn.id) === today) {
+        log.debug("CB_INTL_SESSION", `${conn.name || conn.id}: 已确认今日完成,跳过`, {
+          id: conn.id,
+        });
+        continue;
+      }
+      const outcome = deps.probeConnection
+        ? await deps.probeConnection(conn)
+        : await probeOne(conn, deps);
+      if (memo && outcome.status === "session-ok") {
+        memo.set(conn.id, today);
+      }
+      results.push({
+        id: conn.id,
+        name: conn.name || conn.id,
+        status: outcome.status,
+        ...(outcome.error ? { error: outcome.error } : {}),
+      });
+      log.info(
+        "CB_INTL_SESSION",
+        `${conn.name || conn.id}: ${outcome.status === "session-ok" ? "活跃会话完成" : `失败(${outcome.error || outcome.status})`}`,
+        { id: conn.id }
+      );
+    } catch (err) {
+      results.push({ id: conn.id, name: conn.name || conn.id, status: "failed" });
+      log.warn("CB_INTL_SESSION", "Connection probe failed (swallowed)", {
+        id: conn?.id,
+        error: err?.message ?? String(err),
+      });
+    }
+  }
+  return results;
+}
+
 // ─── Scheduler ─────────────────────────────────────────────────────────────
 
-// Run one guarded check-in pass, reading the enable flag each fire so turning
-// the toggle off stops further work without a restart (fail-open, never throws).
+// Run one guarded pass, reading both enable flags each fire so toggling off
+// stops further work without a restart (fail-open, never throws).
 async function safeTick(how) {
   try {
-    const on = await isEnabledSetting();
-    if (!on) {
+    const settings = await loadSettingsSafe();
+    if (settings.codeBuddyCheckin === true) {
+      await runCodebuddyCheckinTick({ skipIfCheckedToday: true, memo: checkedDayByConn });
+    } else {
       log.debug("CB_CN_CHECKIN", `Scheduled ${how}: setting off, skipping`);
-      return;
     }
-    await runCodebuddyCheckinTick({ skipIfCheckedToday: how === "boot" });
+    if (settings.codeBuddyIntlSession === true) {
+      await runCodebuddyIntlSessionTick({ memo: checkedDayByConn });
+    } else {
+      log.debug("CB_INTL_SESSION", `Scheduled ${how}: setting off, skipping`);
+    }
   } catch (err) {
     log.warn("CB_CN_CHECKIN", `Scheduled ${how} rejected (swallowed)`, {
       error: err?.message ?? String(err),
@@ -325,13 +536,13 @@ async function safeTick(how) {
 
 function scheduleNext() {
   if (!started) return;
-  const delayMs = msUntilNextSlot();
+  const delayMs = msUntilNextTick();
   clearTimer();
   timerHandle = setTimeout(() => {
-    safeTick("daily").finally(() => scheduleNext());
+    safeTick("tick").finally(() => scheduleNext());
   }, delayMs);
   if (timerHandle.unref) timerHandle.unref();
-  log.info("CB_CN_CHECKIN", "Next daily check-in slot scheduled", {
+  log.info("CB_CN_CHECKIN", "Next all-day check-in tick scheduled", {
     delayMs: Math.round(delayMs / 1000),
   });
 }
@@ -344,10 +555,10 @@ function clearTimer() {
 }
 
 /**
- * Start the daily check-in scheduler. Runs an immediate boot safety pass
- * (status-check + check-in of not-yet-checked-in accounts) then schedules the
- * next random 00:00-06:00 local slot. Safe to call repeatedly (idempotent).
- * @param {{ nowMs?: number, rand?: Function, skipBoot?: boolean }} [opts]
+ * Start the scheduler. Runs an immediate boot pass (status-check + check-in of
+ * not-yet-done accounts) then ticks all day every ~2h. Safe to call repeatedly
+ * (idempotent).
+ * @param {{ skipBoot?: boolean }} [opts]
  * @returns {boolean} true if started this call
  */
 export function startCodebuddyCheckin(opts = {}) {
@@ -358,13 +569,13 @@ export function startCodebuddyCheckin(opts = {}) {
   }
   started = true;
 
-  // Boot safety pass (only acts when the setting is on & accounts not yet in).
+  // Boot pass (only acts when a setting is on & accounts not yet done today).
   if (opts.skipBoot !== true) {
     safeTick("boot");
   }
   scheduleNext();
 
-  log.info("CB_CN_CHECKIN", "Scheduler started");
+  log.info("CB_CN_CHECKIN", "Scheduler started (all-day cadence)");
   return true;
 }
 
@@ -382,4 +593,10 @@ export const __internals = {
   isIdempotentAlready,
   DAILY_CHECKIN_URL,
   STATUS_URL,
+  INTL_CHAT_URL,
+  INTL_PROBE_MODEL,
+  dayKey,
+  msUntilNextTick,
+  checkedDayByConn,
+  isEligibleCbIntlConnection,
 };

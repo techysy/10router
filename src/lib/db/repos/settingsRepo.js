@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Experimental: auto daily check-in for CodeBuddy CN accounts.
   codeBuddyCheckin: false,
+  // Experimental: intl daily active-session probe (campaign credits).
+  codeBuddyIntlSession: false,
 };
 
 async function readRaw() {

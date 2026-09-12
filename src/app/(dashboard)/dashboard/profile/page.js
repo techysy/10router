@@ -177,6 +177,23 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleCodeBuddyIntlSession = async () => {
+    const next = !(settings.codeBuddyIntlSession === true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codeBuddyIntlSession: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSettings((prev) => ({ ...prev, ...data }));
+      }
+    } catch (error) {
+      console.log("Error toggling codebuddy intl daily session:", error);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
@@ -1794,12 +1811,26 @@ export default function ProfilePage() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy CN auto daily check-in")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  {translate("Automatically check in accounts once a day (random 00:00–06:00 local)")}
+                  {translate("Automatically check in accounts daily (retries all day until confirmed)")}
                 </p>
               </div>
               <Toggle
                 checked={settings.codeBuddyCheckin === true}
                 onChange={toggleCodeBuddyCheckin}
+              />
+            </div>
+
+            {/* CodeBuddy intl daily active-session probe (campaign credits) */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy intl daily active session")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Send one free-tier chat request per intl account daily so the activity credits are granted")}
+                </p>
+              </div>
+              <Toggle
+                checked={settings.codeBuddyIntlSession === true}
+                onChange={toggleCodeBuddyIntlSession}
               />
             </div>
 

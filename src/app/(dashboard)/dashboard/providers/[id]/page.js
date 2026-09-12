@@ -235,7 +235,7 @@ export default function ProviderDetailPage() {
         onClick={handleCodeBuddyCheckin}
         disabled={cbCheckinRunning}
         className="w-full sm:w-auto"
-        title={translate("CodeBuddy CN auto-checks in daily (00:00–06:00 local time)")}
+        title={translate("CodeBuddy CN auto-checks in daily (retries all day until confirmed)")}
       >
         {cbCheckinRunning ? translate("Checking in...") : translate("Check in now")}
       </Button>
