@@ -372,6 +372,20 @@ function buildCliPackage() {
     console.log("⏭️  No updater files found\n");
   }
 
+  // Step 7c: Copy console archive tee (custom-server.js imports it at boot from
+  // <app>/src/lib — selective src copies only, so it must be shipped explicitly
+  // or the dynamic import silently no-ops and the archive never appears).
+  console.log("7️⃣ c Copying console archive module...");
+  const consoleArchiveSrc = path.join(appDir, "src", "lib", "consoleArchiveStandalone.js");
+  const consoleArchiveDest = path.join(cliAppDir, "src", "lib", "consoleArchiveStandalone.js");
+  if (fs.existsSync(consoleArchiveSrc)) {
+    fs.mkdirSync(path.dirname(consoleArchiveDest), { recursive: true });
+    fs.copyFileSync(consoleArchiveSrc, consoleArchiveDest);
+    console.log("✅ Copied console archive module\n");
+  } else {
+    console.log("⏭️  No console archive module found\n");
+  }
+
   // Step 8: Build MITM server (config driven - see app/cli/scripts/buildMitm.js)
   console.log("8️⃣  Building MITM server...");
   try {
