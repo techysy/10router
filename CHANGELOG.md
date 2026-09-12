@@ -10,6 +10,8 @@
 
 ### 🐛 修复
 
+- **Endpoint 页的「密钥签名轮换 / 重签全部密钥」合并为一行紧凑布局**。原先两个独立区块（开关行 + 仅启用时出现的重签行）各带一段描述，在空间有限的 endpoint 页占了两大行；现合并为一行——标题 + Experimental 徽章 + 单行截断描述 + Tooltip（机制细节全在 tooltip 里，并补上「重签会把存量密钥一次性换到当前密文下」这半句），右侧 `Rotate all` 小按钮仅在轮换启用时出现，再右是开关。所有确认弹窗、防双击守卫（`rotateGuardRef`）与重签结果弹窗逻辑不变，纯布局收敛。
+
 - **CodeBuddy 国际版的连接测试不再是「Provider test not supported」**。仪表盘上点连接测试时，中国版正常、国际版一律报「Provider test not supported」—— 而**路由/推理一直是好的**（fnOS NAS 上实测 `cbai/deepseek-v4.1-flash` 正常 `DONE 2586ms`）。原因在测试专用路径：`testSingleConnection()` 把非 apikey 连接交给 `testOAuthConnection()`，后者先查 `OAUTH_TEST_CONFIG[provider]`，查不到就**在任何网络调用之前**返回这句错误 —— 于是「测试配置缺一条」被读成了「账号坏了」。`OAUTH_TEST_CONFIG` 里有 `codebuddy-cn` 却没有 `codebuddy-intl`（与之前缺模型、缺积分倍率是同一族漏项：改 CN 时忘了 intl）。现按 CN 的形状补上 `"codebuddy-intl": { tokenExists: true }`，并补 apikey 路径的 `case "codebuddy-intl"`（打到 `codebuddy.ai` 网关并带上注册表里的 IDE 通道头，否则会被判 11128「非认可渠道」）；该 case 的判定**故意只认 401/403** —— intl 网关是 stream-only，`stream:false` 探测可能直接被拒（11101），一旦收紧成 `res.ok` 就会把每个有效密钥永久判为无效，注释里写明了这一点。同批修掉同族第二处：用量面板的 `parseQuotaData` 缺 `codebuddy-intl` 分支，落到 `default:` 后丢掉 `recurring`，导致国际版的一次性加量包显示「Reset in」而非「Expires in」（后端 `getCodeBuddyIntlUsage` 本来就产出该字段，只是 UI 没接）。新增 `tests/unit/codebuddy-intl-test-support.test.js` 5 例：两版本在 `OAUTH_TEST_CONFIG` 里成对存在、apikey case 指向 `.ai` 域名（防止复制粘贴留着 CN 端点）、判定保持 auth-only，以及 intl 的 `recurring` 透传（走真实 `parseQuotaData` 而非文本断言）；变异验证：删掉 intl 条目 → 守卫用例立刻变红。
 - **修正 `gpt-6-astra` 的积分倍率：`17.35` → `6.67`**。1.1.0 出厂的那个 17.35 是**估算值**，不是公布值 —— 当时仓库、`~/.codebuddy`、官网定价页都取不到 CodeBuddy 的积分数字，于是拿 OpenCode Go 价目表用比值法推（Astra 在四列与两个档位上恰好都是 Sol 的 5 倍，Sol 的 3.47 是公布值 → 3.47 × 5 = 17.35）。实际积分体系并不遵循这个比值，实测为 **6.67**；该估算与其推算方法一并作废，注册表注释里写明「不要再拿外部价目表反推这家的倍率」。用例改为钉住实测值，并**反向断言**它不再等于 Sol × 5，防止有人照着旧注释把比值法再推一遍。
 

@@ -1055,73 +1055,68 @@ export default function APIPageClient({ machineId }) {
           </div>
         )}
 
-        {/* Experimental: key secret rotation */}
-        <div className="flex items-center justify-between py-4 mb-4 border-b border-border">
-          <div className="flex items-center gap-1.5">
-            <div>
+        {/* Experimental: key secret rotation — one compact row; the verbose
+            mechanics live in the Tooltip, re-issue only exists while enabled. */}
+        <div className="flex items-center justify-between py-4 mb-4 border-b border-border gap-3">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="min-w-0">
               <p className="font-medium flex items-center gap-2">
                 Key secret rotation
                 <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   Experimental
                 </span>
               </p>
-              <p className="text-sm text-text-muted">
+              <p className="text-sm text-text-muted truncate">
                 Sign new keys with an auto-generated secret instead of the built-in one
               </p>
             </div>
-            <Tooltip text="When enabled, the HMAC secret used for API key CRC is auto-generated to the data directory (api-key-secret, mode 0600) — or set API_KEY_SECRET to pin your own (env always wins). Existing keys keep working only if they were issued under the same secret; after enabling, previously issued keys fail validation and must be re-created." />
+            <Tooltip text="When enabled, the HMAC secret used for API key CRC is auto-generated to the data directory (api-key-secret, mode 0600) — or set API_KEY_SECRET to pin your own (env always wins). Existing keys keep working only if they were issued under the same secret; enabling invalidates previously issued keys, and Re-issue all keys re-creates every stored key under the current secret so clients can be updated in one step." />
           </div>
-          <Toggle
-            checked={apiKeyRotation}
-            onChange={(next) => {
-              if (next) {
-                setConfirmState({
-                  title: "Enable key secret rotation?",
-                  message:
-                    "New keys will be signed with an auto-generated secret. " +
-                    "Keys issued BEFORE enabling will stop validating and cannot be restored — " +
-                    "re-create them and update every client. This cannot be undone silently.",
-                  onConfirm: () => handleApiKeyRotation(true),
-                });
-              } else {
-                setConfirmState({
-                  title: "Disable key secret rotation?",
-                  message:
-                    "New keys will be signed with the built-in secret again. " +
-                    "Keys issued while rotation was enabled will stop validating — " +
-                    "re-create them and update every client.",
-                  onConfirm: () => handleApiKeyRotation(false),
-                });
-              }
-            }}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            {apiKeyRotation && (
+              <Button
+                size="sm"
+                icon="autorenew"
+                onClick={() =>
+                  setConfirmState({
+                    title: "Re-issue all API keys?",
+                    message:
+                      "Every existing key will be replaced with a new one signed under the current secret. " +
+                      "All clients using old keys will stop working until updated. This cannot be undone.",
+                    onConfirm: handleRotateKeys,
+                  })
+                }
+                disabled={rotatingKeys}
+              >
+                {rotatingKeys ? "Rotating…" : "Rotate all"}
+              </Button>
+            )}
+            <Toggle
+              checked={apiKeyRotation}
+              onChange={(next) => {
+                if (next) {
+                  setConfirmState({
+                    title: "Enable key secret rotation?",
+                    message:
+                      "New keys will be signed with an auto-generated secret. " +
+                      "Keys issued BEFORE enabling will stop validating and cannot be restored — " +
+                      "re-create them and update every client. This cannot be undone silently.",
+                    onConfirm: () => handleApiKeyRotation(true),
+                  });
+                } else {
+                  setConfirmState({
+                    title: "Disable key secret rotation?",
+                    message:
+                      "New keys will be signed with the built-in secret again. " +
+                      "Keys issued while rotation was enabled will stop validating — " +
+                      "re-create them and update every client.",
+                    onConfirm: () => handleApiKeyRotation(false),
+                  });
+                }
+              }}
+            />
+          </div>
         </div>
-
-        {apiKeyRotation && (
-          <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
-            <div>
-              <p className="font-medium">Re-issue all keys</p>
-              <p className="text-sm text-text-muted">
-                Re-create every existing key under the current secret — clients must be updated
-              </p>
-            </div>
-            <Button
-              icon="autorenew"
-              onClick={() =>
-                setConfirmState({
-                  title: "Re-issue all API keys?",
-                  message:
-                    "Every existing key will be replaced with a new one signed under the current secret. " +
-                    "All clients using old keys will stop working until updated. This cannot be undone.",
-                  onConfirm: handleRotateKeys,
-                })
-              }
-              disabled={rotatingKeys}
-            >
-              {rotatingKeys ? "Rotating…" : "Rotate all"}
-            </Button>
-          </div>
-        )}
 
         {keys.length === 0 ? (
           <div className="text-center py-12">
