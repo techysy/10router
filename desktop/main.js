@@ -889,7 +889,7 @@ function render(list) {
         box.appendChild(row);
     }
 }
-render(ipcRenderer.sendSync('recent-mgr', { action: 'list' }));
+render((ipcRenderer.sendSync('recent-mgr', { action: 'list' }) || {}).list || []);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.close(); });
 </script>
 </body></html>`;
