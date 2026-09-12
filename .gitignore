@@ -101,3 +101,4 @@ tmpwebapp-node-modulesprepare.log
 
 # npm pack artifacts (repo root, regenerable)
 *.tgz
+desktop/dist2/
