@@ -20,8 +20,6 @@ describe("isFreeModel", () => {
     expect(isFreeModel("oc/muse-spark-1.3-contributor-free")).toBe(true);
     expect(isFreeModel("oc/gemini-3-flash-free")).toBe(true);
     expect(isFreeModel("tokenrouter/z-ai/vision-free")).toBe(true);
-    expect(isFreeModel("apinex/free/flash-lite")).toBe(true);
-    expect(isFreeModel("apinex/free/chat")).toBe(true);
     expect(isFreeModel("some/freemium-model")).toBe(true);
   });
 

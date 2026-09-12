@@ -2,7 +2,7 @@
  * Free-tier model detection + friendly rate-limit copy.
  *
  * Used to give "limited-time free" models (OpenCode contributor-free,
- * oc/*-free, tokenrouter/z-ai/*-free, APInex free/*, etc.) a friendlier
+ * oc/*-free, tokenrouter/z-ai/*-free, etc.) a friendlier
  * 429 / rate-limit response instead of surfacing the upstream English message.
  * Paid models and multi-account providers keep their normal fallback path.
  */

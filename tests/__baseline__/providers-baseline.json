@@ -1066,11 +1066,6 @@
     "validateUrl": "https://api.agnes-ai.cn/v1/models",
     "format": "openai"
   },
-  "apinex": {
-    "baseUrl": "https://api.apinex.bond/v1/chat/completions",
-    "validateUrl": "https://api.apinex.bond/v1/models",
-    "format": "openai"
-  },
   "amd": {
     "baseUrl": "https://developer.amd.com.cn/radeon/api/v1/chat/completions",
     "validateUrl": "https://developer.amd.com.cn/radeon/api/v1/models",

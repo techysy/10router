@@ -183,25 +183,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > api-airforce → hea
 }
 `;
 
-exports[`GOLDEN buildHeaders (default executor providers) > apinex → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "nonStream": {
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-}
-`;
-
 exports[`GOLDEN buildHeaders (default executor providers) > assemblyai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -441,26 +422,26 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
   "nonStream": {
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
   "oauth": {
@@ -468,13 +449,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
 }
@@ -487,26 +468,26 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
   "nonStream": {
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
   "oauth": {
@@ -514,13 +495,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/1.0.5",
+    "User-Agent": "9Router/1.1.0",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "1.0.5",
-    "X-CORE-VERSION": "1.0.5",
+    "X-CLIENT-VERSION": "1.1.0",
+    "X-CORE-VERSION": "1.1.0",
     "X-IS-MULTIROOT": "false",
-    "X-PLATFORM": "linux",
-    "X-PLATFORM-VERSION": "v22.23.1",
+    "X-PLATFORM": "win32",
+    "X-PLATFORM-VERSION": "v24.20.0",
     "X-Title": "Cline",
   },
 }
@@ -968,10 +949,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "ArchLinux",
+    "X-Msh-Device-Model": "Windows x64",
+    "X-Msh-Device-Name": "MX-PC",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "1.0.5",
+    "X-Msh-Version": "1.1.0",
     "x-api-key": "<CRED>",
   },
   "nonStream": {
@@ -979,10 +960,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "ArchLinux",
+    "X-Msh-Device-Model": "Windows x64",
+    "X-Msh-Device-Name": "MX-PC",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "1.0.5",
+    "X-Msh-Version": "1.1.0",
     "x-api-key": "<CRED>",
   },
   "oauth": {
@@ -991,10 +972,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
     "X-Msh-Device-Id": "kimi-<TS>",
-    "X-Msh-Device-Model": "Linux x64",
-    "X-Msh-Device-Name": "ArchLinux",
+    "X-Msh-Device-Model": "Windows x64",
+    "X-Msh-Device-Name": "MX-PC",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "1.0.5",
+    "X-Msh-Version": "1.1.0",
     "x-api-key": "<CRED>",
   },
 }
@@ -1651,13 +1632,6 @@ exports[`GOLDEN buildUrl (default executor providers) > api-airforce → url (st
 {
   "nonStream": "https://api.airforce/v1/chat/completions",
   "stream": "https://api.airforce/v1/chat/completions",
-}
-`;
-
-exports[`GOLDEN buildUrl (default executor providers) > apinex → url (stream + non-stream) 1`] = `
-{
-  "nonStream": "https://api.apinex.bond/v1/chat/completions",
-  "stream": "https://api.apinex.bond/v1/chat/completions",
 }
 `;
 

@@ -396,31 +396,6 @@ export const PROVIDER_CAPABILITIES = {
     "laguna-s-2.1":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },
     "laguna-xs-2.1": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   },
-  // APInex — vendor-prefixed upstream ids, keys are the FULL ids (the generic
-  // base-model strip would mangle "glm/5.3-flash" → "5.3-flash"). Context
-  // windows from the upstream catalog (grok 500K, gpt/5.6-luna 1.05M, rest
-  // 1M). All families reason; gateway exposes thinking inline (verified live
-  // on the free/* models). Vision unverified — not claimed.
-  "apinex": {
-    "grok/4.6":                    { reasoning: true, thinkingFormat: "openai", contextWindow: 500000 },
-    "claude/opus-5":               { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "claude/sonnet-5":             { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "gpt/5.6-sol":                 { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "gpt/5.6-terra":               { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "gpt/5.6-luna":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1050000 },
-    "gemini/3.1-pro":              { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "gemini/3.8-flash":            { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "deepseek/v4-flash-0731":      { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "deepseek/v4-pro-0813":        { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "glm/5.3-flash":               { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "glm/5.3":                     { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "kimi/k3":                     { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "free/glm-5.3-flash":          { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "free/deepseek-v4-flash-0731": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "free/deepseek-v4-pro-0813":   { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "free/gpt-5.6-luna":           { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-    "free/qwen-3.8-max":           { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000 },
-  },
 };
 
 /**
