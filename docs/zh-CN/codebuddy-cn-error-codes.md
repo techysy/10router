@@ -11,7 +11,7 @@
 | `11128` | 400 | Illegal API invocation from an unapproved channel | **间歇风控** | 服务端 | 无配置可解；等锁恢复/降请求形态/换号。见下方专节 |
 | `11133` | 400 | the request parameters were rejected by the model provider (`model_param_invalid`) | **多为客户端/上游缺陷** | mirasim/上游 | 二分请求侧 vs 响应侧定位；workaround 换 hy4。见相关文档 |
 | `11134` | 500 | the model provider is temporarily unavailable, please retry later or switch… | **上游临时不可用** | 上游 | 等上游自报的 reset 时间；**不是目录错误，勿因此下架模型**。见下方专节 |
-| `11140` | 403 | （账号级风控，拦截整个渠道的对话接口） | **账号级风控（新）** | 服务端 | 本地无解——额度接口仍 200、与请求形态/模型/代理无关；等恢复或换号。见下方专节 |
+| `11140` | 403 | `{"code":11140,"msg":"request illegal","requestid":"…"}` | **账号级风控（新）** | 服务端 | 本地无解——额度接口仍 200、与请求形态/模型/代理无关；等恢复或换号。见下方专节 |
 | `11150` | 400 | reasoning effort value is not supported by the current model | **可修(代码)** | executor | DeepSeek 系不支持 `auto/off` → 请求侧 `auto→high`、`off→删字段`(commit `167f272f`) |
 | `11151` | 400 | assistant 带 reasoning | **上游格式** | 上游 | 上游对 assistant 消息携带 reasoning 的校验；规避请求形态 |
 | `6004` | 429 | 您的使用量已超出频率限制，将于…重置 | **配额限流** | 服务端 | 等 CodeBuddy 返回的 reset 时间自动恢复；正常配额消耗 |
@@ -66,7 +66,9 @@ CodeBuddy 对"请求参数不符合模型要求"的笼统表达（`extError.code
 
 ### 11140 — 账号级风控拦截整个渠道（intl 首报 2026-09-12）
 
-HTTP **403**、code `11140`，**账号粒度**拦截该渠道的整个对话接口——与 `11128`（单请求形态相关、可自愈）不同，`11140` 命中后**所有模型、所有请求形态持续 403**。
+HTTP **403**、code `11140`，原文：`{"code":11140,"msg":"request illegal","requestid":"…"}`。**账号粒度**拦截该渠道的整个对话接口——与 `11128`（单请求形态相关、可自愈）不同，`11140` 命中后**所有模型、所有请求形态持续 403**。
+
+> ⚠️ 文案陷阱：`msg: "request illegal"` 字面上像"这条请求非法"，会诱导人去二分请求形态——**那是死路**。实测该账号下任意模型、任意形态持续 403，`request illegal` 实际表达的是"**这个账号的请求一律拒绝**"。看到 11140 直接按账号问题处理。
 
 **首报案例（群友，intl/cbai）**：09-12 00:51 最后一次成功，07:59 首个 11140，08:42 仍 403。已系统排除本地原因：
 
