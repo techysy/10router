@@ -75,7 +75,10 @@ try {
 try {
     # ---------- 3) 构建 cli/app(桌面包用 extraResources 直接引用它) ----------
     if ($SkipAppBuild -and (Test-Path (Join-Path $AppDir "custom-server.js"))) {
-        Step 3 "复用已有 cli/app"
+        Step 3 "复用已有 cli/app(同步测试号到 app/package.json)"
+        # build-cli.js 只在构建时同步版本号;复用旧产物时手动对齐,否则 step 7 版本校验必挂
+        node -e "const fs=require('fs');const p=process.argv[1];const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[2];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" (Join-Path $AppDir "package.json") $Version
+        if ($LASTEXITCODE -ne 0) { Die "同步 app/package.json 版本号失败" }
         Ok $AppDir
     } else {
         Step 3 "构建 cli/app(node cli/scripts/build-cli.js,含 Next build)"
