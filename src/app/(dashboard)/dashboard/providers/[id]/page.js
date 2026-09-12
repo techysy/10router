@@ -1562,15 +1562,19 @@ export default function ProviderDetailPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{providerInfo.name}</h1>
-              {(providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website) && (
+              {(providerInfo.notice?.webUrl || providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website) && (
                 <a
-                  href={providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
+                  href={providerInfo.notice?.webUrl || providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-primary hover:underline inline-flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-sm">open_in_new</span>
-                  {providerInfo.notice?.apiKeyUrl ? "Get API Key" : "Sign up / Learn more"}
+                  {providerInfo.notice?.webUrl
+                    ? "Web console"
+                    : providerInfo.notice?.apiKeyUrl
+                      ? "Get API Key"
+                      : "Sign up / Learn more"}
                 </a>
               )}
               <InviteCodeChip code={providerInfo.notice?.inviteCode} />
