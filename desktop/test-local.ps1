@@ -195,7 +195,8 @@ finally {
         Push-Location $RepoDir
         try {
             npm run test-version -- --revert
-            $dirty = (git status --porcelain).Trim()
+            # 干净树时 porcelain 输出为空,PS5.1 里是 $null —— 直接 .Trim() 会炸掉 finally
+            $dirty = (git status --porcelain | Out-String).Trim()
             if ($dirty -ne "") { Write-Host "  ! 工作区非空,提交前先看: $dirty" -ForegroundColor Yellow }
         } finally { Pop-Location }
     } else {
