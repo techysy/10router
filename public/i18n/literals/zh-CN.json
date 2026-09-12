@@ -1496,6 +1496,8 @@
   "This model requires the Xiaomi MiMo desktop account. Sign in to MiMo Desktop once, then retry.": "该模型需要小米 MiMo 桌面版账号。请先登录一次 MiMo 桌面版，然后重试。",
   "Requires MiMo Desktop sign-in — API key alone cannot reach this model": "需要 MiMo 桌面版登录——仅凭 API key 无法调用该模型",
   "Desktop sign-in": "需桌面版登录",
+  "Expand sidebar": "展开侧边栏",
+  "Collapse sidebar": "收起侧边栏",
   "Export failed": "导出失败",
   "Enter your current password to export CodeBuddy CN accounts.": "输入当前密码以导出 CodeBuddy CN 账号。",
   "Enter your current password to import CodeBuddy CN accounts.": "输入当前密码以导入 CodeBuddy CN 账号。",
