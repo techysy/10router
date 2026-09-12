@@ -765,7 +765,7 @@ function setAppMenu() {
                 { label: tr('appmenu.openurl'), accelerator: 'CmdOrCtrl+L', click: promptOpenUrl },
                 { label: tr('appmenu.home'), accelerator: 'CmdOrCtrl+Shift+H', click: () => openInWindow(DASHBOARD_URL) },
                 { type: 'separator' },
-                (() => {
+                ...(() => {
                     const recents = loadRecentUrls();
                     const items = recents.map((url) => ({
                         label: url.replace(/^https?:\/\//, ''),
