@@ -20,7 +20,7 @@
  *  - 端口: ROUTER_PORT > 20128(与 CLI 默认一致)
  *  - 界面语言: 跟随系统(与 npm CLI 的 i18n 同规则),TENROUTER_LANG 可覆盖
  */
-const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, dialog, ipcMain } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const fs = require('fs');
@@ -716,13 +716,15 @@ function promptOpenUrl() {
         width: 500,
         height: 140,
         parent: hasParent ? win : null,
-        modal: hasParent && process.platform !== 'darwin',
+        // 刻意不用 modal:模态子窗在 show:false + ready-to-show 未命中等场景会把
+        // 父窗体永久禁用(表现为整个应用卡死)。普通子窗 + alwaysOnTop 同样钉在前面。
+        alwaysOnTop: true,
         title: tr('appmenu.openurl.title'),
         resizable: false,
         minimizable: false,
         maximizable: false,
         autoHideMenuBar: true,
-        show: false,
+        show: true,   // 小页面直接显示,不等 ready-to-show(同类卡死源)
         webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
     });
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -735,13 +737,27 @@ function promptOpenUrl() {
 const { ipcRenderer } = require('electron');
 const go = () => { const v = document.getElementById('u').value.trim(); if (v) ipcRenderer.send('url-prompt-submit', v); };
 document.getElementById('go').addEventListener('click', go);
-document.getElementById('u').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+document.getElementById('u').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') go();
+    if (e.key === 'Escape') window.close();
+});
 </script>
 </body></html>`;
-    urlPromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    urlPromptWin.once('ready-to-show', () => urlPromptWin.show());
+    urlPromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+        .catch((e) => { log(`url prompt load failed: ${e.message}`); try { urlPromptWin.close(); } catch { /* ignore */ } });
     urlPromptWin.on('closed', () => { urlPromptWin = null; });
 }
+
+// 输入框「打开」/回车 → 主进程校验:合法就记最近+主窗体打开(输入窗关闭);
+// 非法关窗并气泡提示。ipcRenderer.send 没有回报通道,提示走 notify。
+ipcMain.on('url-prompt-submit', (e, raw) => {
+    const fromPrompt = urlPromptWin && !urlPromptWin.isDestroyed() && e.sender === urlPromptWin.webContents;
+    const url = normalizeOpenUrl(raw);
+    if (fromPrompt) urlPromptWin.close();
+    if (!url) { notify(tr('appmenu.openurl.title'), tr('appmenu.openurl.invalid')); return; }
+    pushRecentUrl(url);
+    openInWindow(url);
+});
 
 // ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
 // Electron 默认菜单是英文的;按 tr() 出三语,role 保住快捷键与原生行为。
