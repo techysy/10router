@@ -125,7 +125,7 @@ curl -s http://localhost:20128/api/health                       # {"ok":true}
 tail -2 "$APPDATA/10router-desktop/logs/tray.log"               # start server / notify 已启动
 ```
 
-`test-local.ps1` 的 step 7 还会做**登录态 SSR 冒烟**（§5）：用
+`test-local.ps1` 的 step 7 还会做**登录态 SSR 冒烟**（闸门来源：[test-report-test17-tdz-page500.md](test-report-test17-tdz-page500.md)）：用
 `%APPDATA%\10router\jwt-secret` 铸一枚 10 分钟 JWT 作为 `auth_token` cookie 打
 `/dashboard`，非 200 直接判轮次失败——`/api/health` 不走页面渲染，挡不住
 「health 全绿但页面 500」这类回归（TDZ、循环引用、RSC 序列化失败都属此列）。
@@ -237,64 +237,19 @@ INSTALL_CHANNEL=desktop DATA_DIR="/tmp/verify-data" "$INST/10Router.exe" custom-
 **⑤ 收尾。** 杀掉临时进程 → `npm run test-version -- --revert` → 确认工作树只剩你真正要提交的改动。
 若临时进程占着端口，先停再回退，否则容易误判「改动没生效」。
 
-## 5. 测试报告：test.17「health 全绿但页面 500」复盘（2026-09-12）
+## 5. 测试报告索引
 
-一次真实事故的完整链路，留作验证方法论的案例：**轮次绿 ≠ 页面能用**。
+事故复盘按**一篇一文件**沉淀在 `docs/zh-CN/test-report-*.md`（命名
+`test-report-<版本>-<一句话病因>.md`），本节只留索引——方法论正文保持稳定，
+报告是 append-only 的历史，两者更新节奏不同。
 
-### 5.1 时间线与现象
+| 日期 | 报告 | 一句话结论 | 反哺 |
+|---|---|---|---|
+| 2026-09-12 | [`test-report-test17-tdz-page500.md`](test-report-test17-tdz-page500.md) | 轮次绿 ≠ 页面能用：health 不渲染页面，TDZ 只在登录态 SSR 炸 | 轮次新增登录态 SSR 冒烟（§2.4）；误判表 §6 增行 |
 
-- `78c403a9`（#13/#14 修复）跑 `test-local.ps1 -Version 1.1.1-test.17`：版本、health、
-  feature marker 全过，轮次 **exit 0**。
-- 用户打开 provider 详情页 → **"This page couldn't load"**；`/api/health`、`/v1/models` 全正常。
-- `server.log` 里唯一的线索（压缩后标识符 `b1` 无从对回源码）：
-
-```
-⨯ ReferenceError: Cannot access 'b1' before initialization
-    at T (…\.next-cli-build\server\app\(dashboard)\dashboard\providers\[id]\page.js:14:10956)
-```
-
-### 5.2 根因
-
-#14 新增的 `refreshAfterConnectionChange` 写成了
-`useCallback(..., [fetchConnections, fetchDisabledModels])`，但位置在 **`fetchConnections`
-声明（约 100 行之后）的前面**。组件函数体内的 `const` 按序求值，依赖数组**每次渲染都立即
-求值**，前向引用直接踩暂时性死区——该页 SSR 每次渲染必炸，客户端路由同样进不去。
-`node --check`、TypeScript、Next build 全部不报错：语法合法、类型合法，只有运行时非法。
-
-### 5.3 为什么测试轮没拦住（三层全漏过）
-
-1. step 7 只打 `/api/health`——它**不经过任何页面组件的渲染**；
-2. 未鉴权 `curl /dashboard` 得 307 → `/login`，middleware 在渲染前就短路，同样测不到；
-3. 源码文本守卫用例（`disabled-models-ux.test.js`）断言的是「接线存在」，
-   不是「声明顺序合法」——按仓库惯例它是文本断言，本就不该背这个锅。
-
-feature marker 反而**命中**了（新字符串在产物 chunk 里）——代码进包 ≠ 页面能渲染。
-
-### 5.4 修复与防复发
-
-- 修复（`6879715a`）：声明移到 `fetchConnections` 之后，注释写明顺序不可换的原因。
-- **test-local.ps1 step 7 新增登录态 SSR 冒烟**（治本的一道闸）：
-
-```powershell
-# 用本地 jwt-secret 铸 10 分钟 JWT(与 src/lib/auth/dashboardSession.js 同源, jose HS256),
-# 以 auth_token cookie 打 /dashboard —— 非 200 判轮次失败
-$token = node --input-type=module -e '…SignJWT…' "$env:APPDATA\10router\jwt-secret"
-curl.exe -s -o NUL -w "%{http_code}" -H "Cookie: auth_token=$token" http://127.0.0.1:20128/dashboard
-```
-
-  手工复现同一验证：数据目录下的 `jwt-secret` 文件即签名密钥，`jose` 铸
-  `{sub:"…"}` 的 HS256 token，`curl -H "Cookie: auth_token=<jwt>"` 打任意 dashboard
-  路由即可拿到**真实渲染**（200 = RSC 渲染走通；500 = 看 server.log 的 digest）。
-
-### 5.5 教训（浓缩版）
-
-- **验证强度 = 它实际执行到的代码**：health 证明 sidecar 活着，不证明任何一页能渲染；
-  测试轮里必须有至少一个「登录态 + 真页面」的断言。
-- **hook 依赖数组是即时代码**：组件体内声明顺序即求值顺序，前向引用 = 运行时炸；
-  lint/构建/类型检查全都不拦（合法语法）。
-- **正向 marker 命中 ≠ 可用**：字符串进了 chunk 只说明代码进包，渲染路径要单独证。
-- 压缩产物的 `Cannot access 'x' before initialization` 优先怀疑 **TDZ（声明顺序/循环
-  引用）**：先看最近一次改动新增的声明位置，别在产物里找 `x`。
+写新报告的时机：**凡是测试轮没拦住、被用户或线上先发现的问题**，都值得一篇——
+轮次拦住的只是已知模式，漏网的都是验证强度的盲区，正是方法论要吸收的部分。
+写完把教训浓缩一行进 §6 误判表、把新闸门写进 §2.4，然后在这里加索引行。
 
 ## 6. 常见误判对照
 
@@ -303,7 +258,7 @@ curl.exe -s -o NUL -w "%{http_code}" -H "Cookie: auth_token=$token" http://127.0
 | exe 双击/命令启动秒退、无托盘、无日志 | 环境里有 `ELECTRON_RUN_AS_NODE=1`（§2.3） |
 | 换了代码但行为没变 | 旧实例仍占 20128，新实例进 external 模式只开窗口，跑的是旧 sidecar |
 | 包内 grep 不到新代码 | 产物目录不是 `.next` 而是 `.next-cli-build`；或搜的函数名被压缩改名了 |
-| **health 全绿但页面打不开（登录态 500）** | **验证闭环不测页面渲染；SSR 层 TDZ/循环引用 health 探不到（§5）** |
+| **health 全绿但页面打不开（登录态 500）** | **验证闭环不测页面渲染；SSR 层 TDZ/循环引用 health 探不到（[test-report-test17-tdz-page500.md](test-report-test17-tdz-page500.md)）** |
 | 提示找不到 `elevate.exe` 相关能力 | `--dir` 产物本来就没有，替换时别删安装器留下的那份 |
 | 测试后版本号回不干净 | 用 `npm run test-version -- --revert`，不要手敲 `git checkout --`（§1） |
 | `cmd //c start "" "…exe"` 像什么都没发生 | 空标题被 Git Bash 吃掉，exe 路径被当成窗口标题（§2.3） |
