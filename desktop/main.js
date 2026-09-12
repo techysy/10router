@@ -83,7 +83,10 @@ const STRINGS = {
         'appmenu.view': 'View',
         'appmenu.window': 'Window',
         'appmenu.help': 'Help',
-        'appmenu.openGithub': 'Open GitHub',
+        'appmenu.manageRecent': 'Manage Recent…',
+        'appmenu.openurl.titlePh': 'Title (optional)',
+        'appmenu.mgr.save': 'Save',
+        'appmenu.mgr.delete': 'Delete',
         'appmenu.quit': 'Exit',
         'appmenu.undo': 'Undo',
         'appmenu.redo': 'Redo',
@@ -161,7 +164,10 @@ const STRINGS = {
         'appmenu.view': '视图',
         'appmenu.window': '窗口',
         'appmenu.help': '帮助',
-        'appmenu.openGithub': '打开 GitHub',
+        'appmenu.manageRecent': '管理最近打开…',
+        'appmenu.openurl.titlePh': '标题（可选）',
+        'appmenu.mgr.save': '保存',
+        'appmenu.mgr.delete': '删除',
         'appmenu.quit': '退出',
         'appmenu.undo': '撤销',
         'appmenu.redo': '重做',
@@ -239,7 +245,10 @@ const STRINGS = {
         'appmenu.view': '檢視',
         'appmenu.window': '視窗',
         'appmenu.help': '說明',
-        'appmenu.openGithub': '打開 GitHub',
+        'appmenu.manageRecent': '管理最近開啟…',
+        'appmenu.openurl.titlePh': '標題（可選）',
+        'appmenu.mgr.save': '儲存',
+        'appmenu.mgr.delete': '刪除',
         'appmenu.quit': '結束',
         'appmenu.undo': '復原',
         'appmenu.redo': '重做',
@@ -549,6 +558,15 @@ function createWindow() {
         e.preventDefault();
         if (/^(mailto|tel):/i.test(url)) shell.openExternal(url);
     });
+    win.webContents.on('page-title-updated', (e, title) => {
+        // 「最近打开」自动起名:页面真的加载出标题就把 document.title 回填到
+        // 最近列表(零额外网络请求)。只认 http(s) 且已在列表里的 URL——
+        // 本地仪表盘/未经「打开网址」进来的页面都不入册;手动标题不覆盖。
+        try {
+            const u = win.webContents.getURL();
+            if (u && /^https?:/i.test(u) && !u.startsWith(BASE_URL)) updateRecentUrlTitle(u, title, false);
+        } catch { /* ignore */ }
+    });
     win.on('closed', () => { win = null; });
     win.on('close', (e) => {
         if (!quitting) {          // 点关闭 = 缩到托盘
@@ -668,18 +686,64 @@ let urlPromptWin = null;
 function loadRecentUrls() {
     try {
         const raw = JSON.parse(fs.readFileSync(RECENT_FILE, 'utf8'));
-        return Array.isArray(raw) ? raw.filter((u) => typeof u === 'string' && u).slice(0, 10) : [];
+        if (!Array.isArray(raw)) return [];
+        // 旧格式是纯字符串数组(无标题):逐条迁移成对象,两格式都能读
+        return raw.slice(0, 10).map((e) => {
+            if (typeof e === 'string' && e) return { url: e, title: '', titleManual: false };
+            if (e && typeof e === 'object' && typeof e.url === 'string' && e.url) {
+                return {
+                    url: e.url,
+                    title: typeof e.title === 'string' ? e.title.slice(0, 60) : '',
+                    titleManual: e.titleManual === true,
+                };
+            }
+            return null;
+        }).filter(Boolean);
     } catch { return []; }
 }
 
-function pushRecentUrl(url) {
-    const list = loadRecentUrls().filter((u) => u.toLowerCase() !== url.toLowerCase());
-    list.unshift(url);
+function saveRecentUrls(list) {
     try {
         fs.mkdirSync(path.dirname(RECENT_FILE), { recursive: true });
         fs.writeFileSync(RECENT_FILE, JSON.stringify(list.slice(0, 10), null, 2) + '\n');
     } catch { /* 记录失败不影响打开 */ }
     setAppMenu();   // 重建菜单以刷新「最近打开」
+}
+
+// title 在「打开网址」弹窗里手动填的算手动标题(不被自动回填覆盖);留空交给自动获取
+function pushRecentUrl(url, title = '') {
+    const t = String(title || '').trim().slice(0, 60);
+    const list = loadRecentUrls().filter((e) => e.url.toLowerCase() !== url.toLowerCase());
+    list.unshift({ url, title: t, titleManual: !!t });
+    saveRecentUrls(list);
+}
+
+// 页面标题回填:manual=true(管理窗改名)直接生效,空标题=清除;
+// manual=false(自动)只回填无手动标题的条目。
+function updateRecentUrlTitle(url, title, manual = false) {
+    const t = String(title || '').trim().slice(0, 60);
+    const list = loadRecentUrls();
+    const e = list.find((x) => x.url.toLowerCase() === url.toLowerCase());
+    if (!e) return;
+    if (manual) {
+        if (e.title === t && e.titleManual === !!t) return;
+        e.title = t;
+        e.titleManual = !!t;
+    } else {
+        if (!t || e.titleManual || e.title === t) return;
+        e.title = t;
+    }
+    saveRecentUrls(list);
+}
+
+function removeRecentUrl(url) {
+    saveRecentUrls(loadRecentUrls().filter((e) => e.url.toLowerCase() !== url.toLowerCase()));
+}
+
+// 菜单标签:标题优先;没有标题只显示域名,长网址不再怼进菜单
+function recentLabel(e) {
+    if (e.title) return e.title;
+    try { return new URL(e.url).hostname; } catch { return e.url; }
 }
 
 function clearRecentUrls() {
@@ -718,7 +782,7 @@ function promptOpenUrl() {
     const hasParent = win && !win.isDestroyed();
     urlPromptWin = new BrowserWindow({
         width: 500,
-        height: 140,
+        height: 178,
         parent: hasParent ? win : null,
         // 刻意不用 modal:模态子窗在 show:false + ready-to-show 未命中等场景会把
         // 父窗体永久禁用(表现为整个应用卡死)。普通子窗 + alwaysOnTop 同样钉在前面。
@@ -733,18 +797,26 @@ function promptOpenUrl() {
     });
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
-<body style="font-family:inherit;margin:0;padding:14px;display:flex;gap:8px;background:transparent">
+<body style="font-family:inherit;margin:0;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:transparent">
+<div style="display:flex;gap:8px">
 <input id="u" autofocus placeholder="https://… 或 host:port"
   style="flex:1;padding:6px 10px;font-size:14px;border:1px solid #8883;border-radius:6px;outline:none">
 <button id="go" style="padding:6px 14px;font-size:14px;border:1px solid #8883;border-radius:6px;cursor:pointer">${esc(tr('appmenu.openurl.go'))}</button>
+</div>
+<input id="t" placeholder="${esc(tr('appmenu.openurl.titlePh'))}"
+  style="padding:5px 10px;font-size:12px;border:1px solid #8883;border-radius:6px;outline:none">
 <script>
 const { ipcRenderer } = require('electron');
-const go = () => { const v = document.getElementById('u').value.trim(); if (v) ipcRenderer.send('url-prompt-submit', v); };
+const go = () => {
+  const v = document.getElementById('u').value.trim();
+  if (!v) return;
+  ipcRenderer.send('url-prompt-submit', { url: v, title: document.getElementById('t').value });
+};
 document.getElementById('go').addEventListener('click', go);
-document.getElementById('u').addEventListener('keydown', (e) => {
+['u', 't'].forEach((id) => document.getElementById(id).addEventListener('keydown', (e) => {
     if (e.key === 'Enter') go();
     if (e.key === 'Escape') window.close();
-});
+}));
 </script>
 </body></html>`;
     urlPromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
@@ -756,11 +828,88 @@ document.getElementById('u').addEventListener('keydown', (e) => {
 // 非法关窗并气泡提示。ipcRenderer.send 没有回报通道,提示走 notify。
 ipcMain.on('url-prompt-submit', (e, raw) => {
     const fromPrompt = urlPromptWin && !urlPromptWin.isDestroyed() && e.sender === urlPromptWin.webContents;
-    const url = normalizeOpenUrl(raw);
+    // 旧版只传字符串;现版带可选标题 {url, title}
+    const rawUrl = typeof raw === 'string' ? raw : (raw && raw.url);
+    const rawTitle = (raw && typeof raw === 'object') ? String(raw.title || '') : '';
+    const url = normalizeOpenUrl(rawUrl);
     if (fromPrompt) urlPromptWin.close();
     if (!url) { notify(tr('appmenu.openurl.title'), tr('appmenu.openurl.invalid')); return; }
-    pushRecentUrl(url);
+    pushRecentUrl(url, rawTitle);
     openInWindow(url);
+});
+
+// ──────────────────────── 管理最近打开(改名/单条删除) ────────────────────────
+let recentMgrWin = null;
+function promptManageRecent() {
+    if (recentMgrWin && !recentMgrWin.isDestroyed()) { recentMgrWin.focus(); return; }
+    recentMgrWin = new BrowserWindow({
+        width: 620,
+        height: 420,
+        parent: (win && !win.isDestroyed()) ? win : null,
+        alwaysOnTop: true,
+        title: tr('appmenu.manageRecent'),
+        autoHideMenuBar: true,
+        show: true,
+        webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
+    });
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+<body style="font-family:inherit;margin:0;padding:12px;background:transparent">
+<div id="list" style="display:flex;flex-direction:column;gap:6px"></div>
+<script>
+const { ipcRenderer } = require('electron');
+const BTN = 'padding:3px 10px;font-size:12px;border:1px solid #8883;border-radius:6px;cursor:pointer;background:transparent';
+const INP = 'flex:1;min-width:0;padding:4px 8px;font-size:13px;border:1px solid #8883;border-radius:6px;outline:none';
+const URLSTY = 'flex-basis:100%;font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+// 行内容全部用 DOM API 构建(textContent),不拼 HTML 字符串,天然免注入
+function render(list) {
+    const box = document.getElementById('list');
+    box.textContent = '';
+    if (!list.length) { box.textContent = ${JSON.stringify('RECENT_EMPTY_PLACEHOLDER')}; return; }
+    for (const it of list) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #8883;border-radius:8px;padding:8px';
+        const t = document.createElement('input');
+        t.style.cssText = INP;
+        t.value = it.title || '';
+        t.placeholder = it.url;
+        const save = document.createElement('button');
+        save.textContent = ${JSON.stringify('SAVE_PLACEHOLDER')};
+        save.style.cssText = BTN;
+        const del = document.createElement('button');
+        del.textContent = ${JSON.stringify('DELETE_PLACEHOLDER')};
+        del.style.cssText = BTN;
+        const u = document.createElement('div');
+        u.style.cssText = URLSTY;
+        u.textContent = it.url;
+        u.title = it.url;
+        save.onclick = () => { render(ipcRenderer.sendSync('recent-mgr', { action: 'rename', url: it.url, title: t.value }).list || []); };
+        del.onclick = () => { render(ipcRenderer.sendSync('recent-mgr', { action: 'remove', url: it.url }).list || []); };
+        row.append(t, save, del, u);
+        box.appendChild(row);
+    }
+}
+render(ipcRenderer.sendSync('recent-mgr', { action: 'list' }));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.close(); });
+</script>
+</body></html>`;
+    const filled = html
+        .replace('RECENT_EMPTY_PLACEHOLDER', esc(tr('appmenu.recent.empty')))
+        .replace('SAVE_PLACEHOLDER', esc(tr('appmenu.mgr.save')))
+        .replace('DELETE_PLACEHOLDER', esc(tr('appmenu.mgr.delete')));
+    recentMgrWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(filled))
+        .catch((e) => { log(`recent mgr load failed: ${e.message}`); try { recentMgrWin.close(); } catch { /* ignore */ } });
+    recentMgrWin.on('closed', () => { recentMgrWin = null; });
+}
+
+// 管理窗与主进程的单通道 RPC(sendSync):list/rename/remove,一律回当前全表
+ipcMain.on('recent-mgr', (e, msg) => {
+    const fromMgr = recentMgrWin && !recentMgrWin.isDestroyed() && e.sender === recentMgrWin.webContents;
+    if (fromMgr && msg && typeof msg === 'object') {
+        if (msg.action === 'rename' && typeof msg.url === 'string') updateRecentUrlTitle(msg.url, msg.title, true);
+        else if (msg.action === 'remove' && typeof msg.url === 'string') removeRecentUrl(msg.url);
+    }
+    e.returnValue = { ok: !!fromMgr, list: loadRecentUrls() };
 });
 
 // ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
@@ -785,11 +934,12 @@ function setAppMenu() {
                 { type: 'separator' },
                 ...(() => {
                     const recents = loadRecentUrls();
-                    const items = recents.map((url) => ({
-                        label: url.replace(/^https?:\/\//, ''),
-                        click: () => openInWindow(url),
+                    const items = recents.map((e) => ({
+                        label: recentLabel(e),
+                        click: () => openInWindow(e.url),
                     }));
                     items.push({ type: 'separator' });
+                    items.push({ label: tr('appmenu.manageRecent'), enabled: recents.length > 0, click: promptManageRecent });
                     items.push({ label: tr('appmenu.clearrecent'), enabled: recents.length > 0, click: clearRecentUrls });
                     return items;
                 })(),
@@ -834,9 +984,9 @@ function setAppMenu() {
             submenu: [
                 { label: tr('menu.checkUpdate'), click: () => checkForUpdates() },
                 { type: 'separator' },
-                // 国际惯例:关于/项目主页放帮助菜单(File 只留退出)
+                // 国际惯例:关于放帮助菜单(File 只留退出)。GitHub 入口保留在
+                // 关于对话框的按钮里——独立菜单项与之重复,按用户意见撤除。
                 { label: tr('menu.about'), click: () => showAbout() },
-                { label: tr('appmenu.openGithub'), click: () => shell.openExternal(GITHUB_URL) },
             ],
         },
     ];
