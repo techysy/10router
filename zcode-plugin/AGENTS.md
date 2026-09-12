@@ -13,7 +13,11 @@
 
 ## 环境要求
 
-- **Node.js ≥ 22.5**（脚本用内置的 `node:sqlite` / `DatabaseSync`，无第三方依赖，无需 npm install）
+- **Node.js ≥ 24（推荐，与仓库 `.nvmrc` 和 CI 一致）**。脚本用内置的 `node:sqlite` /
+  `DatabaseSync`，无第三方依赖，无需 npm install。
+  Node 22.x 上 `node:sqlite` 属于实验特性，需要额外加 `--experimental-sqlite` 标志才能
+  导入，否则报 `ERR_MODULE_NOT_FOUND`——若必须在 22.x 上跑，用
+  `node --experimental-sqlite scripts/export-usage.mjs …`。
 - 一个可连通的 10Router 实例，或一个虚拟 key（`sk-…`）／仪表盘密码
 
 ## 数据源
@@ -22,11 +26,32 @@
 
 | `--source` | 读取位置 | 导入后 provider 前缀 |
 |---|---|---|
-| `zcode`（默认）| `~/.zcode/cli/db/db.sqlite`（`model_usage` 表）| `zcode-<渠道名>` |
+| `zcode`（默认）| `~/.zcode/cli/db/db.sqlite`（`model_usage` 表），另扫旧布局 `~/.zcode/projects/*/db.sqlite` | `zcode-<渠道名>` |
 | `opencode` | `~/.local/share/opencode/opencode.db`，Windows 回退 `%LOCALAPPDATA%\opencode\opencode.db` | `opencode-<providerID>` |
 | `mirasim` | `~/.mirasim/insights/usage-YYYY-MM.ndjson` | `mirasim-<协议>` |
 
-三个源互相独立，需要各自单独跑一次。
+三个源互相独立，需要各自单独跑一次。ZCode 源会把扫到的多个库合并去重（按行 id 去重），
+所以有多份 db 时不必手动挑。
+
+## 固定套路
+
+大多数情况照抄这四步即可（把 `<源>` 换成 `zcode` / `opencode` / `mirasim`，`<URL>` 换成
+10Router 地址）：
+
+```bash
+# 1. 预览，确认有数据、provider 分组合理
+node scripts/export-usage.mjs --source <源> --endpoint <URL> --key sk-… --dry-run
+
+# 2. 正式导入
+node scripts/export-usage.mjs --source <源> --endpoint <URL> --key sk-…
+
+# 3. 想看全部来源就换 --source 各跑一次（互相独立）
+
+# 4. 连不上 10Router 时改为两步：先 --export 出 JSON，再在能连的机器 --import
+```
+
+若用户已把 key/endpoint 配在环境变量 `TENROUTER_ENDPOINT` / `TENROUTER_KEY` 里，
+命令行参数可全省。
 
 ## 用法
 
@@ -55,14 +80,35 @@ node scripts/export-usage.mjs --import usage.json --endpoint <URL> --key sk-…
 
 导出的 JSON 也能直接在 10Router 仪表盘导入（设置 → 数据库备份 → JSON 用量导入）。
 
+**导出文件格式**（供跨机器搬运 / 自行生成时参考）：
+
+```json
+{ "source": "zcode-plugin", "exportedAt": "<ISO 时间>", "rowCount": 1513, "usageHistory": [ … ] }
+```
+
+`--import` 只取 `usageHistory`（或 `usage`）字段，其余字段仅作说明、不校验；
+两者都不是数组则报 `error: file is not a usage export` 并以退出码 1 结束。
+
+## 退出码
+
+脚本化调用时可据此判断失败类型，决定是重试还是改参数：
+
+| 退出码 | 含义 | 例子 |
+|---|---|---|
+| `0` | 成功（含 0 行的空跑，此时只打印 `nothing to export/import`）| |
+| `1` | 数据/环境/远端问题：可重试或换目标 | 找不到账本文件、导入文件读不了、HTTP 非 2xx |
+| `2` | 参数错误：必须改命令行，重试无用 | `--source` 值非法、`--export` 与 `--import` 同时给、缺少 `--key`/`--password` |
+
 ## 关键行为（改动脚本前必读）
 
 - **幂等去重**：10Router 服务端按行签名去重（时间戳 + provider + model + connectionId +
   apiKey + prompt/completion tokens 七字段）。重复运行安全，输出里的
   `imported X, skipped Y` 中 `skipped` 就是撞上已有行的数量。
-  服务端去重契约见 [用量去重 usageKey 契约](../docs/zh-CN/usage-usageKey-contract.md)
-  （注意：那是代理实时写入侧的规则，本脚本走的是 `importUsageRows()`
-  分支，两者签名一致但 usageKey 单毫秒问题不适用于导入场景）。
+  注意服务端有**两条写入路径**，签名相同但关注点不同：
+  代理实时写入走 `saveRequestUsage()`，其去重契参见
+  [用量去重 usageKey 契约](../docs/zh-CN/usage-usageKey-contract.md)（含「同毫秒丢计数」的
+  历史坑与 usageKey 修复）；本脚本走 `importUsageRows()` 分支——**该文档的同毫秒问题不适用
+  于导入场景**，导入侧关心的是下面那条防双重计数。
 - **防双重计数**：这是最容易踩的坑。
   - ZCode 源会排除 baseURL 指向 10Router 自身的 provider（那些调用 10Router 已记账）。
   - mirasim 源会排除 `upstreamHost` 指向 10Router 实例的行——**必须在导出侧排除**，
