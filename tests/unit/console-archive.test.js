@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { dayKey, resolveArchiveDir, installConsoleArchive } from "../../src/lib/consoleArchiveStandalone.js";
+import { dayKey, resolveArchiveDir, installConsoleArchive } from "../../src/lib/consoleArchiveStandalone.mjs";
 
 function fakeConsole() {
   const calls = [];

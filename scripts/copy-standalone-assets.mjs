@@ -51,11 +51,11 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
   // Standalone-safe console archive tee used by custom-server.js at boot (per-day
   // files under the data dir). Same kept-as-source rationale as the initializer:
   // the Node entry must load it without the `@/` alias or Next tree-shaking.
-  const consoleArchiveSource = resolve(projectRoot, "src", "lib", "consoleArchiveStandalone.js");
-  const consoleArchiveDestination = resolve(standaloneDir, "src", "lib", "consoleArchiveStandalone.js");
+  const consoleArchiveSource = resolve(projectRoot, "src", "lib", "consoleArchiveStandalone.mjs");
+  const consoleArchiveDestination = resolve(standaloneDir, "src", "lib", "consoleArchiveStandalone.mjs");
   if (existsSync(consoleArchiveSource)) {
     cpSync(consoleArchiveSource, consoleArchiveDestination, { force: true });
-    console.log(`[standalone-assets] Copied consoleArchiveStandalone.js to ${consoleArchiveDestination}`);
+    console.log(`[standalone-assets] Copied consoleArchiveStandalone.mjs to ${consoleArchiveDestination}`);
   }
 }
 

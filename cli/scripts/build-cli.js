@@ -376,8 +376,8 @@ function buildCliPackage() {
   // <app>/src/lib — selective src copies only, so it must be shipped explicitly
   // or the dynamic import silently no-ops and the archive never appears).
   console.log("7️⃣ c Copying console archive module...");
-  const consoleArchiveSrc = path.join(appDir, "src", "lib", "consoleArchiveStandalone.js");
-  const consoleArchiveDest = path.join(cliAppDir, "src", "lib", "consoleArchiveStandalone.js");
+  const consoleArchiveSrc = path.join(appDir, "src", "lib", "consoleArchiveStandalone.mjs");
+  const consoleArchiveDest = path.join(cliAppDir, "src", "lib", "consoleArchiveStandalone.mjs");
   if (fs.existsSync(consoleArchiveSrc)) {
     fs.mkdirSync(path.dirname(consoleArchiveDest), { recursive: true });
     fs.copyFileSync(consoleArchiveSrc, consoleArchiveDest);

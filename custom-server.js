@@ -19,7 +19,7 @@ process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 // buffer and the desktop 5MB server.log don't keep). Runs only from this file, so
 // `next dev` keeps its plain console. Best-effort: a bare repo checkout without
 // the standalone copy simply skips it.
-import(pathToFileURL(path.join(__dirname, "src", "lib", "consoleArchiveStandalone.js")))
+import(pathToFileURL(path.join(__dirname, "src", "lib", "consoleArchiveStandalone.mjs")))
   .then((m) => m.installConsoleArchive())
   .catch(() => {});
 
