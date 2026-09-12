@@ -47,11 +47,9 @@ import Baidu from "@lobehub/icons/es/Baidu";
 import Tencent from "@lobehub/icons/es/Tencent";
 import Doubao from "@lobehub/icons/es/Doubao";
 import Github from "@lobehub/icons/es/Github";
-import Gitlab from "@lobehub/icons/es/Gitlab";
 import Cursor from "@lobehub/icons/es/Cursor";
 import Cline from "@lobehub/icons/es/Cline";
 import Windsurf from "@lobehub/icons/es/Windsurf";
-import Zed from "@lobehub/icons/es/Zed";
 import Kiro from "@lobehub/icons/es/Kiro";
 import Trae from "@lobehub/icons/es/Trae";
 import Jina from "@lobehub/icons/es/Jina";
@@ -111,11 +109,9 @@ export const LOBE_PROVIDER_ICONS = {
   tencent: Tencent,
   "volcengine-ark": Doubao,
   github: Github,
-  gitlab: Gitlab,
   cursor: Cursor,
   cline: Cline,
   windsurf: Windsurf,
-  zed: Zed,
   kiro: Kiro,
   trae: Trae,
   "jina-ai": Jina,
