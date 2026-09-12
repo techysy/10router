@@ -6,6 +6,7 @@
 
 ### ✨ 新功能
 
+- **Endpoint 页 i18n 全量清扫**：整页此前基本未翻译——「密钥签名轮换」问号图标的机制说明、标题/描述/确认弹窗、隧道与 Tailscale 全流程状态文案（重连中/创建隧道/打开登录页…）、API 密钥区的空态/暂停/删除确认/创建弹窗等 **110 处硬编码英文**全部改走 `translate()`，zh-CN/zh-TW 新增约 70 条词条（缺失时自动回落英文原文）。顺带修正两处此前只造了词条没接上的漏网（密钥签名轮换标题、全部重签）。
 - **集成 `@lobehub/icons`：58 个供应商图标升级为官方品牌 SVG**。图标体系此前全靠手工维护的 `public/providers/*.png`，品牌更新要手动抠图。现引入 `@lobehub/icons`，按**精确手工映射**（60 处深导入 → 校验后 58 个：lobe 5.18 无 Gitlab/Zed）渲染官方矢量品牌标——优先 `Color` 变体（官方品牌色，明暗主题通用；无 Color 回退 mono，`currentColor` 自动跟随文字色，天然双主题无需 light/dark 两套）；lobe 未覆盖的 33 个供应商（CodeBuddy/Qoder/公益站/自托管/本地等）**原样走 PNG 兜底路径，零删除**。`ProviderIcon` 接入仅 4 行：命中映射 → SVG，否则原逻辑。深导入（而非整包引用）把 bundle 增量控制在只用到的图标。
 - **`amd` 供应商图标换为 ATI 标**（用户指定，Wikimedia SVG → 128px PNG）。
 - **测试报告体系文档化（一篇一文件 + 总索引）**：新增 `docs/zh-CN/test-report-INDEX.md`（按发生面分类：本地测试轮 / NAS 热替换 / 发版与 CI），沉淀三篇历史复盘——**NAS 漏 pull 装出旧代码**（fetch≠pull + 增量 `.next` 假命中 → 铁律：构建前 `pull --ff-only` 核对 HEAD==origin/main、服务端变更干净重建、marker 分 dashboard/open-sse 两处）、**electron-builder asar 句柄锁**（构建产物出工作区 → `-c.directories.output=%TEMP%`）、**v1.0.8 版本漂移 + tag 静默丢事件**（四版本位盖章工具化 + tag 必须单独推）；test.17 TDZ 事故独立成篇（`test-report-test17-tdz-page500.md`），`local-build-and-verify.md` §5 改索引、§6 误判表补「health 绿但页面 500」行。
