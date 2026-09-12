@@ -47,6 +47,16 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(proxyInitSource, proxyInitDestination, { force: true });
     console.log(`[standalone-assets] Copied outboundProxyStandalone.js to ${proxyInitDestination}`);
   }
+
+  // Standalone-safe console archive tee used by custom-server.js at boot (per-day
+  // files under the data dir). Same kept-as-source rationale as the initializer:
+  // the Node entry must load it without the `@/` alias or Next tree-shaking.
+  const consoleArchiveSource = resolve(projectRoot, "src", "lib", "consoleArchiveStandalone.js");
+  const consoleArchiveDestination = resolve(standaloneDir, "src", "lib", "consoleArchiveStandalone.js");
+  if (existsSync(consoleArchiveSource)) {
+    cpSync(consoleArchiveSource, consoleArchiveDestination, { force: true });
+    console.log(`[standalone-assets] Copied consoleArchiveStandalone.js to ${consoleArchiveDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {

@@ -13,6 +13,16 @@ const origCreate = http.createServer.bind(http);
 const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
 process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
+// Long-term console archive: tee server console output into a per-day file under
+// the data dir (logs/app-YYYY-MM-DD.log, append-only, no cap — the durable record
+// of upstream answers / request failures that requestDetails' 200-record ring
+// buffer and the desktop 5MB server.log don't keep). Runs only from this file, so
+// `next dev` keeps its plain console. Best-effort: a bare repo checkout without
+// the standalone copy simply skips it.
+import(pathToFileURL(path.join(__dirname, "src", "lib", "consoleArchiveStandalone.js")))
+  .then((m) => m.installConsoleArchive())
+  .catch(() => {});
+
 let backgroundRefreshStarted = false;
 
 // Apply the outbound proxy from DB settings at boot. This is the Node-side

@@ -4,6 +4,10 @@
 
 ## v1.1.1 — 未发布
 
+### ✨ 新功能
+
+- **运行日志按日期归档、长期保存**：生产入口 `custom-server.js` 启动时把服务端 console（log/info/warn/error）原样 tee 到 `<数据目录>/logs/app-YYYY-MM-DD.log`（本地日期、追加式、**无上限不清理**——这是「上游到底回了什么、请求为什么失败」的长期档案；requestDetails 只有 200 条环形缓冲，桌面版 server.log 超 5MB 启动即清零，都不承担这个职责）。格式 `<ISO> [level] 内容`，跨天自动换文件。实现为自包含模块 `src/lib/consoleArchiveStandalone.js`（仅 Node 内建，同 `outboundProxyStandalone.js` 的约束——standalone 里没有 src/lib 源码），由 `copy-standalone-assets` 补拷，数据目录解析与 `dataDir.js` 一致（`DATA_DIR` 优先，Windows 回落 `%APPDATA%\10router`）；任何写档失败只静默放弃归档、绝不影响原 console 与应用本身。`next dev` 不经过该入口，保持原样。新增 `tests/unit/console-archive.test.js` 6 例（写入格式 / 跨天滚动 / 目录不可写不炸 / 日期补零 / DATA_DIR 优先 / 平台回落）。
+
 ### 🐛 修复
 
 - **CodeBuddy 国际版的连接测试不再是「Provider test not supported」**。仪表盘上点连接测试时，中国版正常、国际版一律报「Provider test not supported」—— 而**路由/推理一直是好的**（fnOS NAS 上实测 `cbai/deepseek-v4.1-flash` 正常 `DONE 2586ms`）。原因在测试专用路径：`testSingleConnection()` 把非 apikey 连接交给 `testOAuthConnection()`，后者先查 `OAUTH_TEST_CONFIG[provider]`，查不到就**在任何网络调用之前**返回这句错误 —— 于是「测试配置缺一条」被读成了「账号坏了」。`OAUTH_TEST_CONFIG` 里有 `codebuddy-cn` 却没有 `codebuddy-intl`（与之前缺模型、缺积分倍率是同一族漏项：改 CN 时忘了 intl）。现按 CN 的形状补上 `"codebuddy-intl": { tokenExists: true }`，并补 apikey 路径的 `case "codebuddy-intl"`（打到 `codebuddy.ai` 网关并带上注册表里的 IDE 通道头，否则会被判 11128「非认可渠道」）；该 case 的判定**故意只认 401/403** —— intl 网关是 stream-only，`stream:false` 探测可能直接被拒（11101），一旦收紧成 `res.ok` 就会把每个有效密钥永久判为无效，注释里写明了这一点。同批修掉同族第二处：用量面板的 `parseQuotaData` 缺 `codebuddy-intl` 分支，落到 `default:` 后丢掉 `recurring`，导致国际版的一次性加量包显示「Reset in」而非「Expires in」（后端 `getCodeBuddyIntlUsage` 本来就产出该字段，只是 UI 没接）。新增 `tests/unit/codebuddy-intl-test-support.test.js` 5 例：两版本在 `OAUTH_TEST_CONFIG` 里成对存在、apikey case 指向 `.ai` 域名（防止复制粘贴留着 CN 端点）、判定保持 auth-only，以及 intl 的 `recurring` 透传（走真实 `parseQuotaData` 而非文本断言）；变异验证：删掉 intl 条目 → 守卫用例立刻变红。
