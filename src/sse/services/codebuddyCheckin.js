@@ -53,15 +53,20 @@ async function getDoneMap() {
   return doneMap;
 }
 
-async function markDoneToday(connId, today) {
-  const map = await getDoneMap();
-  map[connId] = today;
-  for (const [id, day] of Object.entries(map)) {
-    if (day !== today) delete map[id];
+// Write the in-memory memo back to settings, pruned to today. Called by the
+// scheduler after each pass (the ticks only mutate the passed memo object).
+async function persistDoneMap() {
+  if (!doneMap) return;
+  const today = dayKey();
+  const pruned = {};
+  for (const [id, day] of Object.entries(doneMap)) {
+    if (day === today) pruned[id] = day;
   }
   try {
     const { updateSettings } = await import("../../lib/localDb.js");
-    await updateSettings({ codeBuddyDailyDone: { ...map } });
+    await updateSettings({ codeBuddyDailyDone: pruned });
+    for (const k of Object.keys(doneMap)) delete doneMap[k];
+    Object.assign(doneMap, pruned);
   } catch (err) {
     // Persist is best-effort — the in-memory cache still prevents same-process
     // repeats; a failed write just means one extra status check after restart.
@@ -548,11 +553,13 @@ async function safeTick(how) {
     const done = await getDoneMap();
     if (settings.codeBuddyCheckin === true) {
       await runCodebuddyCheckinTick({ skipIfCheckedToday: true, memo: done });
+      await persistDoneMap();
     } else {
       log.debug("CB_CN_CHECKIN", `Scheduled ${how}: setting off, skipping`);
     }
     if (settings.codeBuddyIntlSession === true) {
       await runCodebuddyIntlSessionTick({ memo: done });
+      await persistDoneMap();
     } else {
       log.debug("CB_INTL_SESSION", `Scheduled ${how}: setting off, skipping`);
     }
@@ -627,6 +634,6 @@ export const __internals = {
   dayKey,
   msUntilNextTick,
   getDoneMap,
-  markDoneToday,
+  persistDoneMap,
   isEligibleCbIntlConnection,
 };
