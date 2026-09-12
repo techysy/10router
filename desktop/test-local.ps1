@@ -185,10 +185,13 @@ try {
 
     # 登录态 SSR 冒烟:用本地 jwt-secret 铸 cookie 打 /dashboard。
     # /api/health 不走页面渲染,挡不住 "health 绿但页面 500"(如 TDZ/循环引用回归)。
+    # 铸 JWT 走落盘 helper(PS5.1 传参会吃掉内嵌双引号,内联 -e 必炸,见 mint-smoke-jwt.mjs 头注)。
     $jwtSecretPath = Join-Path $env:APPDATA "10router\jwt-secret"
     if (Test-Path $jwtSecretPath) {
-        $token = node --input-type=module -e 'import fs from "node:fs";import {SignJWT} from "jose";const s=new TextEncoder().encode(fs.readFileSync(process.argv[1],"utf8").trim());const t=await new SignJWT({sub:"smoke"}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("10m").sign(s);process.stdout.write(t);' $jwtSecretPath
-        if ($LASTEXITCODE -ne 0 -or -not $token) { Die "铸 SSR 冒烟 JWT 失败" }
+        $tokenFile = Join-Path $env:TEMP "10router-smoke.jwt"
+        node (Join-Path $DesktopDir "mint-smoke-jwt.mjs") $jwtSecretPath $tokenFile
+        if ($LASTEXITCODE -ne 0) { Die "铸 SSR 冒烟 JWT 失败" }
+        $token = (Get-Content $tokenFile -Raw).Trim()
         $dashCode = & curl.exe -s -o NUL -w "%{http_code}" -m 20 -H "Cookie: auth_token=$token" http://127.0.0.1:20128/dashboard
         if ($dashCode -ne "200") { Die "登录态 /dashboard SSR 返回 $dashCode (期望 200) —— 看 server.log" }
         Ok "登录态 /dashboard SSR -> 200"
@@ -208,11 +211,11 @@ finally {
         Step 8 "回退测试版本号"
         Push-Location $RepoDir
         try {
-            npm run test-version -- --revert
+            # 直接调 node,不走 npm run:绕开 npm 的参数解析(-- 偶发被当成 flag 报 EUNKNOWNCONFIG)
+            node scripts\test-build-version.mjs --revert
             # 干净树时 porcelain 输出为空,PS5.1 里是 $null —— 直接 .Trim() 会炸掉 finally
             $dirty = (git status --porcelain | Out-String).Trim()
-            if ($dirty -ne "") { Write-Host "  ! 工作区非空,提交前先看: $dirty" -ForegroundColor Yellow }
-        } finally { Pop-Location }
+            if ($dirty -ne "") { Write-Host "  ! 工作区非空,提交前先看: $dirty" -ForegroundColor Yellow }        } finally { Pop-Location }
     } else {
         Step 8 "保留测试号(-NoRevert)"
     }
