@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { copyTextToClipboard } from "@/shared/utils/clipboard";
 
 /**
  * Hook for copy to clipboard with feedback
@@ -12,21 +13,8 @@ export function useCopyToClipboard(resetDelay = 2000) {
   const timeoutRef = useRef(null);
 
   const copy = useCallback((text, id = "default") => {
-    const write = async () => {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-    };
-    write();
+    // fire-and-forget:反馈即时给出,复制失败(help 内部已带 execCommand 兜底)不打断 UI
+    copyTextToClipboard(text);
     setCopied(id);
 
     if (timeoutRef.current) {
@@ -40,4 +28,3 @@ export function useCopyToClipboard(resetDelay = 2000) {
 
   return { copied, copy };
 }
-

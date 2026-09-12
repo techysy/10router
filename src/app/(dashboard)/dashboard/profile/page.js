@@ -10,6 +10,7 @@ import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { LOCALE_FLAGS } from "@/shared/constants/locales";
 import { isRegionalCurrencyEnabled } from "@/shared/utils/currency";
+import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
 
 function getLocaleFromCookie() {
@@ -1474,8 +1475,10 @@ export default function ProfilePage() {
                         variant="outline"
                         size="sm"
                         icon="content_copy"
-                        onClick={() => {
-                          navigator.clipboard.writeText(samlAcsUrl);
+                        onClick={async () => {
+                          // 此前是裸 navigator.clipboard 调用:非安全上下文(LAN IP)下
+                          // 直接 TypeError,却照样弹「已复制」——统一走带兜底的 helper
+                          await copyTextToClipboard(samlAcsUrl);
                           setSamlStatus({ type: "success", message: "ACS URL copied to clipboard!" });
                         }}
                       >

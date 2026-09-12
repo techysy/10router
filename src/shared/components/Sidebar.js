@@ -8,6 +8,7 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG, UPDATER_CONFIG } from "@/shared/constants/config";
 import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
 import Button from "./Button";
 import { ConfirmModal } from "./Modal";
@@ -82,7 +83,7 @@ export default function Sidebar({ onClose }) {
 
   // Triggered by Copy button inside ManualUpdatePanel: copy + countdown + shutdown
   const handleCopyAndShutdown = async () => {
-    try { await navigator.clipboard.writeText(INSTALL_CMD); } catch { /* clipboard blocked */ }
+    await copyTextToClipboard(INSTALL_CMD);
     copy(INSTALL_CMD);
     let remaining = UPDATER_CONFIG.shutdownCountdownSec;
     setShutdownCountdown(remaining);
