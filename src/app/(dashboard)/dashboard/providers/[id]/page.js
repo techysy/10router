@@ -1988,14 +1988,28 @@ export default function ProviderDetailPage() {
             <p className="text-xs text-red-500 mb-3 break-words">
               {modelsTestError}{" "}
               {verificationUrl && (
-                <a
-                  href={verificationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 underline hover:text-blue-400"
-                >
-                  {translate("Verify your account")}
-                </a>
+                <>
+                  <a
+                    href={verificationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={translate("Recommended: open in an incognito window and sign in with the affected account")}
+                    className="text-blue-500 underline hover:text-blue-400"
+                  >
+                    {translate("Verify your account")}
+                  </a>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={() => copy(verificationUrl, "verification")}
+                    className="text-text-muted underline hover:text-primary"
+                  >
+                    {copied === "verification" ? translate("Copied") : translate("Copy link")}
+                  </button>
+                  <span className="text-text-muted">
+                    {" "}（{translate("Recommended: open in an incognito window and sign in with the affected account")}）
+                  </span>
+                </>
               )}
             </p>
           );

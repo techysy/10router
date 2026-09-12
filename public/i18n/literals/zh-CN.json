@@ -1617,5 +1617,7 @@
   "That code did not contain an API key. Start the sign-in again.": "这串授权码里没有 API Key。请重新登录一次。",
   "The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.": "授权码是一长串字符（100 个以上）—— 请用授权页的「复制」按钮整串复制。",
   "Open the code page": "打开授权码页面",
-  "Verify your account": "验证账号"
+  "Verify your account": "验证账号",
+  "Recommended: open in an incognito window and sign in with the affected account": "建议用无痕窗口打开，并登录被标记的账号",
+  "Copied": "已复制"
 }

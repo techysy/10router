@@ -412,5 +412,7 @@
   "That code did not contain an API key. Start the sign-in again.": "這串授權碼裡沒有 API Key。請重新登入一次。",
   "The code is a long string (100+ characters) — copy it whole, using the Copy button on the sign-in page.": "授權碼是一長串字元（100 個以上）—— 請用授權頁的「複製」按鈕整串複製。",
   "Open the code page": "開啟授權碼頁面",
-  "Verify your account": "驗證帳號"
+  "Verify your account": "驗證帳號",
+  "Recommended: open in an incognito window and sign in with the affected account": "建議用無痕視窗開啟，並登入被標記的帳號",
+  "Copied": "已複製"
 }

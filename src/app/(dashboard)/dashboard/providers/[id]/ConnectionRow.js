@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { translate } from "@/i18n/runtime";
 import { extractAccountsVerificationUrl } from "@/shared/utils/validationUrl";
+import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
 import CooldownTimer from "./CooldownTimer";
@@ -123,6 +124,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const verificationUrl = connection.isActive !== false
     ? extractAccountsVerificationUrl(connection.lastError)
     : null;
+  const { copied, copy } = useCopyToClipboard();
 
   const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
 
@@ -190,14 +192,27 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </span>
             )}
             {verificationUrl && (
-              <a
-                href={verificationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 text-xs text-blue-500 underline hover:text-blue-400"
-              >
-                {translate("Verify your account")}
-              </a>
+              <>
+                <a
+                  href={verificationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={translate("Recommended: open in an incognito window and sign in with the affected account")}
+                  className="shrink-0 text-xs text-blue-500 underline hover:text-blue-400"
+                >
+                  {translate("Verify your account")}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => copy(verificationUrl, "verification")}
+                  title={translate("Copy link")}
+                  className="shrink-0 text-xs text-text-muted hover:text-primary"
+                >
+                  <span className="material-symbols-outlined text-sm align-middle">
+                    {copied === "verification" ? "check" : "content_copy"}
+                  </span>
+                </button>
+              </>
             )}
             <span className="text-xs text-text-muted">#{connection.priority}</span>
             {connection.globalPriority && (
