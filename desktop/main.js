@@ -92,6 +92,8 @@ const STRINGS = {
         'appmenu.selectall': 'Select All',
         'appmenu.reload': 'Reload',
         'appmenu.forcereload': 'Force Reload',
+        'appmenu.back': 'Back',
+        'appmenu.forward': 'Forward',
         'appmenu.devtools': 'Developer Tools',
         'appmenu.zoomreset': 'Actual Size',
         'appmenu.zoomin': 'Zoom In',
@@ -160,6 +162,8 @@ const STRINGS = {
         'appmenu.selectall': '全选',
         'appmenu.reload': '重新加载',
         'appmenu.forcereload': '强制刷新',
+        'appmenu.back': '后退',
+        'appmenu.forward': '前进',
         'appmenu.devtools': '开发者工具',
         'appmenu.zoomreset': '实际大小',
         'appmenu.zoomin': '放大',
@@ -228,6 +232,8 @@ const STRINGS = {
         'appmenu.selectall': '全選',
         'appmenu.reload': '重新載入',
         'appmenu.forcereload': '強制重新載入',
+        'appmenu.back': '返回',
+        'appmenu.forward': '前進',
         'appmenu.devtools': '開發人員工具',
         'appmenu.zoomreset': '實際大小',
         'appmenu.zoomin': '放大',
@@ -478,12 +484,28 @@ async function restartServer() {
 }
 
 // ──────────────────────── 窗口 ────────────────────────
+let pendingUrl = null;   // 托盘「其他服务」首开时带入的目标 URL(createWindow 首载用一次)
+
+// 导航白名单:本地实例 + 已配置的其他 10Router 服务(其余外链照旧丢系统浏览器)。
+// 每次导航现读 remote-services.json,配置改动即时生效。
+function isAllowedNavUrl(url) {
+    if (url.startsWith(BASE_URL)) return true;
+    return loadRemoteServices().some((s) => url === s.url || url.startsWith(`${s.url}/`));
+}
+
 function createWindow() {
     if (win && !win.isDestroyed()) {
         win.show();
         win.focus();
+        // 主窗体 = 本地仪表盘的家:如果正停在远端服务上,「显示主窗体」顺带回家。
+        try {
+            const cur = win.webContents.getURL();
+            if (cur && !cur.startsWith(BASE_URL) && !pendingUrl) win.loadURL(DASHBOARD_URL).catch(() => {});
+        } catch { /* 读 URL 失败不致命 */ }
         return;
     }
+    const firstUrl = pendingUrl || DASHBOARD_URL;
+    pendingUrl = null;
     win = new BrowserWindow({
         width: 1380,
         height: 880,
@@ -504,7 +526,7 @@ function createWindow() {
         return { action: 'deny' };
     });
     win.webContents.on('will-navigate', (e, url) => {
-        if (!url.startsWith(BASE_URL)) {
+        if (!isAllowedNavUrl(url)) {
             e.preventDefault();
             if (/^https?:/i.test(url)) shell.openExternal(url);
         }
@@ -516,7 +538,7 @@ function createWindow() {
             win.hide();
         }
     });
-    win.loadURL(DASHBOARD_URL).catch(() => {
+    win.loadURL(firstUrl).catch(() => {
         win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
             `<body style="font-family:sans-serif;padding:40px"><h3>${tr('win.notReadyTitle')}</h3><p>${tr('win.notReadyBody')}</p></body>`));
     });
@@ -661,6 +683,24 @@ function watchRemoteServices() {
     } catch (e) { log(`fs.watch unavailable: ${e.message}`); }
 }
 
+// 在主窗体内打开远端 10Router 仪表盘(will-navigate 白名单已放行这些源);
+// 回本地 = 托盘/菜单「打开主窗体」(createWindow 会把非本地 URL 送回家)
+// 或 Alt+视图→后退。
+function openRemoteInWindow(url) {
+    const target = `${url}/dashboard`;
+    if (win && !win.isDestroyed()) {
+        win.show();
+        win.focus();
+        try {
+            const cur = win.webContents.getURL();
+            if (!cur.startsWith(target)) win.loadURL(target).catch(() => {});
+        } catch { /* 读 URL 失败直接导航 */ }
+        return;
+    }
+    pendingUrl = target;
+    createWindow();
+}
+
 // ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
 // Electron 默认菜单是英文的;按 tr() 出三语,role 保住快捷键与原生行为。
 function setAppMenu() {
@@ -692,6 +732,9 @@ function setAppMenu() {
         {
             label: tr('appmenu.view'),
             submenu: [
+                { role: 'back', label: tr('appmenu.back') },
+                { role: 'forward', label: tr('appmenu.forward') },
+                { type: 'separator' },
                 { role: 'reload', label: tr('appmenu.reload') },
                 { role: 'forceReload', label: tr('appmenu.forcereload') },
                 { role: 'toggleDevTools', label: tr('appmenu.devtools') },
@@ -735,7 +778,7 @@ function rebuildMenu() {
             submenu: (() => {
                 const items = loadRemoteServices().map((s) => ({
                     label: `${s.name} (${s.url.replace(/^https?:\/\//, '')})`,
-                    click: () => shell.openExternal(`${s.url}/dashboard`),
+                    click: () => openRemoteInWindow(s.url),
                 }));
                 return [
                     ...(items.length ? items : [{ label: tr('menu.editServices'), enabled: false }]),
