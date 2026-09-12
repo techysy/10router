@@ -48,6 +48,10 @@ const ALWAYS_PROTECTED = [
   "/api/version/update",
   "/api/oauth/cursor/auto-import",
   "/api/oauth/kiro/auto-import",
+  // Reads MiMo Desktop's local auth.json and returns the full sk- key —
+  // credential-bearing like cursor/kiro auto-import, so it must never slip
+  // through the requireLogin=false catch-all.
+  "/api/oauth/xiaomi-mimo/auto-import",
 ];
 
 // Require auth, but allow through if requireLogin is disabled
@@ -84,6 +88,9 @@ const LOCAL_ONLY_PATHS = [
   "/api/tunnel/disable",
   "/api/oauth/cursor/auto-import",
   "/api/oauth/kiro/auto-import",
+  // Host-secret reader (MiMo Desktop auth.json) — remote/LAN calls must never
+  // reach it, matching the cursor/kiro auto-import siblings.
+  "/api/oauth/xiaomi-mimo/auto-import",
   "/api/auth/reset-password",
   "/api/headroom/start",
   "/api/headroom/stop",

@@ -115,14 +115,35 @@ export async function getDisabledByProvider(providerAlias) {
 
 const WRITE_ROW = `INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`;
 const DELETE_ROW = `DELETE FROM kv WHERE scope = ? AND key = ?`;
+const READ_ROW = `SELECT value FROM kv WHERE scope = ? AND key = ?`;
 
-// Atomic read-merge-write inside a transaction (no JS yield mid-transaction).
+// Sync read used INSIDE a transaction. Mirrors getDisabledModels() precedence —
+// the storage-name row wins, legacy sibling rows only fill in when there is no
+// storage-name row — without any await, so a concurrent toggle can't slip a
+// stale read between the fetch and the merge-write.
+function readFresh(db, keys, canonical) {
+  let own = null;
+  const union = new Set();
+  for (const key of keys) {
+    const row = db.get(READ_ROW, [SCOPE, key]);
+    if (!row) continue;
+    const ids = parseJson(row.value, []) || [];
+    if (key === canonical) own = ids;
+    for (const id of ids) union.add(id);
+  }
+  return own !== null ? own : [...union];
+}
+
+// Alias resolution (async) runs before the transaction; the read-merge-write
+// itself is atomic inside it — an earlier version pre-read `current` outside,
+// which let two concurrent toggles both merge from the same stale snapshot and
+// lose one write.
 export async function disableModels(providerAlias, ids) {
   if (!providerAlias || !Array.isArray(ids)) return;
   const db = await getAdapter();
   const { canonical, keys } = await siblingKeys(providerAlias);
-  const current = await getDisabledByProvider(providerAlias);
   db.transaction(() => {
+    const current = readFresh(db, keys, canonical);
     const merged = [...new Set([...current, ...ids])];
     db.run(WRITE_ROW, [SCOPE, canonical, stringifyJson(merged)]);
     // Collapse rows this provider left under another name — otherwise a stale
@@ -139,11 +160,11 @@ export async function enableModels(providerAlias, ids) {
   const db = await getAdapter();
   const { canonical, keys } = await siblingKeys(providerAlias);
   const clearing = !Array.isArray(ids) || ids.length === 0;
-  const current = clearing ? [] : await getDisabledByProvider(providerAlias);
   db.transaction(() => {
     let next = [];
     if (!clearing) {
       const removeSet = new Set(ids);
+      const current = readFresh(db, keys, canonical);
       next = current.filter((id) => !removeSet.has(id));
     }
     if (next.length === 0) {

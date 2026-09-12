@@ -120,6 +120,7 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Xiaomi MiMo auto-import error:", error);
-    return NextResponse.json({ found: false, error: error.message }, { status: 500 });
+    // Generic message only: error.message can carry host paths / env fingerprints.
+    return NextResponse.json({ found: false, error: "Failed to auto-import Xiaomi MiMo credentials" }, { status: 500 });
   }
 }

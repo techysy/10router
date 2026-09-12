@@ -287,6 +287,58 @@ describe("dashboard guard local-only access", () => {
   });
 });
 
+describe("dashboard guard xiaomi-mimo auto-import (credential-bearing, P1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.validateApiKey.mockResolvedValue(false);
+    mocks.getConsistentMachineId.mockResolvedValue("cli-token");
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+  });
+
+  it("rejects remote request outright (local-only gate)", async () => {
+    const response = await proxy(request("/api/oauth/xiaomi-mimo/auto-import", {
+      host: "router.example.com",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Local only: CLI token required");
+  });
+
+  it("rejects loopback with requireLogin=false and no JWT/CLI token (always-protected)", async () => {
+    // The regression this locks: without the ALWAYS_PROTECTED entry the
+    // requireLogin=false catch-all let a local browser pull the full sk- key.
+    const response = await proxy(localRequest("/api/oauth/xiaomi-mimo/auto-import", {
+      host: "localhost:20128",
+      origin: "http://localhost:20128",
+    }));
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe("Unauthorized");
+  });
+
+  it("allows loopback with a valid JWT cookie", async () => {
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+
+    const response = await proxy(localRequest("/api/oauth/xiaomi-mimo/auto-import", {
+      host: "localhost:20128",
+      origin: "http://localhost:20128",
+    }));
+
+    expect(response).toBe(mocks.nextResponse);
+  });
+
+  it("allows remote request with a valid CLI token", async () => {
+    const response = await proxy(request("/api/oauth/xiaomi-mimo/auto-import", {
+      host: "router.example.com",
+      "x-9r-cli-token": "cli-token",
+    }));
+
+    expect(response).toBe(mocks.nextResponse);
+  });
+});
+
 describe("dashboard guard helpers", () => {
   it("extracts bearer API keys before x-api-key", () => {
     const apiRequest = request("/v1/chat/completions", {
