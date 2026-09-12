@@ -100,8 +100,15 @@ const STRINGS = {
         'appmenu.zoomout': 'Zoom Out',
         'appmenu.minimize': 'Minimize',
         'appmenu.close': 'Close Window',
-        'menu.otherServices': 'Other 10Router services',
-        'menu.editServices': 'Edit service list…',
+        'appmenu.go': 'Go',
+        'appmenu.openurl': 'Open URL…',
+        'appmenu.openurl.title': 'Open URL',
+        'appmenu.openurl.go': 'Open',
+        'appmenu.openurl.invalid': 'Invalid URL — check the address',
+        'appmenu.home': 'Back to 10Router',
+        'appmenu.recent': 'Recent',
+        'appmenu.recent.empty': '(none yet)',
+        'appmenu.clearrecent': 'Clear Recent',
     },
     'zh-CN': {
         'status.stopped': '服务未运行',
@@ -170,8 +177,15 @@ const STRINGS = {
         'appmenu.zoomout': '缩小',
         'appmenu.minimize': '最小化',
         'appmenu.close': '关闭窗口',
-        'menu.otherServices': '其他 10Router 服务',
-        'menu.editServices': '编辑服务列表…',
+        'appmenu.go': '前往',
+        'appmenu.openurl': '打开网址…',
+        'appmenu.openurl.title': '打开网址',
+        'appmenu.openurl.go': '打开',
+        'appmenu.openurl.invalid': '网址无效，请检查地址',
+        'appmenu.home': '回到 10Router',
+        'appmenu.recent': '最近打开',
+        'appmenu.recent.empty': '(还没有记录)',
+        'appmenu.clearrecent': '清除最近打开',
     },
     'zh-TW': {
         'status.stopped': '服務未執行',
@@ -240,8 +254,15 @@ const STRINGS = {
         'appmenu.zoomout': '縮小',
         'appmenu.minimize': '最小化',
         'appmenu.close': '關閉視窗',
-        'menu.otherServices': '其他 10Router 服務',
-        'menu.editServices': '編輯服務清單…',
+        'appmenu.go': '前往',
+        'appmenu.openurl': '開啟網址…',
+        'appmenu.openurl.title': '開啟網址',
+        'appmenu.openurl.go': '開啟',
+        'appmenu.openurl.invalid': '網址無效，請檢查地址',
+        'appmenu.home': '回到 10Router',
+        'appmenu.recent': '最近開啟',
+        'appmenu.recent.empty': '(還沒有記錄)',
+        'appmenu.clearrecent': '清除最近開啟',
     },
 };
 
@@ -484,14 +505,7 @@ async function restartServer() {
 }
 
 // ──────────────────────── 窗口 ────────────────────────
-let pendingUrl = null;   // 托盘「其他服务」首开时带入的目标 URL(createWindow 首载用一次)
-
-// 导航白名单:本地实例 + 已配置的其他 10Router 服务(其余外链照旧丢系统浏览器)。
-// 每次导航现读 remote-services.json,配置改动即时生效。
-function isAllowedNavUrl(url) {
-    if (url.startsWith(BASE_URL)) return true;
-    return loadRemoteServices().some((s) => url === s.url || url.startsWith(`${s.url}/`));
-}
+let pendingUrl = null;   // 「前往→打开网址/最近」首开时带入的目标 URL(createWindow 首载用一次)
 
 function createWindow() {
     if (win && !win.isDestroyed()) {
@@ -526,10 +540,11 @@ function createWindow() {
         return { action: 'deny' };
     });
     win.webContents.on('will-navigate', (e, url) => {
-        if (!isAllowedNavUrl(url)) {
-            e.preventDefault();
-            if (/^https?:/i.test(url)) shell.openExternal(url);
-        }
+        // 主窗体当通用视图用:http(s) 一律放行(「前往→打开网址」的既有语义);
+        // 其余 scheme(file: 等)拦下,已知外部协议丢系统浏览器。
+        if (/^https?:/i.test(url)) return;
+        e.preventDefault();
+        if (/^(mailto|tel):/i.test(url)) shell.openExternal(url);
     });
     win.on('closed', () => { win = null; });
     win.on('close', (e) => {
@@ -640,65 +655,92 @@ function getServiceVersion() {
     } catch { return app.getVersion(); }
 }
 
-// ──────────────────────── 其他 10Router 服务(托盘直达) ────────────────────────
-// remote-services.json: {"services":[{"name":"NAS","host":"192.168.31.101","port":20127}]}
-// 只存 ip+端口(name 省略时显示 host:port);托盘点击用系统浏览器开 <url>/dashboard。
-// 文件在 userData(与 tray.log 同根),首次点「编辑服务列表」时生成带示例的模板。
-const SERVICES_FILE = path.join(app.getPath('userData'), 'remote-services.json');
+// ──────────────────────── 前往菜单:打开网址 / 最近打开 ────────────────────────
+// 主窗体当通用视图用:任意网址(Ctrl+L 输入,不限 10Router)、最近打开自动记录
+// (userData/recent-urls.json, newest-first, 上限 10)、「回到 10Router」一键回家。
+const RECENT_FILE = path.join(app.getPath('userData'), 'recent-urls.json');
+let urlPromptWin = null;
 
-function loadRemoteServices() {
+function loadRecentUrls() {
     try {
-        const raw = JSON.parse(fs.readFileSync(SERVICES_FILE, 'utf8'));
-        const list = Array.isArray(raw) ? raw : (Array.isArray(raw.services) ? raw.services : []);
-        return list.map((s) => {
-            let host = String((s && s.host) || '').trim();
-            const port = parseInt(s && s.port, 10);
-            if (!host || !(port >= 1 && port <= 65535)) return null;
-            if (host.includes(':')) host = `[${host}]`;   // 裸 IPv6
-            const name = String((s && s.name) || '').trim() || `${host}:${port}`;
-            return { name, url: `http://${host}:${port}` };
-        }).filter(Boolean).slice(0, 20);
-    } catch {
-        return [];   // 不存在/写坏 = 空列表,菜单里只留「编辑服务列表」
-    }
+        const raw = JSON.parse(fs.readFileSync(RECENT_FILE, 'utf8'));
+        return Array.isArray(raw) ? raw.filter((u) => typeof u === 'string' && u).slice(0, 10) : [];
+    } catch { return []; }
 }
 
-function openServicesFile() {
+function pushRecentUrl(url) {
+    const list = loadRecentUrls().filter((u) => u.toLowerCase() !== url.toLowerCase());
+    list.unshift(url);
     try {
-        if (!fs.existsSync(SERVICES_FILE)) {
-            fs.mkdirSync(path.dirname(SERVICES_FILE), { recursive: true });
-            fs.writeFileSync(SERVICES_FILE, JSON.stringify({
-                services: [{ name: 'NAS', host: '192.168.31.101', port: 20127 }],
-            }, null, 2) + '\n');
-        }
-    } catch (e) { log(`remote-services.json create failed: ${e.message}`); }
-    shell.openPath(SERVICES_FILE);   // 保存后 fs.watch 自动刷新托盘菜单
+        fs.mkdirSync(path.dirname(RECENT_FILE), { recursive: true });
+        fs.writeFileSync(RECENT_FILE, JSON.stringify(list.slice(0, 10), null, 2) + '\n');
+    } catch { /* 记录失败不影响打开 */ }
+    setAppMenu();   // 重建菜单以刷新「最近打开」
 }
 
-function watchRemoteServices() {
-    try {
-        fs.watch(path.dirname(SERVICES_FILE), (event, file) => {
-            if (file && String(file).startsWith('remote-services')) rebuildMenu();
-        });
-    } catch (e) { log(`fs.watch unavailable: ${e.message}`); }
+function clearRecentUrls() {
+    try { fs.writeFileSync(RECENT_FILE, '[]'); } catch { /* ignore */ }
+    setAppMenu();
 }
 
-// 在主窗体内打开远端 10Router 仪表盘(will-navigate 白名单已放行这些源);
-// 回本地 = 托盘/菜单「打开主窗体」(createWindow 会把非本地 URL 送回家)
-// 或 Alt+视图→后退。
-function openRemoteInWindow(url) {
-    const target = `${url}/dashboard`;
+function normalizeOpenUrl(raw) {
+    let v = String(raw || '').trim();
+    if (!v) return null;
+    if (!/^https?:\/\//i.test(v)) v = 'http://' + v;   // "nas.lan:20127" 也算数
+    try {
+        const u = new URL(v);
+        if (!u.hostname || !/^https?:$/.test(u.protocol)) return null;
+        return u.toString();
+    } catch { return null; }
+}
+
+// 在主窗体内打开任意网址(loadURL 是程序化导航,不经 will-navigate 守卫)
+function openInWindow(url) {
     if (win && !win.isDestroyed()) {
         win.show();
         win.focus();
         try {
             const cur = win.webContents.getURL();
-            if (!cur.startsWith(target)) win.loadURL(target).catch(() => {});
+            if (cur !== url) win.loadURL(url).catch(() => {});
         } catch { /* 读 URL 失败直接导航 */ }
         return;
     }
-    pendingUrl = target;
+    pendingUrl = url;
     createWindow();
+}
+
+function promptOpenUrl() {
+    if (urlPromptWin && !urlPromptWin.isDestroyed()) { urlPromptWin.focus(); return; }
+    const hasParent = win && !win.isDestroyed();
+    urlPromptWin = new BrowserWindow({
+        width: 500,
+        height: 140,
+        parent: hasParent ? win : null,
+        modal: hasParent && process.platform !== 'darwin',
+        title: tr('appmenu.openurl.title'),
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        autoHideMenuBar: true,
+        show: false,
+        webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
+    });
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+<body style="font-family:inherit;margin:0;padding:14px;display:flex;gap:8px;background:transparent">
+<input id="u" autofocus placeholder="https://… 或 host:port"
+  style="flex:1;padding:6px 10px;font-size:14px;border:1px solid #8883;border-radius:6px;outline:none">
+<button id="go" style="padding:6px 14px;font-size:14px;border:1px solid #8883;border-radius:6px;cursor:pointer">${esc(tr('appmenu.openurl.go'))}</button>
+<script>
+const { ipcRenderer } = require('electron');
+const go = () => { const v = document.getElementById('u').value.trim(); if (v) ipcRenderer.send('url-prompt-submit', v); };
+document.getElementById('go').addEventListener('click', go);
+document.getElementById('u').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+</script>
+</body></html>`;
+    urlPromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    urlPromptWin.once('ready-to-show', () => urlPromptWin.show());
+    urlPromptWin.on('closed', () => { urlPromptWin = null; });
 }
 
 // ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
@@ -715,6 +757,24 @@ function setAppMenu() {
                 ...(process.platform !== 'darwin' ? [{ label: tr('menu.about'), click: () => showAbout() }] : []),
                 { type: 'separator' },
                 { label: tr('appmenu.quit'), click: () => { quitting = true; app.quit(); } },
+            ],
+        },
+        {
+            label: tr('appmenu.go'),
+            submenu: [
+                { label: tr('appmenu.openurl'), accelerator: 'CmdOrCtrl+L', click: promptOpenUrl },
+                { label: tr('appmenu.home'), accelerator: 'CmdOrCtrl+Shift+H', click: () => openInWindow(DASHBOARD_URL) },
+                { type: 'separator' },
+                (() => {
+                    const recents = loadRecentUrls();
+                    const items = recents.map((url) => ({
+                        label: url.replace(/^https?:\/\//, ''),
+                        click: () => openInWindow(url),
+                    }));
+                    items.push({ type: 'separator' });
+                    items.push({ label: tr('appmenu.clearrecent'), enabled: recents.length > 0, click: clearRecentUrls });
+                    return items;
+                })(),
             ],
         },
         {
@@ -773,20 +833,6 @@ function rebuildMenu() {
     const menu = Menu.buildFromTemplate([
         { label: tr('menu.open'), enabled: canOpen, click: createWindow },
         { label: tr('menu.openInBrowser'), enabled: canOpen, click: () => shell.openExternal(DASHBOARD_URL) },
-        {
-            label: tr('menu.otherServices'),
-            submenu: (() => {
-                const items = loadRemoteServices().map((s) => ({
-                    label: `${s.name} (${s.url.replace(/^https?:\/\//, '')})`,
-                    click: () => openRemoteInWindow(s.url),
-                }));
-                return [
-                    ...(items.length ? items : [{ label: tr('menu.editServices'), enabled: false }]),
-                    { type: 'separator' },
-                    { label: tr('menu.editServices'), click: openServicesFile },
-                ];
-            })(),
-        },
         { type: 'separator' },
         { label: STATE_LABEL[state](), enabled: false },
         toggleItem,
@@ -872,7 +918,6 @@ if (!gotLock) {
     app.whenReady().then(async () => {
         log(`app start (packaged=${IS_PACKAGED}, appDir=${APP_DIR}, data=${DATA_DIR}, locale=${LOCALE})`);
         setAppMenu();
-        watchRemoteServices();
         createTray();
         await startServer();          // 启动即拉起服务
     });
