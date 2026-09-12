@@ -78,6 +78,28 @@ const STRINGS = {
         'dialog.later': 'Later',
         'dialog.ok': 'OK',
         'dialog.close': 'Close',
+        'appmenu.file': 'File',
+        'appmenu.edit': 'Edit',
+        'appmenu.view': 'View',
+        'appmenu.window': 'Window',
+        'appmenu.help': 'Help',
+        'appmenu.quit': 'Exit',
+        'appmenu.undo': 'Undo',
+        'appmenu.redo': 'Redo',
+        'appmenu.cut': 'Cut',
+        'appmenu.copy': 'Copy',
+        'appmenu.paste': 'Paste',
+        'appmenu.selectall': 'Select All',
+        'appmenu.reload': 'Reload',
+        'appmenu.forcereload': 'Force Reload',
+        'appmenu.devtools': 'Developer Tools',
+        'appmenu.zoomreset': 'Actual Size',
+        'appmenu.zoomin': 'Zoom In',
+        'appmenu.zoomout': 'Zoom Out',
+        'appmenu.minimize': 'Minimize',
+        'appmenu.close': 'Close Window',
+        'menu.otherServices': 'Other 10Router services',
+        'menu.editServices': 'Edit service list…',
     },
     'zh-CN': {
         'status.stopped': '服务未运行',
@@ -124,6 +146,28 @@ const STRINGS = {
         'dialog.later': '稍后',
         'dialog.ok': '好',
         'dialog.close': '关闭',
+        'appmenu.file': '文件',
+        'appmenu.edit': '编辑',
+        'appmenu.view': '视图',
+        'appmenu.window': '窗口',
+        'appmenu.help': '帮助',
+        'appmenu.quit': '退出',
+        'appmenu.undo': '撤销',
+        'appmenu.redo': '重做',
+        'appmenu.cut': '剪切',
+        'appmenu.copy': '复制',
+        'appmenu.paste': '粘贴',
+        'appmenu.selectall': '全选',
+        'appmenu.reload': '重新加载',
+        'appmenu.forcereload': '强制刷新',
+        'appmenu.devtools': '开发者工具',
+        'appmenu.zoomreset': '实际大小',
+        'appmenu.zoomin': '放大',
+        'appmenu.zoomout': '缩小',
+        'appmenu.minimize': '最小化',
+        'appmenu.close': '关闭窗口',
+        'menu.otherServices': '其他 10Router 服务',
+        'menu.editServices': '编辑服务列表…',
     },
     'zh-TW': {
         'status.stopped': '服務未執行',
@@ -170,6 +214,28 @@ const STRINGS = {
         'dialog.later': '稍後',
         'dialog.ok': '好',
         'dialog.close': '關閉',
+        'appmenu.file': '檔案',
+        'appmenu.edit': '編輯',
+        'appmenu.view': '檢視',
+        'appmenu.window': '視窗',
+        'appmenu.help': '說明',
+        'appmenu.quit': '結束',
+        'appmenu.undo': '復原',
+        'appmenu.redo': '重做',
+        'appmenu.cut': '剪下',
+        'appmenu.copy': '複製',
+        'appmenu.paste': '貼上',
+        'appmenu.selectall': '全選',
+        'appmenu.reload': '重新載入',
+        'appmenu.forcereload': '強制重新載入',
+        'appmenu.devtools': '開發人員工具',
+        'appmenu.zoomreset': '實際大小',
+        'appmenu.zoomin': '放大',
+        'appmenu.zoomout': '縮小',
+        'appmenu.minimize': '最小化',
+        'appmenu.close': '關閉視窗',
+        'menu.otherServices': '其他 10Router 服務',
+        'menu.editServices': '編輯服務清單…',
     },
 };
 
@@ -552,6 +618,106 @@ function getServiceVersion() {
     } catch { return app.getVersion(); }
 }
 
+// ──────────────────────── 其他 10Router 服务(托盘直达) ────────────────────────
+// remote-services.json: {"services":[{"name":"NAS","host":"192.168.31.101","port":20127}]}
+// 只存 ip+端口(name 省略时显示 host:port);托盘点击用系统浏览器开 <url>/dashboard。
+// 文件在 userData(与 tray.log 同根),首次点「编辑服务列表」时生成带示例的模板。
+const SERVICES_FILE = path.join(app.getPath('userData'), 'remote-services.json');
+
+function loadRemoteServices() {
+    try {
+        const raw = JSON.parse(fs.readFileSync(SERVICES_FILE, 'utf8'));
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw.services) ? raw.services : []);
+        return list.map((s) => {
+            let host = String((s && s.host) || '').trim();
+            const port = parseInt(s && s.port, 10);
+            if (!host || !(port >= 1 && port <= 65535)) return null;
+            if (host.includes(':')) host = `[${host}]`;   // 裸 IPv6
+            const name = String((s && s.name) || '').trim() || `${host}:${port}`;
+            return { name, url: `http://${host}:${port}` };
+        }).filter(Boolean).slice(0, 20);
+    } catch {
+        return [];   // 不存在/写坏 = 空列表,菜单里只留「编辑服务列表」
+    }
+}
+
+function openServicesFile() {
+    try {
+        if (!fs.existsSync(SERVICES_FILE)) {
+            fs.mkdirSync(path.dirname(SERVICES_FILE), { recursive: true });
+            fs.writeFileSync(SERVICES_FILE, JSON.stringify({
+                services: [{ name: 'NAS', host: '192.168.31.101', port: 20127 }],
+            }, null, 2) + '\n');
+        }
+    } catch (e) { log(`remote-services.json create failed: ${e.message}`); }
+    shell.openPath(SERVICES_FILE);   // 保存后 fs.watch 自动刷新托盘菜单
+}
+
+function watchRemoteServices() {
+    try {
+        fs.watch(path.dirname(SERVICES_FILE), (event, file) => {
+            if (file && String(file).startsWith('remote-services')) rebuildMenu();
+        });
+    } catch (e) { log(`fs.watch unavailable: ${e.message}`); }
+}
+
+// ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
+// Electron 默认菜单是英文的;按 tr() 出三语,role 保住快捷键与原生行为。
+function setAppMenu() {
+    const template = [
+        ...(process.platform === 'darwin' ? [{
+            label: app.name,
+            submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'quit', label: tr('appmenu.quit') }],
+        }] : []),
+        {
+            label: tr('appmenu.file'),
+            submenu: [
+                ...(process.platform !== 'darwin' ? [{ label: tr('menu.about'), click: () => showAbout() }] : []),
+                { type: 'separator' },
+                { label: tr('appmenu.quit'), click: () => { quitting = true; app.quit(); } },
+            ],
+        },
+        {
+            label: tr('appmenu.edit'),
+            submenu: [
+                { role: 'undo', label: tr('appmenu.undo') },
+                { role: 'redo', label: tr('appmenu.redo') },
+                { type: 'separator' },
+                { role: 'cut', label: tr('appmenu.cut') },
+                { role: 'copy', label: tr('appmenu.copy') },
+                { role: 'paste', label: tr('appmenu.paste') },
+                { role: 'selectAll', label: tr('appmenu.selectall') },
+            ],
+        },
+        {
+            label: tr('appmenu.view'),
+            submenu: [
+                { role: 'reload', label: tr('appmenu.reload') },
+                { role: 'forceReload', label: tr('appmenu.forcereload') },
+                { role: 'toggleDevTools', label: tr('appmenu.devtools') },
+                { type: 'separator' },
+                { role: 'resetZoom', label: tr('appmenu.zoomreset') },
+                { role: 'zoomIn', label: tr('appmenu.zoomin') },
+                { role: 'zoomOut', label: tr('appmenu.zoomout') },
+            ],
+        },
+        {
+            label: tr('appmenu.window'),
+            submenu: [
+                { role: 'minimize', label: tr('appmenu.minimize') },
+                { role: 'close', label: tr('appmenu.close') },
+            ],
+        },
+        {
+            label: tr('appmenu.help'),
+            submenu: [
+                { label: tr('menu.checkUpdate'), click: () => checkForUpdates() },
+            ],
+        },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function rebuildMenu() {
     if (!tray) return;
     const canOpen = state === 'running' || state === 'external';
@@ -564,6 +730,20 @@ function rebuildMenu() {
     const menu = Menu.buildFromTemplate([
         { label: tr('menu.open'), enabled: canOpen, click: createWindow },
         { label: tr('menu.openInBrowser'), enabled: canOpen, click: () => shell.openExternal(DASHBOARD_URL) },
+        {
+            label: tr('menu.otherServices'),
+            submenu: (() => {
+                const items = loadRemoteServices().map((s) => ({
+                    label: `${s.name} (${s.url.replace(/^https?:\/\//, '')})`,
+                    click: () => shell.openExternal(`${s.url}/dashboard`),
+                }));
+                return [
+                    ...(items.length ? items : [{ label: tr('menu.editServices'), enabled: false }]),
+                    { type: 'separator' },
+                    { label: tr('menu.editServices'), click: openServicesFile },
+                ];
+            })(),
+        },
         { type: 'separator' },
         { label: STATE_LABEL[state](), enabled: false },
         toggleItem,
@@ -648,6 +828,8 @@ if (!gotLock) {
 
     app.whenReady().then(async () => {
         log(`app start (packaged=${IS_PACKAGED}, appDir=${APP_DIR}, data=${DATA_DIR}, locale=${LOCALE})`);
+        setAppMenu();
+        watchRemoteServices();
         createTray();
         await startServer();          // 启动即拉起服务
     });
