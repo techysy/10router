@@ -3,6 +3,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import LobeProviderIcon, { LOBE_PROVIDER_ICONS } from "./LobeProviderIcon";
 
 function resolveSrc(src, providerId) {
   if (providerId) return getProviderIconSrc(providerId);
@@ -23,6 +24,13 @@ export default function ProviderIcon({
 }) {
   const effectiveSrc = resolveSrc(src, providerId);
   const [errored, setErrored] = useState(false);
+
+  // Official brand icon from @lobehub/icons when the provider is covered —
+  // wins over the PNG path where both exist. After useState so the hook
+  // order stays stable when a mounted row switches providerId.
+  if (providerId && LOBE_PROVIDER_ICONS[providerId]) {
+    return <LobeProviderIcon providerId={providerId} size={size} className={className} />;
+  }
 
   if (!effectiveSrc || errored) {
     return (

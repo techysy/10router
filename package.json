@@ -1,6 +1,6 @@
 {
   "name": "10router-app",
-  "version": "1.1.0",
+  "version": "1.1.1-test.21",
   "description": "10Router web dashboard",
   "private": true,
   "scripts": {
@@ -24,6 +24,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@lobehub/icons": "^5.18.0",
     "@monaco-editor/react": "^4.7.0",
     "@next/third-parties": "^16.2.9",
     "@node-saml/node-saml": "^5.1.0",
