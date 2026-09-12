@@ -754,6 +754,34 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Bulk enable/disable every custom model of this provider (P2). Both
+  // directions confirm first — enable exposes models to clients via /v1/models,
+  // disable hides them.
+  const handleBulkCustomModels = (enabled, type = "llm") => {
+    setConfirmState({
+      title: enabled ? translate("Enable all custom models?") : translate("Disable all custom models?"),
+      message: enabled
+        ? translate("All custom models of this provider will be listed in /v1/models and exposed to clients.")
+        : translate("All custom models of this provider will disappear from /v1/models until re-enabled. Clients will no longer see them."),
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetch("/api/models/custom/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: providerStorageAlias, type, enabled }),
+          });
+          if (res.ok) {
+            await fetchCustomModels();
+            if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+          }
+        } catch (error) {
+          console.log("Error bulk-updating custom models:", error);
+        }
+      },
+    });
+  };
+
   // Fetch Qoder model list and automatically add to available models
   const handleImportQoderModels = async () => {
     if (importingQoderModels) return;
@@ -1316,6 +1344,7 @@ export default function ProviderDetailPage() {
           onAddCustomModel={(modelId, enabled) => handleAddCustomModel(modelId, "llm", providerStorageAlias, {}, enabled)}
           onToggleCustomModel={handleToggleCustomModel}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
+          onBulkCustomModels={handleBulkCustomModels}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
         />
@@ -1344,6 +1373,22 @@ export default function ProviderDetailPage() {
 
     return (
       <div className="flex flex-wrap gap-3">
+        {/* Custom models toolbar — bulk enable/disable (P2). Only with customs. */}
+        {(enabledCustomModelRows.length + disabledCustomModelRows.length) > 0 && (
+          <div className="w-full flex items-center gap-2 text-xs text-text-muted -mb-1">
+            <span>
+              {translate("Custom models")} ({enabledCustomModelRows.length + disabledCustomModelRows.length})
+            </span>
+            <span>·</span>
+            <button onClick={() => handleBulkCustomModels(true)} className="text-primary hover:underline">
+              {translate("Enable all")}
+            </button>
+            <span>·</span>
+            <button onClick={() => handleBulkCustomModels(false)} className="text-text-muted hover:text-red-500 hover:underline">
+              {translate("Disable all")}
+            </button>
+          </div>
+        )}
         {/* Custom models first — only enabled ones here; disabled customs are
             listed in the Disabled section below */}
         {enabledCustomModelRows.map((model) => (

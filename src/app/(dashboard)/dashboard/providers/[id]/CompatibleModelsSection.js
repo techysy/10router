@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { translate } from "@/i18n/runtime";
 function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onToggle, enabled = true, onTest, testStatus, isTesting }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
@@ -81,7 +82,7 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onToggleCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onToggleCustomModel, onDeleteCustomModel, onBulkCustomModels, connections, isAnthropic }) {
   const notify = useNotificationStore();
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -209,6 +210,21 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         </p>
       )}
 
+      {allModels.length > 0 && onBulkCustomModels && (
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <span>{allModels.length} custom model{allModels.length > 1 ? "s" : ""}</span>
+          <span>·</span>
+          <button onClick={() => onBulkCustomModels(true)} className="text-primary hover:underline">
+            {translate("Enable all")}
+          </button>
+          <span>·</span>
+          <button onClick={() => onBulkCustomModels(false)} className="text-text-muted hover:text-red-500 hover:underline">
+            {translate("Disable all")}
+          </button>
+          <span>— {translate("bulk actions affect what clients see in /v1/models")}</span>
+        </div>
+      )}
+
       {enabledRows.length > 0 && (
         <div className="flex flex-col gap-3">
           {enabledRows.map(({ id, alias, source }) => (
@@ -263,6 +279,7 @@ CompatibleModelsSection.propTypes = {
   onCopy: PropTypes.func.isRequired,
   onDeleteAlias: PropTypes.func.isRequired,
   onAddCustomModel: PropTypes.func.isRequired,
+  onBulkCustomModels: PropTypes.func,
   onToggleCustomModel: PropTypes.func,
   onDeleteCustomModel: PropTypes.func.isRequired,
   connections: PropTypes.arrayOf(PropTypes.shape({
