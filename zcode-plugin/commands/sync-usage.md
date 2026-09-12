@@ -1,5 +1,5 @@
 ---
-description: Export ZCode, OpenCode or mirasim's local usage ledger into 10Router (idempotent; online direct import or offline JSON export for machines that cannot reach 10Router; pass --source opencode / --source mirasim for those sources)
+description: Export ZCode, OpenCode or mirasim's local usage ledger into 10Router (idempotent; online direct import or offline JSON export; --source opencode / --source mirasim for those sources). 将 ZCode/OpenCode/mirasim 本地用量导出并导入 10Router（幂等；可在线直传或离线导出 JSON；其他来源用 --source opencode / --source mirasim 指定）
 ---
 
 Export ZCode model-usage records into 10Router by running the plugin's export script.
