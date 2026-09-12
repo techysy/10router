@@ -183,6 +183,17 @@ try {
     if (-not $health.ok) { Die "20128 /api/health 没通(旧实例还占着端口?看 server.log)" }
     Ok "20128 /api/health -> ok"
 
+    # 登录态 SSR 冒烟:用本地 jwt-secret 铸 cookie 打 /dashboard。
+    # /api/health 不走页面渲染,挡不住 "health 绿但页面 500"(如 TDZ/循环引用回归)。
+    $jwtSecretPath = Join-Path $env:APPDATA "10router\jwt-secret"
+    if (Test-Path $jwtSecretPath) {
+        $token = node --input-type=module -e 'import fs from "node:fs";import {SignJWT} from "jose";const s=new TextEncoder().encode(fs.readFileSync(process.argv[1],"utf8").trim());const t=await new SignJWT({sub:"smoke"}).setProtectedHeader({alg:"HS256"}).setIssuedAt().setExpirationTime("10m").sign(s);process.stdout.write(t);' $jwtSecretPath
+        if ($LASTEXITCODE -ne 0 -or -not $token) { Die "铸 SSR 冒烟 JWT 失败" }
+        $dashCode = & curl.exe -s -o NUL -w "%{http_code}" -m 20 -H "Cookie: auth_token=$token" http://127.0.0.1:20128/dashboard
+        if ($dashCode -ne "200") { Die "登录态 /dashboard SSR 返回 $dashCode (期望 200) —— 看 server.log" }
+        Ok "登录态 /dashboard SSR -> 200"
+    }
+
     if ($Marker -ne "") {
         $roots = @((Join-Path $Inst "resources\app\.next-cli-build"), (Join-Path $Inst "resources\app\src"))
         $hit = Get-ChildItem $roots -Recurse -File -ErrorAction SilentlyContinue |

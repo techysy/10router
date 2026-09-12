@@ -336,15 +336,6 @@ export default function ProviderDetailPage() {
     }
   }, [providerStorageAlias]);
 
-  // A provider's FIRST connection triggers the server-side default-disable of
-  // every built-in LLM model (connectionsRepo) — refresh connections AND the
-  // disabled list together, or the UI keeps claiming "all enabled" until a
-  // manual reload while /v1/models (same table) serves nothing. Issue #14-A.
-  const refreshAfterConnectionChange = useCallback(async () => {
-    await fetchConnections();
-    await fetchDisabledModels();
-  }, [fetchConnections, fetchDisabledModels]);
-
   const handleDisableModel = async (modelId) => {
     try {
       const res = await fetch("/api/models/disabled", {
@@ -500,6 +491,17 @@ export default function ProviderDetailPage() {
       setLoading(false);
     }
   }, [providerId, isCompatible]);
+
+  // A provider's FIRST connection triggers the server-side default-disable of
+  // every built-in LLM model (connectionsRepo) — refresh connections AND the
+  // disabled list together, or the UI keeps claiming "all enabled" until a
+  // manual reload while /v1/models (same table) serves nothing. Issue #14-A.
+  // Must be declared AFTER fetchConnections: the deps array evaluates it on
+  // every render, and a forward reference is a TDZ crash (page wouldn't load).
+  const refreshAfterConnectionChange = useCallback(async () => {
+    await fetchConnections();
+    await fetchDisabledModels();
+  }, [fetchConnections, fetchDisabledModels]);
 
   const handleUpdateNode = async (formData) => {
     try {
