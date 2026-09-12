@@ -567,6 +567,12 @@ function createWindow() {
             if (u && /^https?:/i.test(u) && !u.startsWith(BASE_URL)) updateRecentUrlTitle(u, title, false);
         } catch { /* ignore */ }
     });
+    win.webContents.on('did-navigate', (e, url) => {
+        // 视图本地/外部切换时重建菜单(Edit 角色是否注册快捷键见上方注释)
+        const ext = !(url || '').startsWith(BASE_URL);
+        if (ext !== externalView) { externalView = ext; setAppMenu(); }
+    });
+    attachContextMenu(win);
     win.on('closed', () => { win = null; });
     win.on('close', (e) => {
         if (!quitting) {          // 点关闭 = 缩到托盘
@@ -795,6 +801,7 @@ function promptOpenUrl() {
         show: true,   // 小页面直接显示,不等 ready-to-show(同类卡死源)
         webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
     });
+    attachContextMenu(urlPromptWin);
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="font-family:inherit;margin:0;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:transparent">
@@ -852,6 +859,7 @@ function promptManageRecent() {
         show: true,
         webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
     });
+    attachContextMenu(recentMgrWin);
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="font-family:inherit;margin:0;padding:12px;background:transparent">
@@ -912,6 +920,22 @@ ipcMain.on('recent-mgr', (e, msg) => {
     e.returnValue = { ok: !!fromMgr, list: loadRecentUrls() };
 });
 
+// ──────────────────────── 右键菜单(网页/TUI 复制粘贴) ────────────────────────
+// Electron 窗口没有浏览器右键菜单:在 Hermes 这类 web TUI 里,选中复制/粘贴
+// 只能靠它(Chrome 的右键在壳里是空的)。菜单项走 webContents 原生动作,
+// 不与页面按键交互。词条复用应用菜单的 appmenu.copy/paste/selectall。
+let externalView = false;   // 主窗体当前视图是否为外部页面(非本地仪表盘)
+function attachContextMenu(target) {
+    target.webContents.on('context-menu', (e, params) => {
+        const menu = Menu.buildFromTemplate([
+            { label: tr('appmenu.copy'), enabled: params.editFlags.canCopy, click: () => target.webContents.copy() },
+            { label: tr('appmenu.paste'), enabled: params.editFlags.canPaste, click: () => target.webContents.paste() },
+            { label: tr('appmenu.selectall'), enabled: params.editFlags.canSelectAll, click: () => target.webContents.selectAll() },
+        ]);
+        menu.popup({ window: target, x: params.x, y: params.y });
+    });
+}
+
 // ──────────────────────── 应用菜单(Alt 呼出) ────────────────────────
 // Electron 默认菜单是英文的;按 tr() 出三语,role 保住快捷键与原生行为。
 function setAppMenu() {
@@ -955,7 +979,10 @@ function setAppMenu() {
                 { role: 'copy', label: tr('appmenu.copy') },
                 { role: 'paste', label: tr('appmenu.paste') },
                 { role: 'selectAll', label: tr('appmenu.selectall') },
-            ],
+                // 外部视图(web TUI 等)不注册快捷键:Ctrl+C/V/Z 直达页面,行为同
+                // Chrome —— TUI 里 Ctrl+C 是 SIGINT、Ctrl+Z 是挂起任务,不能被
+                // 菜单拦走。本地仪表盘保持注册(键盘编辑行为不变)。
+            ].map((it) => (it.role && externalView ? { ...it, registerAccelerator: false } : it)),
         },
         {
             label: tr('appmenu.view'),

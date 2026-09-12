@@ -11,6 +11,8 @@
 
 - **仪表盘复制按钮加固**：复制链路此前只有在 `navigator.clipboard` **不存在**时才走 `execCommand` 兜底，而 `writeText()` 存在却被拒（窗口失焦、权限提示）时直接静默失败；用 LAN IP（如 `http://192.168.x.x:20127`）打开仪表盘更是非安全上下文，`navigator.clipboard` 压根不存在。现统一收口到 `copyTextToClipboard()`（clipboard API → textarea+execCommand 兜底），`useCopyToClipboard` hook 的 20+ 处复制按钮、SAML ACS 复制按钮（此前裸调用失败还无条件显示「已复制」）、侧栏手动更新「复制并关机」全部改走该链路。
 
+- **壳内 web TUI 可复制粘贴（Hermes `/sessions` 场景）**：Electron 窗口没有浏览器右键菜单，且应用菜单 Edit 角色的快捷键抢在页面前拦走 Ctrl+C/V——TUI 里 Ctrl+C 本该是 SIGINT。现给所有壳窗体（主窗体/打开网址/管理最近）加右键菜单（复制/粘贴/全选，走 webContents 原生动作）；主窗体视图为外部页面时 Edit 角色改 `registerAccelerator: false`（Ctrl+C/V/Z 直达页面，行为同 Chrome），回到本地仪表盘自动恢复注册。
+
 - **桌面壳 Alt 菜单三语化 + 「前往」菜单（打开网址 / 回到 10Router / 最近打开）**。按 Alt 呼出的菜单栏此前是 Electron 默认英文——现按壳内 tr() 词典出 en/zh-CN/zh-TW（文件/编辑/视图/窗口/帮助，role 保住快捷键与原生行为，mac 保留 app 菜单）。新增「前往」菜单：**打开网址…**（`Ctrl+L`，弹小输入框，任意网址不限 10Router，无 scheme 自动补 `http://`，主窗体内打开）、**回到 10Router**（`Ctrl+Shift+H`，一键回本地仪表盘）、**最近打开**（自动记录最近 10 条，`userData/recent-urls.json` 持久化，去重 + 手动清除）。主窗体随语义升级为通用视图：`will-navigate` 不再按白名单拦 http(s)（file: 等仍拦截，mailto/tel 丢系统浏览器）。迭代记录：本功能初版曾做成托盘「其他 10Router 服务」+ 手编 remote-services.json 清单，发布前按用户意见重构成现在的「前往」菜单形态（配置文件方案整体撤除）。帮助菜单随后按 Windows 惯例补齐：**关于 10Router**（复用壳内 `showAbout()` 对话框，按钮直达 GitHub），File 菜单原挂的「关于」移入帮助、只留退出；曾一并加的独立「打开 GitHub」菜单项旋即按用户意见撤除（关于对话框按钮已是同款入口，不必两处重复）。
 
 - **「最近打开」支持标题，菜单不再被长网址撑爆**：条目优先显示标题，标题三个来源——①主窗体 `page-title-updated` 自动回填 `document.title`（页面真实加载后零额外网络请求，不受反爬/编码影响；手动标题永不覆盖）；②「打开网址…」弹窗新增可选标题字段（打开前就能起名）；③新增**管理最近打开…**小窗（逐条改名/删除，补齐原先只能整体清空的缺口）。无标题条目兜底只显示域名，完整 URL 悬停输入框可见。存储从字符串数组迁移为 `{url, title, titleManual}`，旧 `recent-urls.json` 自动兼容；容量维持 10 条。
