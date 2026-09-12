@@ -365,6 +365,7 @@
   "All custom models of this provider will be listed in /v1/models and exposed to clients.": "該供應商的所有自訂模型將列入 /v1/models 並暴露給用戶端。",
   "All custom models of this provider will disappear from /v1/models until re-enabled. Clients will no longer see them.": "該供應商的所有自訂模型將從 /v1/models 消失，直至重新啟用。用戶端將不再看到它們。",
   "bulk actions affect what clients see in /v1/models": "批次操作影響用戶端在 /v1/models 中看到的內容",
+  "Free shared endpoints (experimental) — 30 RPM per key, 8 concurrent.": "免費共享端點（實驗性）——每金鑰 30 RPM，並發 8。",
   "Export failed": "匯出失敗",
   "Enter your current password to export CodeBuddy CN accounts.": "輸入目前密碼以匯出 CodeBuddy CN 帳號。",
   "Enter your current password to import CodeBuddy CN accounts.": "輸入目前密碼以匯入 CodeBuddy CN 帳號。",

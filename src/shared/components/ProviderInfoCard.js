@@ -3,6 +3,7 @@
 import Card from "./Card";
 import InviteCodeChip from "./InviteCodeChip";
 import { fmtCost } from "@/shared/utils/currency";
+import { translate } from "@/i18n/runtime";
 
 // Only show fields user actually cares about
 const FIELD_SCHEMA = {
@@ -91,7 +92,9 @@ export default function ProviderInfoCard({ config, provider, title = "Provider I
         {noticeText && (
           <div className="flex items-start gap-3 min-w-0 sm:col-span-2">
             <span className="text-xs text-text-muted w-28 shrink-0 mt-0.5">Notice</span>
-            <span className="text-sm text-text-main leading-relaxed">{noticeText}</span>
+            {/* translate() falls back to the original string when no literal
+                entry exists, so registries without a translation are unaffected. */}
+            <span className="text-sm text-text-main leading-relaxed">{translate(noticeText)}</span>
           </div>
         )}
       </div>

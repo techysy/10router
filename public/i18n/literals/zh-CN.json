@@ -1513,6 +1513,7 @@
   "All custom models of this provider will be listed in /v1/models and exposed to clients.": "该供应商的所有自定义模型将列入 /v1/models 并暴露给客户端。",
   "All custom models of this provider will disappear from /v1/models until re-enabled. Clients will no longer see them.": "该供应商的所有自定义模型将从 /v1/models 消失，直至重新启用。客户端将不再看到它们。",
   "bulk actions affect what clients see in /v1/models": "批量操作影响客户端在 /v1/models 中看到的内容",
+  "Free shared endpoints (experimental) — 30 RPM per key, 8 concurrent.": "免费共享端点（实验性）——每密钥 30 RPM，并发 8。",
   "Export failed": "导出失败",
   "Enter your current password to export CodeBuddy CN accounts.": "输入当前密码以导出 CodeBuddy CN 账号。",
   "Enter your current password to import CodeBuddy CN accounts.": "输入当前密码以导入 CodeBuddy CN 账号。",
