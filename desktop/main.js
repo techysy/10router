@@ -83,6 +83,7 @@ const STRINGS = {
         'appmenu.view': 'View',
         'appmenu.window': 'Window',
         'appmenu.help': 'Help',
+        'appmenu.openGithub': 'Open GitHub',
         'appmenu.quit': 'Exit',
         'appmenu.undo': 'Undo',
         'appmenu.redo': 'Redo',
@@ -160,6 +161,7 @@ const STRINGS = {
         'appmenu.view': '视图',
         'appmenu.window': '窗口',
         'appmenu.help': '帮助',
+        'appmenu.openGithub': '打开 GitHub',
         'appmenu.quit': '退出',
         'appmenu.undo': '撤销',
         'appmenu.redo': '重做',
@@ -237,6 +239,7 @@ const STRINGS = {
         'appmenu.view': '檢視',
         'appmenu.window': '視窗',
         'appmenu.help': '說明',
+        'appmenu.openGithub': '打開 GitHub',
         'appmenu.quit': '結束',
         'appmenu.undo': '復原',
         'appmenu.redo': '重做',
@@ -577,6 +580,7 @@ const STATE_LABEL = {
 };
 
 const RELEASES_URL = 'https://github.com/techysy/10router/releases';
+const GITHUB_URL = 'https://github.com/techysy/10router';
 
 function fetchJson(url, timeoutMs = 8000) {
     return new Promise((resolve, reject) => {
@@ -644,7 +648,7 @@ function showAbout() {
         defaultId: 0,
         cancelId: 1,
         noLink: true,
-    }).then((r) => { if (r.response === 0) shell.openExternal('https://github.com/techysy/10router'); });
+    }).then((r) => { if (r.response === 0) shell.openExternal(GITHUB_URL); });
 }
 
 // 内嵌服务版本 = resources/app/package.json 的 version(打包时与壳版本同步,
@@ -770,8 +774,6 @@ function setAppMenu() {
         {
             label: tr('appmenu.file'),
             submenu: [
-                ...(process.platform !== 'darwin' ? [{ label: tr('menu.about'), click: () => showAbout() }] : []),
-                { type: 'separator' },
                 { label: tr('appmenu.quit'), click: () => { quitting = true; app.quit(); } },
             ],
         },
@@ -831,6 +833,10 @@ function setAppMenu() {
             label: tr('appmenu.help'),
             submenu: [
                 { label: tr('menu.checkUpdate'), click: () => checkForUpdates() },
+                { type: 'separator' },
+                // 国际惯例:关于/项目主页放帮助菜单(File 只留退出)
+                { label: tr('menu.about'), click: () => showAbout() },
+                { label: tr('appmenu.openGithub'), click: () => shell.openExternal(GITHUB_URL) },
             ],
         },
     ];
