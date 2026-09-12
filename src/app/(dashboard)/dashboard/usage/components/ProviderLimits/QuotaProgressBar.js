@@ -70,6 +70,7 @@ export default function QuotaProgressBar({
   total = 0,
   unlimited = false,
   percentScale = false,
+  displayRemaining = false,
   resetTime = null,
   recurring = true,
 }) {
@@ -113,7 +114,11 @@ export default function QuotaProgressBar({
       <div className="flex items-center justify-between text-xs text-text-muted">
         {/* percentScale rows normalize the provider's fraction to 0–100 — no real request count to show */}
         <span>
-          {!percentScale && `${used.toLocaleString()} / ${total.toLocaleString()} requests`}
+          {/* Credit packs (CodeBuddy): remaining/total counting down — a fresh
+              pack reads "100 / 100", not "0 / 100" under a 100% bar. */}
+          {!percentScale && !displayRemaining && `${used.toLocaleString()} / ${total.toLocaleString()} requests`}
+          {!percentScale && displayRemaining &&
+            `${Number((total - used).toFixed(2)).toLocaleString()} / ${Number(total.toFixed(2)).toLocaleString()}`}
         </span>
         {countdown !== "-" && (
           <div className="flex items-center gap-1">

@@ -6,6 +6,9 @@
 
 ### ✨ 新功能
 
+- **CodeBuddy 配额徽章改为「消耗递减」显示（CN + intl）**：用量面板此前把额度包显示成 `已用 / 总量`——新号读作 `0/100 100%`，数字随消耗**上涨**，与旁边本就是剩余语义的百分比（`100%`）互相打架。现 `parseQuotaData` 给 CodeBuddy 行打 `displayRemaining` 标记，渲染层翻转为 **`剩余 / 总量`**：新号 `100/100 100%`，随消耗递减（`99.5/100 96%`），数字方向与进度条、百分比一致。仅展示层翻转，`used` 数据语义不变（耗尽判定 `used >= total` 等逻辑不动）。CN 与 intl 共用同一分支（同一 fetcher），一并生效。新增 `tests/unit/codebuddy-quota-display.test.js` 3 例。
+- **CodeBuddy CN / 国际版详情页右上角新增「网页版」直达按钮**：两个渠道的密钥不走"Get API Key"自动认证引导，原按钮对该渠道没有意义。注册表 `notice.webUrl`（CN → `copilot.tencent.com`，intl → `codebuddy.ai`）声明网页版控制台，`ProviderInfoCard` 顶部按钮有 `webUrl` 时渲染为「Web console」指向它，其余渠道维持原 "Get API Key" 行为；词条 "Web console"（网页版/網頁版）入 literals。
+
 - **桌面壳 Alt 菜单三语化 + 「前往」菜单（打开网址 / 回到 10Router / 最近打开）**。按 Alt 呼出的菜单栏此前是 Electron 默认英文——现按壳内 tr() 词典出 en/zh-CN/zh-TW（文件/编辑/视图/窗口/帮助，role 保住快捷键与原生行为，mac 保留 app 菜单）。新增「前往」菜单：**打开网址…**（`Ctrl+L`，弹小输入框，任意网址不限 10Router，无 scheme 自动补 `http://`，主窗体内打开）、**回到 10Router**（`Ctrl+Shift+H`，一键回本地仪表盘）、**最近打开**（自动记录最近 10 条，`userData/recent-urls.json` 持久化，去重 + 手动清除）。主窗体随语义升级为通用视图：`will-navigate` 不再按白名单拦 http(s)（file: 等仍拦截，mailto/tel 丢系统浏览器）。迭代记录：本功能初版曾做成托盘「其他 10Router 服务」+ 手编 remote-services.json 清单，发布前按用户意见重构成现在的「前往」菜单形态（配置文件方案整体撤除）。
 
 - **运行日志按日期归档、长期保存**：生产入口 `custom-server.js` 启动时把服务端 console（log/info/warn/error）原样 tee 到 `<数据目录>/logs/app-YYYY-MM-DD.log`（本地日期、追加式、**无上限不清理**——这是「上游到底回了什么、请求为什么失败」的长期档案；requestDetails 只有 200 条环形缓冲，桌面版 server.log 超 5MB 启动即清零，都不承担这个职责）。格式 `<ISO> [level] 内容`，跨天自动换文件。实现为自包含模块 `src/lib/consoleArchiveStandalone.js`（仅 Node 内建，同 `outboundProxyStandalone.js` 的约束——standalone 里没有 src/lib 源码），由 `copy-standalone-assets` 补拷，数据目录解析与 `dataDir.js` 一致（`DATA_DIR` 优先，Windows 回落 `%APPDATA%\10router`）；任何写档失败只静默放弃归档、绝不影响原 console 与应用本身。`next dev` 不经过该入口，保持原样。新增 `tests/unit/console-archive.test.js` 6 例（写入格式 / 跨天滚动 / 目录不可写不炸 / 日期补零 / DATA_DIR 优先 / 平台回落）。

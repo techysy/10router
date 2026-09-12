@@ -34,6 +34,9 @@ export default function ProviderInfoCard({ config, provider, title = "Provider I
     }));
 
   const signupUrl = provider?.notice?.apiKeyUrl || provider?.website;
+  // Channels that declare a web console (e.g. CodeBuddy, whose keys don't flow
+  // through an auto-auth "Get API Key" funnel) get a console button instead.
+  const webUrl = provider?.notice?.webUrl;
   const noticeText = provider?.notice?.text;
 
   return (
@@ -41,7 +44,17 @@ export default function ProviderInfoCard({ config, provider, title = "Provider I
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">{title}</h2>
         <div className="flex items-center gap-2">
-          {signupUrl && (
+          {webUrl ? (
+            <a
+              href={webUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+              Web console
+            </a>
+          ) : signupUrl && (
             <a
               href={signupUrl}
               target="_blank"

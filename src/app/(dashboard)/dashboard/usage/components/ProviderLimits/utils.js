@@ -594,6 +594,9 @@ export function parseQuotaData(provider, data) {
         // (whose resetAt is a hard expiry, not a refresh) instead of "Reset in".
         // Without the intl label it fell through to `default:`, which drops
         // `recurring`, so intl bonus packs read "Reset in" and never expired.
+        // displayRemaining: these rows are CREDIT packs — the UI renders
+        // remaining/total counting DOWN as you spend (fresh = "100/100 100%"),
+        // not used/total counting up ("0/100 100%", which reads as empty).
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({
@@ -602,6 +605,7 @@ export function parseQuotaData(provider, data) {
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
               recurring: quota.recurring !== false,
+              displayRemaining: true,
             });
           });
         }

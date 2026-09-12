@@ -14,6 +14,7 @@ export default {
     website: "https://www.codebuddy.ai",
     notice: {
       signupUrl: "https://www.codebuddy.ai",
+      webUrl: "https://www.codebuddy.ai",   // 网页版(同 codebuddy-cn,见彼处注释)
     },
   },
   category: "oauth",

@@ -13,6 +13,9 @@ export default {
     website: "https://copilot.tencent.com",
     notice: {
       signupUrl: "https://copilot.tencent.com",
+      // 网页版控制台(积分/用量都在这里看)——provider 页右上角按钮指向它,
+      // 替代默认的 "Get API Key"(该渠道的密钥本来就不走自动认证引导)。
+      webUrl: "https://copilot.tencent.com",
     },
   },
   category: "oauth",

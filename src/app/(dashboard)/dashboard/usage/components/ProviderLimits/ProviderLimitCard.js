@@ -167,6 +167,7 @@ export default function ProviderLimitCard({
                 percentage={percentage}
                 unlimited={unlimited}
                 percentScale={quota.percentScale === true}
+                displayRemaining={quota.displayRemaining === true}
                 resetTime={quota.resetAt}
                 recurring={quota.recurring !== false}
               />
