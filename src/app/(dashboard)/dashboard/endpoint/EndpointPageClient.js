@@ -1075,8 +1075,7 @@ export default function APIPageClient({ machineId }) {
           <div className="flex shrink-0 items-center gap-2">
             {apiKeyRotation && (
               <Button
-                size="sm"
-                icon="autorenew"
+                size="xs"
                 onClick={() =>
                   setConfirmState({
                     title: "Re-issue all API keys?",
