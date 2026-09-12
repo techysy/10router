@@ -166,6 +166,9 @@ stat -c '%y %n' "$INST/resources/app/package.json"     # mtime 应就是刚刚
 
 ## 3. fnOS / NAS 的 fpk
 
+> **日常更新代码不需要重装 fpk**：热替换 server 产物 → 重启即可，见 `fnos-hot-replace-deploy.md`。
+> 本文这一节只在验证**安装器本身**时走（等价于 Windows 的 §2.5）。
+
 与 Windows 同源的目录（`fnos-packaging/`）与同一套版本号：
 
 ```bash
@@ -252,6 +255,7 @@ INSTALL_CHANNEL=desktop DATA_DIR="/tmp/verify-data" "$INST/10Router.exe" custom-
 | `desktop/main.js` | 托盘壳：单实例锁、健康预检、spawn sidecar |
 | `desktop/build.ps1` / `build.sh` | 一键打包（构建 cli/app → npm install → electron-builder），**不含**安装与验证 |
 | `desktop/test-local.ps1` | 一键**本地测试轮**：退托盘 → 盖号 → 构建 → 替换/安装 → 启动 → 验证 → 回退（§2） |
+| `docs/zh-CN/fnos-hot-replace-deploy.md` | fnOS **热替换部署**（不重装 fpk）：预解包 → 原子交换 → appcenter-cli 重启 |
 | `.github/workflows/build-desktop-win.yml` | 正式 Windows 产物（tag `v*` 触发） |
 | `.github/workflows/build-fpk.yml` | 正式 fpk 产物（x86/arm × url/iframe） |
 | `desktop/README.md` / `fnos-packaging/README.md` | 两个形态各自的打包细节 |
