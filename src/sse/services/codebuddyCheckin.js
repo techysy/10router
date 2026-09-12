@@ -38,10 +38,38 @@ const TICK_JITTER_MS = 10 * 60 * 1000;
 let started = false;
 let timerHandle = null;
 
-// connId -> local "YYYY-MM-DD" the account was last confirmed done. In-memory
-// only: after a restart the next pass re-verifies once via the status endpoint
-// (CN) / one probe (intl). The manual check-in route never sees this memo.
-const checkedDayByConn = new Map();
+// connId -> local "YYYY-MM-DD" the account was last confirmed done. Persisted
+// in settings as `codeBuddyDailyDone` (lazy-loaded into this cache) so a
+// restart doesn't re-verify already-done accounts until the day rolls over;
+// entries are pruned to today on every write. The manual check-in route never
+// touches this memo.
+let doneMap = null;
+
+async function getDoneMap() {
+  if (doneMap) return doneMap;
+  const settings = await loadSettingsSafe();
+  const raw = settings?.codeBuddyDailyDone;
+  doneMap = raw && typeof raw === "object" && !Array.isArray(raw) ? { ...raw } : {};
+  return doneMap;
+}
+
+async function markDoneToday(connId, today) {
+  const map = await getDoneMap();
+  map[connId] = today;
+  for (const [id, day] of Object.entries(map)) {
+    if (day !== today) delete map[id];
+  }
+  try {
+    const { updateSettings } = await import("../../lib/localDb.js");
+    await updateSettings({ codeBuddyDailyDone: { ...map } });
+  } catch (err) {
+    // Persist is best-effort — the in-memory cache still prevents same-process
+    // repeats; a failed write just means one extra status check after restart.
+    log.warn("CB_CN_CHECKIN", "Persist daily-done map failed (swallowed)", {
+      error: err?.message ?? String(err),
+    });
+  }
+}
 
 // ─── Pure helpers (unit-testable, no I/O) ──────────────────────────────────
 
@@ -359,13 +387,13 @@ async function postIntlProbe(accessToken, proxyOptions) {
 
 /**
  * One CN tick: list active codebuddy-cn connections and check each in. Fail-open
- * (never rejects on a single account error). With `memo`, accounts confirmed
- * done for the local day are skipped entirely (no network) and successful
- * outcomes are recorded. The manual check-in route passes no memo.
+ * (never rejects on a single account error). With `memo` (plain object), accounts
+ * confirmed done for the local day are skipped entirely (no network) and
+ * successful outcomes are recorded. The manual check-in route passes no memo.
  *
  * @param {{ loadConnections?: Function, refreshConnection?: Function,
  *           checkinConnection?: Function, skipIfCheckedToday?: boolean,
- *           memo?: Map }} [deps]
+ *           memo?: Record<string, string> }} [deps]
  * @returns {Promise<Array<{id: string, name: string, status: string, error?: string}>>}
  */
 export async function runCodebuddyCheckinTick(deps = {}) {
@@ -400,7 +428,7 @@ export async function runCodebuddyCheckinTick(deps = {}) {
 
   for (const conn of eligible) {
     try {
-      if (memo && memo.get(conn.id) === today) {
+      if (memo && memo[conn.id] === today) {
         log.debug("CB_CN_CHECKIN", `${conn.name || conn.id}: 已确认今日完成,跳过`, {
           id: conn.id,
         });
@@ -408,7 +436,7 @@ export async function runCodebuddyCheckinTick(deps = {}) {
       }
       const outcome = await checkin(conn, deps);
       if (memo && (outcome.status === "checked-in" || outcome.status === "already")) {
-        memo.set(conn.id, today);
+        memo[conn.id] = today;
       }
       results.push({
         id: conn.id,
@@ -442,7 +470,7 @@ export async function runCodebuddyCheckinTick(deps = {}) {
  * contract as the CN tick.
  *
  * @param {{ loadConnections?: Function, refreshConnection?: Function,
- *           probeConnection?: Function, memo?: Map }} [deps]
+ *           probeConnection?: Function, memo?: Record<string, string> }} [deps]
  * @returns {Promise<Array<{id: string, name: string, status: string, error?: string}>>}
  */
 export async function runCodebuddyIntlSessionTick(deps = {}) {
@@ -476,7 +504,7 @@ export async function runCodebuddyIntlSessionTick(deps = {}) {
 
   for (const conn of eligible) {
     try {
-      if (memo && memo.get(conn.id) === today) {
+      if (memo && memo[conn.id] === today) {
         log.debug("CB_INTL_SESSION", `${conn.name || conn.id}: 已确认今日完成,跳过`, {
           id: conn.id,
         });
@@ -486,7 +514,7 @@ export async function runCodebuddyIntlSessionTick(deps = {}) {
         ? await deps.probeConnection(conn)
         : await probeOne(conn, deps);
       if (memo && outcome.status === "session-ok") {
-        memo.set(conn.id, today);
+        memo[conn.id] = today;
       }
       results.push({
         id: conn.id,
@@ -517,13 +545,14 @@ export async function runCodebuddyIntlSessionTick(deps = {}) {
 async function safeTick(how) {
   try {
     const settings = await loadSettingsSafe();
+    const done = await getDoneMap();
     if (settings.codeBuddyCheckin === true) {
-      await runCodebuddyCheckinTick({ skipIfCheckedToday: true, memo: checkedDayByConn });
+      await runCodebuddyCheckinTick({ skipIfCheckedToday: true, memo: done });
     } else {
       log.debug("CB_CN_CHECKIN", `Scheduled ${how}: setting off, skipping`);
     }
     if (settings.codeBuddyIntlSession === true) {
-      await runCodebuddyIntlSessionTick({ memo: checkedDayByConn });
+      await runCodebuddyIntlSessionTick({ memo: done });
     } else {
       log.debug("CB_INTL_SESSION", `Scheduled ${how}: setting off, skipping`);
     }
@@ -597,6 +626,7 @@ export const __internals = {
   INTL_PROBE_MODEL,
   dayKey,
   msUntilNextTick,
-  checkedDayByConn,
+  getDoneMap,
+  markDoneToday,
   isEligibleCbIntlConnection,
 };

@@ -170,8 +170,8 @@ describe("runCodebuddyCheckinTick", () => {
   });
 
   it("memo: an account confirmed done today is skipped entirely (no network)", async () => {
-    const memo = new Map();
-    memo.set("cb-done", new Date().toLocaleDateString("sv-SE")); // local YYYY-MM-DD
+    const memo = {};
+    memo["cb-done"] = new Date().toLocaleDateString("sv-SE"); // local YYYY-MM-DD
     const loadConnections = vi.fn(async () => [cnConn({ id: "cb-done" }), cnConn({ id: "cb-new" })]);
     const checkinConnection = vi.fn(async () => ({ status: "checked-in" }));
 
@@ -183,13 +183,13 @@ describe("runCodebuddyCheckinTick", () => {
   });
 
   it("memo: a checked-in/already outcome is recorded for the rest of the day", async () => {
-    const memo = new Map();
+    const memo = {};
     const loadConnections = vi.fn(async () => [cnConn({ id: "cb-1" })]);
     const checkinConnection = vi.fn(async () => ({ status: "already" }));
 
     await runCodebuddyCheckinTick({ loadConnections, checkinConnection, memo });
 
-    expect(memo.get("cb-1")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(memo["cb-1"]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
@@ -229,10 +229,10 @@ describe("isEligibleCbIntlConnection", () => {
 
 describe("runCodebuddyIntlSessionTick", () => {
   it("probes only eligible intl connections and records session-ok in the memo", async () => {
-    const memo = new Map();
+    const memo = {};
     const ok = { id: "cbi-ok", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) };
     const skip = { id: "cbi-skip", provider: "codebuddy-intl", isActive: true, accessToken: makeToken({ iss: "https://codebuddy.ai/r" }) };
-    memo.set("cbi-skip", new Date().toLocaleDateString("sv-SE"));
+    memo["cbi-skip"] = new Date().toLocaleDateString("sv-SE");
     const loadConnections = vi.fn(async () => [ok, skip]);
     const probeConnection = vi.fn(async () => ({ status: "session-ok" }));
 
@@ -241,7 +241,7 @@ describe("runCodebuddyIntlSessionTick", () => {
     expect(probeConnection).toHaveBeenCalledTimes(1);
     expect(probeConnection.mock.calls[0][0].id).toBe("cbi-ok");
     expect(results).toEqual([{ id: "cbi-ok", name: "cbi-ok", status: "session-ok" }]);
-    expect(memo.has("cbi-ok")).toBe(true);
+    expect(memo["cbi-ok"]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("fail-open: probe errors become per-account failures, never a throw", async () => {

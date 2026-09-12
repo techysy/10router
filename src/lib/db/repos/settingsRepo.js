@@ -67,6 +67,10 @@ const DEFAULT_SETTINGS = {
   codeBuddyCheckin: false,
   // Experimental: intl daily active-session probe (campaign credits).
   codeBuddyIntlSession: false,
+  // Daily-done memo for both passes: { [connectionId]: "YYYY-MM-DD" } (local).
+  // Persisted so a restart doesn't re-verify already-done accounts; entries
+  // are pruned to today on every write.
+  codeBuddyDailyDone: {},
 };
 
 async function readRaw() {
