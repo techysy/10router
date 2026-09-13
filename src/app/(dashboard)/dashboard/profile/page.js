@@ -1806,6 +1806,23 @@ export default function ProfilePage() {
               />
             </div>
 
+            <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
+              {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
+            </p>
+
+            {/* CodeBuddy intl daily active-session probe (campaign credits) */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy daily active session")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Send one free-tier chat request per account daily so the activity credits are granted")}
+                </p>
+              </div>
+              <Toggle
+                checked={settings.codeBuddyIntlSession === true}
+                onChange={toggleCodeBuddyIntlSession}
+              />
+            </div>
             {/* CodeBuddy CN auto daily check-in (mutually exclusive UI with import/export) */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
@@ -1820,23 +1837,6 @@ export default function ProfilePage() {
               />
             </div>
 
-            <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
-              {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
-            </p>
-
-            {/* CodeBuddy intl daily active-session probe (campaign credits) */}
-            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy intl daily active session")}</p>
-                <p className="text-xs sm:text-sm text-text-muted">
-                  {translate("Send one free-tier chat request per intl account daily so the activity credits are granted")}
-                </p>
-              </div>
-              <Toggle
-                checked={settings.codeBuddyIntlSession === true}
-                onChange={toggleCodeBuddyIntlSession}
-              />
-            </div>
 
           </div>
         </Card>
