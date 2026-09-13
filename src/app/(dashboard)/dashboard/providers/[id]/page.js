@@ -142,7 +142,7 @@ export default function ProviderDetailPage() {
   const handleCbPwConfirm = async () => {
     const { action, value } = cbPw;
     setCbPw({ open: false, action: null, value: "" });
-    if (action === "export" || action === "import") {
+    if (action === "export") {
       setOauthTransferMode(action);
       setShowOAuthTransfer(true);
     }
@@ -1815,7 +1815,7 @@ export default function ProviderDetailPage() {
                         <Button size="sm" icon="file_download" variant="secondary" onClick={() => openCbPassword("export")}>
                           {translate("Export")}
                         </Button>
-                        <Button size="sm" icon="upload_file" variant="secondary" onClick={() => openCbPassword("import")}>
+                        <Button size="sm" icon="upload_file" variant="secondary" onClick={() => { setOauthTransferMode("import"); setShowOAuthTransfer(true); }}>
                           {translate("Import")}
                         </Button>
                       </>
@@ -1937,7 +1937,7 @@ export default function ProviderDetailPage() {
                             size="sm"
                             icon="upload_file"
                             variant="secondary"
-                            onClick={() => openCbPassword("import")}
+                            onClick={() => { setOauthTransferMode("import"); setShowOAuthTransfer(true); }}
                             className="w-full sm:w-auto"
                           >
                             {translate("Import")}
@@ -2205,11 +2205,7 @@ export default function ProviderDetailPage() {
         }
       >
         <p className="text-text-muted mb-3 text-sm">
-          {translate(
-            cbPw.action === "export"
-              ? "Enter your dashboard password to export OAuth accounts (the file will be encrypted with the transfer passphrase you pick next)."
-              : "Enter your dashboard password to start the import — you will confirm the transfer passphrase in the next step."
-          )}
+          {translate("Enter your dashboard password to export OAuth accounts (the file will be encrypted with the transfer passphrase you pick next).")}
         </p>
         <Input
           type="password"
