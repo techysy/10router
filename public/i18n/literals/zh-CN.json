@@ -1541,6 +1541,7 @@
   "Import failed": "导入失败",
   "imported": "已导入",
   "updated": "已更新",
+  "Verifying...": "验证中…",
   "Export failed": "导出失败",
   "Enter your current password to export CodeBuddy CN accounts.": "输入当前密码以导出 CodeBuddy CN 账号。",
   "Enter your current password to import CodeBuddy CN accounts.": "输入当前密码以导入 CodeBuddy CN 账号。",

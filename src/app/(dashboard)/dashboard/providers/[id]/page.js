@@ -68,6 +68,8 @@ export default function ProviderDetailPage() {
   const [cbCheckinRunning, setCbCheckinRunning] = useState(false);
   // cbcn export/import re-auth: { open, action: 'export'|'import', value }
   const [cbPw, setCbPw] = useState({ open: false, action: null, value: "" });
+  const [cbPwVerifying, setCbPwVerifying] = useState(false);
+  const [cbPwError, setCbPwError] = useState("");
   const [cbImportPassword, setCbImportPassword] = useState(""); // password for bulk-import (passed to modal)
   const [headerImgError, setHeaderImgError] = useState(false);
   const [modelTestResults, setModelTestResults] = useState({});
@@ -138,13 +140,34 @@ export default function ProviderDetailPage() {
     triggerApiKeyConnection();
   };
 
-  // Password-confirm modal for cbcn export / import (both are sensitive).
+  // Password-confirm modal for the OAuth transfer export gate. The dashboard
+  // password is VERIFIED HERE (preflight), so a wrong password errors in this
+  // dialog — never two steps later inside the passphrase modal.
   const handleCbPwConfirm = async () => {
-    const { action, value } = cbPw;
-    setCbPw({ open: false, action: null, value: "" });
-    if (action === "export") {
-      setOauthTransferMode(action);
-      setShowOAuthTransfer(true);
+    if (cbPwVerifying) return;
+    setCbPwVerifying(true);
+    setCbPwError("");
+    try {
+      const res = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: cbPw.value }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCbPwError(data?.error || translate("Invalid password"));
+        return;
+      }
+      const { action } = cbPw;
+      setCbPw({ open: false, action: null, value: "" });
+      if (action === "export") {
+        setOauthTransferMode(action);
+        setShowOAuthTransfer(true);
+      }
+    } catch (error) {
+      setCbPwError(error.message || translate("Invalid password"));
+    } finally {
+      setCbPwVerifying(false);
     }
   };
 
@@ -2197,9 +2220,9 @@ export default function ProviderDetailPage() {
             <Button
               variant="primary"
               onClick={handleCbPwConfirm}
-              disabled={!cbPw.value}
+              disabled={!cbPw.value || cbPwVerifying}
             >
-              {translate("Confirm")}
+              {cbPwVerifying ? translate("Verifying...") : translate("Confirm")}
             </Button>
           </>
         }
@@ -2217,6 +2240,7 @@ export default function ProviderDetailPage() {
           }}
           placeholder={translate("Password")}
         />
+        {cbPwError && <p className="text-xs text-red-500 mt-2">{cbPwError}</p>}
       </Modal>
 
       {/* AG Risk Confirmation Modal */}

@@ -393,6 +393,7 @@
   "Import failed": "匯入失敗",
   "imported": "已匯入",
   "updated": "已更新",
+  "Verifying...": "驗證中…",
   "Export failed": "匯出失敗",
   "Enter your current password to export CodeBuddy CN accounts.": "輸入目前密碼以匯出 CodeBuddy CN 帳號。",
   "Enter your current password to import CodeBuddy CN accounts.": "輸入目前密碼以匯入 CodeBuddy CN 帳號。",

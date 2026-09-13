@@ -29,6 +29,9 @@ const PUBLIC_API_PATHS = [
   "/api/auth/status",
   "/api/auth/oidc",
   "/api/auth/saml",
+  // Pre-flight dashboard-password check for gated UI flows (same exposure
+  // class as /api/auth/login; leaks nothing but ok).
+  "/api/auth/verify-password",
   "/api/version",
   "/api/settings/require-login",
 ];
