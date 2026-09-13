@@ -1,6 +1,6 @@
 # v1.1.1 发版前审计报告（2026-09-13）
 
-> 范围：`v1.1.0`（`2205ba19`）→ main（`d0fd6cb1` + literals 去重），**66 提交 / 88 文件 / +3966−543**。
+> 范围：`v1.1.0`（`2205ba19`）→ main（`5f738854`）——首轮 66 提交（88 文件 / +3966−543）+ 复审轮 15 提交，**共 81 提交全量审读**。
 > 方法：全量 diff 审读（大部分提交与审计同会话逐项实施，本文复核收口）+ 全量 vitest
 > 与 `known-fails` 基线比对 + CI 状态核对 + 泄漏面/重复键扫描 + 六轮桌面测试
 > （test.17–test.22）与两轮 NAS 热替换的产物级验证。
@@ -96,9 +96,37 @@
 1. **#9 安全审计 6 未修项**（默认监听/默认密码兜底/凭据明文等）——定案 1.2，行为
    变更需迁移指引。
 2. **#10 内容过滤流重试设计**——需先拍策略（计费放大风险）。
-3. **P2 自定义模型批量启用/禁用**——✅ 已随本审计拍板后修复（见 §三/CHANGELOG），从遗留清单移除。
+3. ~~P2 自定义模型批量启用/禁用~~ ✅ 已修（拍板进 1.1.1：bulk API + 双路径 UI + PUT merge 回归用例）。
 4. zh-TW 字典补齐（见 §四）。
 5. Endpoint 页 Suggested-free-models 区与 `endpointConstants` 的 TUNNEL_BENEFITS
    静态文案仍英文（低频展示）。
 6. `db-benchmark` / `embeddings.cloud` 在 Windows 本地的环境性失败——可考虑补
    `known-fails` 标注或本地依赖说明，避免下次审计再花时间甄别。
+
+## 十、复审轮（首轮报告后新增的 15 提交，`d0fd6cb1..5f738854`）
+
+| 提交 | 内容 | 审读结论 |
+|---|---|---|
+| `a001218c` | P2 批量启用/禁用 + PUT merge 修复 | ✅ bulk route 在 `/api/models` 既有鉴权内（与单条 PUT 同暴露面）；merge 修复有回归用例锁 name/caps |
+| `6f7ce575` | ProviderInfoCard notice 过 translate | ✅ 无词条自动回落英文，零副作用 |
+| `96d4e737` / `52ad1830` | CN hy4 夜间免费(23–8) + 白天 0.29x | ✅ nightFree 窗口纯函数、CN/intl parity 测试排除 hy4 并各自钉住 |
+| `583f6bbd` | promo 徽章契约测试同步 | ✅ Regression gate 抓到的 pass→fail，契约按新结构更新（gate 正常工作） |
+| `a59a63bf` | Create Key 按钮 chr(10) 残留修复 | ✅ i18n 清扫脚本教训（改写型脚本跑完必须 grep 产物） |
+| `ef7a934d` / `612f771d` | OAuth transfer 泛化 + 加密 | ✅ 见 §十补充安全评审（下方） |
+| `ce2c5a54` | 导入免仪表盘密码 + 查重五级 | ✅ 口令即授权闭环；查重链 sub→token→rt→email→name 有测试 |
+| `cbe8fc27` / `905acab3` / `af2b0eb3` | 提醒归位 + 设置组重排 + 词条补齐 | ✅ 纯 UI/词条 |
+| `bc72050c` / `30c3eb31` | 导入直达一步 + 仪表盘密码前置校验 | ✅ verify-password 路由与 login 同暴露级；错误留在所输入的步骤 |
+| `5f738854` | isNightFreeHour 提取 utils + transfer 行为测试保留 | ✅ 修本地 vitest 对 .js 内 JSX 不转译的文件级假红（CI 版本差异容忍，无 lock 浮动依赖又一例） |
+
+### 补充安全评审（transfer 路径行为矩阵，`dashboard-guard-transfer-paths.test.js` 4 例锁定）
+
+| 场景 | 行为 |
+|---|---|
+| 远程匿名（免密部署） | 401（ALWAYS_PROTECTED；**有意不加 LOCAL_ONLY**——NAS 远程仪表盘是合法场景） |
+| 本地免密 | 401（同上，requireLogin=false 不放行） |
+| 远程/本地持 JWT 或 CLI token | 放行 → export 内再验 dashboard 密码；import 由传输口令授权 |
+| verify-password 前置校验 | public（与 login 同暴露级），仅返回 ok/false |
+
+### 复审新增修复
+- `isNightFreeHour` 提取至 `src/shared/utils/nightFree.js`（消除测试对 JSX 组件文件的依赖）；
+- 3 对撞车词条去重（§五）；CHANGELOG 侧边栏终态描述修正。
