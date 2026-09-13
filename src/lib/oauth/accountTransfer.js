@@ -99,14 +99,22 @@ export async function importAccounts(provider, accounts) {
         expiresAt = new Date(Date.now() + item.expiresIn * 1000).toISOString();
       }
 
-      // Dedup: JWT sub → refreshToken → name.
+      // Dedup (issue #9 sibling: re-imports must never duplicate accounts).
+      // Priority: JWT sub (strongest identity) → exact accessToken (same file
+      // re-imported) → refreshToken → email → name.
       const sub = claims?.sub || null;
       let match = null;
       if (sub) {
         match = existing.find((c) => decodeJwt(c.accessToken)?.sub === sub) || null;
       }
+      if (!match) {
+        match = existing.find((c) => c.accessToken === accessToken) || null;
+      }
       if (!match && refreshToken) {
         match = existing.find((c) => c.refreshToken && c.refreshToken === refreshToken) || null;
+      }
+      if (!match && item.email) {
+        match = existing.find((c) => c.email && c.email === item.email) || null;
       }
       if (!match && nickname) {
         match = existing.find((c) => c.name === nickname) || null;

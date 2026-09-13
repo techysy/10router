@@ -143,7 +143,6 @@ export default function ProviderDetailPage() {
     const { action, value } = cbPw;
     setCbPw({ open: false, action: null, value: "" });
     if (action === "export" || action === "import") {
-      setOauthTransferDashboardPassword(value);
       setOauthTransferMode(action);
       setShowOAuthTransfer(true);
     }
@@ -158,7 +157,6 @@ export default function ProviderDetailPage() {
   // sibling of the codebuddy-cn wb-format routes which stay API-compatible).
   const [showOAuthTransfer, setShowOAuthTransfer] = useState(false);
   const [oauthTransferMode, setOauthTransferMode] = useState("export");
-  const [oauthTransferDashboardPassword, setOauthTransferDashboardPassword] = useState("");
 
   // Manual CodeBuddy CN daily check-in trigger (only shown when the auto
   // check-in experimental toggle is on). Per-account results surface via the
@@ -241,12 +239,9 @@ export default function ProviderDetailPage() {
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const isCodeBuddy = providerId === "codebuddy-cn";
-  // Experimental OAuth account transfer (import/export) — shown only for
-  // codebuddy-cn AND when the settings toggle is enabled.
-  const codeBuddyTransferOn = isCodeBuddy && codeBuddyOAuthImportEnabled;
   // Generic OAuth transfer: every provider whose registry declares an oauth
-  // auth mode (not just codebuddy) — supersedes codeBuddyTransferOn for the
-  // encrypted transfer UI (the legacy wb-format API stays route-compatible).
+  // auth mode (not just codebuddy). When CN check-in is on it hides the
+  // buttons in favor of the check-in block — surface a reminder then.
   const oauthTransferOn = isOAuth && providerInfo?.authModes?.includes("oauth") && codeBuddyOAuthImportEnabled;
   // Experimental auto daily check-in — mutually exclusive display vs import/export.
   const codeBuddyCheckinOn = isCodeBuddy && codeBuddyCheckinEnabled;
@@ -1826,6 +1821,11 @@ export default function ProviderDetailPage() {
                       </>
                     )}
                     {codeBuddyCheckinOn && renderCbCheckinBlock()}
+                    {codeBuddyCheckinOn && (
+                      <p className="w-full text-xs text-text-muted">
+                        {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1950,6 +1950,11 @@ export default function ProviderDetailPage() {
                         </>
                       )}
                       {codeBuddyCheckinOn && renderCbCheckinBlock()}
+                      {codeBuddyCheckinOn && (
+                        <p className="w-full text-xs text-text-muted">
+                          {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
+                        </p>
+                      )}
                     </>
                   ) : (
                     <Button
@@ -2181,7 +2186,6 @@ export default function ProviderDetailPage() {
         mode={oauthTransferMode}
         provider={providerId}
         providerName={providerInfo?.name}
-        dashboardPassword={oauthTransferDashboardPassword}
         onClose={() => setShowOAuthTransfer(false)}
         onSuccess={fetchConnections}
       />
@@ -2213,8 +2217,8 @@ export default function ProviderDetailPage() {
         <p className="text-text-muted mb-3 text-sm">
           {translate(
             cbPw.action === "export"
-              ? "Enter your current password to export CodeBuddy CN accounts."
-              : "Enter your current password to import CodeBuddy CN accounts."
+              ? "Enter your dashboard password to export OAuth accounts (the file will be encrypted with the transfer passphrase you pick next)."
+              : "Enter your dashboard password to start the import — you will confirm the transfer passphrase in the next step."
           )}
         </p>
         <Input
