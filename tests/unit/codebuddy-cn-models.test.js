@@ -39,11 +39,11 @@ describe("CodeBuddy CN static model catalog", () => {
   it("carries the published credit multiplier on every model", () => {
     // Rate card published by the CN credit page. 0 = rides the free quota.
     // hy4-preview is the NIGHT-ONLY exception (23:00–08:00 local free, user-
-    // verified 2026-09-13): no daytime multiplier published → no rateMultiplier
-    // at all, the badge is driven by `nightFree` (never a misleading 0x).
+    // verified 2026-09-13): daytime bills at 0.29x (user-provided), the badge
+    // flips free/0.29x by `nightFree` instead of showing a misleading 0x.
     const rates = Object.fromEntries(cn.models.map((m) => [m.id, m.rateMultiplier]));
     expect(rates).toEqual({
-      "hy4-preview": undefined,
+      "hy4-preview": 0.29,
       hy3: 0,
       "glm-5v-turbo": 0.71,
       "glm-5.3": 0.79,

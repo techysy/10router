@@ -64,9 +64,9 @@ export default {
   models: [
     // CN hy4-preview: free quota is NIGHT-ONLY (23:00–08:00 local, user-verified
     // 2026-09-13) — intl's hy4-preview is free ALL DAY, the two are different.
-    // Daytime multiplier is unpublished: nightFree makes the badge show "free"
-    // inside the window and nothing outside it (no misleading 0x all day).
-    { id: "hy4-preview", name: "Hy4-Preview", nightFree: { from: 23, to: 8 } },
+    // Daytime multiplier 0.29x (user-provided); the badge shows "free" inside
+    // the window and 0.29x outside it.
+    { id: "hy4-preview", name: "Hy4-Preview", rateMultiplier: 0.29, nightFree: { from: 23, to: 8 } },
     { id: "hy3", name: "Hy3", rateMultiplier: 0 },
     { id: "glm-5v-turbo", name: "GLM-5v-Turbo", rateMultiplier: 0.71 },
     { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.79 },
