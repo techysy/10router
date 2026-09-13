@@ -64,9 +64,18 @@ describe("promo badge rendering contract", () => {
   });
 
   it("uses displayMultiplier for the label and the variant, and explains the promo in the tooltip", () => {
-    expect(MODEL_ROW).toContain('{displayMultiplier === 0 ? "free" : `${displayMultiplier.toFixed(2)}x`}');
-    expect(MODEL_ROW).toContain('variant={displayMultiplier === 0 ? "success" : "default"}');
+    // nightFree (codebuddy-cn hy4-preview) joins the free condition but the
+    // promo-aware multiplier chain stays intact beneath it.
+    expect(MODEL_ROW).toContain("const showFreeBadge = nightFreeNow || displayMultiplier === 0");
+    expect(MODEL_ROW).toContain('{showFreeBadge ? "free" : `${displayMultiplier.toFixed(2)}x`}');
+    expect(MODEL_ROW).toContain('variant={showFreeBadge ? "success" : "default"}');
     expect(MODEL_ROW).toContain('translate("promo free until")');
+  });
+
+  it("night-free window drives the free badge and is time-window based", () => {
+    expect(MODEL_ROW).toContain("const nightFreeNow = isNightFreeHour(hour, model.nightFree)");
+    expect(MODEL_ROW).toContain('translate("Night-free window")');
+    expect(MODEL_ROW).toContain("export function isNightFreeHour");
   });
 
   it("keeps the `free` label a literal (it is never translated)", () => {
