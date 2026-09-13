@@ -1,21 +1,47 @@
 import PropTypes from "prop-types";
+import { useEffect, useState } from "react";
 import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
 import { translate } from "@/i18n/runtime";
 
+// Night-free window check, local hours, may wrap midnight (from=23, to=8 →
+// night is [23:00, 08:00)). Pure so tests can pin the boundary behavior.
+export function isNightFreeHour(hour, window) {
+  if (!window || typeof hour !== "number") return false;
+  const { from, to } = window;
+  return from <= to ? hour >= from && hour < to : hour >= from || hour < to;
+}
+
+// Local hour, re-evaluated every minute so a row crosses the night boundary
+// live without a remount.
+function useLocalHour() {
+  const [hour, setHour] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const t = setInterval(() => setHour(new Date().getHours()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return hour;
+}
+
 export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, onEnable, caps, thinkingSuffix }) {
+  const hour = useLocalHour();
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   // Credit cost multiplier (registry `rateMultiplier`, published per model by
   // credit-metered providers such as codebuddy-cn / codebuddy-intl / kiro).
   // 0 = rides the free quota. Shown as a badge only when the provider declares
   // one — most providers have no credit system and stay unbadged.
   const rateMultiplier = typeof model.rateMultiplier === "number" ? model.rateMultiplier : null;
+  // Night-free models (e.g. codebuddy-cn hy4-preview): the free quota applies
+  // only inside the declared local-hours window; outside it the daytime
+  // multiplier applies (unpublished → no badge, never a misleading 0x).
+  const nightFreeNow = isNightFreeHour(hour, model.nightFree);
   // A dated promo (registry `promoFreeUntil`) shows the same green `free` badge
   // while it runs and drops back to the real multiplier once it closes — the
   // published multiplier is never overwritten, so nothing needs cleaning up by
   // hand and the CN/intl shared-credit parity stays intact.
   const promoFree = rateMultiplier !== null && rateMultiplier > 0 && isPromoFree(model);
   const displayMultiplier = promoFree ? 0 : rateMultiplier;
+  const showFreeBadge = nightFreeNow || displayMultiplier === 0;
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -42,10 +68,12 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
-            {displayMultiplier !== null && (
+            {(displayMultiplier !== null || nightFreeNow) && (
               <Tooltip
                 text={
-                  promoFree
+                  nightFreeNow
+                    ? `${translate("Night-free window")} (23:00–08:00) — ${translate("rides the free quota")}`
+                    : promoFree
                     ? translate("Credit multiplier") + `: ${rateMultiplier}x — ` + translate("promo free until") + ` ${model.promoFreeUntil}`
                     : displayMultiplier === 0
                     ? translate("Credit multiplier") + ": 0x — " + translate("rides the free quota")
@@ -54,10 +82,10 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
               >
                 <Badge
                   size="sm"
-                  variant={displayMultiplier === 0 ? "success" : "default"}
-                  className={`shrink-0 cursor-help leading-none${displayMultiplier === 0 ? "" : " font-mono"}`}
+                  variant={showFreeBadge ? "success" : "default"}
+                  className={`shrink-0 cursor-help leading-none${showFreeBadge ? "" : " font-mono"}`}
                 >
-                  {displayMultiplier === 0 ? "free" : `${displayMultiplier.toFixed(2)}x`}
+                  {showFreeBadge ? "free" : `${displayMultiplier.toFixed(2)}x`}
                 </Badge>
               </Tooltip>
             )}
@@ -129,6 +157,7 @@ ModelRow.propTypes = {
   model: PropTypes.shape({
     id: PropTypes.string.isRequired,
     rateMultiplier: PropTypes.number,
+    nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),
   }).isRequired,
   fullModel: PropTypes.string.isRequired,
   alias: PropTypes.string,

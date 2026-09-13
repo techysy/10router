@@ -38,9 +38,12 @@ describe("CodeBuddy CN static model catalog", () => {
 
   it("carries the published credit multiplier on every model", () => {
     // Rate card published by the CN credit page. 0 = rides the free quota.
+    // hy4-preview is the NIGHT-ONLY exception (23:00–08:00 local free, user-
+    // verified 2026-09-13): no daytime multiplier published → no rateMultiplier
+    // at all, the badge is driven by `nightFree` (never a misleading 0x).
     const rates = Object.fromEntries(cn.models.map((m) => [m.id, m.rateMultiplier]));
     expect(rates).toEqual({
-      "hy4-preview": 0,
+      "hy4-preview": undefined,
       hy3: 0,
       "glm-5v-turbo": 0.71,
       "glm-5.3": 0.79,
@@ -54,11 +57,17 @@ describe("CodeBuddy CN static model catalog", () => {
       "deepseek-v4.1-flash": 0.03,
       "deepseek-v4-pro": 0.51,
     });
+    // The night-free window itself, pinned (intl hy4 is free ALL DAY — separate).
+    const hy4 = cn.models.find((m) => m.id === "hy4-preview");
+    expect(hy4.nightFree).toEqual({ from: 23, to: 8 });
   });
 
   it("shares the credit rate with intl on models both gateways serve", () => {
     const intlRates = Object.fromEntries(intl.models.map((m) => [m.id, m.rateMultiplier]));
     for (const m of cn.models) {
+      // hy4-preview is deliberately EXCLUDED: free-all-day on intl, night-only
+      // free on CN — the multipliers diverged (user-verified 2026-09-13).
+      if (m.id === "hy4-preview") continue;
       if (m.id in intlRates) expect(m.rateMultiplier).toBe(intlRates[m.id]);
     }
   });

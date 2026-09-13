@@ -90,10 +90,18 @@ describe("CodeBuddy international static model catalog", () => {
     // must not drift apart — this is what lets a new intl model inherit the CN
     // multiplier instead of guessing one.
     const cnById = Object.fromEntries(cnEntry.models.map((model) => [model.id, model]));
-    const shared = entry.models.filter((model) => cnById[model.id]);
+    // hy4-preview diverged on purpose (user-verified 2026-09-13): intl is free
+    // ALL DAY (0), CN is night-only free (23:00–08:00, no daytime multiplier).
+    const shared = entry.models.filter((model) => cnById[model.id] && model.id !== "hy4-preview");
     expect(shared.length).toBeGreaterThanOrEqual(10);
     for (const model of shared) {
       expect([model.id, model.rateMultiplier]).toEqual([model.id, cnById[model.id].rateMultiplier]);
     }
+  });
+
+  it("keeps intl hy4-preview free all day (diverged from CN night-only free)", () => {
+    const hy4 = entry.models.find((model) => model.id === "hy4-preview");
+    expect(hy4.rateMultiplier).toBe(0);
+    expect(hy4.nightFree).toBeUndefined();
   });
 });
