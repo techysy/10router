@@ -1015,7 +1015,8 @@ export default function APIPageClient({ machineId }) {
             {translate("API Keys")}
           </h2>
           <Button icon="add" onClick={() => setShowAddModal(true)}>
-            {translate("Create Key")}" + chr(10) + "          </Button>
+            {translate("Create Key")}
+          </Button>
         </div>
 
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
@@ -1112,7 +1113,8 @@ export default function APIPageClient({ machineId }) {
             <p className="text-text-main font-medium mb-1">{translate("No API keys yet")}</p>
             <p className="text-sm text-text-muted mb-4">{translate("Create your first API key to get started")}</p>
             <Button icon="add" onClick={() => setShowAddModal(true)}>
-              {translate("Create Key")}" + chr(10) + "            </Button>
+              {translate("Create Key")}
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col">
