@@ -1821,11 +1821,6 @@ export default function ProviderDetailPage() {
                       </>
                     )}
                     {codeBuddyCheckinOn && renderCbCheckinBlock()}
-                    {codeBuddyCheckinOn && (
-                      <p className="w-full text-xs text-text-muted">
-                        {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
-                      </p>
-                    )}
                   </>
                 ) : (
                   <>
@@ -1950,11 +1945,6 @@ export default function ProviderDetailPage() {
                         </>
                       )}
                       {codeBuddyCheckinOn && renderCbCheckinBlock()}
-                      {codeBuddyCheckinOn && (
-                        <p className="w-full text-xs text-text-muted">
-                          {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
-                        </p>
-                      )}
                     </>
                   ) : (
                     <Button

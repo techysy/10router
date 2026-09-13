@@ -1820,6 +1820,10 @@ export default function ProfilePage() {
               />
             </div>
 
+            <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
+              {translate("Import / Export moved behind the check-in button — turn off auto check-in to show them again")}
+            </p>
+
             {/* CodeBuddy intl daily active-session probe (campaign credits) */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
