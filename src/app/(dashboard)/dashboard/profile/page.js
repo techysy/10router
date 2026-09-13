@@ -1792,12 +1792,12 @@ export default function ProfilePage() {
             <h3 className="text-base sm:text-lg font-semibold">{translate("Experimental")}</h3>
           </div>
           <div className="flex flex-col gap-4">
-            {/* CodeBuddy CN account import/export (provider detail page) */}
+            {/* OAuth account import/export (provider detail pages, all OAuth providers) */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">{translate("CodeBuddy CN OAuth import / export")}</p>
+                <p className="font-medium text-sm sm:text-base">{translate("OAuth import / export")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  {translate("Show Import / Export buttons on the CodeBuddy CN page (experimental)")}
+                  {translate("Show Import / Export buttons on OAuth provider pages (encrypted transfer, experimental)")}
                 </p>
               </div>
               <Toggle
@@ -1834,9 +1834,6 @@ export default function ProfilePage() {
               />
             </div>
 
-            <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
-              {translate("When enabled, the Import / Export buttons on the CodeBuddy CN page are replaced")}
-            </p>
           </div>
         </Card>
 

@@ -25,6 +25,7 @@ import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
 import CodeBuddyImportModal from "./CodeBuddyImportModal";
+import OAuthTransferModal from "./OAuthTransferModal";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
@@ -141,11 +142,10 @@ export default function ProviderDetailPage() {
   const handleCbPwConfirm = async () => {
     const { action, value } = cbPw;
     setCbPw({ open: false, action: null, value: "" });
-    if (action === "export") {
-      await handleCodeBuddyExport(value);
-    } else if (action === "import") {
-      setCbImportPassword(value);
-      setShowCodeBuddyImport(true);
+    if (action === "export" || action === "import") {
+      setOauthTransferDashboardPassword(value);
+      setOauthTransferMode(action);
+      setShowOAuthTransfer(true);
     }
   };
 
@@ -154,40 +154,11 @@ export default function ProviderDetailPage() {
     setCbPw({ open: true, action, value: "" });
   };
 
-  // Export codebuddy-cn connections as the third-party (wb) JSON format.
-  const handleCodeBuddyExport = async (password) => {
-    try {
-      const res = await fetch("/api/oauth/codebuddy-cn/export", {
-        cache: "no-store",
-        headers: password ? { "x-9r-password": password } : {},
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) throw new Error(translate("Invalid password"));
-        throw new Error(data?.error || `Request failed: ${res.status}`);
-      }
-      const list = Array.isArray(data) ? data : [];
-      if (list.length === 0) {
-        notify.warning(translate("No CodeBuddy CN connections to export"));
-        return;
-      }
-      const blob = new Blob([JSON.stringify(list, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `codebuddy-cn-accounts-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Defer revoke so the download has started before the object URL is freed.
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      notify.success(`${list.length} ${translate("accounts exported")}`);
-    } catch (e) {
-      notify.error(translate("Export failed") + ": " + e.message);
-    }
-  };
+  // Generic encrypted OAuth credentials transfer (all OAuth providers, P2
+  // sibling of the codebuddy-cn wb-format routes which stay API-compatible).
+  const [showOAuthTransfer, setShowOAuthTransfer] = useState(false);
+  const [oauthTransferMode, setOauthTransferMode] = useState("export");
+  const [oauthTransferDashboardPassword, setOauthTransferDashboardPassword] = useState("");
 
   // Manual CodeBuddy CN daily check-in trigger (only shown when the auto
   // check-in experimental toggle is on). Per-account results surface via the
@@ -273,6 +244,10 @@ export default function ProviderDetailPage() {
   // Experimental OAuth account transfer (import/export) — shown only for
   // codebuddy-cn AND when the settings toggle is enabled.
   const codeBuddyTransferOn = isCodeBuddy && codeBuddyOAuthImportEnabled;
+  // Generic OAuth transfer: every provider whose registry declares an oauth
+  // auth mode (not just codebuddy) — supersedes codeBuddyTransferOn for the
+  // encrypted transfer UI (the legacy wb-format API stays route-compatible).
+  const oauthTransferOn = isOAuth && providerInfo?.authModes?.includes("oauth") && codeBuddyOAuthImportEnabled;
   // Experimental auto daily check-in — mutually exclusive display vs import/export.
   const codeBuddyCheckinOn = isCodeBuddy && codeBuddyCheckinEnabled;
   const staticModels = getModelsByProviderId(providerId);
@@ -1840,7 +1815,7 @@ export default function ProviderDetailPage() {
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
-                    {codeBuddyTransferOn && !codeBuddyCheckinOn && (
+                    {(oauthTransferOn && !codeBuddyCheckinOn) && (
                       <>
                         <Button size="sm" icon="file_download" variant="secondary" onClick={() => openCbPassword("export")}>
                           {translate("Export")}
@@ -1952,7 +1927,7 @@ export default function ProviderDetailPage() {
                       >
                         {apiKeyConnectionLabel}
                       </Button>
-                      {codeBuddyTransferOn && !codeBuddyCheckinOn && (
+                      {(oauthTransferOn && !codeBuddyCheckinOn) && (
                         <>
                           <Button
                             size="sm"
@@ -2199,6 +2174,17 @@ export default function ProviderDetailPage() {
           onSuccess={fetchConnections}
         />
       )}
+
+      {/* Encrypted OAuth credentials transfer (all OAuth providers) */}
+      <OAuthTransferModal
+        isOpen={showOAuthTransfer}
+        mode={oauthTransferMode}
+        provider={providerId}
+        providerName={providerInfo?.name}
+        dashboardPassword={oauthTransferDashboardPassword}
+        onClose={() => setShowOAuthTransfer(false)}
+        onSuccess={fetchConnections}
+      />
 
       {/* cbcn export/import password re-auth */}
       <Modal

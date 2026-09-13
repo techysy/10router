@@ -52,6 +52,11 @@ const ALWAYS_PROTECTED = [
   // credential-bearing like cursor/kiro auto-import, so it must never slip
   // through the requireLogin=false catch-all.
   "/api/oauth/xiaomi-mimo/auto-import",
+  // OAuth credentials transfer: export dumps live tokens (encrypted by a
+  // user passphrase AFTER the guard), import writes them. Even with
+  // requireLogin=false these must demand credentials (route re-checks the
+  // dashboard password again inside).
+  "/api/oauth/transfer/",
 ];
 
 // Require auth, but allow through if requireLogin is disabled
