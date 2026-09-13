@@ -73,9 +73,12 @@ describe("promo badge rendering contract", () => {
   });
 
   it("night-free window drives the free badge and is time-window based", () => {
+    expect(MODEL_ROW).toContain('from "@/shared/utils/nightFree"');
     expect(MODEL_ROW).toContain("const nightFreeNow = isNightFreeHour(hour, model.nightFree)");
     expect(MODEL_ROW).toContain('translate("Night-free window")');
-    expect(MODEL_ROW).toContain("export function isNightFreeHour");
+    // the pure window check lives in its own util (tests import it directly)
+    const UTIL = read("../../src/shared/utils/nightFree.js");
+    expect(UTIL).toContain("export function isNightFreeHour");
   });
 
   it("keeps the `free` label a literal (it is never translated)", () => {

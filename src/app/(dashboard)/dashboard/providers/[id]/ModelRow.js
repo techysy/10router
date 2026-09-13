@@ -2,15 +2,8 @@ import PropTypes from "prop-types";
 import { useEffect, useState } from "react";
 import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
+import { isNightFreeHour } from "@/shared/utils/nightFree";
 import { translate } from "@/i18n/runtime";
-
-// Night-free window check, local hours, may wrap midnight (from=23, to=8 →
-// night is [23:00, 08:00)). Pure so tests can pin the boundary behavior.
-export function isNightFreeHour(hour, window) {
-  if (!window || typeof hour !== "number") return false;
-  const { from, to } = window;
-  return from <= to ? hour >= from && hour < to : hour >= from || hour < to;
-}
 
 // Local hour, re-evaluated every minute so a row crosses the night boundary
 // live without a remount.

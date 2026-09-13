@@ -3,7 +3,7 @@
  * local, wraps midnight). Pure-function pin — the badge logic itself is UI.
  */
 import { describe, expect, it } from "vitest";
-import { isNightFreeHour } from "../../src/app/(dashboard)/dashboard/providers/[id]/ModelRow.js";
+import { isNightFreeHour } from "../../src/shared/utils/nightFree.js";
 
 describe("isNightFreeHour (23:00–08:00, wraps midnight)", () => {
   const W = { from: 23, to: 8 };
