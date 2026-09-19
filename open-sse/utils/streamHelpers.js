@@ -1,4 +1,8 @@
 import { FORMATS } from "../translator/formats.js";
+import { buildErrorBody } from "./error.js";
+import { SSE_DONE } from "./sseConstants.js";
+
+const sharedEncoder = new TextEncoder();
 
 // Parse SSE data line
 export function parseSSELine(line, format = null) {
@@ -119,4 +123,38 @@ export function formatSSE(data, sourceFormat) {
   }
 
   return `data: ${JSON.stringify(data)}\n\n`;
+}
+
+/**
+ * Terminal SSE frame for a stream that died AFTER HTTP 200 was already sent, so
+ * the status code can no longer change.
+ *
+ * Without this, a stalled or severed upstream closed silently: the client saw
+ * "200 OK, a few chunks, then nothing" and could not tell a truncated reply from
+ * a finished one — worst on upstreams with long silent periods (Kiro EventStream
+ * buffering, Claude reasoning, antigravity), where the user simply assumed "the
+ * answer was short".
+ *
+ * Shape per client format (mirrors what those SDKs actually parse):
+ * - Claude → `event: error`, its own native error channel.
+ * - everything else → an `data: {"error":…}` frame followed by `[DONE]`.
+ *   The error frame MUST precede [DONE]: openai-python checks any `data:` payload
+ *   carrying an `error` key before it reads the sentinel and raises APIError.
+ *
+ * Never emit a synthetic finish_reason here — a truncated stream that looks like
+ * a clean stop is exactly the bug this fixes.
+ *
+ * @param {number} statusCode - HTTP status to report inside the error body (504 for a stall)
+ * @param {string} message - human-readable abort reason
+ * @param {string} clientFormat - FORMATS.* of the downstream client
+ * @returns {Uint8Array} bytes, enqueued verbatim by the abort-terminated stream
+ */
+export function buildStreamErrorBytes(statusCode, message, clientFormat) {
+  const { error } = buildErrorBody(statusCode, message);
+
+  const sse = clientFormat === FORMATS.CLAUDE
+    ? formatSSE({ type: "error", error }, FORMATS.CLAUDE)
+    : formatSSE({ error }, clientFormat) + SSE_DONE;
+
+  return sharedEncoder.encode(sse);
 }

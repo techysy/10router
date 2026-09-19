@@ -231,6 +231,9 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
   let chunkCount = 0;
   let totalBytes = 0;
   let lastChunkAt = Date.now();
+  // Why the stream ended early, so the terminal frame can say something truer
+  // than "stream ended". Set by whichever path aborts first.
+  let abortMessage = "upstream connection lost";
   const t0 = Date.now();
   const tag = "STREAM";
   const clearStall = () => {
@@ -240,6 +243,7 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     clearStall();
     stallTimer = setTimeout(() => {
       stallTimer = null;
+      abortMessage = "stream stall timeout";
       dbg(tag, `STALL TIMEOUT ${stallTimeoutMs}ms | chunks=${chunkCount} | bytes=${totalBytes} | sinceLast=${Date.now() - lastChunkAt}ms`);
       streamController.handleError?.(new Error("stream stall timeout"));
       streamController.abort?.();
@@ -286,7 +290,11 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
   return createDisconnectAwareStream(
     { readable: transformedBody, writable: { getWriter: () => ({ abort: () => Promise.resolve() }) } },
     wrappedController,
-    onAbortTerminal
+    // Bind the abort reason here: it lives in this scope, and the downstream
+    // helper only knows the zero-argument callback contract. Wrapping (rather
+    // than threading a second parameter down) keeps that contract intact — the
+    // Responses passthrough passes its own zero-arg builder straight in.
+    onAbortTerminal ? () => onAbortTerminal(abortMessage) : null
   );
 }
 
