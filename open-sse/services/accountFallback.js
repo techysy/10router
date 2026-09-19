@@ -1,5 +1,13 @@
 import { ERROR_RULES, BACKOFF_CONFIG, TRANSIENT_COOLDOWN_MS, CHANNEL_BLOCK_MS, CHANNEL_BLOCK_ESCALATE_WINDOW_MS, MAX_RATE_LIMIT_COOLDOWN_MS } from "../config/errorConfig.js";
 
+// 4xx statuses that DO describe the credential / the account's standing, so they
+// keep their cooldown rules. Everything else in 400–499 describes the request
+// itself (context overflow, malformed body, unsupported parameter) and must not
+// evict a healthy connection — see the short-circuit in checkFallbackError.
+// 404 is included: an unavailable model on this account is account-scoped here,
+// matching the ERROR_RULES entry that already handled it before this list existed.
+const ACCOUNT_SCOPED_4XX = new Set([401, 402, 403, 404, 429]);
+
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
  * Level 1: 1s, Level 2: 2s, Level 3: 4s... → max 4 min
@@ -89,6 +97,22 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
       }
       return { shouldFallback: true, cooldownMs: rule.cooldownMs, channelScope: !!rule.channelScope };
     }
+  }
+
+  // Request-scoped client errors that matched no rule above: a 400 caused by the
+  // request itself (context overflow, malformed body, unsupported parameter) says
+  // nothing about the credential, so cooling the account down only removes a
+  // healthy connection from rotation. With a single connection it is worse: every
+  // later request in the window fails with a copy of this very error
+  // ("all 1 accounts locked for <model> | lastError=[400]: ..."), which hides the
+  // real cause from the caller and makes unrelated sessions look like they hit the
+  // same limit. Hand the upstream error back for this request instead.
+  //
+  // Account-scoped statuses keep their rules above (401/402/403/404/429); the text
+  // rules above still win for rate-limit / quota / capacity wording, so this only
+  // catches bodies that described the request and nothing else.
+  if (status >= 400 && status < 500 && !ACCOUNT_SCOPED_4XX.has(status)) {
+    return { shouldFallback: false, cooldownMs: 0, channelScope: false };
   }
 
   // Default: transient cooldown for any unmatched error

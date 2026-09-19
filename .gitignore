@@ -94,6 +94,12 @@ graphify-out/*
 /desktop/node_modules/
 /desktop/dist/
 
+# fnOS fpk packaging artifacts (built on the NAS build dir; a local run must not
+# dirty the workspace with a 76MB server dump or release-named fpk binaries)
+/fnos-packaging/app/server/
+/fnos-packaging/*.fpk
+/fnos-packaging/build.log
+
 # Local tool artifacts
 .v2c/
 .zcode/
