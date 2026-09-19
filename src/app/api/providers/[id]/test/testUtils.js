@@ -7,6 +7,7 @@ import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
 import {
   refreshProviderCredentials,
   shouldRefreshCredentials,
@@ -1029,6 +1030,25 @@ case "llm7": {
 }
 
 /**
+ * Null-out every `modelLock_*` field on a connection (successful-test cleanup).
+ *
+ * Export for tests: the keys are flat and model-named (`modelLock_<model>`, plus
+ * the account-level `modelLock___all`), so they can only be found by prefix — a
+ * fixed key list would silently miss the model that is actually locked.
+ *
+ * @param {object} connection - raw connection row
+ * @returns {Record<string, null>} patch object, safe to spread into an update
+ */
+export function clearModelLockFields(connection) {
+  if (!connection) return {};
+  return Object.fromEntries(
+    Object.keys(connection)
+      .filter((key) => key.startsWith(MODEL_LOCK_PREFIX))
+      .map((key) => [key, null])
+  );
+}
+
+/**
  * Test a single connection by ID, update DB, and return result.
  */
 export async function testSingleConnection(id) {
@@ -1082,6 +1102,23 @@ export async function testSingleConnection(id) {
         : null
       : new Date().toISOString(),
   };
+
+  // A successful test is proof the credential works RIGHT NOW, so no runtime
+  // health state may outlive it. Without this, re-logging into an account whose
+  // token had gone stale still left the old locks in place: the dashboard showed
+  // a green connection while every request kept being answered with the stale
+  // lock ("no account available"), so the user's fix looked like it did nothing.
+  //
+  // Only on success — clearing health state after a FAILED test would erase the
+  // evidence the dashboard is about to show.
+  if (result.valid) {
+    Object.assign(updateData, {
+      backoffLevel: 0,
+      rateLimitedUntil: null,
+      errorCode: null,
+      ...clearModelLockFields(connection),
+    });
+  }
 
   if (result.refreshed && result.newTokens) {
     if (result.newTokens.accessToken) updateData.accessToken = result.newTokens.accessToken;
