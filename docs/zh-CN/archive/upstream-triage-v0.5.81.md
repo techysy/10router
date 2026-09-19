@@ -100,19 +100,31 @@
 ## 3. 执行顺序与验收
 
 ```
-1. P0-1 request-scoped 4xx   → commit 独立 → 单测
-2. P0-2 清 stale 健康状态     → commit 独立 → 单测
-3. （确认后）P2-1 / P2-2      → 有实测症状才做
-4. P1 stream in-band 上报     → commit 独立 → 单测（风险最高，放最后）
-5. 全量回归门禁
-   npx vitest run --reporter=json --outputFile=/tmp/r.json
-   node tests/__baseline__/verify-no-regression.mjs /tmp/r.json
-   三条 registry 基线 + capability audit
-6. 记账：CHANGELOG「上游 v0.5.75 → v0.5.81 择优移植」+ 本文档补实测结论
+1. P0-1 request-scoped 4xx   → commit 独立 → 单测   ✅ 完成
+2. P0-2 清 stale 健康状态     → commit 独立 → 单测   ✅ 完成
+3. P1 stream in-band 上报     → commit 独立 → 单测   ✅ 完成
+4. （待确认）P2-1 / P2-2      → 有实测症状才做
+5. 全量回归门禁 ✅ PASS
 ```
 
-**验收标准**：回归门禁 PASS（不得让已知通过的用例转红）；每条改动有对应单测；
-`docs/zh-CN/archive/upstream-triage-v0.5.81.md` 记账完整。
+**实际结果（2026-09-18）**
+
+| 项 | commit | 单测 | 门禁 |
+|---|---|---|---|
+| P0-1 | `169b087c` | `account-fallback-4xx.test.js` 6/6 | ✅ |
+| P0-2 | `04eb9998` | `connection-test-health-cleanup.test.js` 4/4 | ✅ |
+| P1 | `ae1b0b56` | `stream-abort-terminal.test.js` 5/5 | ✅ |
+
+全量回归门禁：`✅ No regression. (now fails=38, baseline known=40, all known)`
+—— 失败数 40 → 38（有 2 条已知失败反而通过了），**无新增失败**。
+三条 registry 基线逐字节一致（providers 91 / alias 122 / oauth-urls）、capability audit 通过。
+
+**P1 实施中的一个真实教训**：首轮我给 `emitTerminal` 加了 `onAbortTerminal(abortMessage)`
+参数，但 `abortMessage` 定义在 `pipeWithDisconnect` 作用域，`createDisconnectAwareStream`
+访问不到（且它本来就只有零参回调契约，Responses 直通直接传自己的零参 builder）。
+结果 `responses-abort-terminal.test.js` 转红 —— **被回归门禁当场拦下**，
+改为在 `pipeWithDisconnect` 内包闭包注入后通过。教训：跨函数传新参数前先确认
+接收侧的既有契约，别默认"多传一个参数无害"。
 
 ---
 
