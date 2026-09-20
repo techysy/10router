@@ -15,12 +15,18 @@ import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 const runtimeSessionStore = new Map();
 const continuationStore = new Map();
 
+// Emit an immutable audit trail entry for session lifecycle events (create/access/evict)
+function auditSessionEvent(event, sessionId, connectionId) {
+    console.log(`[AUDIT] ${new Date().toISOString()} event=${event} sessionId=${sessionId} connectionId=${connectionId || ""}`);
+}
+
 // Periodically evict entries that haven't been used within TTL
 const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of runtimeSessionStore) {
         if (now - entry.lastUsed > MEMORY_CONFIG.sessionTtlMs) {
             runtimeSessionStore.delete(key);
+            auditSessionEvent("evict", entry.sessionId, key);
         }
     }
 }, MEMORY_CONFIG.sessionCleanupIntervalMs);
@@ -50,6 +56,7 @@ export function deriveSessionId(connectionId) {
     const existing = runtimeSessionStore.get(connectionId);
     if (existing) {
         existing.lastUsed = Date.now();
+        auditSessionEvent("access", existing.sessionId, connectionId);
         return existing.sessionId;
     }
 
@@ -57,11 +64,13 @@ export function deriveSessionId(connectionId) {
     const MAX_SESSIONS = 1000;
     if (runtimeSessionStore.size >= MAX_SESSIONS) {
       const oldest = runtimeSessionStore.keys().next().value;
+      auditSessionEvent("evict", runtimeSessionStore.get(oldest)?.sessionId, oldest);
       runtimeSessionStore.delete(oldest);
     }
 
     const sessionId = generateBinaryStyleId();
     runtimeSessionStore.set(connectionId, { sessionId, lastUsed: Date.now() });
+    auditSessionEvent("create", sessionId, connectionId);
     return sessionId;
 }
 
