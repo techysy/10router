@@ -1132,7 +1132,7 @@ export default function ProviderLimits() {
             type="button"
             onClick={() => setExpiringFirst((prev) => !prev)}
             aria-pressed={expiringFirst}
-            className={`flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs transition-colors ${expiringFirst ? "border-amber-500/40 bg-amber-500/10 text-amber-500" : "border-black/10 text-text hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"}`}
+            className={`flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs transition-colors ${expiringFirst ? "border-amber-500/40 bg-amber-500/10 text-amber-500" : "border-black/10 text-text-muted hover:bg-black/5 hover:text-text dark:border-white/10 dark:hover:bg-white/5"}`}
             title={translate("Sort accounts by earliest quota reset time")}
           >
             <span className="material-symbols-outlined text-[14px]">
@@ -1140,12 +1140,15 @@ export default function ProviderLimits() {
             </span>
           </button>
 
-          {/* Bulk: disable depleted */}
+          <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+
+          {/* Bulk: disable depleted — neutral border, semantics carried by
+              icon/label color only (2.0 toolbar language) */}
           <button
             type="button"
             onClick={handleDisableDepleted}
             disabled={bulkToggling}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-red-500/30 px-2 text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50 dark:border-white/10"
             title={translate("Disable connections with depleted quota on the current page")}
           >
             <span className="material-symbols-outlined text-[14px]">block</span>
@@ -1157,7 +1160,7 @@ export default function ProviderLimits() {
             type="button"
             onClick={handleEnableAvailable}
             disabled={bulkToggling}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-emerald-500/30 px-2 text-xs text-emerald-500 transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:opacity-50 dark:border-white/10 dark:text-emerald-500"
             title={translate("Enable connections that still have quota on the current page")}
           >
             <span className="material-symbols-outlined text-[14px]">
@@ -1172,7 +1175,7 @@ export default function ProviderLimits() {
           <button
             type="button"
             onClick={handleHideDepletedQuotas}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-blue-500/30 px-2 text-xs text-blue-500 transition-colors hover:bg-blue-500/10"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-blue-600 transition-colors hover:bg-blue-500/10 dark:border-white/10 dark:text-blue-400"
             title={translate("Hide depleted (zero-balance) quota packs across current connections")}
           >
             <span className="material-symbols-outlined text-[14px]">
@@ -1185,7 +1188,7 @@ export default function ProviderLimits() {
           <button
             type="button"
             onClick={handleShowAllQuotas}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-text transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-text-muted transition-colors hover:bg-black/5 hover:text-text dark:border-white/10 dark:hover:bg-white/5"
             title={translate("Show all quota packs across current connections")}
           >
             <span className="material-symbols-outlined text-[14px]">
@@ -1194,12 +1197,14 @@ export default function ProviderLimits() {
             <span className="hidden sm:inline">{translate("Show all")}</span>
           </button>
 
+          <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+
           {/* Auto-refresh toggle */}
           <button
             type="button"
             onClick={() => setAutoRefresh((prev) => !prev)}
             aria-pressed={autoRefresh}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
+            className={`flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs transition-colors dark:border-white/10 ${autoRefresh ? "border-black/10 bg-black/[0.03] dark:bg-white/[0.06]" : "border-black/10 hover:bg-black/5 dark:hover:bg-white/5"}`}
             title={translate(autoRefresh ? "Disable auto-refresh" : "Enable auto-refresh")}
           >
             <span
@@ -1209,7 +1214,7 @@ export default function ProviderLimits() {
             >
               {autoRefresh ? "toggle_on" : "toggle_off"}
             </span>
-            <span className="hidden sm:inline">{translate("Auto-refresh")}</span>
+            <span className={`hidden sm:inline ${autoRefresh ? "" : "text-text-muted"}`}>{translate("Auto-refresh")}</span>
             {autoRefresh && (
               <span className="text-[10px] text-text-muted tabular-nums">
                 ({countdown}s)
@@ -1222,7 +1227,7 @@ export default function ProviderLimits() {
             type="button"
             onClick={() => refreshAll(true)}
             disabled={refreshingAll}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-text transition-colors hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5 disabled:opacity-50"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-text-muted transition-colors hover:bg-black/5 hover:text-text dark:border-white/10 dark:hover:bg-white/5 disabled:opacity-50"
             title={translate("Refresh all")}
           >
             <span
