@@ -109,8 +109,6 @@ export default function DashboardLayout({ children }) {
 
       {/* Main content */}
       <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
-        {/* Faint grid background */}
-        <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} onDesktopMenuClick={toggleSidebarCollapsed} sidebarCollapsed={sidebarCollapsed} />
         {/* Stays visible on every page until the instance is not open: no
             dashboard password, or the login check switched off. */}
