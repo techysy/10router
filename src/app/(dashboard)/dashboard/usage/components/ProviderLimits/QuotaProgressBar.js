@@ -12,25 +12,25 @@ const getColorClasses = (remainingPercentage) => {
       text: "text-green-500",
       bg: "bg-green-500",
       bgLight: "bg-green-500/10",
-      emoji: "🟢"
+      dot: "bg-green-500"
     };
   }
-  
+
   if (remainingPercentage >= 30) {
     return {
       text: "text-yellow-500",
       bg: "bg-yellow-500",
       bgLight: "bg-yellow-500/10",
-      emoji: "🟡"
+      dot: "bg-yellow-500"
     };
   }
-  
+
   // 0-29% including 0% (out of quota) - show red
   return {
     text: "text-red-500",
     bg: "bg-red-500",
     bgLight: "bg-red-500/10",
-    emoji: "🔴"
+    dot: "bg-red-500"
   };
 };
 
@@ -95,7 +95,7 @@ export default function QuotaProgressBar({
           {translateQuotaName(label)}
         </span>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs">{colors.emoji}</span>
+          <span aria-hidden="true" className={cn("inline-block size-1.5 rounded-full", colors.dot)} />
           <span className={cn("font-medium", colors.text)}>
             {remaining}%
           </span>

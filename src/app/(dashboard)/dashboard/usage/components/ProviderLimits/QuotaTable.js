@@ -71,7 +71,7 @@ function getColorClasses(remainingPercentage) {
       text: "text-green-600 dark:text-green-400",
       bg: "bg-green-500",
       bgLight: "bg-green-500/10",
-      emoji: "🟢",
+      dot: "bg-green-500",
     };
   }
 
@@ -80,7 +80,7 @@ function getColorClasses(remainingPercentage) {
       text: "text-yellow-600 dark:text-yellow-400",
       bg: "bg-yellow-500",
       bgLight: "bg-yellow-500/10",
-      emoji: "🟡",
+      dot: "bg-yellow-500",
     };
   }
 
@@ -88,7 +88,7 @@ function getColorClasses(remainingPercentage) {
     text: "text-red-600 dark:text-red-400",
     bg: "bg-red-500",
     bgLight: "bg-red-500/10",
-    emoji: "🔴",
+    dot: "bg-red-500",
   };
 }
 
@@ -189,9 +189,10 @@ export default function QuotaTable({
               key={`${quota.name}-${quota.index}`}
               className={`flex items-center gap-2 border-b border-black/5 dark:border-white/5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${cellPad}`}
             >
-              {/* Name */}
+              {/* Name — CSS status dot (was an emoji: rendered at platform-
+                  dependent size/shape, off-baseline next to 11px text) */}
               <div className="flex w-36 min-w-0 items-center gap-1.5">
-                <span className="text-[10px] shrink-0">{colors.emoji}</span>
+                <span aria-hidden="true" className={`inline-block size-1.5 shrink-0 rounded-full ${colors.dot}`} />
                 <span className={`${nameText} font-medium text-text truncate`}>
                   {translateQuotaName(quota.name)}
                 </span>
