@@ -8,112 +8,115 @@
 .fonts-loaded .material-symbols-outlined { visibility: visible; }
 
 /* ============================================================
-   10Router palette
-   Brand orange (dark) / soft coral (light), neutral warm bases
+   10Router 2.0 palette
+   Aligned with CreditDaddy: cool neutral surfaces, near-shadowless,
+   dual accent — green (light) / violet (dark).
    ============================================================ */
 :root {
-  /* Brand scale (light) - centered on #E56A4A */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #E56A4A;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Brand scale (light) - centered on #22c55e */
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+  --color-brand-900: #14532d;
 
   /* Primary (legacy alias for backward compat with existing components) */
   --color-primary: var(--color-brand-500);
   --color-primary-hover: var(--color-brand-600);
+  --color-primary-rgb: 34, 197, 94;
 
   /* Surfaces & backgrounds (light) */
-  --color-bg: #FDFAF6;
-  --color-bg-alt: #F7F3EE;
+  --color-bg: #f5f6f8;
+  --color-bg-alt: #eef0f3;
   --color-surface: #ffffff;
-  --color-surface-2: #f4f4f5;
-  --color-surface-3: #e7e7e9;
-  --color-sidebar: rgba(244, 241, 236, 0.85);
+  --color-surface-2: #f5f6f8;
+  --color-surface-3: #e9ebee;
+  --color-sidebar: rgba(255, 255, 255, 0.78);
 
   /* Borders */
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f1f1f3;
+  --color-border: #e5e5e5;
+  --color-border-subtle: #eeeeee;
 
   /* Text */
-  --color-text: #0a0a0a;
-  --color-text-main: #0a0a0a;
-  --color-text-muted: #6B7280;
-  --color-text-subtle: #9CA3AF;
+  --color-text: #1f1f1f;
+  --color-text-main: #1f1f1f;
+  --color-text-muted: #5f6368;
+  --color-text-subtle: #999999;
 
   /* Status */
-  --color-danger: #cf222e;
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-info: #3B82F6;
+  --color-danger: #dc2626;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-info: #3b82f6;
 
   /* Radius */
-  --radius-brand: 10px;
+  --radius-brand: 9px;
   --radius-brand-lg: 14px;
 
-  /* Shadows */
+  /* Shadows - near-shadowless, borders carry the weight */
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.04);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.18);
-  --shadow-elevated: 0 12px 28px -4px rgba(60, 50, 45, 0.06);
+  --shadow-warm: 0 2px 10px -2px rgba(0,0,0,0.08);
+  --shadow-elevated: 0 12px 28px -4px rgba(0,0,0,0.10);
   --shadow-elev:
-    inset 0 1px 0 0 rgba(255,255,255,0.8),
+    inset 0 1px 0 0 rgba(255,255,255,0.7),
     0 1px 2px rgba(15,23,42,0.04),
-    0 12px 36px -8px rgba(15,23,42,0.10);
-  --shadow-focus: 0 0 0 3px rgba(229,106,74,0.18);
+    0 12px 36px -8px rgba(15,23,42,0.08);
+  --shadow-focus: 0 0 0 3px rgba(var(--color-primary-rgb), 0.18);
 
   color-scheme: light;
 }
 
 .dark {
-  /* Brand scale (dark) - centered on #E56A4A, same as light for consistency */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #E56A4A;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Brand scale (dark) - centered on #7f77dd, CreditDaddy violet accent */
+  --color-brand-50: #f0effc;
+  --color-brand-100: #e4e1f9;
+  --color-brand-200: #cbc6f2;
+  --color-brand-300: #b0a9ea;
+  --color-brand-400: #968fe3;
+  --color-brand-500: #7f77dd;
+  --color-brand-600: #6c63cf;
+  --color-brand-700: #584fae;
+  --color-brand-800: #46408a;
+  --color-brand-900: #343063;
 
-  --color-primary: #E56A4A;
-  --color-primary-hover: #cc5236;
+  --color-primary: var(--color-brand-500);
+  --color-primary-hover: var(--color-brand-400);
+  --color-primary-rgb: 127, 119, 221;
 
-  /* Surfaces (dark - Claude-like neutral warm) */
-  --color-bg: #1a1a1a;
-  --color-bg-alt: #1F1F1E;
-  --color-surface: #262626;
-  --color-surface-2: #303030;
-  --color-surface-3: #3a3a3a;
-  --color-sidebar: rgba(30, 30, 30, 0.85);
+  /* Surfaces (dark - cool neutral near-black) */
+  --color-bg: #0a0a0c;
+  --color-bg-alt: #101013;
+  --color-surface: #131316;
+  --color-surface-2: #1b1b20;
+  --color-surface-3: #26262c;
+  --color-sidebar: rgba(19, 19, 22, 0.78);
 
-  --color-border: #333333;
-  --color-border-subtle: #2a2a2a;
+  --color-border: #2e2e33;
+  --color-border-subtle: #202025;
 
-  --color-text: #ededed;
-  --color-text-main: #ededed;
-  --color-text-muted: #9ca3af;
-  --color-text-subtle: #6b7280;
+  --color-text: #e6e6e9;
+  --color-text-main: #e6e6e9;
+  --color-text-muted: #a7a7ac;
+  --color-text-subtle: #76767b;
 
-  --color-danger: #ef4444;
-  --color-success: #22c55e;
-  --color-warning: #fbbf24;
+  --color-danger: #ff6b6b;
+  --color-success: #2ee59d;
+  --color-warning: #ffb03a;
   --color-info: #60a5fa;
 
   --shadow-soft: 0 1px 2px 0 rgba(0,0,0,0.3);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.25);
+  --shadow-warm: 0 2px 12px -2px rgba(0,0,0,0.4);
   --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
   --shadow-elev:
-    inset 0 1px 0 0 rgba(255,255,255,0.06),
+    inset 0 1px 0 0 rgba(255,255,255,0.05),
     0 1px 2px rgba(0,0,0,0.4),
-    0 16px 48px -8px rgba(0,0,0,0.55);
-  --shadow-focus: 0 0 0 3px rgba(229, 106, 74, 0.18);
+    0 16px 48px -8px rgba(0,0,0,0.5);
+  --shadow-focus: 0 0 0 3px rgba(var(--color-primary-rgb), 0.25);
 
   color-scheme: dark;
 }
@@ -171,18 +174,18 @@ select {
   --color-info: var(--color-info);
 
   /* Static fallbacks (explicit per-mode usage if needed) */
-  --color-bg-light: #FCFBF9;
-  --color-bg-dark: #1a1a1a;
+  --color-bg-light: #f5f6f8;
+  --color-bg-dark: #0a0a0c;
   --color-surface-light: #ffffff;
-  --color-surface-dark: #262626;
-  --color-sidebar-light: #F4F1EC;
-  --color-sidebar-dark: #1F1F1E;
-  --color-border-light: #e5e7eb;
-  --color-border-dark: #333333;
-  --color-text-main-light: #0a0a0a;
-  --color-text-main-dark: #ededed;
-  --color-text-muted-light: #6B7280;
-  --color-text-muted-dark: #9ca3af;
+  --color-surface-dark: #131316;
+  --color-sidebar-light: #fafafa;
+  --color-sidebar-dark: #131316;
+  --color-border-light: #e5e5e5;
+  --color-border-dark: #2e2e33;
+  --color-text-main-light: #1f1f1f;
+  --color-text-main-dark: #e6e6e9;
+  --color-text-muted-light: #5f6368;
+  --color-text-muted-dark: #a7a7ac;
 
   /* Radius */
   --radius-brand: var(--radius-brand);
@@ -210,12 +213,12 @@ body {
 
 /* Selection - brand-tinted */
 ::selection {
-  background-color: rgba(229, 106, 74, 0.25);
-  color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.22);
+  color: var(--color-text-main);
 }
 .dark ::selection {
-  background-color: rgba(229, 106, 74, 0.3);
-  color: var(--color-brand-300);
+  background-color: rgba(var(--color-primary-rgb), 0.32);
+  color: var(--color-text-main);
 }
 
 /* iOS keyboard accent */
@@ -241,19 +244,13 @@ input, textarea {
 /* Thin horizontal scrollbar - brand colored */
 .scroll-thin-x {
   scrollbar-width: thin;
-  scrollbar-color: rgba(229, 106, 74, 0.55) transparent;
-}
-.dark .scroll-thin-x {
-  scrollbar-color: rgba(229, 106, 74, 0.55) transparent;
+  scrollbar-color: rgba(var(--color-primary-rgb), 0.55) transparent;
 }
 .scroll-thin-x::-webkit-scrollbar { height: 3px; }
 .scroll-thin-x::-webkit-scrollbar-track { background: transparent; }
 .scroll-thin-x::-webkit-scrollbar-thumb {
-  background: rgba(229, 106, 74, 0.55);
+  background: rgba(var(--color-primary-rgb), 0.55);
   border-radius: 3px;
-}
-.dark .scroll-thin-x::-webkit-scrollbar-thumb {
-  background: rgba(229, 106, 74, 0.55);
 }
 
 /* Global thin mac-like scrollbars (overrides clunky Windows/Linux default) */
@@ -311,7 +308,7 @@ input, textarea {
   background: rgba(255, 255, 255, 0.72);
 }
 .dark .bg-vibrancy {
-  background: rgba(38, 38, 38, 0.72);
+  background: rgba(19, 19, 22, 0.72);
 }
 
 /* macOS Traffic Lights */
@@ -387,12 +384,12 @@ button:disabled,
 
 @keyframes border-glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(229, 106, 74, 0.3), 0 0 10px rgba(229, 106, 74, 0.2);
-    border-color: rgba(229, 106, 74, 0.5);
+    box-shadow: 0 0 5px rgba(var(--color-primary-rgb), 0.3), 0 0 10px rgba(var(--color-primary-rgb), 0.2);
+    border-color: rgba(var(--color-primary-rgb), 0.5);
   }
   50% {
-    box-shadow: 0 0 10px rgba(229, 106, 74, 0.5), 0 0 20px rgba(229, 106, 74, 0.3);
-    border-color: rgba(229, 106, 74, 0.8);
+    box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.5), 0 0 20px rgba(var(--color-primary-rgb), 0.3);
+    border-color: rgba(var(--color-primary-rgb), 0.8);
   }
 }
 .animate-border-glow { animation: border-glow 2s ease-in-out infinite; }
@@ -425,8 +422,8 @@ button:disabled,
   100% { transform: translateX(220%) skewX(-20deg); }
 }
 @keyframes ctaGlowPulse {
-  0%, 100% { box-shadow: 0 8px 24px -8px rgba(229, 106, 74, 0.45), 0 0 0 0 rgba(229, 106, 74, 0.5); }
-  50% { box-shadow: 0 12px 32px -8px rgba(229, 106, 74, 0.6), 0 0 0 8px rgba(229, 106, 74, 0); }
+  0%, 100% { box-shadow: 0 8px 24px -8px rgba(var(--color-primary-rgb), 0.45), 0 0 0 0 rgba(var(--color-primary-rgb), 0.5); }
+  50% { box-shadow: 0 12px 32px -8px rgba(var(--color-primary-rgb), 0.6), 0 0 0 8px rgba(var(--color-primary-rgb), 0); }
 }
 .btn-cta {
   position: relative;
@@ -452,13 +449,13 @@ button:disabled,
 .dot-grid-bg {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.10) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.06) 0%, transparent 40%);
+    radial-gradient(circle at 15% 20%, rgba(var(--color-primary-rgb), 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(var(--color-primary-rgb), 0.05) 0%, transparent 40%);
 }
 .dark .dot-grid-bg {
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.18) 0%, transparent 40%),
-    radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.10) 0%, transparent 40%);
+    radial-gradient(circle at 15% 20%, rgba(var(--color-primary-rgb), 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(var(--color-primary-rgb), 0.08) 0%, transparent 40%);
 }
 
 /* Landing-style faint grid overlay (use absolute pos inside relative parent) */

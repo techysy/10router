@@ -121,3 +121,4 @@ desktop/dist2/
 /browser-probe.png
 /probe-*.json
 /probe-*.png
+.ui-audit/
