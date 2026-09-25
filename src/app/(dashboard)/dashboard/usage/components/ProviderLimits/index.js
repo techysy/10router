@@ -1160,7 +1160,7 @@ export default function ProviderLimits() {
             type="button"
             onClick={handleEnableAvailable}
             disabled={bulkToggling}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:opacity-50 dark:border-white/10 dark:text-emerald-500"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 dark:border-white/10 px-2 text-xs text-emerald-500 transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
             title={translate("Enable connections that still have quota on the current page")}
           >
             <span className="material-symbols-outlined text-[14px]">
@@ -1175,7 +1175,7 @@ export default function ProviderLimits() {
           <button
             type="button"
             onClick={handleHideDepletedQuotas}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 px-2 text-xs text-blue-600 transition-colors hover:bg-blue-500/10 dark:border-white/10 dark:text-blue-400"
+            className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black/10 dark:border-white/10 px-2 text-xs text-blue-500 transition-colors hover:bg-blue-500/10"
             title={translate("Hide depleted (zero-balance) quota packs across current connections")}
           >
             <span className="material-symbols-outlined text-[14px]">
