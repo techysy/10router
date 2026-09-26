@@ -142,6 +142,21 @@ export async function POST(request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
+    // 同名 apikey 连接拒绝创建而不是静默覆盖存储的 key（#4311 / 上游 239bcfc5）：
+    // 脚本复用名字（"Key 1"、"Key 2"…）曾把连接池里已有的条目直接覆盖掉，
+    // 无 409 无警告。仅约束 API 入口——oauth 重连等内部 upsert 流程不受影响。
+    if (name && !isWebCookieProvider) {
+      const existing = (await getProviderConnections(provider)).find(
+        (c) => c.authType === "apikey" && c.name === connectionName
+      );
+      if (existing) {
+        return NextResponse.json(
+          { error: `An apikey connection named "${connectionName}" already exists for this provider. Choose a different name.` },
+          { status: 409 }
+        );
+      }
+    }
+
     let providerSpecificData = normalizeProviderSpecificData(provider, body, body.providerSpecificData);
 
     // Compatible LLM nodes support multiple API-key connections (key pool); runtime

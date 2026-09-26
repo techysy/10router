@@ -25,8 +25,25 @@ function deriveUuid(seed) {
 function generateFakeUserID(sessionId, apiKey) {
   const deviceId = apiKey ? createHash("sha256").update(`device:${apiKey}`).digest("hex") : randomBytes(32).toString("hex");
   const accountUuid = apiKey ? deriveUuid(`account:${apiKey}`) : randomUUID();
-  const sessionUuid = sessionId || randomUUID();
+  const cleanSessionId = typeof sessionId === "string" ? sessionId.replace(/^claude:/i, "").trim() : null;
+  const sessionUuid = cleanSessionId || randomUUID();
   return `{"device_id":"${deviceId}","account_uuid":"${accountUuid}","session_id":"${sessionUuid}"}`;
+}
+
+// 从 metadata.user_id（JSON 字符串、带 "claude:" 前缀的裸 id）提取 session_id，
+// 供 x-claude-code-session-id 头对齐（6aea3875）。
+export function extractClaudeSessionIdFromUserId(userId) {
+  if (typeof userId !== "string" || !userId) return null;
+  if (userId[0] === "{") {
+    try {
+      const sid = JSON.parse(userId)?.session_id;
+      return typeof sid === "string" && sid ? sid.replace(/^claude:/i, "").trim() || null : null;
+    } catch {
+      return null;
+    }
+  }
+  const clean = userId.replace(/^claude:/i, "").trim();
+  return clean || null;
 }
 
 /**

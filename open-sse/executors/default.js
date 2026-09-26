@@ -1,6 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS, PROVIDER_OAUTH } from "../config/providers.js";
-import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selectAnthropicBeta } from "../providers/shared.js";
+import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selectAnthropicBeta, mergeAnthropicBeta } from "../providers/shared.js";
+import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
@@ -146,7 +147,7 @@ export class DefaultExecutor extends BaseExecutor {
     return BEARER;
   }
 
-  buildHeaders(credentials, stream = true, url, model) {
+  buildHeaders(credentials, stream = true, url, model, body) {
     const rt = credentials?.runtimeTransport;
     const headers = { "Content-Type": "application/json", ...(rt ? rt.headers : this.config.headers) };
     const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || this.resolveAuthDescriptor();
@@ -166,7 +167,22 @@ export class DefaultExecutor extends BaseExecutor {
     const isClaudeModel = typeof model === "string" && /^claude-/.test(model);
     if (model && (this.provider === "claude"
       || (this.provider?.startsWith?.("anthropic-compatible-") && isClaudeModel))) {
-      headers["Anthropic-Beta"] = selectAnthropicBeta(model);
+      // 客户端自带的 beta 旗标并入上游计算值（dc198dff）：客户端显式要求的
+      // beta 特性（如 context-management）必须在请求里存活。
+      const clientBeta = credentials?.rawHeaders?.["anthropic-beta"];
+      headers["Anthropic-Beta"] = mergeAnthropicBeta(selectAnthropicBeta(model), clientBeta);
+    } else if (this.provider === "anthropic" && credentials?.rawHeaders?.["anthropic-beta"]) {
+      headers["Anthropic-Beta"] = mergeAnthropicBeta(headers["Anthropic-Beta"], credentials.rawHeaders["anthropic-beta"]);
+    }
+
+    // Claude OAuth：x-claude-code-session-id 缺失时与 metadata.user_id.session_id
+    // 对齐（6aea3875）——指纹一致性依赖两者相同。
+    if (this.provider === "claude" && !headers["x-claude-code-session-id"]) {
+      const token = credentials?.accessToken || credentials?.apiKey || "";
+      if (token.includes("sk-ant-oat")) {
+        const sid = extractClaudeSessionIdFromUserId(body?.metadata?.user_id);
+        if (sid) headers["x-claude-code-session-id"] = sid;
+      }
     }
 
     // Strip first-party Claude Code identity headers for non-Anthropic anthropic-compatible upstreams

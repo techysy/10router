@@ -67,6 +67,13 @@ export function selectAnthropicBeta(model = "") {
   return flags.join(",");
 }
 
+// 合并多来源的 anthropic-beta 旗标（去重、保序）：上游计算值 + 客户端自带的
+// beta 头。客户端显式要求的 beta 特性（如 context-management）必须存活。
+export function mergeAnthropicBeta(...values) {
+  const flags = values.flatMap((v) => (typeof v === "string" ? v.split(",") : [])).map((f) => f.trim()).filter(Boolean);
+  return [...new Set(flags)].join(",");
+}
+
 // Shared baseUrls
 export const KIMI_CODING_BASE_URL = "https://api.kimi.com/coding/v1/messages";
 

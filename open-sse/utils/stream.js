@@ -59,7 +59,11 @@ export function createSSEStream(options = {}) {
   const decoder = new TextDecoder("utf-8", { fatal: false });
 
   const state = mode === STREAM_MODE.TRANSLATE
-    ? { ...initState(sourceFormat), provider, toolNameMap, customToolNames: new Set(customToolNames || []), model }
+    ? { ...initState(sourceFormat), provider, toolNameMap, customToolNames: new Set(customToolNames || []), model,
+        // 本流的upstream格式。响应翻译器可能被直接命中（target === 注册源），
+        // 也可能作为 pivot 的第二跳——终态 null chunk 时 pivot 会丢弃第一跳的
+        // 返回，需要延迟收尾事件的翻译器知道自己在哪种情形里。缺省=未知，不延迟。
+        targetFormat }
     : null;
 
   let totalContentLength = 0;
