@@ -33,6 +33,15 @@
    cp -r ../../node_modules/{node-forge,sql.js,next,better-sqlite3} node_modules/
    ```
 
+   **测试构建必须盖印版本号**（否则仪表盘/manifest 显示的是 release 版本号，
+   与线上 release 产物无法区分——2026-09-27 前的热替换曾全部漏盖）：
+
+   ```bash
+   node scripts/test-build-version.mjs 1.2.2-test.N   # 盖印 package.json×3 + manifest（不提交）
+   npm run build
+   # 测完: node scripts/test-build-version.mjs --revert
+   ```
+
 ### 1b. 构建机被其他分支占用时：隔离 worktree + 补丁
 
 构建机的 `~/projects/10router` 可能正被另一个会话用在别的分支上（2026-09-26：停在 `2.0.0`、带未提交的

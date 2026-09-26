@@ -1875,5 +1875,20 @@
   "Disable auto-refresh": "关闭自动刷新",
   "Enable auto-refresh": "开启自动刷新",
   "All quota rows are hidden — use the chips below to show them": "所有配额行都已隐藏 — 用下方标签可重新显示",
-  "Backup downloaded, but {count} connection(s) could not be decrypted — their credentials are stored as ciphertext and can only be restored with the original key.": "备份已下载，但有 {count} 个连接无法解密 —— 其凭据以密文形式保存，只有用原始密钥才能恢复。"
+  "Backup downloaded, but {count} connection(s) could not be decrypted — their credentials are stored as ciphertext and can only be restored with the original key.": "备份已下载，但有 {count} 个连接无法解密 —— 其凭据以密文形式保存，只有用原始密钥才能恢复。",
+  "Or sign in via the server (headless / NAS)": "或通过服务端登录（无头 / NAS 部署）",
+  "Account region": "账号区域",
+  "Starting login proxy...": "正在启动登录代理…",
+  "Waiting for the login window...": "等待登录窗口完成…",
+  "Saving the captured session...": "正在保存捕获的会话…",
+  "Sign in via Server Proxy": "通过服务端代理登录",
+  "Complete the Xiaomi sign-in in the popup window; this dialog continues automatically.": "在弹出的窗口中完成小米登录，本对话框会自动继续。",
+  "Login window timed out — try again.": "登录窗口超时——请重试。",
+  "Failed to start the login proxy": "登录代理启动失败",
+  "Failed to save the captured session": "保存捕获的会话失败",
+  "CN 中国": "CN 中国",
+  "SGP 新加坡": "SGP 新加坡",
+  "AMS 阿姆斯特丹": "AMS 阿姆斯特丹",
+  "RU 俄罗斯": "RU 俄罗斯",
+  "IN 印度": "IN 印度"
 }

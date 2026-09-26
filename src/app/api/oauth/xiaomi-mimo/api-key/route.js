@@ -15,7 +15,14 @@ import { createProviderConnection } from "@/models";
  */
 export async function POST(request) {
   try {
-    const { apiKey, uid, baseUrl, mimoPassToken, mimoUserId, mimoCUserId, sessionOnly, provider: requestedProvider } = await request.json();
+    const { apiKey, uid, baseUrl, mimoPassToken, mimoUserId, mimoCUserId, sessionOnly, region, provider: requestedProvider } = await request.json();
+
+    // 区域集群（对照上游 910db749）：cn/sgp/ams/ru/in 选择账号服务集群，
+    // 缺省 cn（存量 Desktop cookie 都是 CN 签发）。非法值一律忽略回落 cn。
+    const VALID_REGIONS = ["cn", "sgp", "ams", "ru", "in"];
+    const effectiveRegion = VALID_REGIONS.includes(String(region || "").toLowerCase())
+      ? String(region).toLowerCase()
+      : "cn";
 
     // Which Xiaomi card this import targets. Both cards share this endpoint
     // (`xiaomi-mimo` = cloud models, `mimo-desktop` = account-session models, split
@@ -124,6 +131,7 @@ export async function POST(request) {
           mimoPassToken: session.passToken,
           mimoUserId: session.userId,
           mimoCUserId: session.cUserId,
+          region: effectiveRegion,
         }
       : {};
 
@@ -151,6 +159,8 @@ export async function POST(request) {
                 mimoPassToken: session.passToken || existingPsd.mimoPassToken || null,
                 mimoUserId: session.userId || existingPsd.mimoUserId || null,
                 mimoCUserId: session.cUserId || existingPsd.mimoCUserId || null,
+                // 区域随本次导入刷新（用户可能换集群重新登录）。
+                region: effectiveRegion,
               }
             : {}),
           modelCount: modelCount || existingPsd.modelCount,

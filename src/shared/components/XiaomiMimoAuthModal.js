@@ -44,6 +44,10 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
   const [oauthState, setOauthState] = useState(null);
   const [authCode, setAuthCode] = useState("");
   const [submittingCode, setSubmittingCode] = useState(false);
+  // 服务端登录代理（对照上游 910db749）：headless 部署无需本机装 MiMo Desktop。
+  const [serverLoginRegion, setServerLoginRegion] = useState("cn");
+  const [serverLoginPhase, setServerLoginPhase] = useState("idle"); // idle | starting | logging-in | saving
+  const [serverLoginError, setServerLoginError] = useState(null);
 
   const detect = async () => {
     setPhase("detecting");
@@ -170,6 +174,70 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
     } catch (err) {
       setPhase("found");
       setError(err.message);
+    }
+  };
+
+  // 服务端登录代理：start 取回同源登录页路径并弹窗，status 轮询到 passToken
+  // 后直接保存连接（凭据只落在服务端 jar，浏览器拿到的就是最终身份一次）。
+  const MIMO_REGIONS = { cn: "CN 中国", sgp: "SGP 新加坡", ams: "AMS 阿姆斯特丹", ru: "RU 俄罗斯", in: "IN 印度" };
+  const handleServerLogin = async () => {
+    setServerLoginError(null);
+    setServerLoginPhase("starting");
+    try {
+      const res = await fetch(`/api/oauth/xiaomi-mimo/login/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: serverLoginRegion }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(translate(data.error || "Failed to start the login proxy"));
+      }
+      setServerLoginPhase("logging-in");
+      window.open(data.pageUrl, "_blank", "width=480,height=760");
+
+      const deadline = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500));
+        let sdata;
+        try {
+          const sres = await fetch(`/api/oauth/xiaomi-mimo/login/status?state=${encodeURIComponent(data.state)}`);
+          if (sres.status === 404) continue; // session expired — keep polling till deadline
+          sdata = await sres.json();
+        } catch {
+          continue; // transient network blip — keep polling
+        }
+        if (sdata.status === "done") {
+          setServerLoginPhase("saving");
+          const saveRes = await fetch(`/api/oauth/xiaomi-mimo/api-key`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: "mimo-desktop",
+              sessionOnly: true,
+              region: sdata.region,
+              mimoPassToken: sdata.passToken,
+              mimoUserId: sdata.userId,
+              mimoCUserId: sdata.cUserId,
+            }),
+          });
+          const saveData = await saveRes.json();
+          if (!saveRes.ok || !saveData.success) {
+            throw new Error(translate(saveData.error || "Failed to save the captured session"));
+          }
+          setServerLoginPhase("idle");
+          onSuccess?.(saveData.connection);
+          onClose();
+          return;
+        }
+        if (sdata.status === "error") {
+          throw new Error(translate(sdata.error || "Login failed"));
+        }
+      }
+      throw new Error(translate("Login window timed out — try again."));
+    } catch (err) {
+      setServerLoginError(err.message);
+      setServerLoginPhase("idle");
     }
   };
 
@@ -500,6 +568,39 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
             >
               {translate("Retry Local Detect")}
             </Button>
+
+            {/* 服务端登录代理（对照上游 910db749）：不装 Desktop 也能登录——
+                服务端反代 account.xiaomi.com 并在服务端 jar 捕获 passToken。
+                需要 dashboard 登录态；non-CN 集群自动探测本地代理出口。 */}
+            <div className="border-t border-border pt-3 mt-1">
+              <p className="text-sm font-medium mb-2">{translate("Or sign in via the server (headless / NAS)")}</p>
+              <label className="text-xs text-text-muted mb-1 block">{translate("Account region")}</label>
+              <select
+                value={serverLoginRegion}
+                onChange={(e) => setServerLoginRegion(e.target.value)}
+                disabled={serverLoginPhase !== "idle"}
+                className="w-full mb-2 px-3 py-2 rounded-lg border border-border bg-surface text-sm"
+              >
+                {Object.entries(MIMO_REGIONS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              <Button onClick={handleServerLogin} disabled={serverLoginPhase !== "idle"} fullWidth>
+                {serverLoginPhase === "starting"
+                  ? translate("Starting login proxy...")
+                  : serverLoginPhase === "logging-in"
+                    ? translate("Waiting for the login window...")
+                    : serverLoginPhase === "saving"
+                      ? translate("Saving the captured session...")
+                      : translate("Sign in via Server Proxy")}
+              </Button>
+              {serverLoginPhase === "logging-in" && (
+                <p className="text-xs opacity-70 mt-1">{translate("Complete the Xiaomi sign-in in the popup window; this dialog continues automatically.")}</p>
+              )}
+              {serverLoginError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">{serverLoginError}</p>
+              )}
+            </div>
           </>
         )}
       </div>
