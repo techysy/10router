@@ -1884,6 +1884,8 @@
   "Sign in via Server Proxy": "通过服务端代理登录",
   "Complete the Xiaomi sign-in in the popup window; this dialog continues automatically.": "在弹出的窗口中完成小米登录，本对话框会自动继续。",
   "Login window timed out — try again.": "登录窗口超时——请重试。",
+  "Login window was closed before the sign-in finished — try again.": "登录窗口已关闭且未完成登录——请重试。",
+  "Login session expired — start the sign-in again.": "登录会话已失效——请重新开始登录。",
   "Failed to start the login proxy": "登录代理启动失败",
   "Failed to save the captured session": "保存捕获的会话失败",
   "CN 中国": "CN 中国",

@@ -6,7 +6,9 @@ import { sessionFromRequest, readSessionIdentity, attachSessionCookie } from "@/
  * Polls the server-side login session (state lives in the httpOnly session
  * cookie — route handlers and the proxy don't share module memory). When a
  * passToken is in the jar, probes /api/user/xiaomi/me once to confirm the
- * session works, then returns the identity for the client to persist.
+ * session works. The identity itself never crosses the browser: "done" just
+ * flips the modal to the save step, and the api-key route reads it from the
+ * same-origin request's session cookie and consumes it there.
  */
 export async function GET(request) {
   const url = new URL(request.url);
@@ -37,9 +39,7 @@ export async function GET(request) {
     );
   }
 
-  const payload = { status: "done", region: sess.region, ...id };
-  // One-shot: don't let the identity linger past the client reading it.
-  const res = NextResponse.json(payload);
-  res.cookies.set("9r_mimo_login", "", { path: "/", httpOnly: true, maxAge: 0 });
-  return res;
+  // No identity in the payload and no cookie clear here — the api-key save is
+  // the one-shot consumer (it clears the cookie after storing the credential).
+  return NextResponse.json({ status: "done", region: sess.region });
 }

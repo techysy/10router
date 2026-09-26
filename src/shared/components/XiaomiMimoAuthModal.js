@@ -177,8 +177,9 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
     }
   };
 
-  // 服务端登录代理：start 取回同源登录页路径并弹窗，status 轮询到 passToken
-  // 后直接保存连接（凭据只落在服务端 jar，浏览器拿到的就是最终身份一次）。
+  // 服务端登录代理：start 取回同源登录页路径并弹窗，status 轮询只等到 done；
+  // 随后的保存调用让 api-key 路由从本次请求自带的 httpOnly 会话 cookie 里读出
+  // 凭据并消费——passToken 全程不经过浏览器。
   const MIMO_REGIONS = { cn: "CN 中国", sgp: "SGP 新加坡", ams: "AMS 阿姆斯特丹", ru: "RU 俄罗斯", in: "IN 印度" };
   const handleServerLogin = async () => {
     setServerLoginError(null);
@@ -194,20 +195,24 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
         throw new Error(translate(data.error || "Failed to start the login proxy"));
       }
       setServerLoginPhase("logging-in");
-      window.open(data.pageUrl, "_blank", "width=480,height=760");
+      const popup = window.open(data.pageUrl, "_blank", "width=480,height=760");
 
-      const deadline = Date.now() + 10 * 60 * 1000;
+      const deadline = Date.now() + 5 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
-        let sdata;
+        let sdata = null;
+        let sessionExpired = false;
         try {
           const sres = await fetch(`/api/oauth/xiaomi-mimo/login/status?state=${encodeURIComponent(data.state)}`);
-          if (sres.status === 404) continue; // session expired — keep polling till deadline
-          sdata = await sres.json();
+          if (sres.status === 404) sessionExpired = true; // server-side session gone (restart/TTL) — terminal
+          else sdata = await sres.json();
         } catch {
-          continue; // transient network blip — keep polling
+          // transient network blip — keep polling
         }
-        if (sdata.status === "done") {
+        // "done" is checked BEFORE the popup-closed exit below: the user may
+        // close the window right after finishing the sign-in, and that final
+        // poll still carries the captured identity.
+        if (sdata?.status === "done") {
           setServerLoginPhase("saving");
           const saveRes = await fetch(`/api/oauth/xiaomi-mimo/api-key`, {
             method: "POST",
@@ -216,9 +221,7 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
               provider: "mimo-desktop",
               sessionOnly: true,
               region: sdata.region,
-              mimoPassToken: sdata.passToken,
-              mimoUserId: sdata.userId,
-              mimoCUserId: sdata.cUserId,
+              fromServerLogin: true,
             }),
           });
           const saveData = await saveRes.json();
@@ -230,8 +233,16 @@ export default function XiaomiMimoAuthModal({ provider, isOpen, onSuccess, onClo
           onClose();
           return;
         }
-        if (sdata.status === "error") {
+        if (sdata?.status === "error") {
           throw new Error(translate(sdata.error || "Login failed"));
+        }
+        // Fail fast instead of spinning until the deadline: a closed popup or
+        // an expired server session can never reach "done".
+        if (popup && popup.closed) {
+          throw new Error(translate("Login window was closed before the sign-in finished — try again."));
+        }
+        if (sessionExpired) {
+          throw new Error(translate("Login session expired — start the sign-in again."));
         }
       }
       throw new Error(translate("Login window timed out — try again."));
