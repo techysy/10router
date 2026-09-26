@@ -1129,5 +1129,10 @@
         }
       }
     ]
+  },
+  "longcat-intl": {
+    "baseUrl": "https://api.longcat.ai/openai/v1/chat/completions",
+    "validateUrl": "https://api.longcat.ai/openai/v1/models",
+    "format": "openai"
   }
 }

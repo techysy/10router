@@ -12,7 +12,7 @@ export default {
     textIcon: "LC",
     website: "https://longcat.chat",
     notice: {
-      apiKeyUrl: "https://longcat.chat/platform/product",
+      apiKeyUrl: "https://longcat.chat/platform/product?inviteCode=ULW84AMZ",
     },
   },
   category: "apikey",

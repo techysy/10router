@@ -8,6 +8,7 @@ const ICON_ALIASES = {
   "b.ai": "bai",
   "b-ai": "bai",
   "siliconflow-cn": "siliconflow",
+  "longcat-intl": "longcat",
   "stepfun-cn": "stepfun",
   "stepfun-plan": "stepfun",
   "stepfun-plan-cn": "stepfun",

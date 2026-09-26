@@ -138,6 +138,7 @@ import p138 from "./stepfun-cn.js";
 import p139 from "./stepfun-plan.js";
 import p140 from "./stepfun-plan-cn.js";
 import p141 from "./mimo-desktop.js";
+import p142 from "./longcat-intl.js";
 
 export default [
   p0,
@@ -277,4 +278,5 @@ export default [
   p139,
   p140,
   p141,
+  p142,
 ];
