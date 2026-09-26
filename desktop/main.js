@@ -27,9 +27,16 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// 可选风味（build.ps1 -Flavor 注入 desktop/package.json 的 flavor 键）：
+// 让 2.0 测试壳以独立身份与正式版并存——独立 userData/数据目录/默认端口，
+// 不共享也不覆盖 %APPDATA%\10router 里的正式数据。
+const PKG = require('./package.json');
+const FLAVOR = PKG.flavor || null;
+const BRAND = FLAVOR?.label ? `10Router ${FLAVOR.label}` : '10Router';
+
 // 必须先于一切 getPath('userData') 调用:productName "10Router" 在 Windows(大小写
 // 不敏感)上会与服务数据目录 %APPDATA%\10router 撞名,壳日志会混进服务数据。
-app.setName('10router-desktop');
+app.setName(FLAVOR?.id ? `10router-desktop-${FLAVOR.id}` : '10router-desktop');
 
 // ──────────────────────── i18n(与 cli/src/cli/i18n 同规则,内嵌避免跨包依赖) ────
 const STRINGS = {
@@ -327,7 +334,7 @@ function tr(key, params) {
 }
 
 // ──────────────────────── 常量与全局状态 ────────────────────────
-const PORT = parseInt(process.env.ROUTER_PORT || '20128', 10);
+const PORT = parseInt(process.env.ROUTER_PORT || String(FLAVOR?.port || 20128), 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const DASHBOARD_URL = `${BASE_URL}/dashboard`;
 const IS_PACKAGED = app.isPackaged;
@@ -337,8 +344,8 @@ const APP_DIR = IS_PACKAGED
     ? path.join(RESOURCES, 'app')
     : (process.env.ROUTER_APP_DIR || path.join(ROOT, 'cli', 'app'));
 const DATA_DIR = process.platform === 'win32'
-    ? path.join(process.env.APPDATA || app.getPath('userData'), '10router')
-    : path.join(os.homedir(), '.10router');
+    ? path.join(process.env.APPDATA || app.getPath('userData'), FLAVOR?.dataDirName || '10router')
+    : path.join(os.homedir(), FLAVOR?.dataDirName ? `.${FLAVOR.dataDirName}` : '.10router');
 const LOG_DIR = path.join(app.getPath('userData'), 'logs');
 const MAX_LOG_SIZE = 5 * 1024 * 1024;
 
@@ -457,6 +464,7 @@ async function startServer() {
         ELECTRON_RUN_AS_NODE: '1',      // 用 Electron 二进制以纯 Node 模式运行 sidecar
         NODE_ENV: 'production',
         PORT: String(PORT),
+        DATA_DIR: process.env.DATA_DIR || DATA_DIR,   // 风味壳与正式版数据目录隔离；外部显式 DATA_DIR 优先
         HOSTNAME: '0.0.0.0',            // 与 CLI 一致,局域网设备可直接访问
         // 安装渠道标记:仪表盘「检查更新」据此显示 GitHub Releases 链接而非
         // npm 安装命令(桌面版更新 = 下载新安装包,更新 npm 包碰不到内嵌 cli/app)。
@@ -1076,7 +1084,7 @@ function rebuildMenu() {
         },
     ]);
     tray.setContextMenu(menu);
-    tray.setToolTip(`10Router — ${STATE_LABEL[state]()}`);
+    tray.setToolTip(`${BRAND} — ${STATE_LABEL[state]()}`);
 }
 
 function winTaskbarDark() {
