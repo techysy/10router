@@ -1,0 +1,23 @@
+# 拦截「空白 issue」入口 —— 强制走模板。
+#
+# 这个仓库的 issue 里，真正的复现信息（平台、版本位、安装方式）经常缺失，
+# 而 10Router 有五种安装方式、四个并行的版本号位置、以及桌面 / fnOS / Docker
+# 三套彼此无关的构建产物，没有这些信息基本无法定位。裸标题来件直接关掉。
+blank_issues_enabled: false
+
+contact_links:
+  - name: 📖 先读文档导航（架构 / 工程专题 / 构建与验证）
+    url: https://github.com/techysy/10router/blob/main/docs/README.md
+    about: 中英双语专题文档。SQLite 驱动链、翻译器、供应商注册表、fnOS 热替换部署、下载校验等都有专门篇章。
+
+  - name: 📦 下载与安装说明（五种安装方式）
+    url: https://github.com/techysy/10router/blob/main/README.md#下载
+    about: Windows / macOS / fnOS fpk / Docker / npm / Standalone server 的产物清单与安装步骤，含 macOS 未签名应用的打开方式与 fnOS 忘记密码的重置入口。
+
+  - name: 🧩 用量同步插件（10router-sync）
+    url: https://github.com/techysy/10router/blob/main/zcode-plugin/README.md
+    about: 跨宿主用量同步插件的配置、离线导出与灌回流程。
+
+  - name: 🐣 上游 9Router（本仓库功能自行重写落地，不跟随上游 issue）
+    url: https://github.com/decolua/9router
+    about: 10Router 基于上游 v0.5.55 快照，上游新功能一律阅读理解后在本仓库重写。上游 issue 仅作参考，请提到本仓库。

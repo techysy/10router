@@ -1,0 +1,93 @@
+name: 🔒 安全问题
+description: 安全缺陷、加固建议、审计反馈（含凭据 / 认证 / 网络暴露面）
+title: "[安全] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **请不要在公开 issue 里贴任何可用的密钥、token、Cookie 原文或你自己的部署凭据。**
+        > 需要提供证据时，用脱敏后的片段（保留结构、替换真实值）即可。
+        >
+        > 如果你认为这是一个**尚未公开、可被利用的漏洞**，请先不要开公开 issue —— 走
+        > [GitHub Security Advisories](https://github.com/techysy/10router/security/advisories/new)
+        > 私下报告，修复后再公开讨论。
+
+        本仓库已有的安全基线（报告前请先确认是否已覆盖）：
+        - `JWT_SECRET` 会话 cookie、`INITIAL_PASSWORD` 唯一引导密码（**无内置默认值**；未设置且未启 SSO 时仪表盘仅限回环访问，远程调用被拒）
+        - `custom-server.js` 从 TCP socket 推导客户端 IP，仅信任回环反代的转发头
+        - MITM 代理加固：TLS 校验、根 CA 私钥 0600、不盲杀 443、hosts 清理
+        - 凭据落库加密（AES-GCM）
+
+        相关既有讨论：#9（v1.0.7 审计 11 项清单）、#31（MITM argv 泄漏）。**请先确认不是这两条的重复。**
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 问题类别
+      options:
+        - 认证 / 授权 / 会话
+        - 凭据存储与加密
+        - 网络暴露面（监听地址、端口、反向代理）
+        - MITM 代理
+        - 依赖漏洞
+        - 信息泄漏（日志、进程参数、错误响应）
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 你认为的严重程度
+      description: 按「利用难度 × 影响面」自评，维护者复核后可能调整。
+      options:
+        - 严重 —— 可远程未授权利用，或直接导致凭据泄漏
+        - 中危 —— 需要一定前置条件（本地访问 / 特定配置）
+        - 低危 —— 加固建议、纵深防御
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 受影响的版本
+      description: 在哪个版本上确认存在。若跨多个版本，写范围。
+      placeholder: 1.2.1 或 >= 1.0.7
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 什么机制有问题、影响是什么。**不要粘贴真实凭据。**
+    validations:
+      required: true
+
+  - type: textarea
+    id: poc
+    attributes:
+      label: 验证方式 / 复现步骤
+      description: 如何确认它真的成立。命令请用脱敏值。
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 修复建议
+      description: 有方案就写；没有也可以留空。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: prechecked
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我**没有**在本 issue 中粘贴任何真实可用的密钥 / token / Cookie
+          required: true
+        - label: 我已确认这不是 #9 或 #31 的重复，且不是需要私下报告的在野漏洞
+          required: true
