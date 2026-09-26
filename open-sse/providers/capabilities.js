@@ -249,6 +249,10 @@ export const MODEL_CAPABILITIES = {
   "gpt-audio":                  { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
   "gpt-audio-mini":             { audioInput: true, audioOutput: true, contextWindow: 128000, maxOutput: 16384 },
   "LongCat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // longcat/LongCat-2.0（第一方）；纯文本
+  // LongCat-2.5-Preview（2026-09-25 上线，第一方）：快速开始限流规则 1M/128K；
+  // 视觉理解文档确认图片（image_url 块）+ 视频（video_url 块）输入；chat 文档
+  // 确认 thinking {type:enabled|disabled} 开关与 reasoning_content 响应。
+  "LongCat-2.5-Preview":        { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
   // opencode-go 的目录用小写 longcat-2.0，而 canonical 查表区分大小写 → 必须单独一行
   // （同值，来源同上；models.dev 的 opencode-go 条目 1000000/131072 与第一方一致）。
   "longcat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // 同上，小写 id

@@ -20,5 +20,10 @@ export default {
     baseUrl: "https://api.longcat.chat/openai/v1/chat/completions",
     validateUrl: "https://api.longcat.chat/openai/v1/models",
   },
-  models: [{ id: "LongCat-2.0", name: "LongCat 2.0" }],
+  // 2026-09-25 上线（官方更新日志）：多模态（image_url/video_url 块）+ thinking
+  // 开关；快速开始限流规则 1M 上下文 / 128K 输出。当前在线模型仅 2.5-Preview 与 2.0。
+  models: [
+    { id: "LongCat-2.5-Preview", name: "LongCat 2.5 Preview" },
+    { id: "LongCat-2.0", name: "LongCat 2.0" },
+  ],
 };
