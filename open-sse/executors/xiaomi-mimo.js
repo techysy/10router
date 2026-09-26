@@ -1,5 +1,5 @@
 import { DefaultExecutor } from "./default.js";
-import { getMimoAccountCookie, invalidateMimoAccountCookieCache, MIMO_API_BASE, MIMO_API_UA } from "../shared/mimoAccount.js";
+import { getMimoAccountCookie, invalidateMimoAccountCookieCache, mimoApiBaseFor, MIMO_API_UA } from "../shared/mimoAccount.js";
 import { normalizeMimoApiBase } from "../config/providers.js";
 
 // The `mimo-desktop` card's models are served by the account service's /api/route
@@ -60,7 +60,8 @@ export class XiaomiMimoExecutor extends DefaultExecutor {
     // is not one of the declared transports — resolve it before the default
     // runtimeTransport path.
     if (this.usesAccountSession()) {
-      return `${MIMO_API_BASE}/api/route/chat/completions`;
+      // 账号路由跟随连接的区域集群（providerSpecificData.region，缺省 cn）。
+      return `${mimoApiBaseFor(credentials?.providerSpecificData)}/api/route/chat/completions`;
     }
     // The endpoint the platform handed back at sign-in (stored as psd.baseUrl —
     // exactly what MiMo Desktop keeps in auth.json metadata.base_url) decides the

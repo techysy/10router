@@ -91,6 +91,12 @@ export default {
     // account service. That route accepts only OpenAI format.
     // requiresSession marks "only accepts the MiMo Desktop account cookie"; the
     // dashboard model row renders the "desktop sign-in required" badge from it.
+    //
+    // 区域集群（对照上游 910db749）：providerSpecificData.region ∈
+    // cn|sgp|ams|ru|in 选择账号服务集群（mimo-server-<region>），缺省 cn ——
+    // 存量连接的 Desktop cookie 都是 CN 集群签发的。passToken 也可直接写在
+    // providerSpecificData.mimoPassToken（无头部署免装 Desktop），此时 cookie
+    // 现读被跳过。
     { id: "mimo-v2.6-pro", name: "MiMo V2.6 Pro", rateMultiplier: 1, supportedFormats: ["openai"], requiresSession: true },
     { id: "mimo-v2.6-flash", name: "MiMo V2.6 Flash", rateMultiplier: 0.4, supportedFormats: ["openai"], requiresSession: true },
   ],

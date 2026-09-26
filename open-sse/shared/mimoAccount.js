@@ -21,7 +21,31 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
  *   5. GET  {api}/api/sts?...&ticket...        -> Set-Cookie: serviceToken (mimopc scope)
  */
 
-const API_BASE = "https://mimo-server-cn.xiaomimimo.com";
+// 账号服务集群。MiMo Desktop 声明五个区域（rn = {CN, SGP, RU, IN, EU}），EU 部署在
+// Amsterdam。host 与 SSO sid 命名一一对应：mimo-server-<code> / sid = mimo<code>
+// （ams 是唯一非国家码）。host 列表经 /api/user/xiaomi/me 实测验证（对照上游 910db749）。
+const API_BASE_BY_REGION = {
+  cn: "https://mimo-server-cn.xiaomimimo.com",
+  sgp: "https://mimo-server-sgp.xiaomimimo.com",
+  ams: "https://mimo-server-ams.xiaomimimo.com",
+  ru: "https://mimo-server-ru.xiaomimimo.com",
+  in: "https://mimo-server-in.xiaomimimo.com",
+};
+// 集群 SSO sid —— 与 host 码 1:1：mimo<code>；cn 的集群 sid 是历史名 mimopc。
+const SID_BY_REGION = { cn: "mimopc", sgp: "mimosgp", ams: "mimoams", ru: "mimoru", in: "mimoin" };
+// 缺省区域回落 CN —— 本仓库 mimo-desktop 卡的历史行为（Desktop cookie 是 CN 集群
+// 签发的）；上游新登录默认 SGP，本仓保持 cn 以免破坏存量连接。
+const DEFAULT_REGION = "cn";
+function regionOf(providerSpecificData = null) {
+  return String(providerSpecificData?.region || "").toLowerCase();
+}
+export function mimoApiBaseFor(providerSpecificData = null) {
+  return API_BASE_BY_REGION[regionOf(providerSpecificData)] || API_BASE_BY_REGION[DEFAULT_REGION];
+}
+function sidForRegion(providerSpecificData = null) {
+  return SID_BY_REGION[regionOf(providerSpecificData)] || SID_BY_REGION[DEFAULT_REGION];
+}
+const API_BASE = API_BASE_BY_REGION[DEFAULT_REGION];
 const ACCOUNT_HOST = "account.xiaomi.com";
 const API_UA =
   "miNative PC/Normal Windows_NT/10.0.19045 SDKV/1.0.0 DEVT/PC DEVS/Windows APP/miaccount_desktop APPV/0.1.0";
@@ -206,16 +230,18 @@ function cookieHeader(jar) {
  * Exchange a passToken for a mimo-server service session cookie.
  * @returns {Promise<string|null>} Cookie header value, or null on failure.
  */
-async function acquireServiceCookie(passJar, proxyOptions) {
+async function acquireServiceCookie(passJar, proxyOptions, providerSpecificData = null) {
   const jar = { ...passJar };
   const ck = () => cookieHeader(jar);
+  const apiBase = mimoApiBaseFor(providerSpecificData);
+  const clusterSid = sidForRegion(providerSpecificData);
 
   // 1. Unauthenticated API call -> 302 carrying the sts callback (sid=mimopc)
   // Every step carries a hard 10s timeout: the connection-test path awaits this
   // whole chain, and one hung SSO hop used to freeze the dashboard's Test
   // spinner indefinitely (the outer 15s probe timeout never gets reached).
   const r1 = await proxyAwareFetch(
-    `${API_BASE}/api/user/xiaomi/me`,
+    `${apiBase}/api/user/xiaomi/me`,
     { redirect: "manual", headers: { "User-Agent": API_UA, Cookie: ck() }, signal: AbortSignal.timeout(10000) },
     proxyOptions,
   );
@@ -242,9 +268,9 @@ async function acquireServiceCookie(passJar, proxyOptions) {
   );
   absorbSetCookie(jar, sso2);
 
-  // 4. mimopc SSO -> sts callback carrying a ticket
+  // 4. 集群 SSO -> sts callback carrying a ticket（sid 随区域：mimopc/mimosgp/…）
   const sso3 = await proxyAwareFetch(
-    `https://${ACCOUNT_HOST}/pass/serviceLogin?sid=mimopc&callback=${encodeURIComponent(stsCallback)}&_json=true`,
+    `https://${ACCOUNT_HOST}/pass/serviceLogin?sid=${encodeURIComponent(clusterSid)}&callback=${encodeURIComponent(stsCallback)}&_json=true`,
     { headers: { Cookie: ck(), "User-Agent": SSO_UA, Accept: "application/json" }, signal: AbortSignal.timeout(10000) },
     proxyOptions,
   );
@@ -286,8 +312,9 @@ async function getServiceCookie(providerSpecificData, proxyOptions) {
   }
   if (!passJar) return { cookie: null, reason: "no-pass-token" };
 
-  // One cached session per passToken — accounts/connections rotate independently.
-  const key = crypto.createHash("sha256").update(passJar.passToken).digest("hex");
+  // One cached session per passToken+region — the same Xiaomi account issues a
+  // different serviceToken per cluster, so the region is part of the cache key.
+  const key = crypto.createHash("sha256").update(`${passJar.passToken}|${regionOf(providerSpecificData)}`).digest("hex");
 
   const cached = _cache.get(key);
   if (cached && Date.now() - cached.at < COOKIE_TTL_MS) {
@@ -304,7 +331,7 @@ async function getServiceCookie(providerSpecificData, proxyOptions) {
 
   const promise = (async () => {
     try {
-      return await acquireServiceCookie(passJar, proxyOptions);
+      return await acquireServiceCookie(passJar, proxyOptions, providerSpecificData);
     } catch {
       return null; // network/parse failure — callers degrade, never throw
     } finally {
@@ -352,7 +379,7 @@ export async function getMimoAccountUsage(providerSpecificData = null, proxyOpti
   }
   try {
     const res = await proxyAwareFetch(
-      `${API_BASE}/api/user/usage`,
+      `${mimoApiBaseFor(providerSpecificData)}/api/user/usage`,
       { headers: { "User-Agent": API_UA, Cookie: cookie, Accept: "application/json" }, signal: AbortSignal.timeout(10000) },
       proxyOptions,
     );

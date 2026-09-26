@@ -8,6 +8,10 @@ vi.mock("../../open-sse/shared/mimoAccount.js", () => ({
   invalidateMimoAccountCookieCache: vi.fn(),
   MIMO_API_BASE: "https://mimo-server-cn.xiaomimimo.com",
   MIMO_API_UA: "test-ua",
+  mimoApiBaseFor: (psd) =>
+    psd?.region && psd.region !== "cn"
+      ? `https://mimo-server-${psd.region}.xiaomimimo.com`
+      : "https://mimo-server-cn.xiaomimimo.com",
 }));
 
 import { XiaomiMimoExecutor, __test__ } from "../../open-sse/executors/xiaomi-mimo.js";
@@ -255,5 +259,21 @@ describe("mimo-desktop registry (account session)", () => {
     // `mimo-v2.6-pro` while reaching different upstreams.
     expect(desktopEx.usesAccountSession()).toBe(true);
     expect(getExecutor("xiaomi-mimo").usesAccountSession()).toBe(false);
+  });
+});
+
+describe("mimo-desktop region clusters (对照上游 910db749)", () => {
+  const desktopEx = new XiaomiMimoExecutor("mimo-desktop");
+  it("routes the account-service call to the connection's region cluster", () => {
+    const sgp = { ...OPENAI_T, providerSpecificData: { region: "sgp" } };
+    expect(desktopEx.buildUrl("mimo-v2.6-pro", true, 0, sgp)).toBe(
+      "https://mimo-server-sgp.xiaomimimo.com/api/route/chat/completions"
+    );
+  });
+
+  it("defaults to the CN cluster when no region is set (legacy connections)", () => {
+    expect(desktopEx.buildUrl("mimo-v2.6-pro", true, 0, OPENAI_T)).toBe(
+      "https://mimo-server-cn.xiaomimimo.com/api/route/chat/completions"
+    );
   });
 });
