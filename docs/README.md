@@ -57,6 +57,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
   - [Upstream v0.5.69 → v0.5.75 triage](/docs/zh-CN/archive/upstream-triage-v0.5.75.md)
   - [Open issues status snapshot (2026-09-11)](/docs/zh-CN/archive/open-issues-status.md)
   - [ZCode plan proxy feasibility](/docs/zh-CN/archive/zcode-plan-proxy-feasibility.md)
+  - [CatPaw 10Router feasibility](/docs/zh-CN/archive/catpaw-10router-feasibility.md)
   - [Contributors cache residue](/docs/zh-CN/archive/contributors-cache-residue.md) ([English](/docs/zh-CN/archive/contributors-cache-residue.en.md))
 
 ---

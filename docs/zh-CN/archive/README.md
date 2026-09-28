@@ -16,6 +16,7 @@ docs/zh-CN/archive/
 ├── upstream-triage-v0.5.75.md          # 上游 v0.5.69 → v0.5.75 阶段性分诊决策（已于 v1.1.0 完成合入）
 ├── open-issues-status.md               # 2026-09-11 阶段性 Issue 快照（#12、#13、#14 现均已修复关闭）
 ├── zcode-plan-proxy-feasibility.md      # ZCode 订阅渠道接入可行性分析（结论：方案不可行已关闭）
+├── catpaw-10router-feasibility.md       # 美团妙手（CatPaw）接入 10Router 可行性报告（调研结项，未实施反代）
 ├── contributors-cache-residue.md       # GitHub 贡献者页面幽灵数据诊断（已自愈）
 └── contributors-cache-residue.en.md    # （英文版）Contributors cache residue diagnosis
 ```
@@ -43,6 +44,8 @@ docs/zh-CN/archive/
   2026-09-11 针对 open issues 的基线核查。其中 #12（jsonCatalog 500）、#13（小米桌面版专属模型友好提醒）、#14（连接禁用态即时刷新与 ModelRow 可用性）现已全部修复并关闭。
 - [**ZCode 订阅渠道接入可行性**](zcode-plan-proxy-feasibility.md)：
   分析将 ZCode 订阅套餐作为 10Router 供应商的可行性。结论为官方风控与加密链路阻断，明确拒绝绕过风控的代理方案，调研已结项关闭。
+- [**美团妙手（CatPaw）接入 10Router 可行性**](catpaw-10router-feasibility.md)：
+  区分普通 AgentService、NoCode 与账户额度接口；确认客户端 SDK 层回答增量字段，同时记录原始 HTTP 协议与创建请求尚未验证。由于未发现增量签到额度、仅能消费有限的现有余额且反代闭环证据不足，决定不实施 provider / executor。
 - [**Contributors 页面残留上游贡献者**](contributors-cache-residue.md)（[English](contributors-cache-residue.en.md)）：
   fork detach 之后 GitHub 侧边栏残留 248 名贡献者的排查记录，结论为等待缓存自愈，无需改动 git 历史。
 
