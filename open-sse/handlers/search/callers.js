@@ -347,6 +347,73 @@ function buildSearxngRequest(config, params) {
   };
 }
 
+// ── TinyFish Search ─────────────────────────────────────────────────────
+// GET https://api.search.tinyfish.ai?query=…&location=US
+// Auth: X-API-Key. Response: { query, results: [{position, title, snippet,
+// url, published_at?, publisher?}], total_results, page }.
+// Pages are 0-indexed and freshness is expressed in minutes (recency_minutes
+// is mutually exclusive with the explicit date bounds we don't send here).
+function buildTinyFishRequest(config, params) {
+  const apiKey = params.token;
+  if (!apiKey) throw new Error("TinyFish requires an API key");
+
+  const { includes, excludes } = parseDomainFilter(params.domainFilter);
+  const qp = new URLSearchParams({ query: params.query });
+  if (params.country) qp.set("location", params.country.toUpperCase());
+  if (params.language) qp.set("language", params.language);
+  if (params.searchType && params.searchType !== "web") qp.set("domain_type", params.searchType);
+  if (includes.length) qp.set("include_domains", includes.join(","));
+  if (excludes.length) qp.set("exclude_domains", excludes.join(","));
+
+  const recencyMinutes = { day: 1440, week: 10080, month: 43200, year: 525600 }[params.timeRange];
+  if (recencyMinutes) qp.set("recency_minutes", String(recencyMinutes));
+
+  const page = toPageNumber(params.offset, params.maxResults);
+  if (page) qp.set("page", String(Math.max(page - 1, 0)));
+
+  return {
+    url: `${resolveBaseUrl(config, params)}?${qp}`,
+    init: {
+      method: "GET",
+      headers: { Accept: "application/json", "X-API-Key": apiKey },
+    },
+  };
+}
+
+// ── Keenable Search ─────────────────────────────────────────────────────
+// POST https://api.keenable.ai/v1/search { query, mode?, site?, max_results,
+// published_after? }. Auth: X-API-Key (Bearer also accepted upstream, X-API-Key
+// wins). Response: { query, mode, results: [{title, url, description, snippet,
+// published_at, acquired_at}] }.
+// `site` takes a single host only, and the date filters accept relative deltas
+// ("1d"), which is exactly how our timeRange maps over.
+function buildKeenableRequest(config, params) {
+  const apiKey = params.token;
+  if (!apiKey) throw new Error("Keenable requires an API key");
+
+  const { includes } = parseDomainFilter(params.domainFilter);
+  const body = { query: params.query, max_results: params.maxResults };
+
+  const mode = getProviderSetting(params, "mode");
+  if (mode && ["pro", "realtime"].includes(mode)) body.mode = mode;
+
+  // site is single-host upstream; multiple includes would silently drop all
+  // but the first, so only honour an unambiguous one-domain filter.
+  if (includes.length === 1) body.site = includes[0];
+
+  const publishedAfter = { day: "1d", week: "7d", month: "30d", year: "365d" }[params.timeRange];
+  if (publishedAfter) body.published_after = publishedAfter;
+
+  return {
+    url: resolveBaseUrl(config, params),
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────
 
 const BUILDERS = {
@@ -362,6 +429,8 @@ const BUILDERS = {
   "searxng": buildSearxngRequest,
   "xquik": buildXquikRequest,
   "ollama-search": buildOllamaSearchRequest,
+  "tinyfish": buildTinyFishRequest,
+  "keenable": buildKeenableRequest,
 };
 
 /**

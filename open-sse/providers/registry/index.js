@@ -140,6 +140,8 @@ import p140 from "./stepfun-plan-cn.js";
 import p141 from "./mimo-desktop.js";
 import p142 from "./longcat-intl.js";
 import p143 from "./zcode-free.js";
+import p144 from "./keenable.js";
+import p145 from "./tinyfish.js";
 
 export default [
   p0,
@@ -281,4 +283,6 @@ export default [
   p141,
   p142,
   p143,
+  p144,
+  p145,
 ];

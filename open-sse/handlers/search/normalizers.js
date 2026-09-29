@@ -199,6 +199,49 @@ function normalizeSearxng(data, _query, _searchType) {
   return { results, totalResults: results.length };
 }
 
+// ── TinyFish Search ─────────────────────────────────────────────────────
+// API shape: { query, results: [{ position, domain, title, snippet, url,
+// published_at?, publisher? }], total_results, page }
+function normalizeTinyFish(data, _query, _searchType) {
+  const now = new Date().toISOString();
+  const items = data?.results;
+  if (!Array.isArray(items)) return { results: [], totalResults: null };
+  const results = items.map((item, idx) =>
+    makeResult("tinyfish", {
+      title: item.title,
+      url: item.url,
+      snippet: item.snippet || "",
+      published_at: item.published_at || null,
+      author: item.publisher || null,
+      full_text: item.snippet || undefined,
+      text_format: item.snippet ? "text" : undefined,
+    }, idx, now)
+  );
+  const total = data?.total_results;
+  return { results, totalResults: Number.isFinite(total) ? total : null };
+}
+
+// ── Keenable Search ─────────────────────────────────────────────────────
+// API shape: { query, mode, results: [{ title, url, description, snippet,
+// published_at, acquired_at }] } — `description` is the short summary and
+// `snippet` the longer excerpt (up to snippet_max_length).
+function normalizeKeenable(data, _query, _searchType) {
+  const now = new Date().toISOString();
+  const items = data?.results;
+  if (!Array.isArray(items)) return { results: [], totalResults: null };
+  const results = items.map((item, idx) =>
+    makeResult("keenable", {
+      title: item.title,
+      url: item.url,
+      snippet: item.description || item.snippet || "",
+      published_at: item.published_at || null,
+      full_text: item.snippet || undefined,
+      text_format: item.snippet ? "text" : undefined,
+    }, idx, now)
+  );
+  return { results, totalResults: results.length };
+}
+
 const NORMALIZERS = {
   "serper": normalizeSerper,
   "brave-search": normalizeBrave,
@@ -212,6 +255,8 @@ const NORMALIZERS = {
   "searxng": normalizeSearxng,
   "xquik": normalizeXquik,
   "ollama-search": normalizeOllamaSearch,
+  "tinyfish": normalizeTinyFish,
+  "keenable": normalizeKeenable,
 };
 
 /**

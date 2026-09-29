@@ -1,4 +1,5 @@
-// Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa
+// Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa,
+// tinyfish, keenable
 // Returns normalized shape across all providers
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -114,6 +115,12 @@ export async function handleFetchCore({ url, format, maxCharacters, provider, pr
     }
     if (provider === "exa") {
       return await runExa({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt });
+    }
+    if (provider === "tinyfish") {
+      return await runTinyFish({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
+    }
+    if (provider === "keenable") {
+      return await runKeenable({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
     }
     return { success: false, status: 400, error: `Unsupported provider: ${provider}` };
   } catch (err) {
@@ -237,6 +244,83 @@ async function runExa({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery
     success: true,
     data: buildData({
       provider: "exa", url, title: first.title || null, format: fmt, text,
+      costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
+    })
+  };
+}
+
+// ── TinyFish Fetch ──────────────────────────────────────────────────────
+// POST https://api.fetch.tinyfish.ai { urls: [...], format } →
+// { results: [{ url, final_url, title, text, … }], errors: [...] }.
+// Free at any balance (no wallet draw). Upstream offers html/markdown/json —
+// our "text" request maps to its markdown, the LLM-facing default.
+async function runTinyFish({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl }) {
+  const endpoint = (baseUrl || "https://api.fetch.tinyfish.ai").replace(/\/+$/, "");
+  const format = fmt === "html" ? "html" : "markdown";
+  const upstreamStart = Date.now();
+  const r = await tryFetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(apiKey ? { "x-api-key": apiKey } : {})
+    },
+    body: JSON.stringify({ urls: [url], format })
+  }, timeoutMs);
+
+  if (!r.ok) {
+    return { success: false, status: r.timeout ? 504 : 502, error: r.error };
+  }
+  const upstreamMs = Date.now() - upstreamStart;
+  const { json } = await readJsonOrText(r.res);
+  if (!r.res.ok) {
+    return { success: false, status: r.res.status, error: json?.error || `TinyFish error: ${r.res.status}` };
+  }
+  const first = json?.results?.[0];
+  if (!first) {
+    const upstreamErr = Array.isArray(json?.errors) && json.errors[0]?.error;
+    return { success: false, status: 502, error: upstreamErr || `TinyFish returned no result for ${url}` };
+  }
+  // format "json" yields a document tree — stringify so content.text stays a string.
+  const raw = typeof first.text === "string" ? first.text : first.text ? JSON.stringify(first.text) : "";
+  const text = truncate(raw, maxCharacters);
+  return {
+    success: true,
+    data: buildData({
+      provider: "tinyfish", url, title: first.title || null, format: fmt, text,
+      costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
+    })
+  };
+}
+
+// ── Keenable Fetch ──────────────────────────────────────────────────────
+// GET https://api.keenable.ai/v1/fetch?url=…&max_chars=… →
+// { url, title, description, author, content, published_at } (markdown).
+// `live=true` overrides upstream's indexed-only default so arbitrary URLs
+// still resolve — without it un-indexed targets error out.
+async function runKeenable({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl }) {
+  const endpoint = (baseUrl || "https://api.keenable.ai/v1/fetch").replace(/\/+$/, "");
+  const qp = new URLSearchParams({ url, live: "true" });
+  if (maxCharacters && maxCharacters > 0) qp.set("max_chars", String(maxCharacters));
+
+  const upstreamStart = Date.now();
+  const r = await tryFetch(`${endpoint}?${qp}`, {
+    method: "GET",
+    headers: { ...(apiKey ? { "x-api-key": apiKey } : {}) }
+  }, timeoutMs);
+
+  if (!r.ok) {
+    return { success: false, status: r.timeout ? 504 : 502, error: r.error };
+  }
+  const upstreamMs = Date.now() - upstreamStart;
+  const { json } = await readJsonOrText(r.res);
+  if (!r.res.ok) {
+    return { success: false, status: r.res.status, error: json?.error || `Keenable error: ${r.res.status}` };
+  }
+  const text = truncate(json?.content || "", maxCharacters);
+  return {
+    success: true,
+    data: buildData({
+      provider: "keenable", url, title: json?.title || null, format: fmt, text,
       costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
     })
   };
