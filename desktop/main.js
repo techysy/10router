@@ -21,7 +21,7 @@
  *  - 端口: ROUTER_PORT > 20128(与 CLI 默认一致)
  *  - 界面语言: 跟随系统(与 npm CLI 的 i18n 同规则),TENROUTER_LANG 可覆盖
  */
-const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, dialog, ipcMain, session, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, dialog, ipcMain, session, safeStorage, net } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const http = require('http');
@@ -29,6 +29,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createPasswordStore } = require('./passwordStore');
+const releaseUpdater = require('./releaseUpdater');
 
 // 必须先于一切 getPath('userData') 调用:productName "10Router" 在 Windows(大小写
 // 不敏感)上会与服务数据目录 %APPDATA%\10router 撞名,壳日志会混进服务数据。
@@ -77,6 +78,17 @@ const STRINGS = {
         'update.latestTitle': 'Up to date',
         'update.latestBody': 'You are on the latest version v{current}.',
         'update.balloonBody': 'v{latest} is available (current v{current}). Open the tray menu "Check for Updates" to visit the Releases download page.',
+        'update.downloadInstall': 'Download and Install',
+        'update.downloadBody': 'v{latest} is available (you are on v{current}).\n\n10Router will download 10Router.Setup.{latest}.exe ({size}) from GitHub Releases, verify its SHA256 and run the installer — the app quits during install.',
+        'update.downloadingTitle': 'Downloading v{latest}',
+        'update.readyTitle': 'v{latest} is ready to install',
+        'update.readyBody': 'The installer has been downloaded and verified.\n\nClick "Install Now" to run it — 10Router quits first and the installer takes over.',
+        'update.installNow': 'Install Now',
+        'update.downloadFailedTitle': 'Update download failed',
+        'update.checksumMismatch': 'SHA256 checksum mismatch — the downloaded installer is corrupted, install aborted.',
+        'update.spawnFailedTitle': 'Could not start the installer',
+        'update.spawnFailedBody': 'Failed to launch the installer:\n{message}\n\nYou can run it manually:\n{path}',
+        'update.sizeUnknown': 'size unknown',
         'about.detail': 'FREE AI Router & Token Saver\n\nVersion: v{version}\nShell: v{shell}\nData folder: {dataDir}',
         'about.github': 'GitHub Page',
         'dialog.later': 'Later',
@@ -187,6 +199,17 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '当前 v{current} 已是最新版本。',
         'update.balloonBody': '发现新版本 v{latest}(当前 v{current})。可打开托盘菜单「检查更新」前往 Releases 下载页。',
+        'update.downloadInstall': '下载并安装',
+        'update.downloadBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n将从 GitHub Releases 下载 10Router.Setup.{latest}.exe({size}),SHA256 校验通过后运行安装——安装时 10Router 会先退出。',
+        'update.downloadingTitle': '正在下载 v{latest}',
+        'update.readyTitle': 'v{latest} 安装包已就绪',
+        'update.readyBody': '安装包已下载并通过校验。\n\n点击「立即安装」运行安装程序(10Router 会先退出)。',
+        'update.installNow': '立即安装',
+        'update.downloadFailedTitle': '下载更新失败',
+        'update.checksumMismatch': '安装包 SHA256 校验不符,已放弃安装。',
+        'update.spawnFailedTitle': '无法启动安装程序',
+        'update.spawnFailedBody': '安装程序启动失败:\n{message}\n\n也可以手动运行已下载的安装包:\n{path}',
+        'update.sizeUnknown': '大小未知',
         'about.detail': 'FREE AI Router & Token Saver\n\n版本: v{version}\n壳版本: v{shell}\n数据目录: {dataDir}',
         'about.github': 'GitHub 主页',
         'dialog.later': '稍后',
@@ -297,6 +320,17 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '目前 v{current} 已是最新版本。',
         'update.balloonBody': '發現新版本 v{latest}(目前 v{current})。可開啟系統列選單「檢查更新」前往 Releases 下載頁。',
+        'update.downloadInstall': '下載並安裝',
+        'update.downloadBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n將從 GitHub Releases 下載 10Router.Setup.{latest}.exe({size}),SHA256 校驗通過後執行安裝——安裝時 10Router 會先結束。',
+        'update.downloadingTitle': '正在下載 v{latest}',
+        'update.readyTitle': 'v{latest} 安裝包已就緒',
+        'update.readyBody': '安裝包已下載並通過校驗。\n\n點擊「立即安裝」執行安裝程式(10Router 會先結束)。',
+        'update.installNow': '立即安裝',
+        'update.downloadFailedTitle': '下載更新失敗',
+        'update.checksumMismatch': '安裝包 SHA256 校驗不符,已放棄安裝。',
+        'update.spawnFailedTitle': '無法啟動安裝程式',
+        'update.spawnFailedBody': '安裝程式啟動失敗:\n{message}\n\n也可以手動執行已下載的安裝包:\n{path}',
+        'update.sizeUnknown': '大小未知',
         'about.detail': 'FREE AI Router & Token Saver\n\n版本: v{version}\n殼版本: v{shell}\n資料目錄: {dataDir}',
         'about.github': 'GitHub 首頁',
         'dialog.later': '稍後',
@@ -811,8 +845,11 @@ function fetchJson(url, timeoutMs = 8000) {
     });
 }
 
-// 检查更新:走本地服务 /api/version(免鉴权,带 npm latest 1h 缓存),
-// 与 fpk/CLI 同一数据源;桌面版结果以对话框呈现并引导去 Releases 下载安装包。
+// 检查更新:主路径走本地服务 /api/version(免鉴权,带 npm latest 1h 缓存),
+// 与 fpk/CLI 同一数据源。Windows 安装版发现新版本后可直接下载对应 release 的
+// 10Router.Setup.<版本>.exe(SHA256 校验)并运行安装,不再只引导去 Releases 页;
+// 本地服务不在时直查 GitHub Releases API 兜底。release 缺安装包、macOS、
+// Portable 则维持「打开 Releases 页面」的旧引导。
 async function checkForUpdates() {
     let info = null;
     try {
@@ -820,23 +857,208 @@ async function checkForUpdates() {
         info = await fetchJson(`${BASE_URL}/api/version?check=1`);
     } catch { /* 服务未运行/网络失败 */ }
     if (!info || !info.currentVersion) {
-        dialog.showMessageBox({ type: 'warning', title: tr('update.failedTitle'), message: tr('update.failedTitle'), detail: tr('update.failedBody'), buttons: [tr('dialog.ok')] });
+        await checkUpdateViaGitHub();
         return;
     }
     if (info.hasUpdate) {
-        const relUrl = info.releaseUrl || RELEASES_URL;
-        const choice = await dialog.showMessageBox({
-            type: 'info',
-            title: tr('update.availableTitle'),
-            message: tr('update.availableTitle'),
-            detail: tr('update.availableBody', { latest: info.latestVersion, current: info.currentVersion }),
-            buttons: [tr('update.openReleases'), tr('dialog.later')],
+        await offerUpdate(info.latestVersion, info.currentVersion);
+    } else {
+        dialog.showMessageBox({ type: 'info', title: tr('update.latestTitle'), message: tr('update.latestTitle'), detail: tr('update.latestBody', { current: info.currentVersion }), buttons: [tr('dialog.ok')] });
+    }
+}
+
+// 壳内可自更新的形态:Windows 安装版(NSIS)。Portable 是覆盖式解压,自装安装包
+// 会双份并存;macOS 未签名没有可静默接管的安装流程——两者都只引导手动下载。
+function canInstallInPlace() {
+    return process.platform === 'win32' && !process.env.PORTABLE_EXECUTABLE_DIR;
+}
+
+// v<latestVersion> 对应 release 里的安装包描述(SHA256SUMS 优先,回落资产 digest)。
+// npm 已发而 GitHub release 还没建时 404,抛给调用方退回手动引导。
+async function resolveInstaller(latestVersion, preloadedRelease) {
+    let rel = preloadedRelease;
+    if (!rel) {
+        const res = await net.fetch(`https://api.github.com/repos/techysy/10router/releases/tags/v${latestVersion}`, { headers: { Accept: 'application/vnd.github+json' } });
+        if (!res.ok) throw new Error(`GitHub API HTTP ${res.status}`);
+        rel = await res.json();
+    }
+    return releaseUpdater.pickInstaller(rel);
+}
+
+async function offerUpdate(latestVersion, currentVersion) {
+    let inst = null;
+    if (canInstallInPlace()) {
+        try { inst = await resolveInstaller(latestVersion); } catch { /* release 未发布/网络失败 → 手动引导 */ }
+    }
+    if (inst) {
+        await offerDownloadableUpdate(inst, currentVersion);
+    } else {
+        await offerManualUpdate(latestVersion, currentVersion, RELEASES_URL);
+    }
+}
+
+// 旧引导:应用内装不了(macOS / Portable / release 缺安装包),去 Releases 页手动下
+async function offerManualUpdate(latestVersion, currentVersion, relUrl) {
+    const choice = await dialog.showMessageBox({
+        type: 'info',
+        title: tr('update.availableTitle'),
+        message: tr('update.availableTitle'),
+        detail: tr('update.availableBody', { latest: latestVersion, current: currentVersion }),
+        buttons: [tr('update.openReleases'), tr('dialog.later')],
+        defaultId: 0,
+        cancelId: 1,
+    });
+    if (choice.response === 0) shell.openExternal(relUrl || RELEASES_URL);
+}
+
+// 新版本 → 三选一:下载并安装(进度窗 + SHA256 校验后运行安装包)/ 打开 Releases 页 / 稍后
+async function offerDownloadableUpdate(inst, currentVersion) {
+    const sizeText = inst.asset.size ? `≈${(inst.asset.size / 1048576).toFixed(1)} MB` : tr('update.sizeUnknown');
+    const choice = await dialog.showMessageBox({
+        type: 'info',
+        title: tr('update.availableTitle'),
+        message: tr('update.availableTitle'),
+        detail: tr('update.downloadBody', { latest: inst.version, current: currentVersion, size: sizeText }),
+        buttons: [tr('update.downloadInstall'), tr('update.openReleases'), tr('dialog.later')],
+        defaultId: 0,
+        cancelId: 2,
+    });
+    if (choice.response === 1) { shell.openExternal(RELEASES_URL); return; }
+    if (choice.response !== 0) return;
+    let file;
+    try {
+        file = await downloadWithProgress(inst);
+    } catch (e) {
+        if ((e && e.name) === 'AbortError') return;   // 关掉进度窗=取消
+        const r = await dialog.showMessageBox({
+            type: 'warning',
+            title: tr('update.downloadFailedTitle'),
+            message: tr('update.downloadFailedTitle'),
+            detail: String((e && e.message) || e),
+            buttons: [tr('update.openReleases'), tr('dialog.ok')],
             defaultId: 0,
             cancelId: 1,
         });
-        if (choice.response === 0) shell.openExternal(relUrl);
+        if (r.response === 0) shell.openExternal(RELEASES_URL);
+        return;
+    }
+    const run = await dialog.showMessageBox({
+        type: 'question',
+        title: tr('update.readyTitle', { latest: inst.version }),
+        message: tr('update.readyTitle', { latest: inst.version }),
+        detail: tr('update.readyBody'),
+        buttons: [tr('update.installNow'), tr('dialog.later')],
+        defaultId: 0,
+        cancelId: 1,
+    });
+    if (run.response !== 0) return;
+    try {
+        spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+        app.quit();   // 先退出再让安装器接管;NSIS 遇到残留进程也会引导关闭
+    } catch (e) {
+        dialog.showErrorBox(tr('update.spawnFailedTitle'), tr('update.spawnFailedBody', { message: String((e && e.message) || e), path: file }));
+    }
+}
+
+// 下载安装包到临时目录(进度窗 + 任务栏进度条,关窗即取消),校验通过返回文件路径
+async function downloadInstallerToTemp(inst, onProgress, signal) {
+    let expectedSha = inst.expectedSha || null;
+    if (inst.sumsUrl) {
+        try {
+            const sumsRes = await net.fetch(inst.sumsUrl, { signal });
+            if (sumsRes.ok) expectedSha = releaseUpdater.resolveExpectedSha(inst, await sumsRes.text());
+        } catch { /* sums 拉不到就回落资产 digest,再没有只能跳过校验 */ }
+    }
+    const res = await net.fetch(inst.asset.url, { signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const total = Number(res.headers.get('content-length')) || inst.asset.size || 0;
+    const chunks = [];
+    let got = 0;
+    if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(Buffer.from(value));
+            got += value.length;
+            if (onProgress) onProgress(got, total);
+        }
     } else {
-        dialog.showMessageBox({ type: 'info', title: tr('update.latestTitle'), message: tr('update.latestTitle'), detail: tr('update.latestBody', { current: info.currentVersion }), buttons: [tr('dialog.ok')] });
+        const buf = Buffer.from(await res.arrayBuffer());
+        chunks.push(buf);
+        if (onProgress) onProgress(buf.length, buf.length);
+    }
+    const buf = Buffer.concat(chunks);
+    if (expectedSha && crypto.createHash('sha256').update(buf).digest('hex') !== expectedSha) {
+        throw new Error(tr('update.checksumMismatch'));
+    }
+    const file = path.join(app.getPath('temp'), inst.asset.name);
+    fs.writeFileSync(file, buf);
+    return file;
+}
+
+// 进度小窗(窗口标题 + 文本 + 任务栏进度条;关窗=取消)
+function downloadWithProgress(inst) {
+    return new Promise((resolve, reject) => {
+        const title = tr('update.downloadingTitle', { latest: inst.version });
+        const dlWin = new BrowserWindow({
+            width: 460, height: 100, resizable: false, maximizable: false, fullscreenable: false,
+            title, autoHideMenuBar: true, webPreferences: { sandbox: true },
+        });
+        dlWin.setMenuBarVisibility(false);
+        dlWin.loadURL('data:text/html,' + encodeURIComponent(
+            `<meta charset="utf-8"><body style="margin:14px;font:13px/1.6 'Segoe UI',sans-serif;color:#444">`
+            + `<div>${inst.asset.name}</div><div id="p" style="margin-top:4px;color:#888">…</div>`));
+        const ctrl = new AbortController();
+        let cancelled = false;
+        dlWin.on('closed', () => { cancelled = true; ctrl.abort(); });
+        const onProgress = (got, total) => {
+            const mb = (got / 1048576).toFixed(1);
+            const text = total ? `${Math.min(100, Math.round((got / total) * 100))}% (${mb} MB)` : `${mb} MB`;
+            try {
+                dlWin.setTitle(`${title} ${text}`);
+                dlWin.setProgressBar(total ? Math.min(1, got / total) : 2);
+                dlWin.webContents.executeJavaScript(`document.getElementById('p').textContent=${JSON.stringify(text)}`).catch(() => {});
+            } catch { /* 窗口可能已关 */ }
+        };
+        downloadInstallerToTemp(inst, onProgress, ctrl.signal)
+            .then((file) => { try { dlWin.destroy(); } catch { /* 已关 */ } resolve(file); })
+            .catch((e) => {
+                try { dlWin.destroy(); } catch { /* 已关 */ }
+                reject(cancelled ? Object.assign(new Error('cancelled'), { name: 'AbortError' }) : e);
+            });
+    });
+}
+
+// /api/version 不可达(服务没起/挂了)时的兜底:直查 GitHub 最新正式 release,
+// 与当前壳/服务版本比;两路都通时 GitHub 只是备份口径,不改变 npm 为主的数据源。
+async function checkUpdateViaGitHub() {
+    try {
+        const res = await net.fetch('https://api.github.com/repos/techysy/10router/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
+        if (!res.ok) throw new Error(`GitHub API HTTP ${res.status}`);
+        const rel = await res.json();
+        const inst = releaseUpdater.pickInstaller(rel);
+        const current = getServiceVersion();
+        if (!inst || !releaseUpdater.isNewerVersion(inst.version, current)) {
+            dialog.showMessageBox({ type: 'info', title: tr('update.latestTitle'), message: tr('update.latestTitle'), detail: tr('update.latestBody', { current }), buttons: [tr('dialog.ok')] });
+            return;
+        }
+        if (canInstallInPlace()) {
+            await offerDownloadableUpdate(inst, current);
+        } else {
+            await offerManualUpdate(inst.version, current, RELEASES_URL);
+        }
+    } catch (e) {
+        const r = await dialog.showMessageBox({
+            type: 'warning',
+            title: tr('update.failedTitle'),
+            message: tr('update.failedTitle'),
+            detail: `${tr('update.failedBody')}\n\n${String((e && e.message) || e)}`,
+            buttons: [tr('update.openReleases'), tr('dialog.ok')],
+            defaultId: 0,
+            cancelId: 1,
+        });
+        if (r.response === 0) shell.openExternal(RELEASES_URL);
     }
 }
 

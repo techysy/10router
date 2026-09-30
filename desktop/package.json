@@ -30,6 +30,7 @@
       "main.js",
       "preload-container.js",
       "passwordStore.js",
+      "releaseUpdater.js",
       "package.json",
       "icon.ico",
       "icon.png",
