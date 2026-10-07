@@ -180,6 +180,15 @@ export function createSSEStream(options = {}) {
           let output;
           let injectedUsage = false;
 
+          if (trimmed === "data: [DONE]" || trimmed === "data:[DONE]") {
+            output = "data: [DONE]\n\n";
+            streamDoneSent = true;
+            reqLogger?.appendConvertedChunk?.(output);
+            controller.enqueue(sharedEncoder.encode(output));
+            finishStream();
+            continue;
+          }
+
           if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
             try {
               const parsed = JSON.parse(trimmed.slice(5).trim());

@@ -60,7 +60,7 @@ describe("a completed stream is recorded as success even if the client hangs up 
     expect(fn[1]).toMatch(/streamCompleted = true;/);
     // Both remaining call sites (passthrough flush, translate flush) go through it,
     // and the raw onStreamComplete call must no longer appear in flush().
-    expect((stream.match(/finishStream\(\);/g) || []).length).toBeGreaterThanOrEqual(3);
+    expect((stream.match(/finishStream\(\);/g) || []).length).toBeGreaterThanOrEqual(4);
     const flushBody = stream.slice(stream.indexOf("flush(controller)"));
     expect(flushBody).not.toMatch(/onStreamComplete\(\{/);
   });
