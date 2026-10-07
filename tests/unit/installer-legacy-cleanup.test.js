@@ -9,11 +9,29 @@
 // （tests/unit/disabled-models-ux.test.js:9）。
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
 const rootDir = resolve(__dirname, "../..");
 const nsh = readFileSync(resolve(rootDir, "desktop/nsis/installer.nsh"), "utf8");
 const pkg = JSON.parse(readFileSync(resolve(rootDir, "desktop/package.json"), "utf8"));
+
+// UUID.v5 的规范实现。为什么不用 electron-builder 自带的那个：那要求
+// desktop/node_modules 已安装，而 CI 只装根目录 + tests 的依赖，于是这个
+// 用例在 CI 上必炸（"Cannot find module '/desktop/node_modules/...'"）——
+// 本地装过 desktop 依赖，所以一直是绿的。用 node:crypto 自己算等价结果，
+// 既没有跨装包树的依赖，又保留了"appId 一改、断言立刻红"的守护作用。
+const NS_UUID = "50e065bc-3134-11e6-9bab-38c9862bdaf3";
+const uuidV5 = (name, namespace) => {
+  const h = require("node:crypto").createHash("sha1");
+  h.update(Buffer.from(namespace.replace(/-/g, ""), "hex"));
+  h.update(name, "utf8");
+  const b = Buffer.from(h.digest().subarray(0, 16));
+  b[6] = (b[6] & 0x0f) | 0x50; // version 5
+  b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const x = b.toString("hex");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+};
 
 describe("legacy uninstall registry key derivation", () => {
   // electron-builder NsisTarget.js:147 的派生：
@@ -22,14 +40,11 @@ describe("legacy uninstall registry key derivation", () => {
   // 我们的 customInit 硬编码了这个键路径——若有人改 appId 或派生规则变化而
   // 没有同步 installer.nsh，清理会静默失效（旧卸载器重新被调用）。此测试用
   // electron-builder 自己的 UUID 模块（生产同款调用）钉住派生结果。
-  it("electron-builder 的卸载键名派生自 appId 且与 installer.nsh 硬编码一致", async () => {
+  it("electron-builder 的卸载键名派生自 appId 且与 installer.nsh 硬编码一致", () => {
     const appId = pkg.build?.appId;
     expect(appId).toBe("com.techysy.10router");
 
-    const { UUID } = await import(
-      "../../desktop/node_modules/builder-util-runtime/out/uuid.js"
-    );
-    const guid = UUID.v5(appId, UUID.parse("50e065bc-3134-11e6-9bab-38c9862bdaf3"));
+    const guid = uuidV5(appId, NS_UUID);
     // 本机实测（HKCU\...\Uninstall\ 下真实存在的键名）
     expect(guid).toBe("d06897b6-43ce-5451-986c-a52486d415bb");
     // 键路径必须以 GUID + 引号收尾：electron-builder 的 UNINSTALL_APP_KEY 是
