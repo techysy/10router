@@ -71,6 +71,7 @@ export function createSSEStream(options = {}) {
   let accumulatedContent = "";
   let accumulatedThinking = "";
   let ttftAt = null;
+  let streamCompleted = false;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -113,6 +114,39 @@ export function createSSEStream(options = {}) {
       reqLogger?.appendConvertedChunk?.(output);
       controller.enqueue(sharedEncoder.encode(output));
       sseEmittedCount++;
+    }
+  };
+
+  // 完成行(buildRequestDetail 落 status:"success" 的那一次)只允许发一次:
+  // 早发路径(见下)与 flush() 谁先到谁赢,后到的变空转。两条路径都可能在
+  // 同一轮里跑到——[DONE] 之后客户端立刻断开,cancel() 不会让 flush() 执行,
+  // 所以 [DONE] 处必须自己收尾。
+  const finishStream = () => {
+    if (streamCompleted) return;
+    streamCompleted = true;
+
+    // Translate 模式下 usage 记在 state 上,且尾部 usage chunk 已经把它补全
+    // (实现刻意保留原始值供日志)。注意用 provider 而非 state.provider:后者
+    // 可能是 translator 的中间格式名,落库该记真实上游。
+    const finalUsage = mode === STREAM_MODE.PASSTHROUGH ? usage : state?.usage;
+    if (!hasValidUsage(finalUsage) && totalContentLength > 0) {
+      const estimated = estimateUsage(body, totalContentLength, mode === STREAM_MODE.PASSTHROUGH ? FORMATS.OPENAI : sourceFormat);
+      if (mode === STREAM_MODE.PASSTHROUGH) usage = estimated;
+      else state.usage = estimated;
+    }
+
+    const settledUsage = mode === STREAM_MODE.PASSTHROUGH ? usage : state?.usage;
+    if (hasValidUsage(settledUsage)) {
+      logUsage(provider || targetFormat, settledUsage, model, connectionId, apiKey);
+    } else {
+      appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
+    }
+
+    if (onStreamComplete) {
+      onStreamComplete({
+        content: accumulatedContent,
+        thinking: accumulatedThinking
+      }, settledUsage, ttftAt);
     }
   };
 
@@ -302,6 +336,11 @@ export function createSSEStream(options = {}) {
           }
           streamDoneSent = true;
           if (keepsOpenAIResponsesFormat) openAIResponsesDoneSent = true;
+          // [DONE] 之后客户端(OpenAI SDK / Hermes / 各类 card sidecar)会立刻
+          // 关闭连接,cancel() 不会触发 flush()——不在这里收尾,这一轮就永远
+          // 停在占位行上,再被 cancel 的 abort 路径改写成 status:"error"、
+          // 0/0 token,尽管答复已完整送达(issue #48)。收尾必须由 [DONE] 自己完成。
+          finishStream();
           continue;
         }
 
@@ -436,16 +475,6 @@ export function createSSEStream(options = {}) {
             controller.enqueue(sharedEncoder.encode(output));
           }
 
-          if (!hasValidUsage(usage) && totalContentLength > 0) {
-            usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-          }
-
-          if (hasValidUsage(usage)) {
-            logUsage(provider, usage, model, connectionId, apiKey);
-          } else {
-            appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-          }
-          
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.
           // Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
           //   data: [DONE]\n\n
@@ -458,12 +487,7 @@ export function createSSEStream(options = {}) {
             controller.enqueue(sharedEncoder.encode(doneOutput));
           }
 
-          if (onStreamComplete) {
-            onStreamComplete({
-              content: accumulatedContent,
-              thinking: accumulatedThinking
-            }, usage, ttftAt);
-          }
+          finishStream();
           return;
         }
 
@@ -525,22 +549,7 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
-        if (!hasValidUsage(state?.usage) && totalContentLength > 0) {
-          state.usage = estimateUsage(body, totalContentLength, sourceFormat);
-        }
-
-        if (hasValidUsage(state?.usage)) {
-          logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKey);
-        } else {
-          appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-        }
-        
-        if (onStreamComplete) {
-          onStreamComplete({
-            content: accumulatedContent,
-            thinking: accumulatedThinking
-          }, state?.usage, ttftAt);
-        }
+        finishStream();
       } catch (error) {
         console.log("Error in flush:", error);
       }

@@ -99,6 +99,10 @@ export function createDisconnectAwareStream(transformStream, streamController, o
   const reader = transformStream.readable.getReader();
   const writer = transformStream.writable.getWriter();
   let terminalEmitted = false;
+  // 每当上游送出一个 [DONE] 哨兵就记一个。客户端读到 [DONE] 会立刻关闭连接,
+  // 于是这里的 cancel() 紧跟其后触发——但这不是"上游断流",而是**正常收尾**。
+  // 见 cancel():只有在上游 [DONE] 之前被取消才算真断连。
+  let sawUpstreamDone = false;
 
   // TTFT keep-alive: large-context upstreams (codebuddy DeepSeek/GLM on 100K+ token
   // prompts) can take 20-30s before the first byte. During that silence the client
@@ -149,6 +153,12 @@ export function createDisconnectAwareStream(transformStream, streamController, o
         if (!firstByteSeen && value) {
           firstByteSeen = true;
           stopKeepAlive();
+        }
+        // 上游的 [DONE] 从这里路过(是普通 chunk,不是 done 状态),留个记号给 cancel()。
+        // 字节级、刻意不做文本解析:分片边界、CRLF/双换行、`data: [DONE]` 前缀
+        // 都不影响这个标记的正确性,它只要求"别漏看"。
+        if (value && /\[DONE\]/.test(typeof value === "string" ? value : new TextDecoder().decode(value))) {
+          sawUpstreamDone = true;
         }
 
         if (done) {
@@ -201,9 +211,21 @@ export function createDisconnectAwareStream(transformStream, streamController, o
 
     cancel(reason) {
       stopKeepAlive();
-      const disconnectState = `cancel reason=${reason} | firstByteSeen=${firstByteSeen} | keepalivesSent=${pendingKeepAlives} | sinceStart=${Date.now() - streamController.startTime}ms`;
+      const disconnectState = `cancel reason=${reason} | firstByteSeen=${firstByteSeen} | keepalivesSent=${pendingKeepAlives} | sawUpstreamDone=${sawUpstreamDone} | sinceStart=${Date.now() - streamController.startTime}ms`;
       console.log(`[${getTimeString()}] 🔍 STREAM-CANCEL ${disconnectState}`);
-      streamController.handleDisconnect(reason || "cancelled");
+      if (!sawUpstreamDone) {
+        streamController.handleDisconnect(reason || "cancelled");
+      }
+      // 上游已经送过 [DONE]:这是**正常收尾**——客户端读到哨兵后关连接,不是断流。
+      // 走 handleComplete 而不走 handleDisconnect:后者会触发 chatCore 记一条
+      // status:"error"、0/0 token 的"中止"行,把一次完整答复写成失败(issue #48)。
+      // 客户端那一刻读到的东西也无法区分:本函数在 cancel 语义里只能记完成,
+      // 更诚实的 "completed-then-cancelled" 状态得动 DB schema。
+      // 注:上游 EOF 场景在 pull() 里已经 handleComplete 过,再调一次是幂等的。
+      else {
+        console.log(`[${getTimeString()}] ✅ STREAM-CANCEL after upstream [DONE] — treating as normal completion (client closed post-sentinel)`);
+        streamController.handleComplete();
+      }
       reader.cancel();
       writer.abort();
     }

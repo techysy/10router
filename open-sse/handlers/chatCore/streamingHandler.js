@@ -105,7 +105,9 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   // the same row by id. Idempotent: on an upstream error the wrapped controller
   // hook AND the terminal builder both reach for it.
   let abortRecorded = false;
+  let finalized = false;
   const recordAbort = (message) => {
+    if (finalized) return message;
     if (abortRecorded) return message;
     abortRecorded = true;
     saveRequestDetail(buildRequestDetail({
@@ -124,8 +126,8 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
     return message;
   };
   const abortTerminal = isResponsesPassthrough
-    ? (message) => buildAbortedResponsesTerminalBytes(recordAbort(message))
-    : (message) => buildStreamErrorBytes(HTTP_STATUS.GATEWAY_TIMEOUT, friendlyAbort(recordAbort(message)), sourceFormat);
+    ? (message) => { finalized = true; return buildAbortedResponsesTerminalBytes(recordAbort(message)); }
+    : (message) => { finalized = true; return buildStreamErrorBytes(HTTP_STATUS.GATEWAY_TIMEOUT, friendlyAbort(recordAbort(message)), sourceFormat); };
 
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId,
@@ -149,6 +151,12 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   // controller's two termination hooks makes every early-exit path finalize the
   // row; the once-guard in recordAbort dedupes against the terminal builder on
   // paths where both fire (upstream error → handleError AND emitTerminal).
+  // The row is finalized by whichever fires first — the terminal bytes below or
+  // onStreamComplete. A client that disconnects mid-flight reaches neither, so
+  // without this the placeholder above would sit "streaming" forever; the latch
+  // lets the wrapped controller reports claim the row, and (once onStreamComplete
+  // has written the real result) stops a later disconnect from overwriting a
+  // completed answer with an "aborted" error row — issue #48.
   const abortAwareController = {
     ...streamController,
     handleError: (e) => {
@@ -156,7 +164,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       streamController.handleError(e);
     },
     handleDisconnect: (r) => {
-      recordAbort(typeof r === "string" ? r : "cancelled");
+      if (!finalized) recordAbort(typeof r === "string" ? r : "cancelled");
       streamController.handleDisconnect(r);
     },
   };
@@ -174,6 +182,11 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
+    // A terminal abort already wrote this row; the success write would overwrite
+    // the real failure reason with a partial "success".
+    if (finalized) return;
+    finalized = true;
+
     const latency = {
       ttft: ttftAt ? ttftAt - requestStartTime : Date.now() - requestStartTime,
       total: Date.now() - requestStartTime
