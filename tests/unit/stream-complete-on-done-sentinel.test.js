@@ -91,20 +91,20 @@ describe("a completed stream is recorded as success even if the client hangs up 
   });
 
   it("C. the detail row is latched: a later abort cannot overwrite a completed answer", () => {
-    expect(streamingHandler).toMatch(/let finalized = false;/);
+    expect(streamingHandler).toMatch(/finalizedRef = \{ current: false \}/);
     // Abort paths bail out once the row is owned...
     const recordAbort = /const recordAbort = \(message\) => \{([\s\S]*?)\n  \};/.exec(streamingHandler);
     expect(recordAbort, "recordAbort not found").toBeTruthy();
-    expect(recordAbort[1]).toMatch(/if \(finalized\) return message;/);
+    expect(recordAbort[1]).toMatch(/if \(finalizedRef\.current\) return message;/);
     // ...the success write claims it first and bails out if an abort already did...
     const complete = /const onStreamComplete = \(contentObj, usage, ttftAt\) => \{([\s\S]*?)\n    const latency/.exec(streamingHandler);
     expect(complete, "onStreamComplete not found").toBeTruthy();
-    expect(complete[1]).toMatch(/if \(finalized\) return;/);
-    expect(complete[1]).toMatch(/finalized = true;/);
+    expect(complete[1]).toMatch(/if \(finalizedRef\.current\) return;/);
+    expect(complete[1]).toMatch(/finalizedRef\.current = true;/);
     // ...and both terminal-frame builders mark it finalized before writing.
-    expect(streamingHandler).toMatch(/finalized = true; return buildAbortedResponsesTerminalBytes/);
-    expect(streamingHandler).toMatch(/finalized = true; return buildStreamErrorBytes/);
+    expect(streamingHandler).toMatch(/finalizedRef\.current = true; return buildAbortedResponsesTerminalBytes/);
+    expect(streamingHandler).toMatch(/finalizedRef\.current = true; return buildStreamErrorBytes/);
     // The wrapped disconnect hook must respect the latch.
-    expect(streamingHandler).toMatch(/handleDisconnect: \(r\) => \{\s*\n\s*if \(!finalized\) recordAbort\(/);
+    expect(streamingHandler).toMatch(/handleDisconnect: \(r\) => \{\s*\n\s*if \(!finalizedRef\.current\) recordAbort\(/);
   });
 });

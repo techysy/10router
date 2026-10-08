@@ -46,7 +46,7 @@ function buildTransformStream({ provider, sourceFormat, targetFormat, userAgent,
 /**
  * Handle streaming response — pipe provider SSE through transform stream to client.
  */
-export async function handleStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, userAgent, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, pxpipe, reqTag, log }) {
+export async function handleStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, userAgent, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, streamController, onStreamComplete, streamDetailId, pxpipe, reqTag, log, finalizedRef = { current: false } }) {
   if (onRequestSuccess) {
     Promise.resolve()
       .then(onRequestSuccess)
@@ -105,9 +105,8 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
   // the same row by id. Idempotent: on an upstream error the wrapped controller
   // hook AND the terminal builder both reach for it.
   let abortRecorded = false;
-  let finalized = false;
   const recordAbort = (message) => {
-    if (finalized) return message;
+    if (finalizedRef.current) return message;
     if (abortRecorded) return message;
     abortRecorded = true;
     saveRequestDetail(buildRequestDetail({
@@ -126,8 +125,8 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
     return message;
   };
   const abortTerminal = isResponsesPassthrough
-    ? (message) => { finalized = true; return buildAbortedResponsesTerminalBytes(recordAbort(message)); }
-    : (message) => { finalized = true; return buildStreamErrorBytes(HTTP_STATUS.GATEWAY_TIMEOUT, friendlyAbort(recordAbort(message)), sourceFormat); };
+    ? (message) => { finalizedRef.current = true; return buildAbortedResponsesTerminalBytes(recordAbort(message)); }
+    : (message) => { finalizedRef.current = true; return buildStreamErrorBytes(HTTP_STATUS.GATEWAY_TIMEOUT, friendlyAbort(recordAbort(message)), sourceFormat); };
 
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId,
@@ -164,7 +163,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
       streamController.handleError(e);
     },
     handleDisconnect: (r) => {
-      if (!finalized) recordAbort(typeof r === "string" ? r : "cancelled");
+      if (!finalizedRef.current) recordAbort(typeof r === "string" ? r : "cancelled");
       streamController.handleDisconnect(r);
     },
   };
@@ -178,14 +177,14 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log }) {
+export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, finalizedRef = { current: false } }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
     // A terminal abort already wrote this row; the success write would overwrite
     // the real failure reason with a partial "success".
-    if (finalized) return;
-    finalized = true;
+    if (finalizedRef.current) return;
+    finalizedRef.current = true;
 
     const latency = {
       ttft: ttftAt ? ttftAt - requestStartTime : Date.now() - requestStartTime,
