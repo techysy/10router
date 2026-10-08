@@ -14,6 +14,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 
 ### Engineering deep-dives
 
+- [Streaming [DONE] Sentinel &amp; Client Abort Fix](/docs/zh-CN/streaming-done-sentinel-abort-fix.md) (zh-only) — root-cause and fix for completed streams erroneously logged as 0-token `[Streaming aborted]` errors when clients disconnect upon seeing `[DONE]` (Issue #48 / PR #50).
 - [SQLite Driver Chain](/docs/en/sqlite-driver-chain.md) — how `bun:sqlite → better-sqlite3 → node:sqlite → sql.js` is selected, and why `better-sqlite3` is build-time-required but barely used at runtime.
 - [Usage Dedup usageKey Contract](/docs/en/usage-usageKey-contract.md) — the per-attempt `usageKey` dedup contract that prevents same-millisecond count loss (5 call sites).
 - [Earliest Expiry First Architecture](/docs/zh-CN/earliest-expiry-first-architecture.md) (zh-only) — multi-account "Earliest Expiry First" quota scheduling: why critical path avoids sync billing queries, SWR lightweight caching, and fallback matrix.
@@ -73,6 +74,7 @@ Architecture and engineering notes for the 10Router gateway + dashboard. All doc
 
 ### 工程专题
 
+- [流式 [DONE] 哨兵与客户端断开引发的假夭折修复](/docs/zh-CN/streaming-done-sentinel-abort-fix.md) — 客户端读到 `[DONE]` 立即关闭连接导致 `TransformStream.flush()` 跳过，将已完整交付的回答误记为 0 Token `[Streaming aborted]` 的根因剖析与架构修复（Issue #48 / PR #50）。
 - [SQLite 驱动链](/docs/zh-CN/sqlite-driver-chain.md) — `bun:sqlite → better-sqlite3 → node:sqlite → sql.js` 的选择逻辑，以及 better-sqlite3 为何"构建期必需、运行时几乎不用"。
 - [用量去重 usageKey 契约](/docs/zh-CN/usage-usageKey-contract.md) — 每次上游尝试打 `usageKey` 的去重契约，防止同毫秒丢计数（5 处调用点）。
 - [跨账号「配额包到期优先」调度架构](/docs/zh-CN/earliest-expiry-first-architecture.md) — 为什么主路径绝不发起同步账单查询、SWR（Stale-While-Revalidate）轻量缓存设计与异常回退容错矩阵。
