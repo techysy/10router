@@ -226,9 +226,9 @@ git show upstream/master:<path>    # 检视上游对应实现
 │   ├── lib/                # SQLite 存储、Auth 鉴权、定价表与用量统计
 │   └── shared/             # 前端公共 UI 组件与工具库
 ├── open-sse/               # 独立路由与协议翻译核心引擎
-│   ├── executors/          # 85+ 供应商底层执行器
+│   ├── executors/          # 专用供应商底层执行器（支持流式/私有协议/非OpenAI上游）
 │   ├── translator/         # OpenAI ↔ Claude 双向格式翻译器
-│   ├── providers/          # 供应商配置声明与模型映射表
+│   ├── providers/          # 100+ 供应商配置声明与模型映射表
 │   └── rtk/                # RTK 智能 Token 节省与上下文压缩切削引擎
 ├── cli/                    # CLI 命令行启动器 (@techysy/10router)
 ├── desktop/                # 跨平台桌面壳与托盘图标资源
