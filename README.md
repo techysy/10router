@@ -4,7 +4,7 @@
 
 # 10Router
 
-**本地智能 AI 路由网关与用量仪表盘：单一端点统一接入 85+ 供应商 · 1000+ 模型，内置 RTK 智能压缩、多格式实时翻译、故障自动降级与用量精准计价**
+**本地智能 AI 路由网关与用量仪表盘：单一端点统一接入 100+ 供应商 · 1000+ 模型，内置 RTK 智能压缩、多格式实时翻译、故障自动降级与用量精准计价**
 
 [![Release](https://img.shields.io/github/v/release/techysy/10router?label=%E7%89%88%E6%9C%AC&color=2563eb)](https://github.com/techysy/10router/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/techysy/10router/test.yml?branch=main&label=CI)](https://github.com/techysy/10router/actions/workflows/test.yml)
@@ -67,7 +67,7 @@
 
 **统一路由与协议抹平**
 - **全格式双向翻译**：统一暴露出标准的 OpenAI 兼容端点（`/v1/chat/completions`、`/v1/models`、`/v1/embeddings`），Claude / Anthropic 原生请求同端口无缝识别并自动互转。
-- **85+ 供应商与 1000+ 模型**：开箱支持官方 Claude、OpenAI、DeepSeek、智谱 GLM、MiniMax、Kimi、通义千问、小米 MiMo、SiliconFlow 等主流生态。
+- **100+ 供应商与 1000+ 模型**：开箱支持官方 Claude、OpenAI、DeepSeek、智谱 GLM、MiniMax、Kimi、通义千问、小米 MiMo、SiliconFlow 以及 CreditDaddy 免费线（ZCode Free / MiniMax Free / Trae Free）等主流生态。
 - **RTK 智能 Token 节省引擎**：智能压缩裁剪冗余上下文及高频 `tool_result`，大幅降低大模型对话与 Agent 连续调用消耗。
 - **超长上下文自动处理**：针对模型设定真实的上下文上限与最大输出值，服务端自动实施滑动窗口切削与上下文压缩。
 
@@ -189,14 +189,14 @@ claude
 
 ```bash
 # 同步 ZCode 本机用量（默认）
-node scripts/export-usage.mjs --endpoint http://127.0.0.1:20128 --key sk-…
+node zcode-plugin/scripts/export-usage.mjs --endpoint http://127.0.0.1:20128 --key sk-…
 
 # 指定同步 mirasim 或 OpenCode 数据
-node scripts/export-usage.mjs --source mirasim --endpoint http://127.0.0.1:20128 --key sk-…
-node scripts/export-usage.mjs --source opencode --endpoint http://127.0.0.1:20128 --key sk-…
+node zcode-plugin/scripts/export-usage.mjs --source mirasim --endpoint http://127.0.0.1:20128 --key sk-…
+node zcode-plugin/scripts/export-usage.mjs --source opencode --endpoint http://127.0.0.1:20128 --key sk-…
 
 # 命令行免打开浏览器查看 10Router 运行健康度
-node scripts/status.mjs --endpoint http://127.0.0.1:20128 --password <面板密码>
+node zcode-plugin/scripts/status.mjs --endpoint http://127.0.0.1:20128 --password <面板密码>
 ```
 
 > 详细配置与离线导出灌回流程参见 [zcode-plugin/README.md](zcode-plugin/README.md)。
@@ -242,12 +242,17 @@ git show upstream/master:<path>    # 检视上游对应实现
 
 ## 🧪 测试
 
-```bash
-# 运行单元测试
-npm test
+测试套件位于 `tests/`（独立 ESM 包，使用 vitest）：
 
-# 校验用量数据库完整性
-node scripts/verify-usage-db.mjs
+```bash
+# 安装根依赖与测试套件依赖
+npm install
+npm --prefix tests install
+
+# 运行测试套件
+npm test
+# 或在根目录下指定测试运行
+npx vitest run --dir tests
 ```
 
 ---
