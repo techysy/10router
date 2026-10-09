@@ -690,6 +690,7 @@ PROVIDER_CAPABILITIES.devin = PROVIDER_CAPABILITIES["devin-cli"];
 PROVIDER_CAPABILITIES.kr = PROVIDER_CAPABILITIES.kiro;
 PROVIDER_CAPABILITIES.ag = PROVIDER_CAPABILITIES.antigravity;
 PROVIDER_CAPABILITIES.cbcn = PROVIDER_CAPABILITIES["codebuddy-cn"];
+PROVIDER_CAPABILITIES.cbai = PROVIDER_CAPABILITIES["codebuddy-intl"];
 // Qoder 的传输/UI 别名（qd = INTL，qdc = CN）与上面同理：/api/models 的
 // AI_MODELS 用 PROVIDER_MODELS 的 key（即 alias）拼 provider，若不在此归一化，
 // 同一模型换个拼写就回落到 DEFAULT 200k（vision/reasoning 被剥、窗口砍到 1/5）。
