@@ -132,6 +132,29 @@ export default {
     // 均返回 200，而 gemini-3.6-flash 与 gemini-3.5-flash-lite 回 11102——Gemini
     // 线从 3.5 直接跳到 3.8。倍率待 CodeBuddy 积分页核对，先按同族留空。
     { id: "gpt-6.1-sol", name: "GPT-6.1-Sol" },
+    // ── Claude 线（2026-10-09 积分页,user-provided）──
+    //
+    // ⚠️ 与本文件 rule (1) 的关系,务必读完再动这些行:
+    // 截图上这一整组带锁图标(付费档),且旁边的上线弹窗写着"待上线"——**这些 id
+    // 在本机的免费账号上全部回 11102**,包括最直译的 claude-opus-5.5。同一批探测
+    // 里 claude-opus-4.6 / claude-sonnet-4.6 / gpt-6-astra / gpt-6-sol / gpt-6.1-sol
+    // 都回 200,判定器本身正常。
+    //
+    // 因此最可能的原因是**账号档位**:截图来自付费账号,本机号看不到这批服务条目。
+    // 这与积分页按档位过滤是同一回事(见文件头 (2))。按用户判断先收录,并用 11102
+    // 复核过——若哪天某个 id 在**付费**账号上也回 11102,那时才是目录错误,可以下架。
+    //
+    // id 形式已按本文件既有惯例写成小写点号(claude-opus-5.5 而非 UI 的
+    // Claude-Opus-5.5),这是全表唯一验证过能被网关接受的写法。
+    { id: "claude-opus-5.5", name: "Claude-Opus-5.5", rateMultiplier: 2.17, paidTier: true },
+    { id: "claude-sonnet-5.5", name: "Claude-Sonnet-5.5", rateMultiplier: 1.33, paidTier: true },
+    { id: "claude-opus-5", name: "Claude-Opus-5", rateMultiplier: 3.33, paidTier: true },
+    { id: "claude-sonnet-5", name: "Claude-Sonnet-5", rateMultiplier: 1.33, paidTier: true },
+    { id: "claude-opus-4.8", name: "Claude-Opus-4.8", rateMultiplier: 3.33, paidTier: true },
+    { id: "claude-opus-4.7", name: "Claude-Opus-4.7", rateMultiplier: 3.33, paidTier: true },
+    // 4.6 是本组唯一在免费账号上探到 200 的(id 与倍率都来自积分页/探测,两处一致)
+    { id: "claude-opus-4.6", name: "Claude-Opus-4.6", rateMultiplier: 3.33, paidTier: true },
+    { id: "claude-sonnet-4.6", name: "Claude-Sonnet-4.6", paidTier: true },
     { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash" },
     { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.9 },
     { id: "space-bunny", name: "Space-Bunny", rateMultiplier: 0.08 },

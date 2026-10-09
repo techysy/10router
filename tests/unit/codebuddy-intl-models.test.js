@@ -54,6 +54,14 @@ describe("CodeBuddy international static model catalog", () => {
       "gpt-5.4",
       "gpt-5.3-codex",
       "gpt-6.1-sol",
+      "claude-opus-5.5",
+      "claude-sonnet-5.5",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-opus-4.8",
+      "claude-opus-4.7",
+      "claude-opus-4.6",
+      "claude-sonnet-4.6",
       "gemini-3.8-flash",
       "grok-4.7",
       "space-bunny",
@@ -110,6 +118,46 @@ describe("CodeBuddy international static model catalog", () => {
     const cnById = Object.fromEntries(cnEntry.models.map((model) => [model.id, model]));
     expect(byId["kimi-k2.7"]).toMatchObject({ name: "Kimi-K2.7-Code", rateMultiplier: 0.57 });
     expect(byId["kimi-k2.7"].rateMultiplier).toBe(cnById["kimi-k2.7"].rateMultiplier);
+  });
+
+  it("lists the Claude line from the credit page, flagged as unprobed here", () => {
+    // 2026-10-09: the intl credit page shows a whole Claude family, all carrying
+    // the paid-tier lock, next to a "coming soon" panel. On THIS machine's free
+    // account every one of them answers 11102 — including the plainest possible
+    // spelling, claude-opus-5.5 — while claude-opus-4.6 / claude-sonnet-4.6 /
+    // gpt-6-astra / gpt-6-sol / gpt-6.1-sol all answer 200 in the same batch, so
+    // the detector was working. Account tier is the likely cause; the page is
+    // tier-filtered for exactly this reason (registry header, rule (2)).
+    //
+    // These rows therefore break registry rule (1) — "advertise only after the
+    // gateway answers" — deliberately, on the user's call. This case exists so
+    // that stays visible: it is the one place a future reader learns these were
+    // NOT verified, rather than inferring verification from their presence.
+    const byId = Object.fromEntries(entry.models.map((model) => [model.id, model]));
+    // Multipliers are the credit page's own figures, not derived: Opus-5.5 2.17 /
+    // Sonnet-5.5 1.33 / Opus-5 3.33 / Sonnet-5 1.33 / Opus-4.8,4.7,4.6 3.33.
+    expect(byId["claude-opus-5.5"]).toMatchObject({ name: "Claude-Opus-5.5", rateMultiplier: 2.17 });
+    expect(byId["claude-sonnet-5.5"]).toMatchObject({ name: "Claude-Sonnet-5.5", rateMultiplier: 1.33 });
+    expect(byId["claude-opus-5"]).toMatchObject({ name: "Claude-Opus-5", rateMultiplier: 3.33 });
+    expect(byId["claude-sonnet-5"]).toMatchObject({ name: "Claude-Sonnet-5", rateMultiplier: 1.33 });
+    for (const id of ["claude-opus-4.8", "claude-opus-4.7", "claude-opus-4.6"]) {
+      expect(byId[id]).toMatchObject({ rateMultiplier: 3.33 });
+    }
+    // No multiplier was published for Sonnet-4.6, and rule (3) forbids
+    // borrowing Opus-4.6's 3.33 for it — a wrong number here is a wrong bill.
+    expect(byId["claude-sonnet-4.6"].rateMultiplier).toBeUndefined();
+  });
+
+  it("keeps the Claude ids in the lowercase dotted form the gateway accepts", () => {
+    // The credit page renders "Claude-Opus-5.5"; that exact casing answers 11102,
+    // as does the dash form (claude-opus-5-5) and the -thinking / -agentic
+    // variants. Only the lowercase dotted spelling is the addressable id, so the
+    // name may follow the page while the id must not.
+    const ids = entry.models.filter((m) => m.id.startsWith("claude-")).map((m) => m.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.every((id) => id === id.toLowerCase())).toBe(true);
+    expect(ids).toContain("claude-opus-5.5");
+    expect(ids).not.toContain("Claude-Opus-5.5");
   });
 
   it("does not advertise the agent presets the chat app resolves itself", () => {

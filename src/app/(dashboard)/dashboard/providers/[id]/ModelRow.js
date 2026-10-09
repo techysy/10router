@@ -321,6 +321,25 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
+            {/* Paid-tier model (registry `paidTier`): the credit page lists it
+                behind a subscription lock, so whether it answers depends on the
+                account's plan — not a fault, and not the same as "verified to
+                work here". Distinct from the multiplier badge below, which
+                states a price. */}
+            {model.paidTier && (
+              <Tooltip
+                text={translate("Only available on paid subscription tiers")}
+              >
+                <Badge
+                  size="sm"
+                  variant="warning"
+                  icon="lock"
+                  className="shrink-0 cursor-help leading-none"
+                >
+                  {translate("Paid tier")}
+                </Badge>
+              </Tooltip>
+            )}
             {(displayMultiplier !== null || nightFreeNow) && (
               <Tooltip
                 text={
@@ -436,6 +455,8 @@ ModelRow.propTypes = {
   model: PropTypes.shape({
     id: PropTypes.string.isRequired,
     rateMultiplier: PropTypes.number,
+    // Listed behind a subscription lock on the provider's credit page.
+    paidTier: PropTypes.bool,
     // Server-published off-peak window (Qoder catalog `promotion`).
     promotion: PropTypes.object,
     nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),
