@@ -79,6 +79,13 @@ export function createSSEStream(options = {}) {
   // estimated (not real) usage. The stall watchdog only fires on byte gaps, not
   // on an early clean FIN, so flush() is the only place that can tell.
   let endedWithoutTerminal = false;
+  // A `data:` line that looked like payload but would not parse is dropped by
+  // the loops below. That is deliberate for HTML error pages injected mid
+  // stream, but the same swallow hides genuine corruption: the client gets a
+  // shorter answer than the model produced and the request still books as a
+  // clean success. Counting them makes the loss visible without changing the
+  // success semantics — one bad line is not proof the stream was cut.
+  let parseFailures = 0;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -153,9 +160,11 @@ export function createSSEStream(options = {}) {
       onStreamComplete({
         content: accumulatedContent,
         thinking: accumulatedThinking,
-        // Additive: consumers that ignore it behave as before. `streaming` rows
-        // carry it so a truncated stream is not booked as a clean success.
+        // Additive: consumers that ignore these behave as before. `streaming`
+        // rows carry them so a truncated stream is not booked as a clean
+        // success, and so dropped content is not invisible.
         incomplete: endedWithoutTerminal,
+        parseFailures,
       }, settledUsage, ttftAt);
     }
   };
@@ -295,9 +304,13 @@ export function createSSEStream(options = {}) {
                 injectedUsage = true;
               }
             } catch {
-              // Skip non-JSON data lines silently — don't forward garbage to clients.
-              // Upstream providers sometimes return plain-text errors (HTML, rate-limit
-              // messages) in the SSE stream that would break downstream JSON decoders.
+              // Skip non-JSON data lines — don't forward garbage to clients.
+              // Upstream providers sometimes return plain-text errors (HTML,
+              // rate-limit messages) in the SSE stream that would break
+              // downstream JSON decoders. But do count them: the same swallow
+              // hides mid-stream corruption of real content, and the client
+              // then gets a shorter answer with no signal at all.
+              parseFailures++;
               continue;
             }
           }
@@ -319,7 +332,13 @@ export function createSSEStream(options = {}) {
         if (!trimmed) continue;
 
         const parsed = parseSSELine(trimmed, targetFormat);
-        if (!parsed) continue;
+        if (!parsed) {
+          // `null` also covers plain non-`data:` lines (comments, event names),
+          // which are legitimately ignorable. Only a `data:` line that would
+          // not parse is a lost chunk — see the note on `parseFailures`.
+          if (trimmed.startsWith("data:")) parseFailures++;
+          continue;
+        }
 
         // Responses API same-format passthrough: preserve event framing + track terminal state
         const isOpenAIResponsesStream = targetFormat === FORMATS.OPENAI_RESPONSES;

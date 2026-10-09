@@ -209,6 +209,10 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
         // got the sentinel (and the partial text), but this must not be booked
         // as a clean success with estimated usage.
         ...(contentObj?.incomplete ? { incomplete: true } : {}),
+        // How many `data:` lines looked like payload but would not parse and
+        // were dropped. Zero on a healthy stream; a non-zero count means the
+        // client got less than the model produced and nothing else would say so.
+        ...(contentObj?.parseFailures ? { parseFailures: contentObj.parseFailures } : {}),
       },
       pxpipe,
       status: contentObj?.incomplete ? "truncated" : "success"

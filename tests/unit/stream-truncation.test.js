@@ -101,6 +101,43 @@ describe("a truncated stream is not recorded as a clean success", () => {
   });
 });
 
+describe("dropped unparsable data lines are counted, not invisible", () => {
+  it("counts a corrupt data line it had to drop", async () => {
+    // An upstream proxy injecting a truncated JSON line mid-stream (or an HTML
+    // error page) is silently skipped so the client's JSON decoder survives —
+    // but the content of that chunk is gone from the answer and nothing else
+    // would say so. The stream still completes; the count is the only trace.
+    const { completions } = await runPassthrough([
+      'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n',
+      "data: {\"choices\":[{\"delta\":{\"content\":\"wor\n\n",
+      "data: [DONE]\n\n",
+    ]);
+    expect(completions).toHaveLength(1);
+    expect(completions[0].content.parseFailures).toBeGreaterThan(0);
+    // The healthy chunk before it must survive.
+    expect(completions[0].content.content).toContain("hello");
+  });
+
+  it("reports zero parse failures on a healthy stream", async () => {
+    const { completions } = await runPassthrough([
+      'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    expect(completions[0].content.parseFailures).toBeFalsy();
+  });
+
+  it("does not count plain non-data SSE lines", async () => {
+    // Comments and bare event names are legitimately ignorable — counting them
+    // would make every healthy stream look damaged.
+    const { completions } = await runPassthrough([
+      ": keepalive\n\n",
+      'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+      "data: [DONE]\n\n",
+    ]);
+    expect(completions[0].content.parseFailures).toBeFalsy();
+  });
+});
+
 describe("the request-detail row agrees (source guards)", () => {
   // The status is chosen in another module and only observable at its call
   // site — see tests/unit/stream-complete-on-done-sentinel.test.js:27 for the
