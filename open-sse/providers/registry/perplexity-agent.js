@@ -5,6 +5,12 @@ export default {
   aliases: [
     "pplx-agent",
     "pplx-responses",
+    // `pa` is the uiAlias, i.e. the prefix /api/models emits and therefore a
+    // legal custom-model owner in validProviderIds. ALIAS_TO_PROVIDER_ID is
+    // built from id/alias/aliases only, so it has to be claimed here too or
+    // parseModel("pa/…") falls through unchanged and the prefix resolves to a
+    // provider that does not exist.
+    "pa",
   ],
   uiAlias: "pa",
   display: {

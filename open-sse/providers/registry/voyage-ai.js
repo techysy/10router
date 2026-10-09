@@ -2,6 +2,11 @@ export default {
   id: "voyage-ai",
   priority: 40,
   alias: "voyage-ai",
+  // `voyage` is the uiAlias — the prefix /api/models emits, and therefore a
+  // legal custom-model owner. It must also be claimed in aliases[] (the only
+  // spelling fields ALIAS_TO_PROVIDER_ID reads besides id/alias) or
+  // parseModel("voyage/…") leaves the prefix unresolved.
+  aliases: ["voyage"],
   uiAlias: "voyage",
   display: {
     name: "Voyage AI",

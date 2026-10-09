@@ -8,8 +8,18 @@ export default {
   hidden: false,
   priority: 50,
   hasFree: true,
-  alias: "mmf",
-  uiAlias: "mmf",
+  // The `mmf` spelling is taken by the provider whose *id* is `mmf` (registry
+  // mmf.js — the same Xiaomi free endpoint, kept as the bare hidden stub). An
+  // id always wins its own spelling in ALIAS_TO_PROVIDER_ID, so `mmf` resolved
+  // to that entry and this card's claims were dead — worse, PROVIDER_MODELS is
+  // keyed `alias || id`, so both wrote the same `mmf` key and the later one
+  // silently overwrote the other's catalogue; disabledModelsRepo's canonical
+  // name is `uiAlias || alias || id`, so both also collapsed into one `mmf`
+  // key-group and toggling a model here toggled it there. Own our own id as the
+  // spelling (self-documenting, and nothing to collide with) — `mimo-free/…`
+  // is what the catalogue emits.
+  alias: "mimo-free",
+  uiAlias: "mimo-free",
   display: {
     name: "MiMo Code Free",
     icon: "smart_toy",

@@ -239,12 +239,24 @@ describe("MiMo Free provider registration", () => {
     expect(PROVIDER_MODELS.mmf.map((m) => m.id)).toEqual(["mimo-auto"]);
   });
 
-  it("maps the mimo-free alias to mmf", () => {
-    expect(PROVIDER_ID_TO_ALIAS["mimo-free"]).toBe("mmf");
+  it("keeps its own id as its alias instead of borrowing mmf", () => {
+    // This used to assert the opposite — `PROVIDER_ID_TO_ALIAS["mimo-free"]` was
+    // "mmf", which is the *id* of registry mmf.js. That cross-wired every
+    // id-keyed lookup for mimo-free onto mmf's catalogue, and because
+    // PROVIDER_MODELS is keyed `alias || id` both entries wrote the same `mmf`
+    // key so one silently overwrote the other. An id owns its own spelling, so
+    // mimo-free publishes its own id. See provider-alias-uniqueness.test.js.
+    expect(PROVIDER_ID_TO_ALIAS["mimo-free"]).toBe("mimo-free");
+    expect(PROVIDER_MODELS["mimo-free"].map((m) => m.id)).toEqual(["mimo-auto"]);
+    expect(PROVIDER_MODELS["mimo-free"]).not.toBe(PROVIDER_MODELS["mmf"]);
   });
 
   it("lists mimo-free in the dashboard FREE_PROVIDERS catalog", () => {
-    expect(FREE_PROVIDERS["mimo-free"]?.alias).toBe("mmf");
+    // Derived (uiAlias || alias) from the registry, so it follows the fix above.
+    // mmf is category "apikey" and lives in a different catalogue — the two must
+    // not collapse into one entry.
+    expect(FREE_PROVIDERS["mimo-free"]?.alias).toBe("mimo-free");
     expect(FREE_PROVIDERS["mimo-free"]?.noAuth).toBe(true);
+    expect(FREE_PROVIDERS["mmf"]).toBeUndefined();
   });
 });

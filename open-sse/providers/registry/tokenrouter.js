@@ -1,7 +1,14 @@
 export default {
   id: "tokenrouter",
   alias: "tokenrouter",
-  aliases: ["tr"],
+  // `tr` used to be listed here, but Trae has owned that spelling since it
+  // entered the registry — it is Trae's `alias`/`uiAlias`, so /api/models emits
+  // its catalogue as `tr/…` and ALIAS_TO_PROVIDER_ID resolved `tr` to `trae`
+  // anyway (last writer wins, and this entry cannot out-register Trae's id).
+  // Listing it here only made the claim look available and hid the collision
+  // from the uniqueness guard, which walks `aliases[]` and assumed each one is
+  // live. Use the full `tokenrouter/…` prefix (what the catalogue emits).
+  aliases: [],
   uiAlias: "tokenrouter",
   display: {
     name: "TokenRouter",
