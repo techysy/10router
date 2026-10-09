@@ -481,6 +481,18 @@ export async function buildModelsList(kindFilter, options = {}) {
     } else {
       const comboCaps = aggregateComboCapabilities(combo.models, comboByName, resolvePinnedCaps);
       if (comboCaps) entry.capabilities = comboCaps;
+      // Emit the snake_case fields too. `capabilities.contextWindow` is camelCase
+      // and nested, and clients matching context_length / context_window do not
+      // recurse — Claude CLI and mirasim read those two top-level names and were
+      // getting nothing back for combos, so they guessed the window from the
+      // name and guessed high. The two model paths below already emit these;
+      // this path was the only one left out. Values follow the combo-caps
+      // contract (min context / max output), unchanged here.
+      if (comboCaps?.contextWindow) {
+        entry.context_length = comboCaps.contextWindow;
+        entry.context_window = comboCaps.contextWindow;
+      }
+      if (comboCaps?.maxOutput) entry.max_completion_tokens = comboCaps.maxOutput;
     }
     emit(entry, COMBO_RANK);
   }
