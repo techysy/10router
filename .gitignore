@@ -102,6 +102,8 @@ graphify-out/*
 /fnos-packaging/app/server/
 /fnos-packaging/*.fpk
 /fnos-packaging/build.log
+/fnos-packaging/*-server.tar.gz
+/fnos-packaging/SHA256SUMS-fpk-*.txt
 
 # Local tool artifacts
 .v2c/
