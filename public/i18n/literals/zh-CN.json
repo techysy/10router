@@ -1027,6 +1027,8 @@
   "promo free until": "限时免费至",
   "Paid tier": "付费档",
   "Only available on paid subscription tiers": "仅付费订阅档位可用,能否调用取决于账号档位",
+  "Sub priority": "订阅优先",
+  "Prioritized for subscribers": "订阅用户排队优先",
   "Risk Notice": "风险提示",
   "Roo AI Assistant": "Roo AI 助手",
   "Rotate providers across requests instead of strict fallback order.": "在请求间轮换提供商，而不是严格的回退顺序。",

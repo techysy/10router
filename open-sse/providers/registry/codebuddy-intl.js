@@ -170,7 +170,7 @@ export default {
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
     // 0.57 取自 CN 积分页(两线一套积分系统,intl 页无此条目)。
     { id: "kimi-k2.7", name: "Kimi-K2.7-Code", rateMultiplier: 0.57 },
-    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77 },
+    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77, subPriority: true },
     { id: "kimi-k2.6", name: "Kimi-K2.6", rateMultiplier: 0.52 },
     // Promo: free for the two weeks after the upstream V4.1-Flash launch
     // (2026-09-10 — DeepSeek's "set your model to deepseek-flash" announcement).

@@ -35,6 +35,7 @@ describe("CodeBuddy CN static model catalog", () => {
       "kimi-k2.7",
       "kimi-k2.8-preview",
       "kimi-k2.6",
+      "step-5-preview",
       "deepseek-v4.1-flash",
       "deepseek-v4-pro",
     ]);
@@ -68,6 +69,9 @@ describe("CodeBuddy CN static model catalog", () => {
       "kimi-k2.7": 0.57,
       "kimi-k2.8-preview": 0.77,
       "kimi-k2.6": 0.52,
+      // StepFun Step-5-Preview,2026-10-09 积分页。免费账号探测全 11102(17 种写法),
+      // 按账号档位收录,与 intl 的 Claude 线同一判断。
+      "step-5-preview": 0.43,
       // 2026-10-02 官方积分页已回调 0.03 → 0.11（首周尝鲜价结束）。
       "deepseek-v4.1-flash": 0.11,
       "deepseek-v4-pro": 0.51,

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import intl from "../../open-sse/providers/registry/codebuddy-intl.js";
+import cn from "../../open-sse/providers/registry/codebuddy-cn.js";
+import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const MODEL_ROW = read("../../src/app/(dashboard)/dashboard/providers/[id]/ModelRow.js");
@@ -67,12 +69,71 @@ describe("paid-tier badge rendering contract", () => {
   });
 });
 
+describe("subPriority registry flag", () => {
+  const cnById = Object.fromEntries(cn.models.map((m) => [m.id, m]));
+  const intlById = Object.fromEntries(intl.models.map((m) => [m.id, m]));
+
+  it("marks exactly the two rows the credit page tags 订阅优先", () => {
+    // Step-5-Preview (CN, 0.43x) and Kimi-K2.8-Preview (intl, 0.77x). Both are
+    // preview models queued ahead for subscribers — a scheduling property that
+    // says nothing about price or about whether your account can call them.
+    expect([cnById["step-5-preview"].subPriority]).toEqual([true]);
+    expect([intlById["kimi-k2.8-preview"].subPriority]).toEqual([true]);
+    const tagged = [...cn.models, ...intl.models].filter((m) => m.subPriority);
+    expect(tagged.map((m) => m.id).sort()).toEqual(["kimi-k2.8-preview", "step-5-preview"]);
+  });
+
+  it("does not mark the models that have no such tag", () => {
+    // The Claude line carries the paid-tier LOCK, not 订阅优先 — conflating the
+    // two would put a queueing claim on rows the page never gave it to.
+    for (const m of intl.models.filter((x) => x.id.startsWith("claude-"))) {
+      expect([m.id, m.subPriority]).toEqual([m.id, undefined]);
+    }
+  });
+
+  it("keeps the two flags independent on the same row", () => {
+    // Step-5-Preview is 订阅优先 but NOT behind a paid lock on the page, so it
+    // must not acquire paidTier by association. The two badges answer different
+    // questions: "is it gated?" vs "is it queued ahead?".
+    expect(cnById["step-5-preview"].paidTier).toBeUndefined();
+    expect(cnById["step-5-preview"].subPriority).toBe(true);
+  });
+
+  it("records Step-5-Preview's published rate and 1M context", () => {
+    // 0.43x off the 2026-10-09 credit page; the context picker offers
+    // 300/600/1M and the row resolves to the 1M ceiling.
+    expect(cnById["step-5-preview"]).toMatchObject({ rateMultiplier: 0.43 });
+    expect(getCapabilitiesForModel("codebuddy-cn", "step-5-preview").contextWindow).toBe(1000000);
+  });
+});
+
+describe("subscription-priority badge rendering contract", () => {
+  it("renders an info badge with a bolt icon, distinct from the paid-tier lock", () => {
+    // info + bolt vs warning + lock: two visually distinct marks, so a row that
+    // ever carries both does not read as one ambiguous badge.
+    expect(MODEL_ROW).toContain("model.subPriority && (");
+    expect(MODEL_ROW).toContain('translate("Sub priority")');
+    expect(MODEL_ROW).toContain('translate("Prioritized for subscribers")');
+    expect(MODEL_ROW).toContain("subPriority: PropTypes.bool");
+    const sub = MODEL_ROW.slice(MODEL_ROW.indexOf("model.subPriority && ("));
+    expect(sub.slice(0, 400)).toContain('variant="info"');
+    expect(sub.slice(0, 400)).toContain('icon="bolt"');
+  });
+
+  it("does not nest the sub-priority badge inside the paid-tier guard", () => {
+    // Otherwise a 订阅优先 row without the lock would lose the badge entirely.
+    expect(MODEL_ROW).not.toContain("model.paidTier && model.subPriority");
+  });
+});
+
 describe("paid-tier badge i18n", () => {
   it("has both strings in every locale that has a table", () => {
     // en.json does not exist by design — English falls back to the key itself.
     for (const [name, table] of Object.entries(locales)) {
       expect([name, typeof table["Paid tier"]]).toEqual([name, "string"]);
       expect([name, typeof table["Only available on paid subscription tiers"]]).toEqual([name, "string"]);
+      expect([name, typeof table["Sub priority"]]).toEqual([name, "string"]);
+      expect([name, typeof table["Prioritized for subscribers"]]).toEqual([name, "string"]);
     }
   });
 

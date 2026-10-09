@@ -105,6 +105,13 @@ export default {
     { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77 },
     { id: "kimi-k2.6", name: "Kimi-K2.6", rateMultiplier: 0.52 },
     // 官方积分页 2026-10-02 已将此模型回调至 0.11x（曾为首周 0.03x 尝鲜价）。
+    // StepFun 的 Step-5-Preview,2026-10-09 积分页 0.43x + "订阅优先"标签,
+    // 上下文 UI 可选 300/600/1M。⚠️ 本机免费账号探测:step-5-preview /
+    // step5-preview / step-5 / step5 / stepfun-5-preview / Step-5-Preview(UI 原样)/
+    // step-5-preview-x 等 17 种写法**全部回 11102**,与瞎编的对照 id 同判定(同批
+    // glm-5.3 / deepseek-v4.1-flash 回 200,判定器正常)。按账号档位差异收录——
+    // 与 intl 的 Claude 线同一判断,同样未经本账号验证。
+    { id: "step-5-preview", name: "Step-5-Preview", rateMultiplier: 0.43, subPriority: true },
     { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.11 },
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro", rateMultiplier: 0.51 },
     // NOTE: the GPT/Gemini family (gpt-5.6-sol/terra/luna, gpt-5.5, gpt-5.4,

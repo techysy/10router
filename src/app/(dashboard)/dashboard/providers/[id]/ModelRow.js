@@ -340,6 +340,24 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                 </Badge>
               </Tooltip>
             )}
+            {/* Subscription-priority model (registry `subPriority`): the credit
+                page tags it "订阅优先" — served ahead of other traffic for
+                subscribers. A queueing property, orthogonal to both the price
+                (multiplier badge) and to access gating (paidTier above). */}
+            {model.subPriority && (
+              <Tooltip
+                text={translate("Prioritized for subscribers")}
+              >
+                <Badge
+                  size="sm"
+                  variant="info"
+                  icon="bolt"
+                  className="shrink-0 cursor-help leading-none"
+                >
+                  {translate("Sub priority")}
+                </Badge>
+              </Tooltip>
+            )}
             {(displayMultiplier !== null || nightFreeNow) && (
               <Tooltip
                 text={
@@ -457,6 +475,8 @@ ModelRow.propTypes = {
     rateMultiplier: PropTypes.number,
     // Listed behind a subscription lock on the provider's credit page.
     paidTier: PropTypes.bool,
+    // Tagged "订阅优先" on the credit page: queued ahead for subscribers.
+    subPriority: PropTypes.bool,
     // Server-published off-peak window (Qoder catalog `promotion`).
     promotion: PropTypes.object,
     nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),
