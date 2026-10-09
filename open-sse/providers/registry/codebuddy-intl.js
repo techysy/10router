@@ -154,7 +154,11 @@ export default {
     { id: "claude-opus-4.7", name: "Claude-Opus-4.7", rateMultiplier: 3.33, paidTier: true },
     // 4.6 是本组唯一在免费账号上探到 200 的(id 与倍率都来自积分页/探测,两处一致)
     { id: "claude-opus-4.6", name: "Claude-Opus-4.6", rateMultiplier: 3.33, paidTier: true },
-    { id: "claude-sonnet-4.6", name: "Claude-Sonnet-4.6", paidTier: true },
+    // 1.33 是**按 Sonnet 5 的积分对齐**的(用户决定),不是积分页原值——该行在
+    // 2026-10-09 的页面上没显示倍率。同族 Sonnet-5 / Sonnet-5.5 都是 1.33,与
+    // Opus 线的 3.33 对比明显是按型号分档,故同档对齐可用;但这终究是推断,
+    // 页面一旦给出真实数字以页面为准(改这一行即可)。
+    { id: "claude-sonnet-4.6", name: "Claude-Sonnet-4.6", rateMultiplier: 1.33, paidTier: true },
     { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash" },
     { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.9 },
     { id: "space-bunny", name: "Space-Bunny", rateMultiplier: 0.08 },

@@ -143,9 +143,13 @@ describe("CodeBuddy international static model catalog", () => {
     for (const id of ["claude-opus-4.8", "claude-opus-4.7", "claude-opus-4.6"]) {
       expect(byId[id]).toMatchObject({ rateMultiplier: 3.33 });
     }
-    // No multiplier was published for Sonnet-4.6, and rule (3) forbids
-    // borrowing Opus-4.6's 3.33 for it — a wrong number here is a wrong bill.
-    expect(byId["claude-sonnet-4.6"].rateMultiplier).toBeUndefined();
+    // Sonnet-4.6 was NOT published on the credit page; 1.33 is aligned to
+    // Sonnet-5 by the user's call, not read off the page. Rule (3) forbids
+    // *deriving* a rate (borrowing Opus-4.6's 3.33 would be exactly that), so
+    // this one is pinned as a deliberate alignment — assert the equality so a
+    // later edit to either Sonnet row is a conscious choice.
+    expect(byId["claude-sonnet-4.6"].rateMultiplier).toBe(1.33);
+    expect(byId["claude-sonnet-4.6"].rateMultiplier).toBe(byId["claude-sonnet-5"].rateMultiplier);
   });
 
   it("keeps the Claude ids in the lowercase dotted form the gateway accepts", () => {
