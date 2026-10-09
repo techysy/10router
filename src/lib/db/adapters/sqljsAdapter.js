@@ -19,23 +19,43 @@ export async function createSqlJsAdapter(filePath) {
 
   let dirty = false;
   let saveTimer = null;
+  let saveFailures = 0;
   const SAVE_DEBOUNCE_MS = 100;
+  const SAVE_RETRY_MAX_MS = 30_000;
 
   function persist() {
     const data = db.export();
     fs.writeFileSync(filePath, Buffer.from(data));
     dirty = false;
+    saveFailures = 0;
   }
 
   function scheduleSave() {
     dirty = true;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      if (dirty) {
-        try { persist(); } catch (e) { console.error("[sqljs] save failed:", e); }
-      }
-    }, SAVE_DEBOUNCE_MS);
+    saveTimer = setTimeout(runSave, SAVE_DEBOUNCE_MS);
+  }
+
+  function runSave() {
+    saveTimer = null;
+    if (!dirty) return;
+    try {
+      persist();
+    } catch (e) {
+      // A lost write is not always harmless. The request path persists rotated
+      // refresh tokens through this adapter, and a consumed token left in the
+      // DB gets the whole OAuth session revoked on the next request (see
+      // persistRefreshedCredentials). Retrying on the next mutation alone means
+      // a quiet install that stops writing loses the batch outright — and the
+      // write that triggered it has already reported success. Back off rather
+      // than spin: a permanently locked file settles at the cap instead of
+      // hammering the disk.
+      saveFailures += 1;
+      const delay = Math.min(SAVE_DEBOUNCE_MS * 2 ** saveFailures, SAVE_RETRY_MAX_MS);
+      console.error(`[sqljs] save failed (retrying in ${delay}ms):`, e?.message || e);
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(runSave, delay);
+    }
   }
 
   function paramsObj(params) {
@@ -101,12 +121,25 @@ export async function createSqlJsAdapter(filePath) {
 
   function close() {
     if (saveTimer) clearTimeout(saveTimer);
-    if (dirty) persist();
+    saveTimer = null;
+    // Never throw out of close(): a failed final write must not stop the caller
+    // shutting down, but it must not vanish either.
+    if (dirty) {
+      try { persist(); } catch (e) {
+        console.error("[sqljs] final save failed, in-memory changes are lost:", e?.message || e);
+      }
+    }
     db.close();
   }
 
-  // Flush on shutdown
-  const flush = () => { if (dirty) try { persist(); } catch {} };
+  // Flush on shutdown. A silent `catch {}` here hid the exact failure that loses
+  // a rotated refresh token at process exit, so log it loudly instead.
+  const flush = () => {
+    if (!dirty) return;
+    try { persist(); } catch (e) {
+      console.error("[sqljs] shutdown save failed, in-memory changes are lost:", e?.message || e);
+    }
+  };
   process.on("beforeExit", flush);
   process.on("SIGINT", flush);
   process.on("SIGTERM", flush);
