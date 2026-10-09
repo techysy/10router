@@ -612,6 +612,14 @@ export const PROVIDER_CAPABILITIES = {
   // 会变，没有稳定的能力声明可写（详见 registry/codebuddy-intl.js 的说明）。
   "codebuddy-intl": {
     "space-bunny": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    // kimi-k2.8-preview 是**两线同款**(同 id、同 0.77x、一套积分系统),故与 CN
+    // 侧同值,不落进 *kimi*k2* 的 262144/262144——那个 pattern 的 maxOutput 等于
+    // contextWindow,是泛化的 K2 时代值,对 2.8 预览版同样没依据,而 maxOutput 是
+    // 真夹子:多报就会让超限的 max_tokens 直接穿过去被上游拒。
+    // 与「不镜像国内能力表」不冲突:那条针对的是**只在单边存在**的模型,这里是
+    // 同一款模型,理应同参。两侧数值都是 k2.7 同档占位(见 CN 注释),待
+    // product-config 的 maxOutputTokens 回来一并校准。
+    "kimi-k2.8-preview": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …);
   // capability lookup matches on the raw id, while clients may also address

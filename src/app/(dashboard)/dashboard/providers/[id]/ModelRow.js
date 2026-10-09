@@ -328,7 +328,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                 states a price. */}
             {model.paidTier && (
               <Tooltip
-                text={translate("Only available on paid subscription tiers")}
+                text={translate("Not available on every plan yet — needs a paid tier, or is still rolling out")}
               >
                 <Badge
                   size="sm"

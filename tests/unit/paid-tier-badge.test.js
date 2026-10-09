@@ -52,10 +52,13 @@ describe("paid-tier badge rendering contract", () => {
     expect(MODEL_ROW).toContain('translate("Paid tier")');
   });
 
-  it("explains the badge in a tooltip rather than in the label", () => {
-    // "Paid tier" alone would read as a price tier. The tooltip carries the
-    // part that actually matters: availability follows the account's plan.
-    expect(MODEL_ROW).toContain('translate("Only available on paid subscription tiers")');
+  it("explains the badge in a tooltip that does not over-promise a reason", () => {
+    // "Paid tier" alone would read as a price tier. But the tooltip must not
+    // assert a single cause either: these ids answered 11102 on this machine's
+    // account while the credit page showed a "coming soon" panel, so the truth
+    // is "tier-gated OR still rolling out" — and a paid user who still gets
+    // 11102 should not be sent chasing their plan.
+    expect(MODEL_ROW).toContain('translate("Not available on every plan yet — needs a paid tier, or is still rolling out")');
     expect(MODEL_ROW).toContain("<Tooltip");
   });
 
@@ -133,7 +136,7 @@ describe("paid-tier badge i18n", () => {
     // en.json does not exist by design — English falls back to the key itself.
     for (const [name, table] of Object.entries(locales)) {
       expect([name, typeof table["Paid tier"]]).toEqual([name, "string"]);
-      expect([name, typeof table["Only available on paid subscription tiers"]]).toEqual([name, "string"]);
+      expect([name, typeof table["Not available on every plan yet — needs a paid tier, or is still rolling out"]]).toEqual([name, "string"]);
       expect([name, typeof table["Sub priority"]]).toEqual([name, "string"]);
       expect([name, typeof table["Prioritized for subscribers"]]).toEqual([name, "string"]);
     }
