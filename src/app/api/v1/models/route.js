@@ -487,12 +487,16 @@ export async function buildModelsList(kindFilter, options = {}) {
       // getting nothing back for combos, so they guessed the window from the
       // name and guessed high. The two model paths below already emit these;
       // this path was the only one left out. Values follow the combo-caps
-      // contract (min context / max output), unchanged here.
-      if (comboCaps?.contextWindow) {
+      // contract (min context / max output), unchanged here. The guard is
+      // `Number.isFinite`, matching the strict form used lower in this file —
+      // a truthy check would pass a NaN or a string straight through to JSON.
+      if (comboCaps && Number.isFinite(comboCaps.contextWindow)) {
         entry.context_length = comboCaps.contextWindow;
         entry.context_window = comboCaps.contextWindow;
       }
-      if (comboCaps?.maxOutput) entry.max_completion_tokens = comboCaps.maxOutput;
+      if (comboCaps && Number.isFinite(comboCaps.maxOutput)) {
+        entry.max_completion_tokens = comboCaps.maxOutput;
+      }
     }
     emit(entry, COMBO_RANK);
   }
