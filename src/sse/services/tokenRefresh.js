@@ -188,6 +188,11 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
       };
     }
     if (newCredentials.projectId)            updates.projectId = newCredentials.projectId;
+    // Every request-path caller passes testStatus: "active" after a refresh —
+    // it meant "this channel is serving again", and until now it was silently
+    // dropped here. connectionsRepo only auto-clears an "unavailable" status, so
+    // any other stuck value stayed stuck.
+    if (newCredentials.testStatus !== undefined) updates.testStatus = newCredentials.testStatus;
 
     const result = await updateProviderConnection(connectionId, updates);
     log.info("TOKEN_REFRESH", "Credentials updated in localDb", {
@@ -202,6 +207,90 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     });
     return false;
   }
+}
+
+/**
+ * Persist credentials handed back by a refresh on the request path (the
+ * `onCredentialsRefreshed` callback shared by the chat / embeddings / fetch /
+ * image / search / video handlers).
+ *
+ * Two reasons this lives here instead of being inlined at each call site:
+ *
+ *  1. The inlined copies disagreed. Some spread the whole payload, some passed
+ *     only { accessToken, refreshToken, providerSpecificData } — silently
+ *     dropping `lastRefreshAt` / `expiresAt` / `idToken` / `projectId`.
+ *     `lastRefreshAt` is the key the "DB is newer" adoption guard in
+ *     checkAndRefreshToken compares on, so those handlers could not benefit
+ *     from it at all.
+ *  2. A lost write is not always harmless. OpenAI-class providers rotate the
+ *     refresh token on every refresh; if the rotated token never reaches the
+ *     DB the next request sends a consumed token and upstream revokes the
+ *     whole session. Detect that case and fail loudly instead of returning
+ *     credentials only this process can see.
+ *
+ * The rotation check reads the DB only on the failure path, so the happy path
+ * pays nothing. `updateProviderCredentials` never throws (returns false).
+ *
+ * @param {string} connectionId
+ * @param {object} newCreds - fields returned by the refresh
+ * @param {object} [options]
+ * @param {object} [options.providerSpecificData] - existing providerSpecificData to merge under
+ * @param {string} [options.provider] - for the log line
+ * @param {object} [options.log]
+ * @param {string} [options.previousRefreshToken] - pre-refresh value, to skip the failure-path DB read
+ * @returns {Promise<boolean>} whether the write landed
+ */
+/**
+ * Raised when refreshed credentials could not be written to the DB AND the
+ * refresh token was rotated, which leaves the stored token already consumed.
+ * Callers must not swallow this and carry on: the connection is unusable until
+ * it is re-authorized, and continuing serves one request while guaranteeing the
+ * next one revokes the session. chatCore's blanket `catch` on the refresh path
+ * looks for `persistFailed` and lets this one out.
+ */
+export class CredentialPersistError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CredentialPersistError";
+    this.persistFailed = true;
+  }
+}
+
+export async function persistRefreshedCredentials(connectionId, newCreds, options = {}) {
+  const logger = options.log || log;
+  const { providerSpecificData, provider, previousRefreshToken } = options;
+  const persisted = await updateProviderCredentials(connectionId, {
+    ...newCreds,
+    existingProviderSpecificData: providerSpecificData,
+    testStatus: "active",
+  });
+  if (persisted) return true;
+
+  // DB unchanged after a failed write — compare against what the next request
+  // would read. A provider that hands back the same refresh token did not
+  // rotate, so the stored one is still good and losing the write only costs a
+  // redundant refresh later. A different one means the stored token is already
+  // consumed upstream.
+  const beforeToken =
+    previousRefreshToken !== undefined
+      ? previousRefreshToken
+      : (await getProviderConnectionById(connectionId).catch(() => null))?.refreshToken;
+  const rotated = !!newCreds?.refreshToken && (!beforeToken || beforeToken !== newCreds.refreshToken);
+
+  if (rotated) {
+    logger.error("TOKEN_REFRESH", "Rotated refresh token could not be persisted — refusing to continue", {
+      connectionId,
+      provider,
+    });
+    throw new CredentialPersistError(
+      `${provider || "provider"}: refresh token was rotated but could not be saved; re-authorize the connection`
+    );
+  }
+  logger.warn("TOKEN_REFRESH", "Refreshed credentials could not be persisted; continuing on in-memory copy", {
+    connectionId,
+    provider,
+  });
+  return false;
 }
 
 // ─── Local-specific: proactive token refresh ─────────────────────────────────
@@ -259,13 +348,20 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
 
     const newCreds = await _refreshProviderCredentials(provider, creds, log);
     if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
-      const mergedCreds = {
-        ...newCreds,
-        existingProviderSpecificData: creds.providerSpecificData,
-      };
-
-      // Persist to DB (non-blocking path continues below)
-      await updateProviderCredentials(creds.connectionId, mergedCreds);
+      // Persist to DB. Losing this write is not always harmless: OpenAI-class
+      // providers rotate the refresh token on every refresh, so the previous one
+      // is consumed the moment upstream accepts it. If the rotated token never
+      // reaches the DB, the next request reads the consumed one, sends it, and
+      // upstream revokes the whole session — the "DB is newer" adoption above
+      // cannot recover this, because a lost write leaves the DB *older*, and
+      // that guard only adopts when the DB is newer. persistRefreshedCredentials
+      // detects rotation and fails the refresh loudly in that case.
+      await persistRefreshedCredentials(creds.connectionId, newCreds, {
+        providerSpecificData: creds.providerSpecificData,
+        previousRefreshToken: creds.refreshToken,
+        provider,
+        log,
+      });
 
       creds = {
         ...creds,
@@ -306,9 +402,17 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
           copilotTokenExpiresAt: copilotTokenResult.expiresAt,
         };
 
-        await updateProviderCredentials(creds.connectionId, {
+        // The Copilot token is derived from an unchanged GitHub access token, so
+        // a lost write here is not a rotation hazard — it is re-derived on the
+        // next request. Warn rather than fail the request.
+        const persisted = await updateProviderCredentials(creds.connectionId, {
           providerSpecificData: updatedSpecific,
         });
+        if (!persisted) {
+          log.warn("TOKEN_REFRESH", "Copilot token could not be persisted; it will be re-derived", {
+            connectionId: creds.connectionId,
+          });
+        }
 
         creds.providerSpecificData = updatedSpecific;
         creds.copilotToken = copilotTokenResult.token;

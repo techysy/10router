@@ -11,7 +11,7 @@ import { handleFetchCore } from "open-sse/handlers/fetch/index.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
-import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
+import { checkAndRefreshToken, persistRefreshedCredentials } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 
@@ -196,12 +196,16 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
       providerConfig,
       credentials: refreshedCredentials,
       log,
+      // Shared with every other handler — see persistRefreshedCredentials. This
+      // used to write only { accessToken, refreshToken, providerSpecificData },
+      // dropping lastRefreshAt / expiresAt (so the "DB is newer" adoption guard
+      // could never fire for this handler) and replacing providerSpecificData
+      // wholesale instead of merging under the stored copy.
       onCredentialsRefreshed: async (newCreds) => {
-        await updateProviderCredentials(credentials.connectionId, {
-          accessToken: newCreds.accessToken,
-          refreshToken: newCreds.refreshToken,
-          providerSpecificData: newCreds.providerSpecificData,
-          testStatus: "active"
+        await persistRefreshedCredentials(credentials.connectionId, newCreds, {
+          providerSpecificData: credentials.providerSpecificData,
+          provider,
+          log,
         });
       }
     });

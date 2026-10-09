@@ -461,20 +461,34 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${provider}/${model}`);
         Object.assign(credentials, newCredentials);
         if (onCredentialsRefreshed) {
-          try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
+          // Deliberately not wrapped: a rotated refresh token that could not be
+          // persisted must stop the request (see CredentialPersistError). Any
+          // other failure is warned about and ignored by the helper itself.
+          await onCredentialsRefreshed(newCredentials);
         }
         try {
           const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions });
-          if (retryResult.response.ok) {
-            providerResponse = retryResult.response;
-            providerUrl = retryResult.url;
-            providerResponseFormat = retryResult.responseFormat || targetFormat;
-          }
-        } catch { log?.warn?.("TOKEN", `${provider.toUpperCase()} | retry after refresh failed`); }
+          // Take the retry's outcome even when it is NOT ok. Keeping the original
+          // 401 in that case told the client to re-check an API key when the real
+          // problem was a 429/500 on the retry, and markAccountUnavailable scored
+          // it as an auth failure (2-minute model lock) instead of the backoff the
+          // new response deserved — wrong error to the caller, wrong fallback for
+          // every account behind this one.
+          providerResponse = retryResult.response;
+          providerUrl = retryResult.url;
+          providerResponseFormat = retryResult.responseFormat || targetFormat;
+        } catch (e) {
+          // No response came back at all — the original one is all we have.
+          log?.warn?.("TOKEN", `${provider.toUpperCase()} | retry after refresh failed: ${e.message}`);
+        }
       } else {
         log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
       }
     } catch (e) {
+      // A rotated refresh token that never reached the DB is not a refresh
+      // hiccup — the connection is already dead upstream. Let it out instead of
+      // logging and serving one last request off in-memory credentials.
+      if (e?.persistFailed) throw e;
       log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh threw: ${e.message}`);
     }
   }

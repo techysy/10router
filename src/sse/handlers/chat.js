@@ -25,7 +25,7 @@ import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
-import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
+import { updateProviderCredentials, checkAndRefreshToken, persistRefreshedCredentials } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 
@@ -388,11 +388,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       providerThinking,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
+      // Shared with every other handler on purpose: the inlined copies used to
+      // disagree on which fields to write (some dropped lastRefreshAt/expiresAt,
+      // which the "DB is newer" adoption guard compares on) and all of them
+      // ignored the persist result. See persistRefreshedCredentials.
       onCredentialsRefreshed: async (newCreds) => {
-        await updateProviderCredentials(credentials.connectionId, {
-          ...newCreds,
-          existingProviderSpecificData: credentials.providerSpecificData,
-          testStatus: "active"
+        await persistRefreshedCredentials(credentials.connectionId, newCreds, {
+          providerSpecificData: credentials.providerSpecificData,
+          provider,
+          log,
         });
       },
       onRequestSuccess: async () => {
