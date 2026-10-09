@@ -38,10 +38,25 @@ jobs:
           cp -r open-sse fnos-packaging/app/server/
           cp -r src/mitm fnos-packaging/app/server/
           mkdir -p fnos-packaging/app/server/node_modules
-          cp -r node_modules/node-forge fnos-packaging/app/server/node_modules/
-          cp -r node_modules/sql.js fnos-packaging/app/server/node_modules/
-          cp -r node_modules/next fnos-packaging/app/server/node_modules/
-          cp -r node_modules/better-sqlite3 fnos-packaging/app/server/node_modules/
+          # 仅补 standalone **没带**的包。**绝不能覆盖** standalone 自带的 next:
+          # 覆盖成完整版会把 standalone 精简版旁边的 @swc(scoped 追踪产物)一起清掉,
+          # 装上就炸 `Cannot find module '@swc/helpers/_/_interop_require_default'`
+          # (2026-10-08 NAS 实测,且旧覆盖式打法多带 ~170MB 构建期文件,见
+          # docs/zh-CN/fnpk-size-reduction-1.3.6.md)。与 scripts/fpk-local.sh 保持一致。
+          for pkg in node-forge sql.js next better-sqlite3 "@swc"; do
+            if [ -d "fnos-packaging/app/server/node_modules/$pkg" ]; then
+              echo "SKIP  $pkg (standalone already ships it)"
+            else
+              mkdir -p "fnos-packaging/app/server/node_modules/$pkg"
+              cp -r "node_modules/$pkg/." "fnos-packaging/app/server/node_modules/$pkg/"
+              echo "COPY  $pkg"
+            fi
+          done
+          # 缺件早爆:比装到 NAS 上才发现快两个数量级
+          for p in node_modules/@swc/helpers node_modules/next open-sse src/mitm .next/BUILD_ID public custom-server.js; do
+            [ -e "fnos-packaging/app/server/$p" ] || { echo "ERROR: missing $p"; exit 1; }
+          done
+          du -sh fnos-packaging/app/server
           ls -la fnos-packaging/app/server/
 
       - name: Download fnpack
