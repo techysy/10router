@@ -53,7 +53,7 @@ jobs:
             fi
           done
           # 缺件早爆:比装到 NAS 上才发现快两个数量级
-          for p in node_modules/@swc/helpers node_modules/next open-sse src/mitm .next/BUILD_ID public custom-server.js; do
+          for p in node_modules/@swc/helpers node_modules/next node_modules/sql.js open-sse src/mitm .next/BUILD_ID public custom-server.js; do
             [ -e "fnos-packaging/app/server/$p" ] || { echo "ERROR: missing $p"; exit 1; }
           done
           du -sh fnos-packaging/app/server

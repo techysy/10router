@@ -456,6 +456,18 @@ export async function buildModelsList(kindFilter, options = {}) {
   // Lookup map so aggregateComboCapabilities can recursively resolve nested combos
   const comboByName = Object.fromEntries(combos.map((c) => [c.name, c.models]));
 
+  // LLM combos carry the aggregate of their members: union of modalities,
+  // intersection of tools, min context / max output (combo-caps contract).
+  // Pass the dashboard-pinned caps as resolveCaps so a member's user override
+  // (e.g. a pinned 1M window) reaches the combo aggregate, not only the member row.
+  // Hoisted out of the loop: it only reads `capsOverrides`, which is invariant.
+  const resolvePinnedCaps = (fullId) => {
+    const slash = fullId.indexOf("/");
+    if (slash === -1) return null;
+    const pinned = capsOverrides[fullId.slice(0, slash)]?.[fullId.slice(slash + 1)];
+    return pinned && (pinned.contextWindow || pinned.maxOutput) ? pinned : null;
+  };
+
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
@@ -467,16 +479,6 @@ export async function buildModelsList(kindFilter, options = {}) {
     if (combo.kind === "webSearch" || combo.kind === "webFetch") {
       entry.kind = combo.kind;
     } else {
-      // LLM combos carry the aggregate of their members: union of modalities,
-      // intersection of tools, min context / max output (combo-caps contract).
-      // Pass the dashboard-pinned caps as resolveCaps so a member's user override
-      // (e.g. a pinned 1M window) reaches the combo aggregate, not only the member row.
-      const resolvePinnedCaps = (fullId) => {
-        const slash = fullId.indexOf("/");
-        if (slash === -1) return null;
-        const pinned = capsOverrides[fullId.slice(0, slash)]?.[fullId.slice(slash + 1)];
-        return pinned && (pinned.contextWindow || pinned.maxOutput) ? pinned : null;
-      };
       const comboCaps = aggregateComboCapabilities(combo.models, comboByName, resolvePinnedCaps);
       if (comboCaps) entry.capabilities = comboCaps;
     }

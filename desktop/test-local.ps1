@@ -76,9 +76,13 @@ Push-Location $RepoDir
 try {
     $sc = @(git status --porcelain -- public src open-sse desktop cli 2>$null)
 } finally { Pop-Location }
-$hasDesktop = [bool]($sc | Where-Object { $_ -like "* desktop/*" -or $_ -like "*cli/*" })
-$hasServer  = [bool]($sc | Where-Object { $_ -like "* src/*"   -or $_ -like "*open-sse/*" })
-$hasPublic  = [bool]($sc | Where-Object { $_ -like "* public/*" })
+# porcelain 的路径从第 4 列起(2 列状态 + 1 列空格)。**锚定到路径首段**:
+# `*cli/*` 会把 src/.../cli/ 之类的嵌套段也当成 cli/ 改动,给出假提醒。
+# renames 显示为 `R  old -> new`,故两侧都认。
+$paths = @($sc | ForEach-Object { if ($_.Length -gt 3) { $_.Substring(3) } else { "" } })
+$hasDesktop = [bool]($paths | Where-Object { $_ -match '^(desktop|cli)/| -> (desktop|cli)/' })
+$hasServer  = [bool]($paths | Where-Object { $_ -match '^(src|open-sse)/| -> (src|open-sse)/' })
+$hasPublic  = [bool]($paths | Where-Object { $_ -match '^public/| -> public/' })
 if (($hasDesktop -or $hasServer) -and $Mode -eq "ui") {
     Write-Host "⚠ 检测到 src/open-sse/desktop/cli 改动,但选了 -Mode ui(ui 只拷 public/,这些改动不会生效)。应选:" -ForegroundColor Yellow
     if ($hasDesktop) { Write-Host "    desktop/cli → replace" }
