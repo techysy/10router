@@ -1,4 +1,18 @@
 // Format identifiers
+//
+// Which of these can actually appear as a `targetFormat` matters — the values
+// reach translator dispatch, thinking handling and usage accounting, and a
+// format nobody produces is a branch that never runs. Verified 2026-10-10 over
+// every `targetFormat:` in the provider registry, every `responseFormat:`
+// returned by an executor and every provider config `format`:
+//
+//   produced  openai · openai-responses · claude · (config.format, which is
+//             never "codex" nor "openai-response")
+//   never     CODEX · OPENAI_RESPONSE (the singular — note it is NOT the same
+//             as OPENAI_RESPONSES)
+//
+// Those two survive only as defensive `case` arms and pivot-table entries. They
+// are not a supported target: do not add code that assumes one can arrive.
 export const FORMATS = {
   OPENAI: "openai",
   OPENAI_RESPONSES: "openai-responses",
