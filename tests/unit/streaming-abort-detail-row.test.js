@@ -32,9 +32,14 @@ describe("an in-flight streaming request is not recorded as a success (#48)", ()
   it("still records a completed stream as success", () => {
     // The terminal write (onStreamComplete) is the one that may claim success —
     // this is the counterpart assertion, so the fix cannot be over-applied.
-    const completed = /response: \{ content: safeContent[\s\S]*?status: "(\w+)"/.exec(src);
-    expect(completed, "onStreamComplete write not found").toBeTruthy();
-    expect(completed[1]).toBe("success");
+    // A stream whose terminator flush() had to MANUFACTURE (upstream cut the
+    // connection mid-answer with a clean FIN) is booked `truncated` instead of
+    // success, because it would otherwise land as success with estimated
+    // usage. A stream the upstream terminated properly keeps `success`.
+    const completed = /status:\s*contentObj\?\.incomplete\s*\?\s*"(\w+)"\s*:\s*"(\w+)"/.exec(src);
+    expect(completed, "onStreamComplete status not found").toBeTruthy();
+    expect(completed[1]).toBe("truncated");
+    expect(completed[2]).toBe("success");
   });
 });
 

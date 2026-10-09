@@ -72,6 +72,13 @@ export function createSSEStream(options = {}) {
   let accumulatedThinking = "";
   let ttftAt = null;
   let streamCompleted = false;
+  // Set when flush() has to manufacture a terminator the upstream never sent.
+  // The client still needs the sentinel — OpenClaw hangs until timeout without
+  // one — but this is what an upstream proxy cutting the connection mid-answer
+  // looks like, and it must not be recorded as a clean `status: "success"` with
+  // estimated (not real) usage. The stall watchdog only fires on byte gaps, not
+  // on an early clean FIN, so flush() is the only place that can tell.
+  let endedWithoutTerminal = false;
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -145,7 +152,10 @@ export function createSSEStream(options = {}) {
     if (onStreamComplete) {
       onStreamComplete({
         content: accumulatedContent,
-        thinking: accumulatedThinking
+        thinking: accumulatedThinking,
+        // Additive: consumers that ignore it behave as before. `streaming` rows
+        // carry it so a truncated stream is not booked as a clean success.
+        incomplete: endedWithoutTerminal,
       }, settledUsage, ttftAt);
     }
   };
@@ -491,6 +501,11 @@ export function createSSEStream(options = {}) {
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
           if (!streamDoneSent && !isGeminiFamily) {
+            // We are the ones inventing the terminator, so the upstream never
+            // finished. Say so — see the note on `endedWithoutTerminal`. Gemini
+            // family is exempt: it has no [DONE] sentinel, so `!streamDoneSent`
+            // is always true there and would flag every healthy stream.
+            endedWithoutTerminal = true;
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);
             controller.enqueue(sharedEncoder.encode(doneOutput));
@@ -544,6 +559,10 @@ export function createSSEStream(options = {}) {
         // Synthesize response.failed if a Responses passthrough stream never reached a terminal event
         const keepsOpenAIResponsesFormat = targetFormat === FORMATS.OPENAI_RESPONSES && sourceFormat === FORMATS.OPENAI_RESPONSES;
         if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
+          // Same situation as the passthrough case above: we are the ones
+          // inventing the terminal. The client is told `response.failed`, so
+          // booking this as `status: "success"` made the two disagree.
+          endedWithoutTerminal = true;
           const failedOutput = formatIncompleteOpenAIResponsesStreamFailure();
           reqLogger?.appendConvertedChunk?.(failedOutput);
           controller.enqueue(sharedEncoder.encode(failedOutput));
@@ -560,6 +579,16 @@ export function createSSEStream(options = {}) {
 
         finishStream();
       } catch (error) {
+        // Never swallow a flush failure: if we bail before finishStream the
+        // request-detail row is left at status "streaming" forever, or later
+        // rewritten as an error even though bytes were delivered. Finalize what
+        // we accumulated and mark it incomplete instead.
+        endedWithoutTerminal = true;
+        try {
+          finishStream();
+        } catch {
+          /* second failure is not recoverable; leave the row as it is */
+        }
         console.log("Error in flush:", error);
       }
     }

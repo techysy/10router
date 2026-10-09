@@ -200,9 +200,18 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
       request: extractRequestConfig(body, stream),
       providerRequest: finalBody || translatedBody || null,
       providerResponse: safeContent,
-      response: { content: safeContent, thinking: safeThinking, type: "streaming" },
+      response: {
+        content: safeContent,
+        thinking: safeThinking,
+        type: "streaming",
+        // Present only when flush() had to manufacture a terminator the
+        // upstream never sent — an early clean FIN mid-answer. The client still
+        // got the sentinel (and the partial text), but this must not be booked
+        // as a clean success with estimated usage.
+        ...(contentObj?.incomplete ? { incomplete: true } : {}),
+      },
       pxpipe,
-      status: "success"
+      status: contentObj?.incomplete ? "truncated" : "success"
     }, { id: streamDetailId })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
