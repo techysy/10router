@@ -33,12 +33,14 @@ describe("paidTier registry flag", () => {
   });
 
   it("keeps the flag independent of the multiplier", () => {
-    // claude-sonnet-4.6 has no published rate AND is paid-tier; the badge must
-    // still render. The two facts are about different things (price vs access),
-    // and collapsing them would hide one whenever the other is missing.
+    // The two facts are about different things (price vs access). Sonnet-4.6
+    // carries both (its rate is an alignment to Sonnet-5, not a page figure),
+    // so assert the badge does not depend on which multiplier is present.
     const sonnet = byId["claude-sonnet-4.6"];
-    expect(sonnet.rateMultiplier).toBeUndefined();
     expect(sonnet.paidTier).toBe(true);
+    // The guard on the multiplier badge must not wrap the paid-tier badge: a
+    // paid-tier model with no published rate would then lose its lock entirely.
+    expect(MODEL_ROW).not.toContain("displayMultiplier !== null && model.paidTier");
   });
 });
 
@@ -61,13 +63,7 @@ describe("paid-tier badge rendering contract", () => {
     expect(MODEL_ROW).toContain("paidTier: PropTypes.bool");
   });
 
-  it("does not couple the badge to the multiplier badge", () => {
-    // The multiplier badge is guarded by `displayMultiplier !== null`, which a
-    // model without a published rate never enters. Guarding the paid-tier badge
-    // the same way would make it invisible exactly where it matters most.
-    expect(MODEL_ROW).not.toContain("displayMultiplier !== null && model.paidTier");
   });
-});
 
 describe("subPriority registry flag", () => {
   const cnById = Object.fromEntries(cn.models.map((m) => [m.id, m]));

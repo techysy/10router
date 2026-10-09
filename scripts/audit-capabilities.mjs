@@ -14,6 +14,8 @@
  *                  to vision:false, i.e. the model name and the table disagree
  *   3. image-out — the id reads as an image generator but imageOutput is not true
  *   4. dead      — a row declared for an id the provider no longer offers
+ *   5. duplicate — the same model id listed twice in one provider, where the
+ *                  later row silently wins (and no other check notices)
  *
  * This module is also the single source of truth for the floor allowlist: the
  * guard test (tests/unit/capability-floor-allowlist.test.js) imports the tables
@@ -176,14 +178,39 @@ export function audit() {
     if (keys.length) dead.push({ provider, keys });
   }
 
+  // The same model id listed twice in one provider **for the same kind**. A
+  // copy-paste when editing a block adds a row that no other check notices: the
+  // capability and dead-row passes both collapse the duplicates into a Set, so
+  // the second row is invisible until a hand-count notices the count is off
+  // (cost us one confusing test failure). Which row wins is then simply
+  // "whichever is last", so a differing rateMultiplier or flag is a coin flip.
+  //
+  // `kind` is part of the key on purpose: gemini-2.5-pro is legitimately listed
+  // twice — once as the chat model, once as `kind: "stt"` for the transcription
+  // endpoint — and those are different routes to different upstream endpoints.
+  // Only an exact repeat (same id AND same kind) is a mistake.
+  const dupModels = [];
+  for (const entry of REGISTRY) {
+    const seen = new Set();
+    const dups = new Set();
+    for (const m of entry.models || []) {
+      const id = typeof m === "string" ? m : m.id;
+      if (!id) continue;
+      const key = `${id} ${(m && m.kind) || "chat"}`;
+      if (seen.has(key)) dups.add(id);
+      seen.add(key);
+    }
+    if (dups.size) dupModels.push({ provider: entry.id, ids: [...dups] });
+  }
+
   const steps = {};
   for (const r of rows) steps[r.step] = (steps[r.step] || 0) + 1;
 
-  return { rows, steps, floor, floorUnlisted, staleAllowlist, wrongVision, wrongImageOut, badMediaClaim, dead };
+  return { rows, steps, floor, floorUnlisted, staleAllowlist, wrongVision, wrongImageOut, badMediaClaim, dead, dupModels };
 }
 
 function main() {
-  const { rows, steps, floor, floorUnlisted, staleAllowlist, wrongVision, wrongImageOut, badMediaClaim, dead } = audit();
+  const { rows, steps, floor, floorUnlisted, staleAllowlist, wrongVision, wrongImageOut, badMediaClaim, dead, dupModels } = audit();
   const byProvider = (list) => {
     const out = {};
     for (const r of list) (out[r.provider] ||= []).push(r.id);
@@ -211,6 +238,9 @@ function main() {
   console.log(`\n## dead provider rows — ${dead.length}`);
   for (const d of dead) console.log(`  ${d.provider}: ${d.keys.join(", ")}`);
 
+  console.log(`\n## duplicate model ids within a provider — ${dupModels.length}`);
+  for (const d of dupModels) console.log(`  ❌ ${d.provider}: ${d.ids.join(", ")}`);
+
   const problems = [
     ...floorUnlisted.map((r) => `floor not on the allowlist: ${r.provider}/${r.id}`),
     ...staleAllowlist.map((k) => `stale allowlist entry (model resolved elsewhere): ${k}`),
@@ -218,6 +248,7 @@ function main() {
     ...wrongImageOut.map((r) => `image id without imageOutput: ${r.provider}/${r.id}`),
     ...badMediaClaim.map(([k]) => `allowlisted as media but registry kind is not image: ${k}`),
     ...dead.flatMap((d) => d.keys.map((k) => `dead provider row: ${d.provider}/${k}`)),
+    ...dupModels.flatMap((d) => d.ids.map((id) => `duplicate model id: ${d.provider}/${id}`)),
   ];
   console.log(`\n${problems.length === 0 ? "✅ no invariant broken" : `❌ ${problems.length} problem(s)`}`);
   for (const p of problems) console.log(`  - ${p}`);
