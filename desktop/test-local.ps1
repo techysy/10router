@@ -61,6 +61,33 @@ function Stop-Router([int]$TimeoutSec = 20) {
     Die "10Router 进程仍在(手动退出托盘后重试)"
 }
 
+# ---------- 入口预检:污染过的 shell 直接拒(坑 3 的前置版) ----------
+# ELECTRON_RUN_AS_NODE 残留 = step 6 启动静默秒退、无托盘、无日志,现象与"包坏了"完全一样,
+# 能查一小时(2026-10-06 又踩,见 docs 坑清单)。step 6 里也清,但那时构建的时间已白花——
+# 在第一步就拒,并给出清除命令。agent/CI 的 shell 环境最容易被带进来。
+if (Test-Path Env:\ELECTRON_RUN_AS_NODE) {
+    Die "当前 shell 有 ELECTRON_RUN_AS_NODE —— 启动会静默秒退。先清除: Remove-Item Env:\ELECTRON_RUN_AS_NODE (或 bash: unset ELECTRON_RUN_AS_NODE)"
+}
+
+# ---------- 改动范围 vs 所选模式(提示级,不拦截) ----------
+# 只看影响产物的路径;别用全仓库 status——scripts/、docs/、fnos-packaging/ 的无关改动
+# (包括未跟踪文件)不该触发任何提醒。
+Push-Location $RepoDir
+try {
+    $sc = @(git status --porcelain -- public src open-sse desktop cli 2>$null)
+} finally { Pop-Location }
+$hasDesktop = [bool]($sc | Where-Object { $_ -like "* desktop/*" -or $_ -like "*cli/*" })
+$hasServer  = [bool]($sc | Where-Object { $_ -like "* src/*"   -or $_ -like "*open-sse/*" })
+$hasPublic  = [bool]($sc | Where-Object { $_ -like "* public/*" })
+if (($hasDesktop -or $hasServer) -and $Mode -eq "ui") {
+    Write-Host "⚠ 检测到 src/open-sse/desktop/cli 改动,但选了 -Mode ui(ui 只拷 public/,这些改动不会生效)。应选:" -ForegroundColor Yellow
+    if ($hasDesktop) { Write-Host "    desktop/cli → replace" }
+    if ($hasServer)  { Write-Host "    src/open-sse → hot" }
+}
+if (-not $hasDesktop -and -not $hasPublic -and -not $hasServer -and $Mode -ne "install") {
+    Write-Host "ℹ 影响产物的路径(public/src/open-sse/desktop/cli)没有未提交改动——本轮构建的是已提交代码。" -ForegroundColor DarkGray
+}
+
 # ---------- -Mode ui:纯 public/** 热替换(不构建、不重启、不换版本号) ----------
 # public/** 是**按请求读盘**的静态文件,所以拷完在界面上刷新一下就生效,应用连退都不用退。
 # 只限 public/** —— 其余任何东西(server chunk、构建清单、烘焙进 bundle 的版本号)都得重启。
