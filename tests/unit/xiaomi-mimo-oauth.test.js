@@ -59,18 +59,40 @@ function encryptRawFor(clientPublicKeyB64, plaintext) {
 const encryptFor = (clientPublicKeyB64, payload) =>
   encryptRawFor(clientPublicKeyB64, JSON.stringify(payload));
 
+/**
+ * Loopback fetch with a short retry. These tests drive a real socket, and under
+ * a loaded full-suite run the first connect occasionally fails with a bare
+ * `TypeError: fetch failed` before the listener is ready to accept — it passes
+ * in isolation and only ever trips in parallel, which made the regression gate
+ * flap on a test that is not actually testing anything flaky. Two extra
+ * attempts, a few ms apart, make the suite deterministic without hiding a real
+ * failure (a genuinely broken listener still fails all attempts).
+ */
+async function loopbackFetch(url, init = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function hit(port, query, headers = {}, init = {}) {
   // The listener only answers on its per-listener secret path (that path IS the
   // anti-CSRF capability), so tests must address it through the URL it handed out.
   const base = proxy?.callbackUrl || `http://127.0.0.1:${port}/`;
   const url = new URL(base);
   if (query) url.search = query.startsWith("?") ? query : `?${query}`;
-  return fetch(url.toString(), { headers, ...init });
+  return loopbackFetch(url.toString(), { headers, ...init });
 }
 
 /** Hit an arbitrary path — used to prove anything but the secret path is refused. */
 async function hitPath(port, path, headers = {}) {
-  return fetch(`http://127.0.0.1:${port}${path}`, { headers });
+  return loopbackFetch(`http://127.0.0.1:${port}${path}`, { headers });
 }
 
 let proxy;
@@ -251,7 +273,7 @@ describe("xiaomi-mimo OAuth callback proxy", () => {
     // The platform's page calls this listener with fetch() from its own https origin,
     // which a loopback-only guard used to reject — silently breaking every sign-in.
     const origin = "https://platform.xiaomimimo.com";
-    const preflight = await fetch(proxy.callbackUrl, { method: "OPTIONS", headers: { Origin: origin } });
+    const preflight = await loopbackFetch(proxy.callbackUrl, { method: "OPTIONS", headers: { Origin: origin } });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-origin")).toBe(origin);
   });
