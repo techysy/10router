@@ -27,7 +27,7 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
-import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities, DEFAULT_CAPABILITIES } from "open-sse/providers/capabilities.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -468,6 +468,60 @@ export async function buildModelsList(kindFilter, options = {}) {
     return pinned && (pinned.contextWindow || pinned.maxOutput) ? pinned : null;
   };
 
+  // One shape for "attach capabilities + the snake_case token trio to a model
+  // entry". Three of the six emit sites used to hand-roll this and drifted:
+  // the static-catalog fallback sent `capabilities` but no token fields at all,
+  // and the zero-connection custom-model loop sent the token fields but no
+  // `capabilities` block and no catalogue lookup. Duplicated lists of this kind
+  // is how the combo path got left out and then "fixed" while the comment still
+  // claimed the other two were fine.
+  //
+  // `emitFloor` decides what to do when nothing pins a number. Built-in catalog
+  // models always have a table row or a deliberate floor, so they emit the
+  // resolved value. A user-added custom model is different: the dashboard says
+  // "没有内置默认值: 留空时使用供应商上报的", so a blank must stay blank rather
+  // than being stamped with the 200K floor — but if the id DOES resolve to a
+  // real table row (a qoder `qfmodel`, say) that row is exactly the "供应商
+  // 上报的" value and must come through.
+  const applyModelCaps = (entry, { alias, providerId, modelId, kind, customRow, emitFloor = true }) => {
+    const globalCaps = kind === LLM_KIND ? getCapabilitiesForModel(providerId || alias, modelId) : null;
+    if (!globalCaps) return entry;
+    const caps = { ...globalCaps };
+    let contextWindow = caps.contextWindow;
+    let maxOutput = caps.maxOutput;
+    let fromTable = contextWindow !== DEFAULT_CAPABILITIES.contextWindow
+      || maxOutput !== DEFAULT_CAPABILITIES.maxOutput;
+
+    // A user-added custom model's stored window belongs to THIS model, so it
+    // beats the generic catalogue default; an explicit dashboard override
+    // (modelCaps) beats everything.
+    if (customRow) {
+      const c = posNum(customRow.contextWindow);
+      const o = posNum(customRow.maxOutput);
+      if (c) { contextWindow = c; fromTable = true; }
+      if (o) { maxOutput = o; fromTable = true; }
+    }
+    const pinned = capsOverrides[alias]?.[modelId];
+    if (pinned?.contextWindow) { contextWindow = pinned.contextWindow; fromTable = true; }
+    if (pinned?.maxOutput) { maxOutput = pinned.maxOutput; fromTable = true; }
+
+    entry.capabilities = caps;
+    if (Number.isFinite(contextWindow)) caps.contextWindow = contextWindow;
+    if (Number.isFinite(maxOutput)) caps.maxOutput = maxOutput;
+
+    // The snake_case names are the contract clients actually match — see the
+    // comment on the combo path above. Guarded by Number.isFinite, matching the
+    // strict form used everywhere else here: a truthy check would pass a NaN or
+    // a string straight through to JSON.
+    const emitNumbers = emitFloor || fromTable;
+    if (emitNumbers && Number.isFinite(contextWindow)) {
+      entry.context_length = contextWindow;
+      entry.context_window = contextWindow;   // Anthropic 约定字段，Claude CLI/mirasim 读它
+    }
+    if (emitNumbers && Number.isFinite(maxOutput)) entry.max_completion_tokens = maxOutput;
+    return entry;
+  };
+
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
@@ -519,12 +573,17 @@ export async function buildModelsList(kindFilter, options = {}) {
         for (const model of providerModels) {
           if (!kindFilter.includes(modelKind(model))) continue;
           if (isDisabled(alias, model.id)) continue;
-          emit({
+          // This path used to emit `capabilities` only — no context_length /
+          // context_window / max_completion_tokens — so a client matching those
+          // names got nothing back and guessed the window from the model id.
+          // Goes through the shared helper now, dashboard pins included.
+          const entry = {
             id: `${alias}/${model.id}`,
             object: "model",
             owned_by: alias,
-            capabilities: getCapabilitiesForModel(alias, model.id),
-          }, rankOf(providerId));
+          };
+          applyModelCaps(entry, { alias, providerId, modelId: model.id, kind: modelKind(model) });
+          emit(entry, rankOf(providerId));
         }
       }
     }
@@ -547,14 +606,19 @@ export async function buildModelsList(kindFilter, options = {}) {
         object: "model",
         owned_by: providerAlias,
       };
-      // Fix: honor the stored contextWindow/maxOutput of user-added custom
-      // models (previously dropped here), with the dashboard override on top.
-      const pinned = capsOverrides[providerAlias]?.[modelId];
-      const cw = pinned?.contextWindow ?? posNum(customModel.contextWindow);
-      const mo = pinned?.maxOutput ?? posNum(customModel.maxOutput);
-      if (cw) entry.context_length = cw;
-      if (cw) entry.context_window = cw;   // Anthropic 约定字段，Claude CLI/mirasim 读它
-      if (mo) entry.max_completion_tokens = mo;
+      // Previously this path sent the token fields but no `capabilities` block
+      // and no catalogue lookup. It now shares the helper with every other
+      // model path; `emitFloor: false` keeps the product rule that a custom
+      // model left blank has no built-in default, while still surfacing a real
+      // table row when the id resolves to one.
+      applyModelCaps(entry, {
+        alias: providerAlias,
+        providerId: providerAlias,
+        modelId,
+        kind: LLM_KIND,
+        customRow: customModel,
+        emitFloor: false,
+      });
       emit(entry, rankOf(providerAlias));
     }
   } else {
