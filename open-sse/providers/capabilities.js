@@ -691,6 +691,14 @@ PROVIDER_CAPABILITIES.kr = PROVIDER_CAPABILITIES.kiro;
 PROVIDER_CAPABILITIES.ag = PROVIDER_CAPABILITIES.antigravity;
 PROVIDER_CAPABILITIES.cbcn = PROVIDER_CAPABILITIES["codebuddy-cn"];
 PROVIDER_CAPABILITIES.cbai = PROVIDER_CAPABILITIES["codebuddy-intl"];
+// tokenharbor / poolside / atria 的传输别名：th、thh、ps、atria-asi。落空时
+// th/claude-haiku-5.5:free 这类 provider 钉住的行取不到，会经 MODEL →
+// PATTERN 拿到 claude-budget 的 thinking 形状和 200k/64k（应为 1M/128k +
+// claude-adaptive），combo 的 min() 再把整组压到 200k。
+PROVIDER_CAPABILITIES.th = PROVIDER_CAPABILITIES.tokenharbor;
+PROVIDER_CAPABILITIES.thh = PROVIDER_CAPABILITIES.tokenharbor;
+PROVIDER_CAPABILITIES.ps = PROVIDER_CAPABILITIES.poolside;
+PROVIDER_CAPABILITIES["atria-asi"] = PROVIDER_CAPABILITIES.atria;
 // Qoder 的传输/UI 别名（qd = INTL，qdc = CN）与上面同理：/api/models 的
 // AI_MODELS 用 PROVIDER_MODELS 的 key（即 alias）拼 provider，若不在此归一化，
 // 同一模型换个拼写就回落到 DEFAULT 200k（vision/reasoning 被剥、窗口砍到 1/5）。
