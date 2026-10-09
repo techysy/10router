@@ -102,7 +102,7 @@ export default {
     { id: "kimi-k2.7", name: "Kimi-K2.7-Code", rateMultiplier: 0.57 },
     // 2026-10-08 积分页列出 Kimi-K2.8-Preview 0.77x，现网探测答 200（kimi-k2.8
     // 与 kimi-k2-8-preview 都是 11102，id 带 .8-preview）。国际线同样有该 id。
-    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77 },
+    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77, subPriority: true },
     { id: "kimi-k2.6", name: "Kimi-K2.6", rateMultiplier: 0.52 },
     // 官方积分页 2026-10-02 已将此模型回调至 0.11x（曾为首周 0.03x 尝鲜价）。
     // StepFun 的 Step-5-Preview,2026-10-09 积分页 0.43x + "订阅优先"标签,

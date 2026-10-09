@@ -69,14 +69,20 @@ describe("subPriority registry flag", () => {
   const cnById = Object.fromEntries(cn.models.map((m) => [m.id, m]));
   const intlById = Object.fromEntries(intl.models.map((m) => [m.id, m]));
 
-  it("marks exactly the two rows the credit page tags 订阅优先", () => {
-    // Step-5-Preview (CN, 0.43x) and Kimi-K2.8-Preview (intl, 0.77x). Both are
+  it("marks exactly the rows the credit page tags 订阅优先", () => {
+    // Step-5-Preview (CN, 0.43x) and Kimi-K2.8-Preview (0.77x on BOTH lines —
+    // one credit system, and the tag was visible on the CN page too). Both are
     // preview models queued ahead for subscribers — a scheduling property that
     // says nothing about price or about whether your account can call them.
-    expect([cnById["step-5-preview"].subPriority]).toEqual([true]);
-    expect([intlById["kimi-k2.8-preview"].subPriority]).toEqual([true]);
+    expect(cnById["step-5-preview"].subPriority).toBe(true);
+    expect(cnById["kimi-k2.8-preview"].subPriority).toBe(true);
+    expect(intlById["kimi-k2.8-preview"].subPriority).toBe(true);
     const tagged = [...cn.models, ...intl.models].filter((m) => m.subPriority);
-    expect(tagged.map((m) => m.id).sort()).toEqual(["kimi-k2.8-preview", "step-5-preview"]);
+    expect(tagged.map((m) => `${m.id}`).sort()).toEqual([
+      "kimi-k2.8-preview",
+      "kimi-k2.8-preview",
+      "step-5-preview",
+    ]);
   });
 
   it("does not mark the models that have no such tag", () => {
