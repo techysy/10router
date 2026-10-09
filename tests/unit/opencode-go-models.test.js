@@ -6,6 +6,7 @@
 // (no auth), which their docs call "the full list of available models". Endpoints follow
 // the endpoint table in https://opencode.ai/docs/go/; ids that table does not cover
 // inherit their family's endpoint. Snapshot taken 2026-09-26: 43 ids, none of ours stale.
+// `space-bunny` joined the registry on 2026-10-08 (5d619717) and is the 44th.
 import { describe, expect, it } from "vitest";
 import { PROVIDER_MODELS, getModelSupportedFormats, getModelTargetFormat } from "../../open-sse/config/providerModels.js";
 import { PROVIDERS } from "../../open-sse/config/providers.js";
@@ -26,7 +27,7 @@ const CHAT_ONLY = [
 ];
 // Also expose the Anthropic /messages endpoint.
 const CLAUDE_CAPABLE = [
-  "minimax-m3", "minimax-m2.7", "minimax-m2.5", "space-bunny-free",
+  "minimax-m3", "minimax-m2.7", "minimax-m2.5", "space-bunny-free", "space-bunny",
   "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "qwen3.5-plus",
 ];
 // DeepSeek: the docs table only lists /chat/completions as the recommended endpoint, but
