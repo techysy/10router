@@ -33,6 +33,16 @@ export function register(from, to, requestFn, responseFn) {
 // No-op: translators self-register via the static imports at the bottom of this file.
 function ensureInitialized() {}
 
+// Introspection for tests and tooling: the `from:to` routes actually registered.
+// A translator file that exists but was never imported shows up as a missing
+// route here rather than silently degrading to the lossy double-hop.
+export function listRegisteredRoutes() {
+  return {
+    request: [...(requestRegistry?.keys() || [])].sort(),
+    response: [...(responseRegistry?.keys() || [])].sort(),
+  };
+}
+
 // Strip specific content types from messages (explicit opt-in via strip[] in PROVIDER_MODELS)
 function stripContentTypes(body, stripList = []) {
   if (!stripList.length || !body.messages || !Array.isArray(body.messages)) return;
