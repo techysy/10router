@@ -42,12 +42,15 @@ jobs:
           node __baseline__/verify-oauth-urls.mjs
         working-directory: tests
 
-      # Informational: prints where every registry model resolves and flags floor /
-      # multimodal-name / dead-row problems, so the log shows the capability state.
-      # The gate is the vitest case in tests/unit/capability-floor-allowlist.test.js,
-      # which asserts the same invariants (and shares this script's tables).
+      # Prints where every registry model resolves, then fails on any broken
+      # invariant. --check is load-bearing: the vitest case in
+      # tests/unit/capability-floor-allowlist.test.js gates the floor / vision
+      # classes using this script's tables, but three classes are only computed
+      # here (image-output without imageOutput:true, dead provider rows for
+      # delisted models, duplicate model ids within a provider). Without the
+      # flag those three printed a report and CI still went green.
       - name: Capability audit
-        run: node --no-warnings scripts/audit-capabilities.mjs
+        run: node --no-warnings scripts/audit-capabilities.mjs --check
 
       # Fails only on a test that passed in the baseline and fails now. To
       # re-baseline deliberately, download the artifact below and run
