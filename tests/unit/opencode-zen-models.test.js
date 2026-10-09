@@ -4,21 +4,24 @@ import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { resolveTransport } from "../../open-sse/services/provider.js";
 
 // Chat-only models (no /messages, no /responses support on opencode-zen)
-const CHAT_ONLY = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
+const CHAT_ONLY = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "deepseek-v4.1-flash",
   "glm-5.3-flash", "glm-5.3", "glm-5.2", "glm-5.1", "glm-5",
   "minimax-m3", "minimax-m2.7", "minimax-m2.5",
   "kimi-k3", "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5",
   "big-pickle", "deepseek-v4-flash-free",
   "mimo-v2.6-flash-free", "mimo-v2.5-free", "ling-3.0-flash-fin-free",
+  "ling-3.1-flash-free", "fledge-alpha-free", "exo-free", "mistral-large-4",
+  "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite",
+  "gemini-3.5-flash", "gemini-3.1-pro", "gemini-3-flash",
   "nemotron-3-ultra-free", "nemotron-3.5-lightning-free"];
 // Models that also expose the Anthropic /messages endpoint
 const CLAUDE_CAPABLE = ["claude-fable-5", "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5",
   "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
-  "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4",
-  "claude-haiku-4-5", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus",
+  "claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4",
+  "claude-haiku-5-5", "claude-haiku-4-5", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus",
   "qwen3.6-plus", "qwen3.5-plus", "union-alpha"];
 // Models that also expose the OpenAI /responses endpoint
-const RESPONSES_CAPABLE = ["gpt-6-astra",
+const RESPONSES_CAPABLE = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol",
   "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
   "gpt-5.5", "gpt-5.5-pro",
   "gpt-5.4", "gpt-5.4-pro", "gpt-5.4-mini", "gpt-5.4-nano",
@@ -39,15 +42,29 @@ function pickTransport(provider, sourceFormat, alias, model) {
 }
 
 describe("OpenCode Zen model catalog", () => {
-  it("matches the live PAYG catalog ids", () => {
+  it("matches the live PAYG catalog ids exactly", () => {
+    // Was six `toContain` + `length > 60`, which pinned 71 of 87 rows: a new id
+    // could land with a wrong (or missing) endpoint declaration and nothing
+    // went red. Match the whole set instead, the way opencode-go's test does —
+    // the id *set* is the invariant that must track the live catalogue.
     const ids = (PROVIDER_MODELS["ocz"] || []).map((m) => m.id);
-    expect(ids).toContain("muse-spark-1.3-contributor-free");
-    expect(ids).toContain("gpt-5.5");
-    expect(ids).toContain("claude-opus-5-5");
-    expect(ids).toContain("kimi-k3");
-    expect(ids).toContain("deepseek-v4.1-flash");
-    expect(ids).toContain("mimo-v2.6-flash-free");
-    expect(ids.length).toBeGreaterThan(60);
+    expect([...ids].sort()).toEqual(
+      [...CHAT_ONLY, ...CLAUDE_CAPABLE, ...RESPONSES_CAPABLE].sort()
+    );
+  });
+
+  it("has no duplicate ids", () => {
+    const ids = (PROVIDER_MODELS["ocz"] || []).map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("declares an endpoint for every model", () => {
+    // Unlike opencode-go there is no deliberately-undeclared id here: all 87
+    // rows carry supportedFormats, so any gap is a real omission.
+    const missing = (PROVIDER_MODELS["ocz"] || [])
+      .filter((m) => !Array.isArray(m.supportedFormats))
+      .map((m) => m.id);
+    expect(missing).toEqual([]);
   });
 });
 

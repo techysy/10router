@@ -9,11 +9,11 @@ export { PROVIDER_MODELS };
 
 // Helper functions
 export function getProviderModels(aliasOrId) {
-  return PROVIDER_MODELS[aliasOrId] || [];
+  return modelsFor(aliasOrId) || [];
 }
 
 export function getDefaultModel(aliasOrId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   return models?.[0]?.id || null;
 }
 
@@ -34,22 +34,38 @@ function findModel(models, modelId, aliasOrId) {
   return models.find(m => m.id === normalized);
 }
 
+// PROVIDER_MODELS is keyed by `alias || id`, so a lookup by the canonical id
+// misses whenever the two differ (`opencode-zen` is stored as `ocz`, `qoder-cn`
+// as `qdc`, …). Every accessor used to do a raw `PROVIDER_MODELS[key]`, which
+// silently returned "no such model" — null supportedFormats, no targetFormat,
+// no strip list — and the per-model transport guard in chatCore then fell
+// through to the default endpoint. chatCore remembered to convert first; a
+// test or a new caller that passed the canonical id asserted nothing at all and
+// still went green. Normalise here so there is only one spelling to get right.
+function modelsFor(aliasOrId) {
+  if (!aliasOrId) return null;
+  const direct = PROVIDER_MODELS[aliasOrId];
+  if (direct) return direct;
+  const alias = PROVIDER_ID_TO_ALIAS[aliasOrId];
+  return (alias && PROVIDER_MODELS[alias]) || null;
+}
+
 export function isValidModel(aliasOrId, modelId, passthroughProviders = new Set()) {
   if (passthroughProviders.has(aliasOrId)) return true;
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   if (!models) return false;
   return !!findModel(models, modelId, aliasOrId);
 }
 
 export function findModelName(aliasOrId, modelId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   if (!models) return modelId;
   const found = findModel(models, modelId, aliasOrId);
   return found?.name || modelId;
 }
 
 export function getModelTargetFormat(aliasOrId, modelId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   if (!models) return null;
   return modelTargetFormat(findModel(models, modelId, aliasOrId));
 }
@@ -57,13 +73,13 @@ export function getModelTargetFormat(aliasOrId, modelId) {
 // Declared upstream formats for a model (registry `supportedFormats`). Drives the
 // per-model guard on the sourceFormat-matched transport; null when undeclared.
 export function getModelSupportedFormats(aliasOrId, modelId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   if (!models) return null;
   return modelSupportedFormats(findModel(models, modelId, aliasOrId));
 }
 
 export function getModelType(aliasOrId, modelId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   if (!models) return null;
   const found = findModel(models, modelId, aliasOrId);
   return found?.kind || found?.type || null;
@@ -75,7 +91,7 @@ export function getModelUpstreamId(aliasOrId, modelId) {
   const sufMatch = typeof modelId === "string" ? modelId.match(/\([^()]+\)\s*$/) : null;
   const suffix = sufMatch ? sufMatch[0] : "";
   const baseId = suffix ? modelId.slice(0, sufMatch.index).trim() : modelId;
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   const found = findModel(models, baseId, aliasOrId);
   const resolvedId = found?.upstreamModelId || found?.id;
   if (resolvedId) {
@@ -91,7 +107,7 @@ export function getModelUpstreamId(aliasOrId, modelId) {
 }
 
 export function getModelQuotaFamily(aliasOrId, modelId) {
-  const models = PROVIDER_MODELS[aliasOrId];
+  const models = modelsFor(aliasOrId);
   return modelQuotaFamily(findModel(models, modelId, aliasOrId));
 }
 
@@ -114,5 +130,5 @@ export function getModelsByProviderId(providerId) {
 // Get strip list for a model entry (explicit opt-in only)
 // Returns array of content types to strip, e.g. ["image", "audio"]
 export function getModelStrip(alias, modelId) {
-  return modelStrip(findModel(PROVIDER_MODELS[alias], modelId, alias));
+  return modelStrip(findModel(modelsFor(alias), modelId, alias));
 }
