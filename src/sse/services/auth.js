@@ -9,6 +9,7 @@ import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
 import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { resolveRequestLocale, serverTranslate } from "@/i18n/serverTranslate.js";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -558,12 +559,25 @@ export async function isValidApiKey(apiKey) {
  * server-local midnight — the same boundary `localStartOfDayIso()` gives the
  * dashboard "today" numbers, so quota and usage read one clock).
  *
+ * Master switch: settings.dailyTokenLimitEnabled (default true). Turning it off
+ * stops enforcement without touching any per-key limit value, so flipping it
+ * back on restores every cap exactly as configured.
+ *
  * Deliberately NOT folded into validateApiKey/dashboardGuard: the boolean
  * shape there is a frozen contract, and the quota follows the KEY, not the
  * requireApiKey setting — a key-carrying caller is metered even when the
  * gateway doesn't demand keys at all (loopback/CLI traffic carries no key and
  * lands in the unkeyed "local-no-key" usage bucket, so it is never metered —
  * by design).
+ *
+ * A refusal is recorded in usageHistory (status "rate_limited", 0 tokens) so
+ * the dashboard Requests/logs show it — same reason accepted requests get a
+ * row, a silently-dropped one is invisible to debugging. 0 tokens keeps it
+ * from feeding the very counter it refuses on.
+ *
+ * The 429 body is localized server-side (the client i18n runtime never sees
+ * an API error body): locale comes from the dashboard's `locale` cookie when
+ * the caller shares the origin, else Accept-Language, else English.
  *
  * Fail-open: any lookup/aggregation error logs a warning and allows the
  * request. This is a guardrail, not authentication — a DB hiccup must not
@@ -576,13 +590,15 @@ export async function isValidApiKey(apiKey) {
  * import there would break every one of them (apiKeysRepo.js uses the same
  * precedent internally).
  */
-export async function checkApiKeyDailyLimit(apiKey) {
+export async function checkApiKeyDailyLimit(apiKey, { request, model } = {}) {
   if (!apiKey) return null;
 
   let record = null;
   let used = 0;
   try {
-    const { getApiKeyByKey, sumApiKeyTokensSince, localStartOfDayIso } = await import("@/lib/localDb");
+    const { getApiKeyByKey, sumApiKeyTokensSince, localStartOfDayIso, getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings();
+    if (settings?.dailyTokenLimitEnabled === false) return null;
     record = await getApiKeyByKey(apiKey);
     if (!record?.dailyTokenLimit) return null;
     used = await sumApiKeyTokensSince(hashApiKey(apiKey), localStartOfDayIso());
@@ -599,10 +615,48 @@ export async function checkApiKeyDailyLimit(apiKey) {
   const retryAfterSec = Math.max(1, Math.ceil((next.getTime() - Date.now()) / 1000));
   const h = Math.floor(retryAfterSec / 3600);
   const m = Math.floor((retryAfterSec % 3600) / 60);
+  const resetStr = `${h ? `${h}h ` : ""}${m}m`;
 
-  const message =
-    `Daily token limit exceeded for API key "${record.name || "unnamed"}" ` +
-    `(used ${used.toLocaleString("en-US")} / ${record.dailyTokenLimit.toLocaleString("en-US")} today). ` +
-    `Resets in ${h ? `${h}h ` : ""}${m}m.`;
+  // Refusals land in usageHistory like every other terminal request outcome,
+  // otherwise the logs show a gap exactly where the user is debugging one.
+  // Zero tokens on purpose: a refusal must not consume the quota it enforces.
+  // The requestDetails row feeds the dashboard Requests/Details tab and
+  // self-gates on the observability setting (no-op when that is off).
+  // Own try/catch: a logging failure must never swallow the 429 itself.
+  try {
+    const { saveRequestUsage, saveRequestDetail } = await import("@/lib/db/index.js");
+    const { randomUUID } = await import("node:crypto");
+    const timestamp = new Date().toISOString();
+    await saveRequestUsage({
+      provider: null,
+      model: model || "unknown",
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      apiKey,
+      endpoint: request ? (() => { try { return new URL(request.url).pathname; } catch { return null; } })() : null,
+      status: "rate_limited",
+      usageKey: randomUUID(),
+      meta: { dailyLimitExceeded: true, limit: record.dailyTokenLimit, used },
+    });
+    await saveRequestDetail({
+      id: `${timestamp}-${randomUUID().slice(0, 6)}-rate-limited`,
+      timestamp,
+      provider: null,
+      model: model || "unknown",
+      status: "rate_limited",
+      latency: { ttft: 0, total: 0 },
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      request: { rejected: "dailyTokenLimit", keyName: record.name || "unnamed" },
+      response: { error: "Daily token limit exceeded", status: HTTP_STATUS.RATE_LIMITED },
+    });
+  } catch (e) {
+    log.warn("AUTH", `Daily limit refusal not logged: ${e.message}`);
+  }
+
+  const locale = resolveRequestLocale(request);
+  const message = serverTranslate(locale, 'Daily token limit exceeded for API key "{name}" (used {used} / {limit} today). Resets in {reset}.')
+    .replace("{name}", record.name || "unnamed")
+    .replace("{used}", used.toLocaleString("en-US"))
+    .replace("{limit}", record.dailyTokenLimit.toLocaleString("en-US"))
+    .replace("{reset}", resetStr);
   return errorResponse(HTTP_STATUS.RATE_LIMITED, message, { "retry-after": String(retryAfterSec) });
 }

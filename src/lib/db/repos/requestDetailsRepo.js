@@ -68,7 +68,17 @@ function sanitizeHeaders(headers) {
   return sanitized;
 }
 
-export const __test__ = { sanitizeHeaders };
+// Test seams: the config cache and the batched flush are timing-based (5s TTL /
+// 5s timer) — tests that flip enableObservability or assert a row landed need
+// to invalidate/drain deterministically instead of sleeping.
+export const __test__ = {
+  sanitizeHeaders,
+  flushToDatabase,
+  invalidateConfigCache: () => {
+    cachedConfig = null;
+    cachedConfigTs = 0;
+  },
+};
 
 function generateDetailId(model) {
   const timestamp = new Date().toISOString();

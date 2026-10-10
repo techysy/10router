@@ -62,7 +62,7 @@ export async function handleFetch(request) {
     }
   }
 
-  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: providerInput });
   if (limitResponse) return limitResponse;
 
   if (!providerInput || typeof providerInput !== "string") {

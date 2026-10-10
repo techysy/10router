@@ -36,7 +36,9 @@ async function requireValidApiKey(request) {
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
   // Both video endpoints inherit the per-key daily quota through this one gate.
-  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  // No model context here: the body is read after auth (byte-preserving), so a
+  // refusal logs against "unknown" — the key + endpoint still identify it.
+  const limitResponse = await checkApiKeyDailyLimit(apiKey, { request });
   if (limitResponse) return limitResponse;
   return null;
 }

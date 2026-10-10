@@ -55,7 +55,7 @@ export async function handleStt(request) {
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
 
-  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: modelStr });
   if (limitResponse) return limitResponse;
 
   if (!modelStr) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");

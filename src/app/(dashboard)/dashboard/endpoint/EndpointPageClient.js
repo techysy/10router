@@ -28,6 +28,21 @@ function formatTokenCount(n) {
   return String(n);
 }
 
+// Key names are stored verbatim, and the app-generated ones are English
+// ("Default Key", and the " (rotated)" suffix the rotate endpoint appends), so
+// a localized UI would otherwise mix languages inside one line. Known English
+// names translate through the dictionary; user-typed names miss the lookup and
+// come back unchanged. The suffix is peeled off first so repeated rotations
+// ("x (rotated) (rotated)") still translate their base name.
+function translateKeyName(name) {
+  if (!name || typeof name !== "string") return name;
+  const m = /^(.*?)((?:\s*\(rotated\))*)$/.exec(name);
+  const base = translate(m[1]);
+  const rounds = (m[2].match(/\(rotated\)/g) || []).length;
+  if (!rounds) return base;
+  return `${base} ${Array.from({ length: rounds }, () => translate("(rotated)")).join(" ")}`;
+}
+
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +56,7 @@ export default function APIPageClient({ machineId }) {
   const [confirmState, setConfirmState] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
+  const [dailyLimitEnabled, setDailyLimitEnabled] = useState(true);
   const [apiKeyRotation, setApiKeyRotation] = useState(false);
   const [rotatingKeys, setRotatingKeys] = useState(false);
   const rotateGuardRef = useRef(false); // blocks double-submit before React re-renders
@@ -219,6 +235,7 @@ export default function APIPageClient({ machineId }) {
       ]);
       if (settingsData) {
         setRequireApiKey(settingsData.requireApiKey || false);
+        setDailyLimitEnabled(settingsData.dailyTokenLimitEnabled !== false);
         setApiKeyRotation(settingsData.apiKeyRotation === true);
         setRequireLogin(settingsData.requireLogin !== false);
         setHasPassword(settingsData.hasPassword || false);
@@ -261,6 +278,15 @@ export default function APIPageClient({ machineId }) {
       if (updated) setRequireApiKey(value);
     } catch (error) {
       console.log("Error updating requireApiKey:", error);
+    }
+  };
+
+  const handleDailyLimitEnabled = async (value) => {
+    try {
+      const updated = await useSettingsStore.getState().patchSettings({ dailyTokenLimitEnabled: value });
+      if (updated) setDailyLimitEnabled(value);
+    } catch (error) {
+      console.log("Error updating dailyTokenLimitEnabled:", error);
     }
   };
 
@@ -1075,6 +1101,17 @@ export default function APIPageClient({ machineId }) {
           </div>
         )}
 
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+          <div>
+            <p className="font-medium">{translate("Daily token limits")}</p>
+            <p className="text-sm text-text-muted">{translate("Master switch for the per-key daily token caps. Turning this off stops enforcement but keeps every key's configured limit.")}</p>
+          </div>
+          <Toggle
+            checked={dailyLimitEnabled}
+            onChange={handleDailyLimitEnabled}
+          />
+        </div>
+
         {/* Experimental: key secret rotation — one compact row; the verbose
             mechanics live in the Tooltip, re-issue only exists while enabled. */}
         <div className="flex items-center justify-between py-4 mb-4 border-b border-border gap-3">
@@ -1151,7 +1188,7 @@ export default function APIPageClient({ machineId }) {
                 className={`group flex items-center justify-between py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{key.name}</p>
+                  <p className="text-sm font-medium">{translateKeyName(key.name)}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <code className="text-xs text-text-muted font-mono">
                       {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
@@ -1193,7 +1230,7 @@ export default function APIPageClient({ machineId }) {
                       setLimitModal(key);
                       setLimitInput(key.dailyTokenLimit ? String(key.dailyTokenLimit) : "");
                     }}
-                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
                     title={translate("Edit Daily Token Limit")}
                   >
                     <span className="material-symbols-outlined text-[18px]">
@@ -1277,7 +1314,7 @@ export default function APIPageClient({ machineId }) {
       {/* Edit Daily Token Limit Modal */}
       <Modal
         isOpen={!!limitModal}
-        title={`${translate("Edit Daily Token Limit")}${limitModal ? ` — ${limitModal.name}` : ""}`}
+        title={`${translate("Edit Daily Token Limit")}${limitModal ? ` — ${translateKeyName(limitModal.name)}` : ""}`}
         onClose={() => setLimitModal(null)}
       >
         <div className="flex flex-col gap-4">
@@ -1317,7 +1354,7 @@ export default function APIPageClient({ machineId }) {
           <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
             {(rotatedKeysSummary?.rotated || []).map((r) => (
               <div key={r.id} className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-text-muted">{r.name}</p>
+                <p className="text-xs font-medium text-text-muted">{translateKeyName(r.name)}</p>
                 <div className="flex gap-2">
                   <Input value={r.key} readOnly className="flex-1 font-mono text-xs" />
                   <Button

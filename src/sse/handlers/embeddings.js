@@ -68,7 +68,7 @@ export async function handleEmbeddings(request) {
     }
   }
 
-  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: modelStr });
   if (limitResponse) return limitResponse;
 
   if (!modelStr) {

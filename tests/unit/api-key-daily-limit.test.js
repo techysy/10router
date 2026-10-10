@@ -173,6 +173,87 @@ describe("checkApiKeyDailyLimit", () => {
     expect(await checkApiKeyDailyLimit("sk-garbage-not-in-db")).toBe(null);
   });
 
+  it("a refusal is recorded in usageHistory with 0 tokens and shows in details", async () => {
+    const k = await db.createApiKey("logged", "machine-h", 100);
+    await recordUsage(k.key, 60, 50, { usageKey: "l1" }); // 110 ≥ 100
+
+    const before = await db.getUsageHistory({});
+    const deny = await checkApiKeyDailyLimit(k.key, {
+      request: new Request("http://localhost:20128/v1/chat/completions", { method: "POST" }),
+      model: "gpt-test",
+    });
+    expect(deny?.status).toBe(429);
+    const after = await db.getUsageHistory({});
+
+    const row = after[after.length - 1];
+    expect(before.length + 1).toBe(after.length);
+    expect(row.status).toBe("rate_limited");
+    expect(row.model).toBe("gpt-test");
+    expect(row.endpoint).toBe("/v1/chat/completions");
+    // The refusal must not consume the quota it enforces.
+    expect(await db.sumApiKeyTokensSince(hashApiKey(k.key), db.localStartOfDayIso())).toBe(110);
+
+    // requestDetails row: observability is off by default in a fresh DATA_DIR
+    // (saveRequestDetail self-gates), so enable it, drop the repo's 5s config
+    // cache, and drain the batched write buffer before asserting.
+    const rdRepo = await import("@/lib/db/repos/requestDetailsRepo.js");
+    await db.updateSettings({ enableObservability: true });
+    rdRepo.__test__.invalidateConfigCache();
+    const deny2 = await checkApiKeyDailyLimit(k.key, {
+      request: new Request("http://localhost:20128/v1/chat/completions", { method: "POST" }),
+      model: "gpt-test",
+    });
+    expect(deny2?.status).toBe(429);
+    await rdRepo.__test__.flushToDatabase();
+    const details = await db.getRequestDetails({ page: 1, pageSize: 50 });
+    const rd = details.details.find((d) => d.status === "rate_limited");
+    expect(rd).toBeTruthy();
+    expect(rd.model).toBe("gpt-test");
+    await db.updateSettings({ enableObservability: false });
+    rdRepo.__test__.invalidateConfigCache();
+  });
+
+  it("master switch dailyTokenLimitEnabled=false stops enforcement without clearing limits", async () => {
+    const k = await db.createApiKey("switched", "machine-i", 10);
+    await recordUsage(k.key, 9, 9, { usageKey: "s1" }); // 18 ≥ 10 — over cap
+    expect((await checkApiKeyDailyLimit(k.key))?.status).toBe(429);
+
+    await db.updateSettings({ dailyTokenLimitEnabled: false });
+    expect(await checkApiKeyDailyLimit(k.key)).toBe(null);
+
+    // Flipping back on restores the cap exactly — the value was never touched.
+    await db.updateSettings({ dailyTokenLimitEnabled: true });
+    expect((await checkApiKeyDailyLimit(k.key))?.status).toBe(429);
+    expect((await db.getApiKeyByKey(k.key)).dailyTokenLimit).toBe(10);
+  });
+
+  it("the 429 message localizes from the locale cookie / Accept-Language", async () => {
+    const k = await db.createApiKey("本地化", "machine-j", 5);
+    await recordUsage(k.key, 3, 3, { usageKey: "i1" }); // 6 ≥ 5
+
+    const zhCookie = new Request("http://localhost/v1/chat/completions", {
+      headers: { cookie: "locale=zh-CN; other=1" },
+    });
+    const denyZh = await checkApiKeyDailyLimit(k.key, { request: zhCookie, model: "m" });
+    const msgZh = (await denyZh.json()).error.message;
+    expect(msgZh).toContain("今日 Token 限额已用完");
+    expect(msgZh).toContain("本地化"); // key name stays verbatim (user-typed)
+    expect(msgZh).not.toContain("Daily token limit exceeded");
+
+    const zhHeader = new Request("http://localhost/v1/chat/completions", {
+      headers: { "accept-language": "zh-CN,zh;q=0.9,en;q=0.8" },
+    });
+    const denyHdr = await checkApiKeyDailyLimit(k.key, { request: zhHeader, model: "m" });
+    expect((await denyHdr.json()).error.message).toContain("将在");
+
+    // No locale signal at all → English fallback (what an SDK caller sees).
+    const plain = new Request("http://localhost/v1/chat/completions");
+    const denyEn = await checkApiKeyDailyLimit(k.key, { request: plain, model: "m" });
+    const msgEn = (await denyEn.json()).error.message;
+    expect(msgEn).toContain("Daily token limit exceeded");
+    expect(msgEn).toContain("Resets in");
+  });
+
   it("validateApiKey contract untouched: still returns booleans", async () => {
     const k = await db.createApiKey("contract", "machine-g");
     expect(await db.validateApiKey(k.key)).toBe(true);

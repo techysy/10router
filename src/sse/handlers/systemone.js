@@ -57,7 +57,7 @@ export async function handleSystemone(request) {
     }
   }
 
-  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: modelStr });
   if (limitResponse) return limitResponse;
 
   if (!modelStr) {

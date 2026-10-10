@@ -39,6 +39,10 @@ const DEFAULT_SETTINGS = {
   // Off = only explicit checks (see src/lib/updateCheck.js).
   autoUpdateCheck: true,
   requireApiKey: true,
+  // Master switch for the per-key daily token caps (apiKeys.dailyTokenLimit).
+  // Off = enforcement stops but every key keeps its configured value, so
+  // turning it back on restores all caps as-is.
+  dailyTokenLimitEnabled: true,
   // Server-side auto-compaction of oversized conversations (clients that do
   // not compact locally would otherwise hard-fail on "prompt is too long").
   // ON by default: the alternative is a request error. Ratio = share of the
