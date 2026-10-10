@@ -7,9 +7,14 @@ FROM base AS builder
 
 RUN apk --no-cache upgrade && apk --no-cache add python3 make g++ linux-headers
 
-COPY package.json ./
+# npm ci with the committed lockfile: plain `npm install` ignores it and
+# re-resolves from the registry at build time, so a transitive release between
+# two tags can change what ships — v1.4.0's arm64 QEMU leg hung for 6h on a
+# freshly-floated resolution while amd64 sailed through (deps were identical to
+# v1.3.5's source; only the registry moved).
+COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
-  npm install
+  npm ci --no-audit --no-fund
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
