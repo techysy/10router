@@ -169,3 +169,18 @@ export const USAGE_SUPPORTED_PROVIDERS = REGISTRY
 export const USAGE_APIKEY_PROVIDERS = REGISTRY
   .filter(r => r.features?.usageApikey)
   .map(r => r.id);
+
+// Provider 主页(官网/控制台),供 UI 一键跳转(配额卡片图标等)。
+// 回退顺序与 providers/[id]/page.js 的官网链接一致:notice.webUrl →
+// apiKeyUrl → signupUrl → website。接受 id 或别名(与 resolveProviderId
+// 同一归一口径);注册表没有这个 provider(自定义连接)或没配任何 URL 时返回
+// null — 调用方据此不渲染链接,而不是硬造一个。
+export function getProviderWebsite(providerIdOrAlias) {
+  // 空值先挡住:resolveProviderId(undefined) 会被「没有 alias 的 provider」
+  // 匹配到(alias === undefined),把图标链到不相干的官网。
+  if (!providerIdOrAlias || typeof providerIdOrAlias !== "string") return null;
+  const p =
+    AI_PROVIDERS[providerIdOrAlias] || AI_PROVIDERS[resolveProviderId(providerIdOrAlias)];
+  if (!p) return null;
+  return p.notice?.webUrl || p.notice?.apiKeyUrl || p.notice?.signupUrl || p.website || null;
+}

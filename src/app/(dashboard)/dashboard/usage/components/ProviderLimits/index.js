@@ -58,7 +58,7 @@ import {
 import Card from "@/shared/components/Card";
 import { translate } from "@/i18n/runtime";
 import { ConfirmModal, EditConnectionModal } from "@/shared/components";
-import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { USAGE_SUPPORTED_PROVIDERS, getProviderWebsite } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Maps the stored providerSpecificData.authMethod to a human label for Kiro.
@@ -1231,6 +1231,7 @@ export default function ProviderLimits() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {renderConnections.map((conn) => {
           const quota = quotaData[conn.id];
+          const providerWebsite = getProviderWebsite(conn.provider);
           // Spinner only while a card has NOTHING to show; with cached numbers
           // it keeps them and only the header refresh icon spins.
           const isRefreshing = Boolean(loading[conn.id]);
@@ -1277,17 +1278,40 @@ export default function ProviderLimits() {
               <div className="px-3 py-2 border-b border-black/10 dark:border-white/10">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
-                      <ProviderIcon
-                        src={`/providers/${conn.provider}.png`}
-                        alt={conn.provider}
-                        size={32}
-                        className="object-contain"
-                        fallbackText={
-                          conn.provider?.slice(0, 2).toUpperCase() || "PR"
-                        }
-                      />
-                    </div>
+                    {/* 图标点击跳转供应商官网/控制台(注册表 display.website 等,
+                        与 providers/[id] 详情页同一回退链)。解析不到 URL 的
+                        provider(自定义连接)保持纯图标,不渲染链接。 */}
+                    {providerWebsite ? (
+                      <a
+                        href={providerWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`${translate("Open provider site")} — ${providerWebsite.replace(/^https?:\/\//, "")}`}
+                        className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                      >
+                        <ProviderIcon
+                          src={`/providers/${conn.provider}.png`}
+                          alt={conn.provider}
+                          size={32}
+                          className="object-contain"
+                          fallbackText={
+                            conn.provider?.slice(0, 2).toUpperCase() || "PR"
+                          }
+                        />
+                      </a>
+                    ) : (
+                      <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
+                        <ProviderIcon
+                          src={`/providers/${conn.provider}.png`}
+                          alt={conn.provider}
+                          size={32}
+                          className="object-contain"
+                          fallbackText={
+                            conn.provider?.slice(0, 2).toUpperCase() || "PR"
+                          }
+                        />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-text truncate">
                         {KNOWN_PROVIDER_NAMES[conn.provider] || (

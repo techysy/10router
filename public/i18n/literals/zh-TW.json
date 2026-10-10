@@ -645,6 +645,7 @@
   "Beta toggles for provider tools, daily check-ins, and dashboard security": "提供商工具、每日簽到與儀表板安全的內測開關",
   "No dashboard password is set yet": "尚未設定儀表板密碼",
   "Open dashboard": "開啟儀表板",
+  "Open provider site": "開啟供應商官網",
   "Dashboard: local access only": "儀表板僅本機存取",
   "Refuse every non-local request to the dashboard and its management APIs. The LLM API (/v1) is unaffected — it uses its own API keys. Takes effect immediately; you will lose remote access to this dashboard until you turn it off from the machine itself.": "拒絕所有非本機來源對儀表板及其管理介面的請求。LLM 介面（/v1）不受影響，它使用自己的 API 金鑰。立即生效；關閉前你將無法從其它裝置存取本儀表板（需在本機操作）。",
   "Exposure": "暴露面",
