@@ -1772,6 +1772,8 @@
   "Individual quota reached. Resets at {time} (in {duration}).": "该账号额度已用完，将于 {time} 重置（约 {duration} 后）；可升级订阅提升限额。",
   "Individual quota reached for model {model}. Resets at {time} (in {duration}).": "模型 {model} 的额度已用完，将于 {time} 重置（约 {duration} 后）；该账号的其它模型仍可正常使用。",
   "Subscription quota used up. Please wait for the quota reset.": "该账号额度已用完，请等待重置。",
+  "This account must complete real-name verification before StepFun will serve it. Complete it at {url}, then retry.": "该账号需先完成实名（人脸）核验，StepFun 才会放行调用：前往 {url} 完成核验后重试。",
+  "Complete verification": "去完成核验",
   "Retry on empty": "空回复时切换",
   "When the model returns an empty answer (content filter or zero output), fall through to the next model. The abandoned attempt still consumes its input tokens.": "当模型返回空回复（内容审查或零输出）时，自动改用下一个模型。被放弃的调用仍会消耗其输入 token。",
   "{n}d": "{n}天",

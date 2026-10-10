@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { classifyConnectionCooldown, sameConnectionCooldown } from "@/shared/utils/connectionCooldown";
 import { translate } from "@/i18n/runtime";
-import { extractAccountsVerificationUrl } from "@/shared/utils/validationUrl";
+import { extractAccountsVerificationUrl, extractRealnameVerificationUrl } from "@/shared/utils/validationUrl";
 import { translateQuotaError } from "@/shared/utils/quotaError";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import PropTypes from "prop-types";
@@ -208,9 +208,15 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
 
   // Google VALIDATION_REQUIRED errors surface their "Verify your account" URL in
   // the message text — render it as a jump link instead of a dead red string.
+  // Real-name (实名) gates (StepFun CN) carry a face-verification URL instead;
+  // same user need, different page, so fall back to it with its own link text.
   const verificationUrl = connection.isActive !== false
     ? extractAccountsVerificationUrl(connection.lastError)
     : null;
+  const realnameUrl = connection.isActive !== false && !verificationUrl
+    ? extractRealnameVerificationUrl(connection.lastError)
+    : null;
+  const gateUrl = verificationUrl || realnameUrl;
   const { copied, copy } = useCopyToClipboard();
 
   const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
@@ -294,20 +300,20 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 {translateQuotaError(connection.lastError)}
               </span>
             )}
-            {verificationUrl && (
+            {gateUrl && (
               <>
                 <a
-                  href={verificationUrl}
+                  href={gateUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={translate("Recommended: open in an incognito window and sign in with the affected account")}
                   className="shrink-0 text-xs text-blue-500 underline hover:text-blue-400"
                 >
-                  {translate("Verify your account")}
+                  {translate(realnameUrl ? "Complete verification" : "Verify your account")}
                 </a>
                 <button
                   type="button"
-                  onClick={() => copy(verificationUrl, "verification")}
+                  onClick={() => copy(gateUrl, "verification")}
                   title={translate("Copy link")}
                   className="shrink-0 text-xs text-text-muted hover:text-primary"
                 >

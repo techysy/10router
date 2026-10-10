@@ -1,4 +1,4 @@
-import { ERROR_RULES, BACKOFF_CONFIG, TRANSIENT_COOLDOWN_MS, CHANNEL_BLOCK_MS, CHANNEL_BLOCK_ESCALATE_WINDOW_MS, MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "../config/errorConfig.js";
+import { ERROR_RULES, BACKOFF_CONFIG, TRANSIENT_COOLDOWN_MS, CHANNEL_BLOCK_MS, CHANNEL_BLOCK_ESCALATE_WINDOW_MS, MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS, REALNAME_GATE_RE, REALNAME_HINT, REALNAME_HINT_GENERIC } from "../config/errorConfig.js";
 
 // 4xx statuses that DO describe the credential / the account's standing, so they
 // keep their cooldown rules. Everything else in 400–499 describes the request
@@ -454,6 +454,28 @@ export function withRateLimitHint(message, provider) {
     `提示：上游触发了限流（HTTP 429），非账号异常，已按上游提示自动冷却并稍后自动恢复；` +
     `期间可切换其他模型或渠道，或稍候重试。${note}`
   );
+}
+
+// ─── StepFun CN 实名（real-name）闸门 ──────────────────────────────────────
+// 正则与文案的真相源在 config/errorConfig.js（ERROR_RULES 的 403 重分类与客户端
+// 提示共用同一份），这里只做「给消息补出路说明」这一件事。
+
+/** True when the message is an upstream real-name (实名) gate rejection. */
+export function isRealnameGateText(message) {
+  return REALNAME_GATE_RE.test(String(message || ""));
+}
+
+/**
+ * Append an actionable real-name explanation to a message that IS a real-name
+ * gate rejection. Non-matching messages pass through untouched, so callers can
+ * apply it unconditionally — same contract as withRateLimitHint.
+ * @param {string} message - upstream/client-facing message
+ * @param {string} [provider] - adds a channel-specific note when known
+ */
+export function withRealnameHint(message, provider) {
+  if (!isRealnameGateText(message)) return message;
+  const note = REALNAME_HINT[provider] || REALNAME_HINT_GENERIC;
+  return `${message}\n\n提示：${note}`;
 }
 
 /**

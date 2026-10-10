@@ -1,4 +1,6 @@
 import { translate } from "@/i18n/runtime";
+import { REALNAME_GATE_RE } from "open-sse/config/errorConfig.js";
+import { extractRealnameVerificationUrl } from "./validationUrl.js";
 
 /**
  * Friendly i18n translation for upstream quota-exhausted errors.
@@ -38,6 +40,13 @@ const SUBSCRIPTION_TEMPLATE_KEY = "Subscription quota used up. Please wait for t
 // reason, so a looser pattern would steal that case and drop its reset clock.
 // The Chinese phrases cover deployments that only send a message.
 const SUBSCRIPTION_QUOTA_RE = /subscription_quota_exhausted|本周用量已满|本周额度已用完/i;
+
+// StepFun CN Step Plan 免费套餐的实名闸门（HTTP 403）。与 SUBSCRIPTION_QUOTA_RE
+// 同族的「配置状态、无倒计时」类：等多久都不会自己好，所以文案里不给时间、只给
+// 出路。原先它落到下面 Google 分支之外的 `direct` 兜底，把整坨英文 JSON 渲染进
+// 连接行那条 300px 的红字里，被 max-width 截断成半句。
+// 正则与文案的真相源在 open-sse/config/errorConfig.js（客户端提示共用同一份）。
+const REALNAME_TEMPLATE_KEY = "This account must complete real-name verification before StepFun will serve it. Complete it at {url}, then retry.";
 
 function fmtUnit(key, n) {
   // Falls back to the raw key ("{n}h" -> "3h") when the dictionary is missing.
@@ -132,6 +141,16 @@ export function translateQuotaError(errorText) {
   // Google owns the countdown, this one only owns "wait for the reset".
   if (SUBSCRIPTION_QUOTA_RE.test(errorText)) {
     return translate(SUBSCRIPTION_TEMPLATE_KEY);
+  }
+
+  // Real-name (实名) gate: a configuration state with no countdown, so give the
+  // action instead of a time. Kept as its own branch because the row has to say
+  // WHERE to go — "wait for the reset" would be wrong here, nothing resets.
+  if (REALNAME_GATE_RE.test(errorText)) {
+    const url = extractRealnameVerificationUrl(errorText);
+    let msg = translate(REALNAME_TEMPLATE_KEY);
+    msg = msg.replace("{url}", url || translate("the provider's console"));
+    return msg;
   }
 
   // Google-style per-account quota exhausted (HTTP 429 RESOURCE_EXHAUSTED).
