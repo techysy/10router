@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { resolveRequestLocale } from "../../src/i18n/serverTranslate.js";
 
 const abs = (rel) => fileURLToPath(new URL(`../../${rel}`, import.meta.url));
 const read = (rel) => readFileSync(abs(rel), "utf8");
@@ -177,5 +178,27 @@ describe("i18n dictionaries", () => {
       expect(dict["tokens"]).toBeTruthy();
       expect(dict["Save"]).toBeTruthy();
     }
+  });
+
+  it("locale tags shaped like a path never reach the dictionary filename", () => {
+    // The tag comes from a caller-controlled cookie / Accept-Language header
+    // and feeds `${locale}.json` — anything outside a bare alpha base language
+    // is a traversal attempt and must resolve to English, not to a read of
+    // some other .json file under the app root.
+    const reqWithHeaders = (headers) => new Request("http://localhost/v1/chat/completions", { headers });
+    for (const evil of [
+      "../../package",
+      "..\\..\\package",
+      "de/../../secrets",
+      "en-us/../en",
+      "%2e%2e/package",
+      "de_DE.UTF-8@euro",
+    ]) {
+      expect(resolveRequestLocale(reqWithHeaders({ cookie: `locale=${evil}` })), evil).toBe("en");
+    }
+    // Sensible regional/shaped tags still work.
+    expect(resolveRequestLocale(reqWithHeaders({ cookie: "locale=zh-hant" }))).toBe("zh-TW");
+    expect(resolveRequestLocale(reqWithHeaders({ "accept-language": "zh-CN,zh;q=0.9" }))).toBe("zh-CN");
+    expect(resolveRequestLocale(reqWithHeaders({ "accept-language": "xx;q=0.9,zh;q=0.8" }))).toBe("zh-CN");
   });
 });

@@ -64,7 +64,11 @@ function canonicalizeTag(tag) {
   const base = lower.split("-")[0];
   if (base === "zh") return "zh-CN";
   if (base === "pt") return "pt-BR";
-  return lower === "en" ? "en" : base;
+  // Generic fallthrough feeds a filename (`${locale}.json`) — the tag comes
+  // from a caller-controlled cookie / Accept-Language header, so only a bare
+  // alpha base language may pass; anything shaped like a path reads as "en".
+  if (lower === "en") return "en";
+  return /^[a-z]{2,3}$/.test(base) ? base : "en";
 }
 
 /**
