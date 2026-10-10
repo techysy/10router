@@ -2,12 +2,6 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
-## v1.4.1 (待定)
-
-### 🐛 修复
-
-- **覆盖升级后仪表盘一直显示旧版本**：1.3.5→1.4.0 这类覆盖安装会把上一版运行期生成的 Full Route Cache 留在构建目录里（`<distDir>/server/route-cache` 下按旧 hash chunk 预渲染的 HTML/RSC），新服务器照发旧缓存——侧边栏版本丸一直停在旧版本，而 package.json 与 /api/version（读盘）都已是新版，现象自相矛盾。`custom-server.js` 启动时对比 BUILD_ID 与上次启动标记，不一致即清空 route-cache（标记放在缓存目录旁边而不是里面，防止被一并清掉）；桌面 / npm CLI / fnOS fpk / 独立服务端四条渠道都经此入口，一次修复全部覆盖。已受影响的 1.4.0 用户手动清该目录 + 重启即可恢复，1.4.1 起自愈。
-
 ## v1.4.0 (2026-10-10)
 
 ### ✨ 新增
@@ -33,6 +27,8 @@
 
 ### 🐛 修复
 
+- **覆盖升级后仪表盘一直显示旧版本**（发版次日修复，tag 重建后的资产已含）：1.3.5→1.4.0 这类覆盖安装会把上一版运行期生成的 Full Route Cache 留在构建目录里（`<distDir>/server/route-cache` 下按旧 hash chunk 预渲染的 HTML/RSC），新服务器照发旧缓存——侧边栏版本丸一直停在旧版本，而 package.json 与 /api/version（读盘）都已是新版，现象自相矛盾。`custom-server.js` 启动时对比 BUILD_ID 与上次启动标记，不一致即清空 route-cache（标记放在缓存目录旁边而不是里面，防止被一并清掉）；桌面 / npm CLI / fnOS fpk / 独立服务端四条渠道都经此入口。注意 npm 包不可变，已发布的 `@techysy/10router@1.4.0` 不含此修复；受影响的存量安装手动清该目录 + 重启即可恢复。
+- **Docker 镜像构建改 `npm ci` 用提交内 lockfile**（v1.4.0 镜像难产根因）：Dockerfile 原先只 COPY `package.json`、`npm install` 无视 lockfile，构建时向注册表重新解析——10-06 到 10-10 之间某个传递依赖发新版，arm64 的 QEMU 腿在 install 处挂死 6 小时（两次尝试同点，amd64 正常）。改为复制 `package-lock.json` + `npm ci`，构建可复现、与注册表漂移解耦。
 - **Trae Free 模型目录对齐官方 remote**(issue #54):上游按 TRAE 2.3.87413 的版本把目录重整过一轮,注册表还是旧的。本次按官方 remote 全量对齐:新增 18 款、移除 10 款已被上游下架的模型,保留 2 款仍在目录里的存量。注意 v1.3.5 段落所述的 12 款模型面里 10 款已不复存在——历史段落保持原样,以本条为准。
 - **StepFun CN 实名闸门不再被当成「额度用完」**(PR #55):`stepfun-plan-cn` 的免费 Step Plan 在放行调用前要求账号完成实名(人脸)核验,未完成时上游对每个请求都回 403 `real-name verification is required ... please complete face verification at https://account.stepfun.com/security?action=realname`。此前它落到通用 `{ status: 403, cooldownMs: COOLDOWN.long }`,把模型锁 2 分钟并给客户端回一个 `(reset after 2m)`——而实名是**配置状态**,等多久都不会自己好,那个等待时间纯属误导(combo 也白等一轮才穿透)。现按既有 `mimo desktop account` 的模式加 text 规则(`real-name verification` / `realname verification`)归零冷却:账号永不锁定、combo 立即穿透。另一头是文案:403 的 OpenAI 兼容 type 叫 `insufficient_quota`,用户看到英文 JSON 会往「去充值」的方向走,实际的路是去实名。`formatProviderError`(chat / embeddings / image / video / systemone 五个 core 共用的唯一收口点)现在给命中该特征的消息追加一段可执行的出路说明——完成人脸核验的地址,或改用按量计费的 `stepfun-cn` 渠道(无实名要求)。仪表盘连接行走另一条渲染路径(`translateQuotaError`),同批补上中文文案并提供实名页跳转链接(`extractRealnameVerificationUrl`,与 Google 年龄验证那条 `extractAccountsVerificationUrl` 分开——后者有「忽略非 signin Google URL」的既有断言,泛化会同时破坏该契约并可能把 StepFun 的链接当成 Google 验证目标返回)。正则与文案的真相源收在 `config/errorConfig.js`(叶子模块,无 import)供两侧共用。普通 403 与普通消息逐字节不受影响,`realname-gate-hint.test.js` 15 例钉住。
 - **combo(模型组)的上下文终于发给了 agent**:组合会聚合成员能力并算出 contextWindow,但只写进嵌套的 `capabilities.contextWindow`(驼峰),而客户端并不递归进嵌套对象——Claude CLI / mirasim 匹配顶层 `context_window` / `context_length`,拿到空值就按模型名猜,且往高猜(372k 被读成 1.05M 永远不触发压缩,直到上游硬失败)。combo 条目现补发顶层 `context_length` / `context_window` / `max_completion_tokens`(数值仍走 combo-caps 契约:min context / max output;web 组合无聚合,不输出)。dashboard 给成员设置的覆盖值(pinned caps)也参与 combo 聚合——此前面板显示正确而 `/v1/models` 照旧返回静态值。
