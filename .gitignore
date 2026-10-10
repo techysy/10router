@@ -53,6 +53,8 @@ source/*
 .cursor/*
 docs/*
 !docs/ARCHITECTURE.md
+!docs/en/*.md
+!docs/zh-CN/*.md
 test/*
 open-sse/test/*
 RM.vn.md
@@ -62,7 +64,9 @@ PUBLIC.md
 Thanks.md
 PUBLIC.en.md
 PR/*
-package-lock.json
+# package-lock.json is TRACKED (upstream 9router used to ignore it): the Docker
+# build runs `npm ci` against it for reproducible installs — build-time registry
+# drift hung the QEMU arm64 leg for 6h during v1.4.0. Keep it committed.
 
 
 #Ignore vscode AI rules
