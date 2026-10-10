@@ -30,7 +30,6 @@ describe("CodeBuddy CN static model catalog", () => {
       "glm-5.2",
       "glm-5.1",
       "minimax-m3",
-      "minimax-m2.7",
       "kimi-k3",
       "kimi-k2.7",
       "kimi-k2.8-preview",
@@ -62,9 +61,6 @@ describe("CodeBuddy CN static model catalog", () => {
       "glm-5.2": 0.79,
       "glm-5.1": 0.79,
       "minimax-m3": 0.25,
-      // 未公布：同 glm-5.3-flashx，服务端列表里本就没有这个 id（见 registry 注释
-      // "absent from the server list, though still answering 200"）。
-      "minimax-m2.7": undefined,
       "kimi-k3": 1.62,
       "kimi-k2.7": 0.57,
       "kimi-k2.8-preview": 0.77,

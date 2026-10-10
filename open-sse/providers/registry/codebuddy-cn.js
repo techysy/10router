@@ -93,11 +93,11 @@ export default {
     { id: "glm-5.2", name: "GLM-5.2", rateMultiplier: 0.79 },
     { id: "glm-5.1", name: "GLM-5.1", rateMultiplier: 0.79 },
     { id: "minimax-m3", name: "MiniMax-M3", rateMultiplier: 0.25 },
-    // 2026-10-08 现网探测补一个：minimax-m2.7 返回 200 且回显自身 id（不是 M3 的
-    // 别名）；hy5-preview / glm-5.4 / kimi-k2.7-code / muse-spark-1.3 回 11102。
+    // 2026-10-08 现网探测：hy5-preview / glm-5.4 / kimi-k2.7-code / muse-spark-1.3
+    // 回 11102。minimax-m2.7 当日曾按「返回 200 且回显自身 id」短窗收录，
+    // 2026-10-10 撤下——从不在服务端公布列表、倍率从未公布、使用量近乎零。
     // deepseek-v4-flash 上游也答 200，但它已被 deepseek-v4.1-flash 取代，
     // 不重复进选择器（见 unit/codebuddy-cn-models.test.js 的 retired-ids 用例）。
-    { id: "minimax-m2.7", name: "MiniMax-M2.7" },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
     { id: "kimi-k2.7", name: "Kimi-K2.7-Code", rateMultiplier: 0.57 },
     // 2026-10-08 积分页列出 Kimi-K2.8-Preview 0.77x，现网探测答 200（kimi-k2.8
