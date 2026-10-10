@@ -44,6 +44,7 @@ import {
   getInitialProviderFilter,
   buildProviderFilterUrl,
   getQuotaCache,
+  isConnectionDepleted,
   QUOTA_CACHE_KEY,
   REFRESH_INTERVAL_MS,
   CLAUDE_REFRESH_INTERVAL_MS,
@@ -254,6 +255,16 @@ export default function ProviderLimits() {
   const [hideNoQuota] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("quotaHideNoQuota") === "1";
+  });
+  // "Hide zero-balance cards" — the depleted sibling of hideNoQuota (same
+  // Experimental-page localStorage pattern). Drops cards whose quota fetch
+  // COMPLETED with every pack at absolute zero (0 余额 / 0 积分 accounts).
+  // Judged by isConnectionDepleted — the same predicate the bulk disable/enable
+  // actions use — so the toolbar and the view filter never disagree about what
+  // "depleted" means. Kept while loading / on error / before the first fetch.
+  const [hideZeroBalance] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("quotaHideZeroBalance") === "1";
   });
   // Experimental (same localStorage pattern as hideNoQuota, switch on the
   // Experimental page): draw contained subscription windows as ONE nested
@@ -1045,42 +1056,39 @@ export default function ProviderLimits() {
     [connections, quotaData, expiringFirst, providerFilter, quotaSortMode],
   );
 
-  // "Hide no-quota" view: drop a card only once its fetch has COMPLETED with no
-  // quota package at all (kept while loading, on error, or as soon as any quota
-  // row is present, so a real card never blinks out). A message-only card (the
-  // cloud MiMo "no separate quota" note, Token Plan) counts as no-quota here —
-  // that is exactly what the toggle is for.
-  const renderConnections = useMemo(() => {
-    if (!hideNoQuota) return sortedConnections;
-    return sortedConnections.filter((conn) => {
-      if (loading[conn.id]) return true;
-      if (errors[conn.id]) return true;
-      const q = quotaData[conn.id];
-      if (!q) return true; // not fetched yet — decide once we know
-      return (q.quotas?.length ?? 0) > 0;
-    });
-  }, [sortedConnections, hideNoQuota, loading, errors, quotaData]);
-
   /**
    * "Only with balance" bulk action removed (用户拍板): the pack-bar top block
    * and the collapsed details made row-level balance filtering noise. The
    * per-row hide button and the "Hidden:" chips stay for manual curation.
    */
-  // A connection is empty (depleted) only when EVERY quota row has an absolute
-  // zero balance — 0/0 (no allowance, e.g. Qoder) or used >= total. Any single
-  // row with remaining credit (e.g. a fresh Bonus Pack) keeps the account
-  // "available". Genuinely unlimited rows opt out via unlimited:true and don't
-  // count either way; accounts with only unlimited rows stay available.
-  const isConnectionDepleted = (conn) => {
-    const quotas = quotaData[conn.id]?.quotas;
-    if (!quotas?.length) return false;
-    const judged = quotas.filter((q) => q.unlimited !== true);
-    if (judged.length === 0) return false;
-    return judged.every((q) => {
-      const total = q.total || 0;
-      return total <= 0 || (q.used || 0) >= total;
-    });
-  };
+  // Both view filters drop whole cards; each is opt-in from the Experimental
+  // page and judged per-card against the same facts: kept while loading, on
+  // error, or before the quota fetch returned (a real card never blinks out).
+  // A message-only card (the cloud MiMo "no separate quota" note, Token Plan)
+  // counts as no-quota — that is exactly what hideNoQuota is for; the SAME
+  // card is NOT zero-balance, so the new toggle never hides what the old one
+  // deliberately kept, and vice versa.
+  const renderConnections = useMemo(() => {
+    let list = sortedConnections;
+    if (hideNoQuota) {
+      list = list.filter((conn) => {
+        if (loading[conn.id]) return true;
+        if (errors[conn.id]) return true;
+        const q = quotaData[conn.id];
+        if (!q) return true; // not fetched yet — decide once we know
+        return (q.quotas?.length ?? 0) > 0;
+      });
+    }
+    if (hideZeroBalance) {
+      list = list.filter((conn) => {
+        if (loading[conn.id]) return true;
+        if (errors[conn.id]) return true;
+        if (!quotaData[conn.id]) return true; // not fetched yet
+        return !isConnectionDepleted(conn, quotaData);
+      });
+    }
+    return list;
+  }, [sortedConnections, hideNoQuota, hideZeroBalance, loading, errors, quotaData]);
 
   const bulkSetActive = useCallback(
     async (targetIds, isActive) => {
@@ -1108,14 +1116,14 @@ export default function ProviderLimits() {
 
   const handleDisableDepleted = () => {
     const ids = sortedConnections
-      .filter((c) => (c.isActive ?? true) && isConnectionDepleted(c))
+      .filter((c) => (c.isActive ?? true) && isConnectionDepleted(c, quotaData))
       .map((c) => c.id);
     bulkSetActive(ids, false);
   };
 
   const handleEnableAvailable = () => {
     const ids = sortedConnections
-      .filter((c) => !(c.isActive ?? true) && !isConnectionDepleted(c))
+      .filter((c) => !(c.isActive ?? true) && !isConnectionDepleted(c, quotaData))
       .map((c) => c.id);
     bulkSetActive(ids, true);
   };

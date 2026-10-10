@@ -18,6 +18,16 @@ export default function ExperimentalClient() {
       typeof window !== "undefined" &&
       window.localStorage.getItem("quotaHideNoQuota") === "1",
   );
+  // Depleted sibling of hideNoQuota (same localStorage pattern, key read by
+  // the quota page): hide cards whose quota fetch completed with every pack at
+  // absolute zero (0 余额 / 0 积分). Distinct from "no quota" — a message-only
+  // card (cloud MiMo note, Token Plan) is no-quota, not zero-balance, so the
+  // two toggles are independent and compose when both are on.
+  const [hideZeroBalance, setHideZeroBalance] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("quotaHideZeroBalance") === "1",
+  );
   // Same client-side view preference as hideNoQuota, key read by the quota
   // page: draw contained subscription windows (滚动 ⊂ 每周 ⊂ 月度) as one
   // nested concentric track instead of split flat rows.
@@ -32,6 +42,12 @@ export default function ExperimentalClient() {
       window.localStorage.setItem("quotaHideNoQuota", hideNoQuota ? "1" : "0");
     }
   }, [hideNoQuota]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("quotaHideZeroBalance", hideZeroBalance ? "1" : "0");
+    }
+  }, [hideZeroBalance]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -86,6 +102,22 @@ export default function ExperimentalClient() {
               <Toggle
                 checked={hideNoQuota}
                 onChange={() => setHideNoQuota((prev) => !prev)}
+              />
+            </div>
+
+            {/* Depleted sibling of the toggle above — hides cards whose packs
+                are ALL at zero balance (0 余额 / 0 积分). Shares the
+                isConnectionDepleted predicate with the bulk disable action. */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pb-4 border-b border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("Hide zero-balance provider cards")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Quota page view: hide cards whose quota is fully depleted (0 balance / 0 credits)")}
+                </p>
+              </div>
+              <Toggle
+                checked={hideZeroBalance}
+                onChange={() => setHideZeroBalance((prev) => !prev)}
               />
             </div>
 

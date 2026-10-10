@@ -1266,6 +1266,8 @@
   "Turn off Empty": "关闭空账号",
   "Turn on Available": "可用账号",
   "Hide no-quota provider cards": "隐藏无配额提供商卡片",
+  "Hide zero-balance provider cards": "隐藏零余额提供商卡片",
+  "Quota page view: hide cards whose quota is fully depleted (0 balance / 0 credits)": "配额页视图：隐藏配额已耗尽（0 余额 / 0 积分）的卡片",
   "Nested cycle quota bars": "嵌套周期配额条",
   "Draw contained windows (rolling ⊂ weekly ⊂ monthly) as one nested track instead of flat rows": "把包含关系的周期窗口（滚动 ⊂ 每周 ⊂ 月度）画成一条嵌套轨道，而不是拆分平铺行",
   "Quota page view: hide cards that have no quota to display": "配额页视图：隐藏没有配额可显示的卡片",

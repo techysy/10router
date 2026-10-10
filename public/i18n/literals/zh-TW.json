@@ -273,6 +273,8 @@
   "Turn off Empty": "關閉空帳號",
   "Turn on Available": "可用帳號",
   "Hide no-quota provider cards": "隱藏無配額提供者卡片",
+  "Hide zero-balance provider cards": "隱藏零餘額提供者卡片",
+  "Quota page view: hide cards whose quota is fully depleted (0 balance / 0 credits)": "配額頁檢視：隱藏配額已耗盡（0 餘額 / 0 積分）的卡片",
   "Nested cycle quota bars": "巢狀週期配額條",
   "Draw contained windows (rolling ⊂ weekly ⊂ monthly) as one nested track instead of flat rows": "把包含關係的週期窗口（滾動 ⊂ 每週 ⊂ 月度）畫成一條巢狀軌道，而不是拆分平鋪行",
   "Quota page view: hide cards that have no quota to display": "配額頁檢視：隱藏沒有配額可顯示的卡片",

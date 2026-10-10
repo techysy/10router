@@ -63,6 +63,29 @@ export function getConnectionLabel(connection) {
   return name || email || displayName || null;
 }
 
+// A connection is empty (depleted) only when EVERY quota row has an absolute
+// zero balance — 0/0 (no allowance, e.g. Qoder) or used >= total. Any single
+// row with remaining credit (e.g. a fresh Bonus Pack) keeps the account
+// "available". Genuinely unlimited rows opt out via unlimited:true and don't
+// count either way; accounts with only unlimited rows stay available.
+// A card with NO quota rows is "no quota to show", not "depleted" — that case
+// belongs to the hide-no-quota toggle, so it returns false here.
+//
+// Lives in utils (not the component closure it grew from) so the bulk
+// disable/enable actions and the "hide zero-balance cards" view filter judge a
+// card with exactly the same predicate — two meanings for "depleted" would
+// make the toolbar lie about what it disables.
+export function isConnectionDepleted(connection, quotaData) {
+  const quotas = quotaData?.[connection.id]?.quotas;
+  if (!quotas?.length) return false;
+  const judged = quotas.filter((q) => q.unlimited !== true);
+  if (judged.length === 0) return false;
+  return judged.every((q) => {
+    const total = q.total || 0;
+    return total <= 0 || (q.used || 0) >= total;
+  });
+}
+
 export function getConnectionQuotaRemaining(connection, quotaData) {
   const quota = quotaData[connection.id]?.quotas?.[0];
   if (!quota) return Number.POSITIVE_INFINITY;
