@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.4.1 (待定)
+
+### 🐛 修复
+
+- **覆盖升级后仪表盘一直显示旧版本**：1.3.5→1.4.0 这类覆盖安装会把上一版运行期生成的 Full Route Cache 留在构建目录里（`<distDir>/server/route-cache` 下按旧 hash chunk 预渲染的 HTML/RSC），新服务器照发旧缓存——侧边栏版本丸一直停在旧版本，而 package.json 与 /api/version（读盘）都已是新版，现象自相矛盾。`custom-server.js` 启动时对比 BUILD_ID 与上次启动标记，不一致即清空 route-cache（标记放在缓存目录旁边而不是里面，防止被一并清掉）；桌面 / npm CLI / fnOS fpk / 独立服务端四条渠道都经此入口，一次修复全部覆盖。已受影响的 1.4.0 用户手动清该目录 + 重启即可恢复，1.4.1 起自愈。
+
 ## v1.4.0 (2026-10-10)
 
 ### ✨ 新增

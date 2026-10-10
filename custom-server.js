@@ -23,6 +23,50 @@ import(pathToFileURL(path.join(__dirname, "src", "lib", "consoleArchiveStandalon
   .then((m) => m.installConsoleArchive())
   .catch(() => {});
 
+// Full-Route-Cache staleness guard: an over-install upgrade (NSIS, fpk, npm -g,
+// manual untar) writes the new build on top of the old tree but leaves the
+// previous build's Full Route Cache under <distDir>/server/route-cache —
+// prerendered HTML/RSC that references the OLD hashed static chunks. The new
+// server happily serves those entries, so the dashboard keeps rendering the old
+// bundle (sidebar version pill stuck at the previous version) even though
+// package.json and /api/version already report the new release. Wipe that cache
+// whenever BUILD_ID differs from the marker we last booted with. Marker lives
+// next to route-cache (not inside it) so a wipe cannot erase the proof.
+function pruneStaleRouteCache(root = __dirname) {
+  for (const distDirName of [".next-cli-build", ".next"]) {
+    try {
+      const distDir = path.join(root, distDirName);
+      let buildId;
+      try {
+        buildId = fs.readFileSync(path.join(distDir, "BUILD_ID"), "utf8").trim();
+      } catch {
+        continue; // bare checkout without a build for this distDir
+      }
+      if (!buildId) continue;
+      const routeCache = path.join(distDir, "server", "route-cache");
+      const markerPath = path.join(distDir, "server", ".route-cache-build-id");
+      let marker = null;
+      try {
+        marker = fs.readFileSync(markerPath, "utf8").trim();
+      } catch {
+        /* first boot with the guard */
+      }
+      if (marker === buildId) continue;
+      if (fs.existsSync(routeCache)) {
+        fs.rmSync(routeCache, { recursive: true, force: true });
+        console.warn(
+          `[route-cache] pruned stale Full Route Cache from a previous build in ${distDirName}`
+        );
+      }
+      fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+      fs.writeFileSync(markerPath, buildId + "\n");
+    } catch {
+      /* best-effort — a cache prune must never block boot */
+    }
+  }
+}
+pruneStaleRouteCache();
+
 let backgroundRefreshStarted = false;
 
 // Apply the outbound proxy from DB settings at boot. This is the Node-side
@@ -175,3 +219,5 @@ if (require.main === module) {
     require(nextBin);
   }
 }
+
+module.exports = { pruneStaleRouteCache };
