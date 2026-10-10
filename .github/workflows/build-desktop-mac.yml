@@ -65,7 +65,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-files-mac
-          cp desktop/dist/10Router-*.dmg release-files-mac/
+          # 平台化命名 (v1.4.0 起 dmg artifactName = 10Router-Mac-Setup-<版本>-<arch>.dmg);
+          # glob 收紧到真实前缀,防止意外混入其他 dist 文件
+          cp desktop/dist/10Router-Mac-Setup-*.dmg release-files-mac/
           N=$(ls release-files-mac/*.dmg | wc -l)
           [ "$N" -ge 2 ] || { echo "ERROR: expected x64 + arm64 dmg, found $N"; exit 1; }
           # Own checksum file per workflow (they run in parallel), standard `shasum -c` format.

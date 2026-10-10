@@ -101,8 +101,11 @@ jobs:
           [ -f 10router.fpk ] || { echo "ERROR: fnpack build url failed"; exit 1; }
           VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
           [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
-          mv 10router.fpk "10router-${VERSION}-${{ matrix.arch }}.fpk"
-          ls -lh "10router-${VERSION}-${{ matrix.arch }}.fpk"
+          # 资产命名平台化 (v1.4.0 起): 与 CreditDaddy 的 <App>-<平台>-<变体>-<版本>-<arch> 对齐,
+          # 同一 release 里同平台资产排序自动聚类。url 变体不带变体段;iframe 变体 = Window
+          # (fnOS 内嵌窗口打开)。下方 sums / attach 的 glob 必须同步改 (Linux 大小写敏感)。
+          mv 10router.fpk "10Router-FnOS-${VERSION}-${{ matrix.arch }}.fpk"
+          ls -lh "10Router-FnOS-${VERSION}-${{ matrix.arch }}.fpk"
 
       - name: Build iframe variant
         run: |
@@ -115,14 +118,15 @@ jobs:
           [ -f 10router.fpk ] || { echo "ERROR: fnpack build iframe failed"; exit 1; }
           VERSION="$(grep -E '^version[[:space:]]*=' manifest | head -1 | sed 's/.*=//;s/[[:space:]]//g')"
           [ -n "$VERSION" ] || { echo "ERROR: could not extract version from manifest"; exit 1; }
-          mv 10router.fpk "10router-${VERSION}-iframe-${{ matrix.arch }}.fpk"
-          ls -lh "10router-${VERSION}-iframe-${{ matrix.arch }}.fpk"
+          mv 10router.fpk "10Router-FnOS-Window-${VERSION}-${{ matrix.arch }}.fpk"
+          ls -lh "10Router-FnOS-Window-${VERSION}-${{ matrix.arch }}.fpk"
 
       - name: Upload fpk artifact
         uses: actions/upload-artifact@v4
         with:
+          # artifact 名是 run 内部标识,不进 release,保持旧拼写;path glob 跟随平台化名
           name: 10router-fpk-${{ matrix.arch }}-${{ github.sha }}
-          path: fnos-packaging/10router-*.fpk
+          path: fnos-packaging/10Router-*.fpk
           if-no-files-found: error
           retention-days: 14
 
@@ -155,14 +159,14 @@ jobs:
           # 校验清单供下载方自行核对（标准 `sha256sum -c` 格式）。三个发布工作流并行
           # 运行，所以每组各自一份，不用共享的 SHA256SUMS.txt（会互相覆盖）。
           # 怎么核对见 docs/zh-CN/verify-downloads.md
-          ( cd fpk-assets && sha256sum 10router-*.fpk > SHA256SUMS-fpk.txt )
+          ( cd fpk-assets && sha256sum 10Router-*.fpk > SHA256SUMS-fpk.txt )
           cat fpk-assets/SHA256SUMS-fpk.txt
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            fpk-assets/10router-*.fpk
+            fpk-assets/10Router-*.fpk
             fpk-assets/SHA256SUMS-fpk.txt
           fail_on_unmatched_files: false
         env:

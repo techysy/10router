@@ -32,8 +32,9 @@
      翻到新版为准。未翻到 = 全网的更新检查与桌面自更新都看不到新版本
 7. **写 Release 说明**（模板见下）：`gh release edit vX.Y.Z --notes-file notes.md`
 8. 复核 Release 资产：
-   - Windows 自更新两件套 `10Router.Setup.X.Y.Z.exe` + `SHA256SUMS-desktop.txt` 齐全
-     （sums 内条目是空格分隔的 `10Router Setup X.Y.Z.exe`，更新器按归一名匹配，属预期漂移）
+   - Windows 自更新两件套 `10Router-Win-Setup-X.Y.Z.exe` + `SHA256SUMS-desktop.txt` 齐全
+     （自 1.4.0 起资产名平台化、与 sums 条目完全一致；更早的 release 是点分隔的
+     `10Router.Setup.X.Y.Z.exe` 对空格分隔的 sums 条目，更新器按归一名匹配两种命名，都能识别）
    - Docker 镜像流水线成功
 
 ## 三、Release 说明模板
@@ -61,9 +62,9 @@
 
 | 渠道 | 说明 |
 |------|------|
-| **fnOS / NAS** | `10router-X.Y.Z-x86.fpk` / `-arm.fpk` / `-iframe-x86.fpk` / `-iframe-arm.fpk`，在 fnOS 应用中心安装 |
-| **Windows** | `10Router.Setup.X.Y.Z.exe`（推荐，NSIS 安装器）/ `10Router-Portable-X.Y.Z.exe`（免安装）/ `10Router-Web-Setup-X.Y.Z.exe`（安装时在线下载主包）/ `10router-desktop-X.Y.Z-x64.nsis.7z` |
-| **macOS** | `10Router-X.Y.Z-arm64.dmg`（Apple 芯片）/ `10Router-X.Y.Z-x64.dmg`（Intel），未公证，首次右键打开 |
+| **fnOS / NAS** | `10Router-FnOS-X.Y.Z-x86.fpk` / `-arm.fpk` / `10Router-FnOS-Window-X.Y.Z-x86.fpk` / `-arm.fpk`，在 fnOS 应用中心安装 |
+| **Windows** | `10Router-Win-Setup-X.Y.Z.exe`（推荐，NSIS 安装器）/ `10Router-Win-Portable-X.Y.Z.exe`（免安装）/ `10Router-Win-Web-Setup-X.Y.Z.exe`（安装时在线下载主包）/ `10router-desktop-X.Y.Z-x64.nsis.7z`（Web-Setup 的在线数据载荷，名字由 package.json 的 `name` 派生、**刻意不平台化**——它被烤进已发布的 Web-Setup 安装器里，改名即断链） |
+| **macOS** | `10Router-Mac-Setup-X.Y.Z-arm64.dmg`（Apple 芯片）/ `10Router-Mac-Setup-X.Y.Z-x64.dmg`（Intel），未公证，首次右键打开 |
 | **Docker** | `docker pull ghcr.io/techysy/10router:X.Y.Z` |
 | **npm CLI** | `npm i -g @techysy/10router@X.Y.Z` |
 | **独立服务端** | `10router-server.tar.gz` |

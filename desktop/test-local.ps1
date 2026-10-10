@@ -232,9 +232,11 @@ try {
             npx electron-builder --win nsis --x64 "-c.directories.output=$EbOutDir"
             if ($LASTEXITCODE -ne 0) { Die "electron-builder 失败" }
         } finally { Pop-Location }
-        $setup = Get-ChildItem $EbOutDir -Filter "10Router Setup *.exe" |
+        # v1.4.0 起 artifactName 平台化:10Router-Win-Setup-<版本>.exe(旧形态是
+        # "10Router Setup <版本>.exe",空格分隔,只对更早的构建有效)
+        $setup = Get-ChildItem $EbOutDir -Filter "10Router-Win-Setup-*.exe" |
                  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if (-not $setup) { Die "没找到 $EbOutDir\10Router Setup *.exe" }
+        if (-not $setup) { Die "没找到 $EbOutDir\10Router-Win-Setup-*.exe" }
 
         # ---------- 5b) 静默安装:**直接**起进程,/S 才有效 ----------
         Step 5 "静默安装 $($setup.Name)(直接执行,/S)"

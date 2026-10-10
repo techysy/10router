@@ -49,9 +49,9 @@ jobs:
         with:
           name: desktop-win-unsigned
           path: |
-            desktop/dist/10Router Setup *.exe
-            desktop/dist/10Router-Portable-*.exe
-            desktop/dist/nsis-web/10Router-Web-Setup-*.exe
+            desktop/dist/10Router-Win-Setup-*.exe
+            desktop/dist/10Router-Win-Portable-*.exe
+            desktop/dist/nsis-web/10Router-Win-Web-Setup-*.exe
             desktop/dist/nsis-web/*.nsis.7z
           if-no-files-found: error
 
@@ -78,9 +78,9 @@ jobs:
             cp desktop/dist/signed/*.exe release-files/
           else
             echo "using UNSIGNED exes (SignPath not configured)"
-            cp desktop/dist/10Router\ Setup\ *.exe release-files/
-            cp desktop/dist/10Router-Portable-*.exe release-files/
-            cp desktop/dist/nsis-web/10Router-Web-Setup-*.exe release-files/
+            cp desktop/dist/10Router-Win-Setup-*.exe release-files/
+            cp desktop/dist/10Router-Win-Portable-*.exe release-files/
+            cp desktop/dist/nsis-web/10Router-Win-Web-Setup-*.exe release-files/
           fi
           # 7z 是数据载荷 (非 PE 文件), 不经签名, 始终取原始产物
           cp desktop/dist/nsis-web/*.nsis.7z release-files/

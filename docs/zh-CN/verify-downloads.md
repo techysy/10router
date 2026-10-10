@@ -9,9 +9,14 @@
 
 | 校验文件 | 覆盖的资产 | 产出工作流 |
 |---|---|---|
-| `SHA256SUMS-desktop.txt` | `10Router Setup <ver>.exe`、`10Router-Portable-<ver>.exe`、`10Router-Web-Setup-<ver>.exe`、`*.nsis.7z` | `build-desktop-win.yml` |
-| `SHA256SUMS-fpk.txt` | `10router-<ver>-{x86,arm}.fpk`、`10router-<ver>-iframe-{x86,arm}.fpk` | `build-fpk.yml` |
+| `SHA256SUMS-desktop.txt` | `10Router-Win-Setup-<ver>.exe`、`10Router-Win-Portable-<ver>.exe`、`10Router-Win-Web-Setup-<ver>.exe`、`*.nsis.7z` | `build-desktop-win.yml` |
+| `SHA256SUMS-fpk.txt` | `10Router-FnOS-<ver>-{x86,arm}.fpk`、`10Router-FnOS-Window-<ver>-{x86,arm}.fpk` | `build-fpk.yml` |
 | `SHA256SUMS-server.txt` | `10router-server.tar.gz` | `build-server.yml` |
+
+> 资产命名自 v1.4.0 平台化（`软件名-平台-…`，同平台资产在 Release 页自动聚类排序）。
+> **≤v1.3.5 的旧 release 用旧文件名**（`10Router Setup <ver>.exe` / `10router-<ver>-iframe-<arch>.fpk` 等），
+> 且旧桌面清单里 Setup 条目是空格分隔、与点分隔的资产名有漂移——`sha256sum -c` 都能正常工作，
+> 只是照着上文表格找文件时注意区分两代命名。
 
 格式就是 `sha256sum` 的标准输出（`<hash>  <文件名>`，二进制模式带 `*` 标记），所以可以直接 `sha256sum -c`。
 
@@ -29,9 +34,9 @@ sha256sum -c SHA256SUMS-server.txt
 Windows PowerShell 等价写法：
 
 ```powershell
-$expected = (Get-Content SHA256SUMS-desktop.txt | Where-Object { $_ -match '10Router Setup' }) -replace '\s+\*?', ' '
-# 简单办法：直接比对一个文件
-(Get-FileHash "10Router Setup 1.2.0.exe" -Algorithm SHA256).Hash.ToLower()
+$expected = (Get-Content SHA256SUMS-desktop.txt | Where-Object { $_ -match '10Router-Win-Setup-' }) -replace '\s+\*?', ' '
+# 简单办法：直接比对一个文件（旧 release 的文件名是 "10Router Setup 1.2.0.exe"，空格分隔）
+(Get-FileHash "10Router-Win-Setup-1.4.0.exe" -Algorithm SHA256).Hash.ToLower()
 ```
 
 ## 3. ⚠️ 这层校验能挡什么、挡不了什么

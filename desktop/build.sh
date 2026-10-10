@@ -4,7 +4,7 @@
 #   cd desktop
 #   ./build.sh                   # 全自动:构建 cli/app -> npm install -> electron-builder --mac
 #   ./build.sh --skip-app-build  # 复用已有 cli/app 产物
-# 产物在 dist/:10Router-<版本>-x64.dmg + 10Router-<版本>-arm64.dmg(无证书时 ad-hoc 签名,
+# 产物在 dist/:10Router-Mac-Setup-<版本>-x64.dmg + 10Router-Mac-Setup-<版本>-arm64.dmg(无证书时 ad-hoc 签名,
 # 首次打开需右键 -> 打开)。
 # 要求:Node >= 18(macOS 自带 python 不需要;图标 icon.png 已随仓库提供)。
 

@@ -74,6 +74,7 @@
       "icon": "icon.ico"
     },
     "nsis": {
+      "artifactName": "10Router-Win-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
@@ -84,7 +85,7 @@
       "include": "nsis/installer.nsh"
     },
     "portable": {
-      "artifactName": "10Router-Portable-${version}.exe"
+      "artifactName": "10Router-Win-Portable-${version}.${ext}"
     },
     "mac": {
       "target": [
@@ -100,11 +101,11 @@
       "category": "public.app-category.developer-tools"
     },
     "dmg": {
-      "artifactName": "10Router-${version}-${arch}.dmg"
+      "artifactName": "10Router-Mac-Setup-${version}-${arch}.${ext}"
     },
     "compression": "maximum",
     "nsisWeb": {
-      "artifactName": "10Router-Web-Setup-${version}.${ext}",
+      "artifactName": "10Router-Win-Web-Setup-${version}.${ext}",
       "appPackageUrl": "https://github.com/techysy/10router/releases/latest/download",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

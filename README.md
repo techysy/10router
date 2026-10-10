@@ -32,17 +32,21 @@
 
 | 平台 | 文件名模式 | 说明 |
 | --- | --- | --- |
-| Windows | `10Router.Setup.<版本>.exe` | 安装版（推荐），自带桌面托盘 |
-| Windows | `10Router-Portable-<版本>.exe` | 便携版，免安装双击运行 |
-| Windows | `10Router-Web-Setup-<版本>.exe` | 在线安装器微端（轻量分发） |
-| macOS（Apple Silicon） | `10Router-<版本>-arm64.dmg` | M1 / M2 / M3 / M4 芯片 |
-| macOS（Intel） | `10Router-<版本>-x64.dmg` | Intel 处理器机型 |
-| 飞牛 fnOS（x86） | `10router-<版本>-x86.fpk` | URL 模式桌面图标（打开浏览器） |
-| 飞牛 fnOS（x86） | `10router-<版本>-iframe-x86.fpk` | 内嵌桌面窗口模式（推荐桌面体验） |
-| 飞牛 fnOS（ARM） | `10router-<版本>-arm.fpk` | ARM 架构 URL 模式 |
-| 飞牛 fnOS（ARM） | `10router-<版本>-iframe-arm.fpk` | ARM 架构内嵌窗口模式 |
+| Windows | `10Router-Win-Setup-<版本>.exe` | 安装版（推荐），自带桌面托盘 |
+| Windows | `10Router-Win-Portable-<版本>.exe` | 便携版，免安装双击运行 |
+| Windows | `10Router-Win-Web-Setup-<版本>.exe` | 在线安装器微端（轻量分发） |
+| macOS（Apple Silicon） | `10Router-Mac-Setup-<版本>-arm64.dmg` | M1 / M2 / M3 / M4 芯片 |
+| macOS（Intel） | `10Router-Mac-Setup-<版本>-x64.dmg` | Intel 处理器机型 |
+| 飞牛 fnOS（x86） | `10Router-FnOS-<版本>-x86.fpk` | URL 模式桌面图标（打开浏览器） |
+| 飞牛 fnOS（x86） | `10Router-FnOS-Window-<版本>-x86.fpk` | 内嵌桌面窗口模式（推荐桌面体验） |
+| 飞牛 fnOS（ARM） | `10Router-FnOS-<版本>-arm.fpk` | ARM 架构 URL 模式 |
+| 飞牛 fnOS（ARM） | `10Router-FnOS-Window-<版本>-arm.fpk` | ARM 架构内嵌窗口模式 |
 | Linux / 通用 Server | `10router-server.tar.gz` | Standalone 服务端归档（Node 运行时部署） |
 | Docker 镜像 | `ghcr.io/techysy/10router:latest` | 支持 `linux/amd64` 与 `linux/arm64` |
+
+> 命名自 v1.4.0 起按「软件名-平台」组织，同一 release 里同平台资产自动聚类排序；
+> **更早的 release（≤v1.3.5）保持旧文件名**（如 `10Router.Setup.<版本>.exe`、
+> `10router-<版本>-iframe-x86.fpk`），桌面壳的内置更新器两种命名都能识别。
 
 > 💡 **安全与系统提示**：
 > - **macOS**：安装包暂未购买开发者证书签名。首次打开若提示无法验证开发者，请在「系统设置 → 隐私与安全性」中点击「仍要打开」，或在终端执行 `xattr -cr /Applications/10Router.app`。
@@ -120,7 +124,7 @@ docker run -d \
 
 ### 方式三：飞牛 fnOS 应用包安装
 
-1. 从 [Releases](https://github.com/techysy/10router/releases/latest) 下载对应架构的 `.fpk` 文件（推荐内嵌窗口版 `10router-<版本>-iframe-<架构>.fpk`）。
+1. 从 [Releases](https://github.com/techysy/10router/releases/latest) 下载对应架构的 `.fpk` 文件（推荐内嵌窗口版 `10Router-FnOS-Window-<版本>-<架构>.fpk`）。
 2. 在飞牛 fnOS「应用中心」点击「手动安装」，选定文件按引导完成安装。
 3. 忘记面板密码时，可在 fnOS「应用中心 → 10Router → 应用设置」直接输入新密码重置保存。
 

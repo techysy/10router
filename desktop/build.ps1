@@ -4,7 +4,7 @@
 #   .\build.ps1                  # 全自动:构建 cli/app -> npm install -> electron-builder
 #   .\build.ps1 -SkipAppBuild    # 复用已有 cli/app 产物(源码没变时省一次 Next build)
 #   .\build.ps1 -Proxy http://127.0.0.1:7890
-# 产物在 dist\:10Router-Setup-<版本>.exe(NSIS 安装包)+ 10Router-Portable-<版本>.exe
+# 产物在 dist\:10Router-Win-Setup-<版本>.exe(NSIS 安装包)+ 10Router-Win-Portable-<版本>.exe
 
 param(
     [switch]$SkipAppBuild,

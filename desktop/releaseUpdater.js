@@ -3,12 +3,17 @@
  *
  * 10Router 的 GitHub release 不带 electron-updater 的 latest.yml,壳内自更新走:
  * 最新版本号来自 /api/version(npm latest,与 fpk/CLI 同源);本地服务不在时壳里直查
- * GitHub API 兜底。拿到版本号后从对应 release 取 10Router.Setup.<版本>.exe,
+ * GitHub API 兜底。拿到版本号后从对应 release 取 10Router-Win-Setup-<版本>.exe,
  * 按 SHA256SUMS-desktop.txt 校验后运行安装。网络与 UI 在 main.js,本模块只管
  * "选哪个资产、期望哈希是多少"。
  *
- * 已知坑:release 里的安装包资产名是 10Router.Setup.1.2.1.exe(点分隔),
- * 而 SHA256SUMS-desktop.txt 里写的是 "10Router Setup 1.2.1.exe"(空格分隔,
+ * 资产命名自 v1.4.0 平台化(对齐 CreditDaddy 的 <App>-<平台>-… 方式,让同平台
+ * 资产在 release 列表里自动排序聚类):新名 10Router-Win-Setup-1.4.0.exe 与
+ * sums 条目完全一致,下面的点分隔/空格旧名比对只对更早的 release 生效。
+ *
+ * 旧 release(≤v1.3.5)的已知坑:安装包资产名是 10Router.Setup.1.2.1.exe(点
+ * 分隔 — electron-builder 默认名里的空格被 GitHub 渲染成点),而
+ * SHA256SUMS-desktop.txt 里写的是 "10Router Setup 1.2.1.exe"(空格分隔,
  * sha256sum -b 的 * 二进制标记也在),按原样 endsWith 永远失配——归一化
  * (小写 + 去掉所有非字母数字)后再比对。
  */
@@ -26,9 +31,13 @@ function isNewerVersion(next, cur) {
 
 // release 资产里找 Windows 安装包。Portable(覆盖式,会丢用户数据)与
 // nsis-web(依赖在线包源的网页安装器)都不参与壳内自更新,只认 Setup。
+// 新旧两代命名都要认:v1.4.0 起为 10Router-Win-Setup-<版本>.exe(平台化),
+// 更早的 release 是 10Router.Setup.<版本>.exe(点分隔旧名)。两代前缀都锚定在
+// Setup 段本身 — 新名以 10Router-Win-Setup- 开头(Web-Setup 前面隔着 -Win-),
+// 旧名以点分隔形式开头 — 故 Web-Setup/Portable 均不会误配。
 function findSetupAsset(release) {
     const assets = (release && release.assets) || [];
-    return assets.find((a) => /^10Router\.Setup\..+\.exe$/i.test(a.name)) || null;
+    return assets.find((a) => /^(?:10Router-Win-Setup-|10Router\.Setup\.).+\.exe$/i.test(a.name)) || null;
 }
 
 // SHA256SUMS 一行 "<hex>[ *]<name>" → { sha256, name };解析不了返回 null。

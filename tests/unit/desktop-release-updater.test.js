@@ -1,6 +1,8 @@
 // 桌面壳「GitHub Releases 直装」更新通道的纯逻辑(desktop/releaseUpdater.js)。
 // fixture 取自 v1.2.1 线上 release 的真实形态,特别是 SHA256SUMS-desktop.txt 里
 // "10Router Setup 1.2.1.exe"(空格)与资产名 "10Router.Setup.1.2.1.exe"(点)失配的坑。
+// v1.4.0 起资产命名平台化(10Router-Win-Setup-<版本>.exe,与 sums 一致),旧 release
+// 永远保持点分隔形态 — findSetupAsset 两代都要认,下面两组 fixture 各自锁一代。
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,6 +18,28 @@ const SUMS_V121 = [
     "aa01ac70063d2ef82085b67daf42cd5aefe09d1950f5f50bc5f72587980dd030 *10Router-Web-Setup-1.2.1.exe",
     "a81d5d2644054e1f4ed8ffc52ba2474c2d4a1e0adb3e87637dd56801da106b20 *10router-desktop-1.2.1-x64.nsis.7z",
 ].join("\r\n");
+
+// v1.4.0 起 release 的真实形态(平台化命名):Setup/Portable/Web-Setup 全带 Win 段,
+// 7z 载荷名仍由 package.json 的 name 派生(不平台化,Web-Setup 在线安装依赖它)。
+const SUMS_V140 = [
+    "1111111111111111111111111111111111111111111111111111111111111111 *10Router-Win-Setup-1.4.0.exe",
+    "2222222222222222222222222222222222222222222222222222222222222222 *10Router-Win-Portable-1.4.0.exe",
+    "3333333333333333333333333333333333333333333333333333333333333333 *10Router-Win-Web-Setup-1.4.0.exe",
+    "4444444444444444444444444444444444444444444444444444444444444444 *10router-desktop-1.4.0-x64.nsis.7z",
+].join("\r\n");
+
+const releaseV140 = (overrides = {}) => ({
+    tag_name: "v1.4.0",
+    assets: [
+        { name: "10Router-Win-Setup-1.4.0.exe", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/10Router-Win-Setup-1.4.0.exe", size: 109786112, digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111" },
+        { name: "10Router-Win-Portable-1.4.0.exe", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/10Router-Win-Portable-1.4.0.exe", size: 109576192 },
+        { name: "10Router-Win-Web-Setup-1.4.0.exe", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/10Router-Win-Web-Setup-1.4.0.exe", size: 734003 },
+        { name: "10router-desktop-1.4.0-x64.nsis.7z", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/10router-desktop-1.4.0-x64.nsis.7z", size: 108000000 },
+        { name: "10Router-Mac-Setup-1.4.0-arm64.dmg", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/10Router-Mac-Setup-1.4.0-arm64.dmg", size: 90000000 },
+        { name: "SHA256SUMS-desktop.txt", browser_download_url: "https://github.com/techysy/10router/releases/download/v1.4.0/SHA256SUMS-desktop.txt", size: 512 },
+    ],
+    ...overrides,
+});
 
 const release = (overrides = {}) => ({
     tag_name: "v1.2.1",
@@ -57,6 +81,28 @@ describe("findSetupAsset / pickInstaller", () => {
         expect(findSetupAsset({ assets: [{ name: "10Router-Web-Setup-1.2.1.exe" }] })).toBeNull();
         expect(findSetupAsset({ assets: [{ name: "10router-desktop-1.2.1-x64.nsis.7z" }] })).toBeNull();
         expect(findSetupAsset({ assets: [] })).toBeNull();
+    });
+
+    it("also picks the v1.4.0 platformized name, never its Web/Portable twins", () => {
+        expect(findSetupAsset(releaseV140()).name).toBe("10Router-Win-Setup-1.4.0.exe");
+        expect(findSetupAsset({ assets: [{ name: "10Router-Win-Web-Setup-1.4.0.exe" }] })).toBeNull();
+        expect(findSetupAsset({ assets: [{ name: "10Router-Win-Portable-1.4.0.exe" }] })).toBeNull();
+        expect(findSetupAsset({ assets: [{ name: "10Router-Mac-Setup-1.4.0-arm64.dmg" }] })).toBeNull();
+        // 两代共存(理论上不会,tag 只指向一个 release)时按资产顺序取第一个 Setup
+        expect(findSetupAsset({ assets: [{ name: "10Router.Setup.1.2.1.exe" }, { name: "10Router-Win-Setup-1.4.0.exe" }] }).name)
+            .toBe("10Router.Setup.1.2.1.exe");
+    });
+
+    it("pickInstaller works on the platformized release", () => {
+        const inst = pickInstaller(releaseV140());
+        expect(inst.version).toBe("1.4.0");
+        expect(inst.asset.name).toBe("10Router-Win-Setup-1.4.0.exe");
+        expect(inst.expectedSha).toBe("1111111111111111111111111111111111111111111111111111111111111111");
+        expect(resolveExpectedSha(inst, SUMS_V140)).toBe("1111111111111111111111111111111111111111111111111111111111111111");
+        // 新 sums 与资产名完全一致,不再需要点/空格漂移归一;但漂移归一不能反噬:
+        // Win-Setup 绝不能匹配到 Win-Web-Setup 行
+        expect(matchChecksum(SUMS_V140, "10Router-Win-Setup-1.4.0.exe")).toBe("1111111111111111111111111111111111111111111111111111111111111111");
+        expect(matchChecksum(SUMS_V140, "10Router-Win-Web-Setup-1.4.0.exe")).toBe("3333333333333333333333333333333333333333333333333333333333333333");
     });
 
     it("pickInstaller strips the tag and carries the sums asset url", () => {

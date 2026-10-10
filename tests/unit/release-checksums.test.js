@@ -35,8 +35,11 @@ describe("release checksums are generated and attached", () => {
   });
 
   it("fpk files get theirs too", () => {
-    expect(fpk).toContain("sha256sum 10router-*.fpk > SHA256SUMS-fpk.txt");
-    expect(fpk).toMatch(/files: \|\r?\n\s+fpk-assets\/10router-\*\.fpk\r?\n\s+fpk-assets\/SHA256SUMS-fpk\.txt/);
+    // 自 v1.4.0 起 fpk 资产名平台化(10Router-FnOS-… )。Linux 大小写敏感,
+    // sums glob / attach glob 必须跟 mv 的重命名同源 — 这里两处都钉,防漂移。
+    expect(fpk).toContain('mv 10router.fpk "10Router-FnOS-${VERSION}-${{ matrix.arch }}.fpk"');
+    expect(fpk).toContain("sha256sum 10Router-*.fpk > SHA256SUMS-fpk.txt");
+    expect(fpk).toMatch(/files: \|\r?\n\s+fpk-assets\/10Router-\*\.fpk\r?\n\s+fpk-assets\/SHA256SUMS-fpk\.txt/);
   });
 
   it("the three groups use distinct filenames (parallel runs must not race)", () => {

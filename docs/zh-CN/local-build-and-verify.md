@@ -190,7 +190,8 @@ tail -2 "$APPDATA/10router-desktop/logs/tray.log"               # start server /
 taskkill //IM 10Router.exe //F                     # 必须先停：安装器要覆盖 resources/app
 sleep 4
 cd desktop/dist
-./"10Router Setup 1.1.1-test.1.exe" /S             # 直接执行；装完不会自动启动
+./"10Router-Win-Setup-1.1.1-test.1.exe" /S        # 直接执行；装完不会自动启动
+                                                  # （1.4.0 前的构建是旧名 "10Router Setup <版本>.exe"）
 ```
 
 **坑在这里：`/S` 只在「直接执行 exe」时有效。** 经 `cmd /c start /wait "…exe" /S` 转一手会

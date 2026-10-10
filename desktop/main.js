@@ -80,7 +80,7 @@ const STRINGS = {
         'update.latestBody': 'You are on the latest version v{current}.',
         'update.balloonBody': 'v{latest} is available (current v{current}). Open the tray menu "Check for Updates" to visit the Releases download page.',
         'update.downloadInstall': 'Download and Install',
-        'update.downloadBody': 'v{latest} is available (you are on v{current}).\n\n10Router will download 10Router.Setup.{latest}.exe ({size}) from GitHub Releases, verify its SHA256 and run the installer — the app quits during install.',
+        'update.downloadBody': 'v{latest} is available (you are on v{current}).\n\n10Router will download 10Router-Win-Setup-{latest}.exe ({size}) from GitHub Releases, verify its SHA256 and run the installer — the app quits during install.',
         'update.downloadingTitle': 'Downloading v{latest}',
         'update.readyTitle': 'v{latest} is ready to install',
         'update.readyBody': 'The installer has been downloaded and verified.\n\nClick "Install Now" to run it — 10Router quits first and the installer takes over.',
@@ -206,7 +206,7 @@ const STRINGS = {
         'update.latestBody': '当前 v{current} 已是最新版本。',
         'update.balloonBody': '发现新版本 v{latest}(当前 v{current})。可打开托盘菜单「检查更新」前往 Releases 下载页。',
         'update.downloadInstall': '下载并安装',
-        'update.downloadBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n将从 GitHub Releases 下载 10Router.Setup.{latest}.exe({size}),SHA256 校验通过后运行安装——安装时 10Router 会先退出。',
+        'update.downloadBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n将从 GitHub Releases 下载 10Router-Win-Setup-{latest}.exe({size}),SHA256 校验通过后运行安装——安装时 10Router 会先退出。',
         'update.downloadingTitle': '正在下载 v{latest}',
         'update.readyTitle': 'v{latest} 安装包已就绪',
         'update.readyBody': '安装包已下载并通过校验。\n\n点击「立即安装」运行安装程序(10Router 会先退出)。',
@@ -332,7 +332,7 @@ const STRINGS = {
         'update.latestBody': '目前 v{current} 已是最新版本。',
         'update.balloonBody': '發現新版本 v{latest}(目前 v{current})。可開啟系統列選單「檢查更新」前往 Releases 下載頁。',
         'update.downloadInstall': '下載並安裝',
-        'update.downloadBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n將從 GitHub Releases 下載 10Router.Setup.{latest}.exe({size}),SHA256 校驗通過後執行安裝——安裝時 10Router 會先結束。',
+        'update.downloadBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n將從 GitHub Releases 下載 10Router-Win-Setup-{latest}.exe({size}),SHA256 校驗通過後執行安裝——安裝時 10Router 會先結束。',
         'update.downloadingTitle': '正在下載 v{latest}',
         'update.readyTitle': 'v{latest} 安裝包已就緒',
         'update.readyBody': '安裝包已下載並通過校驗。\n\n點擊「立即安裝」執行安裝程式(10Router 會先結束)。',
@@ -1008,7 +1008,7 @@ function retryUpdatePhase() {
 
 // 检查更新:主路径走本地服务 /api/version(免鉴权,带 npm latest 1h 缓存),
 // 与 fpk/CLI 同一数据源。Windows 安装版发现新版本后可直接下载对应 release 的
-// 10Router.Setup.<版本>.exe(SHA256 校验)并运行安装,不再只引导去 Releases 页;
+// 10Router-Win-Setup-<版本>.exe(SHA256 校验)并运行安装,不再只引导去 Releases 页;
 // 本地服务不在时直查 GitHub Releases API 兜底。release 缺安装包、macOS、
 // Portable 则维持「打开 Releases 页面」的旧引导。
 async function checkForUpdates() {
