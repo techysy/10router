@@ -889,6 +889,13 @@ export const PATTERN_CAPABILITIES = [
 // videoInput。`*seed-code*` 与 `*seed-2-0-code*` 无公共子串，不会互相命中。
 { pattern: "*seed-code*",      caps: { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 32768 } },
 
+// ── ByteDance Doubao-Seed 2.1（TRAE SOLO 2.3.87413 remote 目录，2026-10-10 采集，#54）──
+// 目录原文标注 reasoning；Pro/Evolving 936k/64k,Turbo 224k/32k。
+// 视觉/视频未在目录中标注 → 沿用 floor(false)；thinking 由 transport(claude) 自行推导。
+{ pattern: "*seed-2.1-pro*",       caps: { reasoning: true, contextWindow: 936000, maxOutput: 64000 } },
+{ pattern: "*seed-2.1-turbo*",     caps: { reasoning: true, contextWindow: 224000, maxOutput: 32000 } },
+{ pattern: "*seed-evolving*",      caps: { reasoning: true, contextWindow: 936000, maxOutput: 64000 } },
+
 // ── Others ───────────────────────────────────────────────────────
   { pattern: "*hunyuan*",       caps: { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 262144, maxOutput: 262144 } },
   { pattern: "hy3*",            caps: { reasoning: true, thinkingFormat: "hunyuan", contextWindow: 262144, maxOutput: 262144 } },
