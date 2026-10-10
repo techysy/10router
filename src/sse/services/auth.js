@@ -6,6 +6,9 @@ import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
+import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
+import { errorResponse } from "open-sse/utils/error.js";
+import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -545,4 +548,61 @@ export function extractApiKey(request) {
 export async function isValidApiKey(apiKey) {
   if (!apiKey) return false;
   return await validateApiKey(apiKey);
+}
+
+/**
+ * Per-key daily token quota (the apiKeys.dailyTokenLimit column).
+ *
+ * Returns null to allow the request, or a ready-to-return 429 Response when the
+ * key has already consumed its daily allowance (prompt+completion, reset at
+ * server-local midnight — the same boundary `localStartOfDayIso()` gives the
+ * dashboard "today" numbers, so quota and usage read one clock).
+ *
+ * Deliberately NOT folded into validateApiKey/dashboardGuard: the boolean
+ * shape there is a frozen contract, and the quota follows the KEY, not the
+ * requireApiKey setting — a key-carrying caller is metered even when the
+ * gateway doesn't demand keys at all (loopback/CLI traffic carries no key and
+ * lands in the unkeyed "local-no-key" usage bucket, so it is never metered —
+ * by design).
+ *
+ * Fail-open: any lookup/aggregation error logs a warning and allows the
+ * request. This is a guardrail, not authentication — a DB hiccup must not
+ * take the gateway down. Overshoot is also accepted by design: usage lands
+ * AFTER the upstream completes, so one in-flight request can finish over the
+ * cap; the next one is refused.
+ *
+ * DB access is dynamic-imported on purpose: auth.js is covered by tests that
+ * `vi.mock("@/lib/localDb")` with partial factories, and a new static named
+ * import there would break every one of them (apiKeysRepo.js uses the same
+ * precedent internally).
+ */
+export async function checkApiKeyDailyLimit(apiKey) {
+  if (!apiKey) return null;
+
+  let record = null;
+  let used = 0;
+  try {
+    const { getApiKeyByKey, sumApiKeyTokensSince, localStartOfDayIso } = await import("@/lib/localDb");
+    record = await getApiKeyByKey(apiKey);
+    if (!record?.dailyTokenLimit) return null;
+    used = await sumApiKeyTokensSince(hashApiKey(apiKey), localStartOfDayIso());
+    if (used < record.dailyTokenLimit) return null;
+  } catch (e) {
+    log.warn("AUTH", `Daily token limit check failed (allowing request): ${e.message}`);
+    return null;
+  }
+
+  // Seconds until the next local midnight — same boundary as the SUM cutoff,
+  // so the header and the actual reset moment always agree.
+  const next = new Date();
+  next.setHours(24, 0, 0, 0);
+  const retryAfterSec = Math.max(1, Math.ceil((next.getTime() - Date.now()) / 1000));
+  const h = Math.floor(retryAfterSec / 3600);
+  const m = Math.floor((retryAfterSec % 3600) / 60);
+
+  const message =
+    `Daily token limit exceeded for API key "${record.name || "unnamed"}" ` +
+    `(used ${used.toLocaleString("en-US")} / ${record.dailyTokenLimit.toLocaleString("en-US")} today). ` +
+    `Resets in ${h ? `${h}h ` : ""}${m}m.`;
+  return errorResponse(HTTP_STATUS.RATE_LIMITED, message, { "retry-after": String(retryAfterSec) });
 }

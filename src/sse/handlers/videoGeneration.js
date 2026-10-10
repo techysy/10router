@@ -4,6 +4,7 @@ import {
   clearAccountError,
   extractApiKey,
   isValidApiKey,
+  checkApiKeyDailyLimit,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -34,6 +35,9 @@ async function requireValidApiKey(request) {
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
   }
+  // Both video endpoints inherit the per-key daily quota through this one gate.
+  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  if (limitResponse) return limitResponse;
   return null;
 }
 

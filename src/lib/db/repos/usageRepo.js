@@ -1605,3 +1605,40 @@ export async function repairAllImportedUsageCosts({ limit = 20000, maxBatches = 
   }
   return { repaired };
 }
+
+/**
+ * Per-key daily quota aggregation.
+ *
+ * The reset boundary is server-local midnight — the SAME cutoff the dashboard's
+ * "today" stats use (`startOfDay.setHours(0,0,0,0)` above in getUsageStats /
+ * getChartData), extracted here so the quota check and the UI numbers cannot
+ * drift apart. usageHistory.timestamp is UTC ISO, and lexicographic >= works
+ * on ISO strings, so the existing idx_uh_ts / idx_uh_apikey_hash indexes carry
+ * the query.
+ */
+export function localStartOfDayIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+export async function sumApiKeyTokensSince(apiKeyHash, sinceIso) {
+  if (!apiKeyHash) return 0;
+  const db = await getAdapter();
+  const row = db.get(
+    `SELECT COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens
+     FROM usageHistory WHERE apiKeyHash = ? AND timestamp >= ?`,
+    [apiKeyHash, sinceIso]
+  );
+  return row?.tokens || 0;
+}
+
+export async function sumAllApiKeyTokensSince(sinceIso) {
+  const db = await getAdapter();
+  return db.all(
+    `SELECT apiKeyHash, COALESCE(SUM(promptTokens + completionTokens), 0) AS tokens
+     FROM usageHistory WHERE timestamp >= ? AND apiKeyHash IS NOT NULL
+     GROUP BY apiKeyHash`,
+    [sinceIso]
+  );
+}

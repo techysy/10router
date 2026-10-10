@@ -40,7 +40,9 @@ export async function POST() {
       // old row. Strip any prior "(rotated)" suffixes so repeated rotations
       // don't stack into "name (rotated) (rotated)".
       const baseName = key.name.replace(/(?:\s*\(rotated\))+$/, "");
-      const fresh = await createApiKey(`${baseName} (rotated)`, machineId);
+      // Carry the daily token cap across the re-issue, or rotation would
+      // silently turn a metered key back into an unlimited one.
+      const fresh = await createApiKey(`${baseName} (rotated)`, machineId, key.dailyTokenLimit);
       await updateApiKey(key.id, { isActive: false });
       rotated.push({
         id: fresh.id,

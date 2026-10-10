@@ -4,6 +4,7 @@ import {
   clearAccountError,
   extractApiKey,
   isValidApiKey,
+  checkApiKeyDailyLimit,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -55,6 +56,9 @@ export async function handleSystemone(request) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }
+
+  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  if (limitResponse) return limitResponse;
 
   if (!modelStr) {
     log.warn("SYSTEMONE", "Missing model");

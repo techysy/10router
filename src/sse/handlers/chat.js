@@ -7,6 +7,7 @@ import {
   invalidateQuotaCache,
   extractApiKey,
   isValidApiKey,
+  checkApiKeyDailyLimit,
 } from "../services/auth.js";
 import { getSettings, getChannelBlock, setChannelBlock, clearChannelBlock } from "@/lib/localDb";
 import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint } from "open-sse/services/accountFallback.js";
@@ -84,6 +85,9 @@ export async function handleChat(request, clientRawRequest = null) {
       return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
     }
   }
+
+  const limitResponse = await checkApiKeyDailyLimit(apiKey);
+  if (limitResponse) return limitResponse;
 
   if (!modelStr) {
     log.warn("CHAT", "Missing model");

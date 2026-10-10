@@ -19,11 +19,24 @@ import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import { translate } from "@/i18n/runtime";
+
+// Compact token counts for the per-key daily-limit row (100000000 → "100M").
+function formatTokenCount(n) {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyLimit, setNewKeyLimit] = useState("");
+  const [limitModal, setLimitModal] = useState(null); // key record being edited | null
+  const [limitInput, setLimitInput] = useState("");
+  const [limitSaving, setLimitSaving] = useState(false);
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
@@ -665,7 +678,10 @@ export default function APIPageClient({ machineId }) {
       const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName }),
+        body: JSON.stringify({
+          name: newKeyName.trim(),
+          dailyTokenLimit: newKeyLimit.trim() ? Number(newKeyLimit.trim()) : undefined,
+        }),
       });
       const data = await res.json();
 
@@ -673,10 +689,33 @@ export default function APIPageClient({ machineId }) {
         setCreatedKey(data.key);
         await fetchData();
         setNewKeyName("");
+        setNewKeyLimit("");
         setShowAddModal(false);
       }
     } catch (error) {
       console.log("Error creating key:", error);
+    }
+  };
+
+  // PUTs the per-key daily cap (empty input → null = unlimited). fetchData
+  // re-runs so the row shows the fresh limit AND its today-usage join.
+  const handleSaveLimit = async () => {
+    if (!limitModal) return;
+    setLimitSaving(true);
+    try {
+      const res = await fetch(`/api/keys/${limitModal.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyTokenLimit: limitInput.trim() ? Number(limitInput.trim()) : null }),
+      });
+      if (res.ok) {
+        setLimitModal(null);
+        await fetchData();
+      }
+    } catch (error) {
+      console.log("Error saving daily limit:", error);
+    } finally {
+      setLimitSaving(false);
     }
   };
 
@@ -1138,11 +1177,29 @@ export default function APIPageClient({ machineId }) {
                   <p className="text-xs text-text-muted mt-1">
                     {translate("Created")} {new Date(key.createdAt).toLocaleDateString()}
                   </p>
+                  {key.dailyTokenLimit ? (
+                    <p className={`text-xs mt-1 ${(key.todayTokens || 0) >= key.dailyTokenLimit ? "text-red-500" : "text-text-muted"}`}>
+                      {translate("Today")}: {formatTokenCount(key.todayTokens || 0)} / {formatTokenCount(key.dailyTokenLimit)} {translate("tokens")}
+                      {(key.todayTokens || 0) >= key.dailyTokenLimit ? ` — ${translate("Limit reached")}` : ""}
+                    </p>
+                  ) : null}
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">{translate("Paused")}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setLimitModal(key);
+                      setLimitInput(key.dailyTokenLimit ? String(key.dailyTokenLimit) : "");
+                    }}
+                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    title={translate("Edit Daily Token Limit")}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {key.dailyTokenLimit ? "edit_calendar" : "calendar_month"}
+                    </span>
+                  </button>
                   <Toggle
                     size="sm"
                     checked={key.isActive ?? true}
@@ -1182,6 +1239,7 @@ export default function APIPageClient({ machineId }) {
         onClose={() => {
           setShowAddModal(false);
           setNewKeyName("");
+          setNewKeyLimit("");
         }}
       >
         <div className="flex flex-col gap-4">
@@ -1191,6 +1249,14 @@ export default function APIPageClient({ machineId }) {
             onChange={(e) => setNewKeyName(e.target.value)}
             placeholder={translate("Production Key")}
           />
+          <Input
+            label={translate("Daily Token Limit")}
+            type="number"
+            min="0"
+            value={newKeyLimit}
+            onChange={(e) => setNewKeyLimit(e.target.value)}
+            placeholder={translate("e.g. 100000000 — empty means unlimited")}
+          />
           <div className="flex gap-2">
             <Button onClick={handleCreateKey} fullWidth disabled={!newKeyName.trim()}>
               {translate("Create")}
@@ -1199,10 +1265,36 @@ export default function APIPageClient({ machineId }) {
               onClick={() => {
                 setShowAddModal(false);
                 setNewKeyName("");
+                setNewKeyLimit("");
               }}
               variant="ghost"
               fullWidth
             >{translate("Cancel")}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Daily Token Limit Modal */}
+      <Modal
+        isOpen={!!limitModal}
+        title={`${translate("Edit Daily Token Limit")}${limitModal ? ` — ${limitModal.name}` : ""}`}
+        onClose={() => setLimitModal(null)}
+      >
+        <div className="flex flex-col gap-4">
+          <Input
+            label={translate("Daily Token Limit")}
+            type="number"
+            min="0"
+            value={limitInput}
+            onChange={(e) => setLimitInput(e.target.value)}
+            placeholder={translate("e.g. 100000000 — empty means unlimited")}
+            hint={translate("Leave empty to remove the limit.")}
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleSaveLimit} fullWidth disabled={limitSaving}>
+              {translate("Save")}
+            </Button>
+            <Button onClick={() => setLimitModal(null)} variant="ghost" fullWidth>{translate("Cancel")}</Button>
           </div>
         </div>
       </Modal>

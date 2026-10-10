@@ -18,6 +18,7 @@ vi.mock("@/sse/services/auth.js", () => ({
   isValidApiKey: mocks.isValidApiKey,
   markAccountUnavailable: mocks.markAccountUnavailable,
   clearAccountError: mocks.clearAccountError,
+  checkApiKeyDailyLimit: async () => null,
 }));
 
 vi.mock("@/lib/localDb", () => ({
