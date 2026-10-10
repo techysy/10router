@@ -38,10 +38,23 @@ const SPECIALIZED = new Set([
 const APP_VERSION_RE = /\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/;
 const APP_VERSION_HEADERS = new Set(["X-CLIENT-VERSION", "X-CORE-VERSION", "X-Msh-Version"]);
 
+// Header keys whose VALUE is baked from the machine running the suite — not from
+// code under test. The golden locks header SHAPE across refactors; freezing the
+// generating host makes the committed snapshot unmatchable everywhere else:
+//   cline/clinepass: X-PLATFORM (process.platform), X-PLATFORM-VERSION (process.version)
+//   kimi: X-Msh-Device-Model (platform+arch), X-Msh-Device-Name (hostname)
+// This is exactly how kimi went red on ubuntu CI after the 40→37 re-snapshot
+// declared it green from a local Windows run. Whole-value replacement by key:
+// deterministic regardless of host OS, node build or machine name.
+const HOST_DERIVED_HEADERS = new Set([
+  "X-PLATFORM", "X-PLATFORM-VERSION", "X-Msh-Device-Model", "X-Msh-Device-Name",
+]);
+
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
   for (const [k, v] of Object.entries(headers)) {
+    if (HOST_DERIVED_HEADERS.has(k)) { out[k] = "<HOST>"; continue; }
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
