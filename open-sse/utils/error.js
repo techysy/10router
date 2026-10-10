@@ -1,4 +1,5 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
+import { withRealnameHint } from "../services/accountFallback.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -188,5 +189,13 @@ export function formatProviderError(error, provider, model, statusCode) {
   const causeCode = error.cause?.code;
   const causeMsg = error.cause?.message;
   const causeStr = causeCode || causeMsg ? ` (cause: ${[causeCode, causeMsg].filter(Boolean).join(": ")})` : "";
-  return `[${code}]: ${message}${causeStr}`;
+  const base = `[${code}]: ${message}${causeStr}`;
+  // An upstream real-name (实名) gate is a CONFIGURATION state, not a quota or a
+  // fault: the raw English JSON names no action the user can take, and 403's
+  // OpenAI-compatible type ("insufficient_quota") actively misleads them into
+  // topping up. Appending the go-and-do-this explanation here covers every core
+  // (chat / embeddings / image / video / systemone) at once — they all build
+  // their client-facing string through this function. Non-matching messages
+  // pass through byte-for-byte.
+  return withRealnameHint(base, provider);
 }

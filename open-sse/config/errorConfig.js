@@ -117,6 +117,13 @@ export const ERROR_RULES = [
   // immediately with zero wait, and the client sees the friendly message without
   // a misleading "(reset after 30s)".
   { text: "mimo desktop account",     cooldownMs: 0 },
+  // StepFun CN Step Plan 免费套餐的 403：账号未完成实名（人脸）核验，上游在放行调用
+  // 之前先拒。同样是**配置状态**而非故障、也非额度问题——cooldown 0 让账号永不锁定、
+  // combo 立即穿透，与上面的 missing-MiMo-Desktop-session 同族。少了这条它会落到下方
+  // 通用 `{ status: 403 }`，把模型锁 2 分钟、给客户端回一个 "(reset after 2m)"，
+  // 而用户无论等多久都不会自己好——出路是去实名，不是等重置。
+  { text: "real-name verification",   cooldownMs: 0 },
+  { text: "realname verification",    cooldownMs: 0 },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
@@ -130,6 +137,35 @@ export const ERROR_RULES = [
   { status: 404, cooldownMs: COOLDOWN.long },
   { status: 429, backoff: true },
 ];
+
+// ─── StepFun CN 实名（real-name）闸门 ──────────────────────────────────────
+// StepFun CN 的 Step Plan 免费套餐在放行调用之前先要求账号完成实名（人脸）核验，
+// 未完成时上游对每个请求都回 403：
+//   {"error":{"message":"real-name verification is required for your free step plan
+//    before calling this API. please complete face verification at
+//    https://account.stepfun.com/security?action=realname","type":...}}
+// 这是**账号配置状态**，不是额度、不是故障、也不是限流：等多久都不会自己好，
+// 反复重试只会反复拿到同一句话。原先 10Router 原样透传这坨英文 JSON，用户看不出
+// 该做什么（还容易误以为额度用完而去充值）。
+//
+// 正则与文案放在本模块（叶子，无 import）而不是某个 handler 里，是因为两个消费方
+// 都要用：ERROR_RULES 用它把 403 从「额度/故障」重分类为「配置状态、不冷却」，
+// utils/error.js 用它给客户端补可执行的出路说明。两份真相源会漂。
+export const REALNAME_GATE_RE = /real-name verification|realname|\bface verification\b|实名认证/i;
+
+// 注意 provider 键用注册表 id：调用方传入的是 resolveProviderId 之后的值。
+export const REALNAME_HINT = {
+  "stepfun-plan-cn":
+    "StepFun CN 的 Step Plan 免费套餐要求账号先完成实名（人脸）核验，未完成时上游一律拒绝，" +
+    "与本机额度、与 10Router 都无关。出路：1. 打开 " +
+    "https://account.stepfun.com/security?action=realname 完成人脸核验后重试（推荐）；" +
+    "2. 或改用按量计费的 stepfun-cn 渠道（扣现金/代金券，无实名要求）。" +
+    "该账号不会被锁定，但在实名完成前每次调用都会得到这条提示。",
+};
+
+export const REALNAME_HINT_GENERIC =
+  "上游要求该账号先完成实名认证（real-name verification），未完成前所有调用都会被拒绝；" +
+  "请按上游提示的地址完成核验后重试。";
 
 // Backward compat: COOLDOWN_MS object (used by index.js re-export)
 export const COOLDOWN_MS = {
