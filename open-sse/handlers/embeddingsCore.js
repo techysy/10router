@@ -1,7 +1,7 @@
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { getExecutor } from "../executors/index.js";
-import { refreshWithRetry } from "../services/tokenRefresh.js";
+import { refreshWithRetry, notifyRefreshFailure } from "../services/tokenRefresh.js";
 import { getEmbeddingAdapter } from "./embeddingProviders/index.js";
 
 /**
@@ -16,6 +16,7 @@ export async function handleEmbeddingsCore({
   credentials,
   log,
   onCredentialsRefreshed,
+  onCredentialsRefreshFailed,
   onRequestSuccess,
 }) {
   const { provider, model } = modelInfo;
@@ -106,6 +107,7 @@ export async function handleEmbeddingsCore({
       }
     } else {
       log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
+      await notifyRefreshFailure(newCredentials, onCredentialsRefreshFailed, log);
     }
   }
 

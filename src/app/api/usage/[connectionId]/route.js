@@ -5,6 +5,7 @@ import { getProviderConnectionById, updateProviderConnection } from "@/lib/local
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
+import { markConnectionNeedsReauth, NEEDS_REAUTH_MESSAGE } from "@/sse/services/tokenRefresh.js";
 import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { USAGE_APIKEY_PROVIDERS } from "@/shared/constants/providers";
@@ -56,7 +57,14 @@ export async function refreshAndUpdateCredentials(connection, force = false, pro
 
   // refresh token 已失效/被复用——整个 token 族已被吊销，绝不能拿死 token 继续用。
   if (refreshResult && isUnrecoverableRefreshError(refreshResult)) {
-    throw new Error("Refresh token invalid or reused. Please re-authorize the connection.");
+    // Usage 轮询是发现死账号的另一条路（请求路径由 checkAndRefreshToken 标记）。
+    // 标记 + 冷却在这里同样要落库，否则账号继续留在轮换里每 2 分钟被重试一次。
+    await markConnectionNeedsReauth(connection.id, {
+      provider: connection.provider,
+      reason: refreshResult,
+      log: console,
+    });
+    throw new Error(NEEDS_REAUTH_MESSAGE);
   }
 
   if (!refreshResult) {

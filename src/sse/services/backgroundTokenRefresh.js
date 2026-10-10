@@ -4,6 +4,7 @@
 import * as log from "../utils/logger.js";
 import { getRefreshLeadMs } from "open-sse/services/tokenRefresh.js";
 import { getCredentialExpiryMs } from "open-sse/services/oauthCredentialManager.js";
+import { isNeedsReauthCooling } from "open-sse/services/accountFallback.js";
 
 /** Refresh when expiry is within 30 minutes (or the provider on-request lead, whichever larger). */
 export const BACKGROUND_REFRESH_LEAD_MS = 30 * 60 * 1000;
@@ -56,6 +57,12 @@ export function selectConnectionsNeedingRefresh(connections, nowMs = Date.now())
     const authType = String(conn.authType || "").toLowerCase().replace(/_/g, "");
     if (authType !== "oauth") continue;
     if (!conn.refreshToken) continue;
+    // Needs-reauth cooling: the refresh token is known-dead until the user
+    // re-authorizes. Without this skip the 5-minute tick would probe the corpse
+    // forever and each rejection rewrites needsReauthUntil to a fresh 24h, so
+    // the account would never re-enter rotation. First tick after the window
+    // expires probes once and (if still dead) starts a new window.
+    if (isNeedsReauthCooling(conn, nowMs)) continue;
 
     const expiresAtMs = getCredentialExpiryMs(conn);
     if (expiresAtMs === null) continue;

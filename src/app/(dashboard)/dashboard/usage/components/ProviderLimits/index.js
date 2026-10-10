@@ -1322,12 +1322,12 @@ export default function ProviderLimits() {
                                   ? "bg-green-500/10 text-green-600 dark:text-green-400"
                                   : connState === "partial"
                                     ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                                    : connState === "error" || connState === "expired" || connState === "unavailable"
+                                    : connState === "error" || connState === "expired" || connState === "unavailable" || connState === "needs-reauth"
                                       ? "bg-red-500/10 text-red-600 dark:text-red-400"
                                       : "bg-surface-2 text-text-muted"
                             }`}
                           >
-                            {isInactive ? "disabled" : (connState === "partial" ? "partial" : connState || "unknown")}
+                            {isInactive ? "disabled" : (connState === "needs-reauth" ? translate("Needs re-auth") : connState === "partial" ? "partial" : connState || "unknown")}
                           </span>
                           {conn.providerSpecificData?.profileArn && (
                             <button

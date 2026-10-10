@@ -37,6 +37,9 @@ import { MODEL_LOCK_ALL, MODEL_LOCK_PREFIX } from "open-sse/services/accountFall
  * }}
  *
  * state:
+ *   "needs-reauth" — the refresh token is dead (unrecoverable refresh error) and
+ *                   only re-authorization fixes it. Outranks every lock: it is
+ *                    the one state that needs a human.
  *   "unavailable" — a live account-wide lock (modelLock___all). This is the one
  *                   case where "some models are fine" is not true.
  *   "partial"     — at least one model is cooling down but the account as a
@@ -78,21 +81,29 @@ export function classifyConnectionCooldown(connection, now = Date.now()) {
 
   const status = conn.testStatus;
 
-  // "error"/"expired" outrank everything but an account-wide lock: they are
+  // "needs-reauth" outranks everything, locks included: it says the refresh
+  // token is dead and only a human re-authorization fixes it. A per-model lock
+  // hiding it behind an amber "partial" would bury the one state that needs
+  // action (the mark is sticky and survives request successes — see
+  // accountFallback.js).
+  //
+  // "error"/"expired" outrank everything else but an account-wide lock: they are
   // written by credential-test flows, so the credentials are genuinely broken
   // and a stale live model lock must not soften that into an amber "partial"
   // (or worse, count the connection as healthy). "unavailable" is different —
   // it is the lazily-cleared account flag, so a live per-model lock means
   // "partial" and a lapsed one means "recovered".
-  const state = accountLocked
-    ? "unavailable"
-    : (status === "error" || status === "expired")
-      ? status
-      : lockedModels.length > 0
-        ? "partial"
-        : status === "unavailable"
-          ? "active" // stale flag, every lock has lapsed → recovered
-          : (status ?? "active");
+  const state = status === "needs-reauth"
+    ? status
+    : accountLocked
+      ? "unavailable"
+      : (status === "error" || status === "expired")
+        ? status
+        : lockedModels.length > 0
+          ? "partial"
+          : status === "unavailable"
+            ? "active" // stale flag, every lock has lapsed → recovered
+            : (status ?? "active");
 
   return {
     state,

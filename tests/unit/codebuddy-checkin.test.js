@@ -100,6 +100,19 @@ describe("isEligibleCbcnConnection", () => {
   it("rejects a token without an issuer", () => {
     expect(isEligibleCbcnConnection(cnConn({ accessToken: "not-a-jwt" }))).toBe(false);
   });
+
+  // P2-11: a needs-reauth account's check-in would 401, its refresh would get
+  // invalid_grant and re-stamp the 24h window — the account would never leave
+  // the bench. Skip inside the window; probe again after it lapses.
+  it("rejects a needs-reauth account while its cooldown window is live", () => {
+    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    expect(isEligibleCbcnConnection(cnConn({ testStatus: "needs-reauth", needsReauthUntil: until }))).toBe(false);
+  });
+
+  it("accepts the account again once the window lapses (timed, not permanent)", () => {
+    const until = new Date(Date.now() - 1000).toISOString();
+    expect(isEligibleCbcnConnection(cnConn({ testStatus: "needs-reauth", needsReauthUntil: until }))).toBe(true);
+  });
 });
 
 describe("msUntilNextTick", () => {
@@ -224,6 +237,13 @@ describe("isEligibleCbIntlConnection", () => {
     expect(
       isEligibleCbIntlConnection(intlConn({ accessToken: makeToken({ iss: "https://workbuddy.cn/x" }) })),
     ).toBe(false);
+  });
+
+  it("rejects a needs-reauth account while its cooldown window is live (same rule as CN)", () => {
+    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    expect(isEligibleCbIntlConnection(intlConn({ testStatus: "needs-reauth", needsReauthUntil: until }))).toBe(false);
+    const lapsed = new Date(Date.now() - 1000).toISOString();
+    expect(isEligibleCbIntlConnection(intlConn({ testStatus: "needs-reauth", needsReauthUntil: lapsed }))).toBe(true);
   });
 });
 

@@ -10,7 +10,7 @@ import { getModelInfo } from "../services/model.js";
 import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets } from "open-sse/handlers/videoCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { checkAndRefreshToken, persistRefreshedCredentials } from "../services/tokenRefresh.js";
+import { checkAndRefreshToken, persistRefreshedCredentials, markConnectionNeedsReauth } from "../services/tokenRefresh.js";
 import * as log from "../utils/logger.js";
 
 // Video generation is xAI-only today; requests without a provider prefix
@@ -150,6 +150,9 @@ export async function handleVideoCreate(request, action) {
           log,
         });
       },
+      onCredentialsRefreshFailed: async (err) => {
+        await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
+      },
     });
 
     if (result.success) {
@@ -208,6 +211,9 @@ export async function handleVideoGet(request, requestId) {
         provider,
         log,
       });
+    },
+    onCredentialsRefreshFailed: async (err) => {
+      await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
     },
   });
 

@@ -15,6 +15,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("open-sse/services/tokenRefresh.js", () => ({
   refreshTokenByProvider: vi.fn(),
+  // The failed-refresh branch reports unrecoverable failures through this hook
+  // (P2-11). Real behavior is pinned in unit/needs-reauth.test.js; this
+  // factory replaces the whole module, so the name must exist here.
+  notifyRefreshFailure: vi.fn(async () => false),
 }));
 
 import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets, VIDEO_ACTIONS } from "open-sse/handlers/videoCore.js";

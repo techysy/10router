@@ -234,6 +234,13 @@ export async function createProviderConnection(data) {
         if (data[f] === undefined) merged[f] = null;
       }
       if (data.testStatus === undefined && merged.testStatus === "unavailable") merged.testStatus = "active";
+      // …same for the needs-reauth mark: the credentials being merged in ARE the
+      // re-auth, so both the sticky mark and its cooldown stamp are consumed by
+      // this write — a fresh token must not keep sitting behind a 24h skip.
+      if (data.testStatus === undefined && merged.testStatus === "needs-reauth") {
+        merged.testStatus = "active";
+        merged.needsReauthUntil = null;
+      }
       upsert(db, merged);
       result = merged;
       return;
@@ -325,7 +332,7 @@ export async function updateProviderConnection(id, data) {
       const shouldReset = merged.resetErrorState === true;
       delete merged.resetErrorState;
       if (shouldReset) {
-        const reset = { lastError: null, lastErrorAt: null, errorCode: null, testStatus: null };
+        const reset = { lastError: null, lastErrorAt: null, errorCode: null, testStatus: null, needsReauthUntil: null };
         for (const f of Object.keys(reset)) {
           if (data[f] !== undefined) delete reset[f];
         }

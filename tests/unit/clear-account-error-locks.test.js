@@ -156,3 +156,48 @@ describe("clearAccountError — a surviving lock keeps the account marked (#46)"
     expect(dbMocks.updateProviderConnection).not.toHaveBeenCalled();
   });
 });
+
+describe("clearAccountError — a success does not revive a dead refresh token (P2-11)", () => {
+  // "needs-reauth" is not a request-scoped error: it says the refresh token is
+  // dead, and one successful request on a still-valid access token proves only
+  // that the ACCESS token works. Resetting the mark here would put a
+  // dead-refresh-token account back in rotation until its access token expires
+  // and the next refresh invalid_grant-cycles again.
+  it("keeps the mark (and its reason) while clearing the succeeded model's lock", async () => {
+    await clearAccountError(
+      "conn-1",
+      {
+        id: "conn-1",
+        testStatus: "needs-reauth",
+        needsReauthUntil: future(24 * 60 * 60 * 1000),
+        lastError: "Refresh token expired or revoked. Please re-authorize this connection.",
+        errorCode: 401,
+        modelLock_gpt: future(),
+      },
+      "gpt",
+    );
+    const w = write();
+    expect(w.modelLock_gpt).toBeNull();
+    expect(w).not.toHaveProperty("testStatus");
+    expect(w).not.toHaveProperty("lastError");
+    expect(w).not.toHaveProperty("errorCode");
+    expect(w.backoffLevel).toBe(0);
+  });
+
+  it("keeps the mark even with no locks at all (access token just happens to work)", async () => {
+    await clearAccountError(
+      "conn-1",
+      {
+        id: "conn-1",
+        testStatus: "needs-reauth",
+        needsReauthUntil: future(24 * 60 * 60 * 1000),
+        lastError: "Refresh token expired or revoked. Please re-authorize this connection.",
+        errorCode: 401,
+      },
+      "gpt",
+    );
+    const w = write();
+    expect(w).not.toHaveProperty("testStatus");
+    expect(w).not.toHaveProperty("lastError");
+  });
+});

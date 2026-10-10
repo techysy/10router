@@ -23,6 +23,10 @@ vi.mock("../../open-sse/executors/index.js", () => ({
 // Also mock tokenRefresh to avoid side effects
 vi.mock("../../open-sse/services/tokenRefresh.js", () => ({
   refreshWithRetry: vi.fn().mockResolvedValue(null),
+  // The 401→refresh else-branch reports unrecoverable failures to the app
+  // side through this hook (P2-11). Stubbed here: the real one is not under
+  // test in this file and the factory replaces the whole module.
+  notifyRefreshFailure: vi.fn(async () => false),
 }));
 
 // Mock proxyFetch to avoid proxy-agent imports in test env

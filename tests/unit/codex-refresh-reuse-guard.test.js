@@ -155,8 +155,16 @@ describe("refreshAndUpdateCredentials (usage route) — 刷新前重读 DB", () 
 
     await expect(refreshAndUpdateCredentials(codexConnection()))
       .rejects.toThrow(/re-authorize/i);
-    // 死 token 绝不落库
-    expect(mocks.updateProviderConnection).not.toHaveBeenCalled();
+    // 死 token 绝不落库 —— 但「待重新授权」的标记要落库（P2-11：仪表盘要能看见，
+    // 轮换里也要摘掉）。断言写库内容里没有凭据字段，而不是断言完全没有写库。
+    expect(mocks.updateProviderConnection).toHaveBeenCalledWith(
+      "codex-conn-1",
+      expect.objectContaining({ testStatus: "needs-reauth" })
+    );
+    for (const [, updates] of mocks.updateProviderConnection.mock.calls) {
+      expect(updates).not.toHaveProperty("accessToken");
+      expect(updates).not.toHaveProperty("refreshToken");
+    }
   });
 
   it("treats refresh_token_reused the same way (session already revoked)", async () => {

@@ -1,6 +1,6 @@
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
-import { refreshWithRetry } from "../services/tokenRefresh.js";
+import { refreshWithRetry, notifyRefreshFailure } from "../services/tokenRefresh.js";
 import { getExecutor } from "../executors/index.js";
 import { getImageAdapter } from "./imageProviders/index.js";
 import { urlToBase64 } from "./imageProviders/_base.js";
@@ -23,6 +23,7 @@ function serializeRequestBody(requestBody) {
  * @param {boolean} [options.streamToClient] - Pipe SSE to client (codex)
  * @param {boolean} [options.binaryOutput] - Return raw image bytes
  * @param {function} [options.onCredentialsRefreshed]
+ * @param {function} [options.onCredentialsRefreshFailed] - called on an unrecoverable refresh failure
  * @param {function} [options.onRequestSuccess]
  * @returns {Promise<{ success: boolean, response: Response, status?: number, error?: string }>}
  */
@@ -34,6 +35,7 @@ export async function handleImageGenerationCore({
   streamToClient = false,
   binaryOutput = false,
   onCredentialsRefreshed,
+  onCredentialsRefreshFailed,
   onRequestSuccess,
 }) {
   const { provider, model } = modelInfo;
@@ -151,6 +153,7 @@ export async function handleImageGenerationCore({
       }
     } else {
       log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
+      await notifyRefreshFailure(newCredentials, onCredentialsRefreshFailed, log);
     }
   }
 

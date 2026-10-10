@@ -663,6 +663,8 @@
   "Anyone who can reach the port": "任何能存取該連接埠的人",
   "Unknown": "未知",
   "Partial": "部分受限",
+  "Needs re-auth": "待重新授權",
+  "Refresh token expired or revoked. Please re-authorize this connection.": "刷新權杖已失效或被吊銷，請重新授權該連線。",
   "Anyone who can reach the port and knows the password": "任何能存取該連接埠且知道密碼的人",
   "Remote access to the dashboard stays disabled until a password is set. Set the first password on the machine running 10Router (open http://127.0.0.1:20128 there), or start it with the INITIAL_PASSWORD environment variable.": "在設定密碼之前，儀表板的遠端存取維持關閉。請在執行 10Router 的機器上設定第一個密碼（在該機開啟 http://127.0.0.1:20128），或以 INITIAL_PASSWORD 環境變數啟動。",
   "No password is set yet, so the dashboard opens on this machine only. Set a password on the Settings page to reach it from other devices. The gateway API (/v1) is unaffected.": "尚未設定密碼：儀表板目前只能在本機開啟。請在「設定」頁設定一組密碼，即可從其它裝置存取；閘道介面（/v1）不受影響。",

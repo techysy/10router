@@ -18,6 +18,9 @@ describe("getStatusVariant", () => {
     expect(getStatusVariant(true, "error")).toBe("error");
     expect(getStatusVariant(true, "expired")).toBe("error");
     expect(getStatusVariant(true, "unavailable")).toBe("error");
+    // needs-reauth (dead refresh token) is a failure state, not an amber
+    // "partial" — and not "default" (which would render as a grey unknown).
+    expect(getStatusVariant(true, "needs-reauth")).toBe("error");
   });
 
   it("maps a partially-locked connection to warning, not error (#46)", () => {
@@ -30,7 +33,7 @@ describe("getStatusVariant", () => {
   it("keeps a disabled connection neutral regardless of status", () => {
     // isActive === false wins over every status, including the new one —
     // a switched-off connection should not advertise a live cooldown.
-    for (const status of ["active", "partial", "unavailable", "error", "unknown"]) {
+    for (const status of ["active", "partial", "unavailable", "error", "needs-reauth", "unknown"]) {
       expect(getStatusVariant(false, status)).toBe("default");
     }
   });
@@ -45,7 +48,7 @@ describe("getStatusVariant", () => {
     // Guards the contract between this function and the component: adding a
     // status here without a matching variant would render an unclassed pill.
     const defined = new Set(["default", "primary", "success", "warning", "error", "info"]);
-    for (const status of ["active", "success", "partial", "error", "expired", "unavailable", "unknown"]) {
+    for (const status of ["active", "success", "partial", "error", "expired", "unavailable", "needs-reauth", "unknown"]) {
       expect(defined).toContain(getStatusVariant(true, status));
     }
   });

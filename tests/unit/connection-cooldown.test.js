@@ -131,6 +131,22 @@ describe("classifyConnectionCooldown", () => {
       classifyConnectionCooldown({ testStatus: "expired", modelLock_gpt: at(60_000) }, NOW).state,
     ).toBe("expired");
   });
+
+  it("needs-reauth outranks everything, locks included (P2-11)", () => {
+    // The one state that needs a human must not hide behind an amber
+    // "partial" (per-model lock) or a red-but-retryable "unavailable"
+    // (account-wide lock). A successful request cannot clear it either —
+    // see clearAccountError.
+    expect(
+      classifyConnectionCooldown({ testStatus: "needs-reauth", modelLock_gpt: at(60_000) }, NOW).state,
+    ).toBe("needs-reauth");
+    expect(
+      classifyConnectionCooldown({ testStatus: "needs-reauth", modelLock___all: at(60_000) }, NOW).state,
+    ).toBe("needs-reauth");
+    // No locks at all: still needs-reauth (unlike "unavailable", which is
+    // re-read as a stale flag → recovered).
+    expect(classifyConnectionCooldown({ testStatus: "needs-reauth" }, NOW).state).toBe("needs-reauth");
+  });
 });
 
 describe("sameConnectionCooldown", () => {

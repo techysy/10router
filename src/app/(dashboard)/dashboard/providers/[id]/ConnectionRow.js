@@ -200,8 +200,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   // cooling; "unavailable" means the whole account is.
   const isCooldown = effectiveStatus === "partial" || effectiveStatus === "unavailable";
   // "partial" is a new state (#46); every other status is already a word a user
-  // can read, so only the new one needs a label.
-  const statusLabel = effectiveStatus === "partial" ? translate("Partial") : effectiveStatus;
+  // can read, so only the new one needs a label. "needs-reauth" (dead refresh
+  // token) is the second: the raw token would render as "needs-reauth".
+  const statusLabel = effectiveStatus === "needs-reauth"
+    ? translate("Needs re-auth")
+    : effectiveStatus === "partial" ? translate("Partial") : effectiveStatus;
 
   // Google VALIDATION_REQUIRED errors surface their "Verify your account" URL in
   // the message text — render it as a jump link instead of a dead red string.

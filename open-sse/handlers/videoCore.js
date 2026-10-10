@@ -1,6 +1,6 @@
 import { createErrorResult } from "../utils/error.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
-import { refreshTokenByProvider } from "../services/tokenRefresh.js";
+import { refreshTokenByProvider, notifyRefreshFailure } from "../services/tokenRefresh.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
 
 // Upstream fetch deadline for video job submission/polling (the job itself is
@@ -71,6 +71,7 @@ function combineSignals(signal, timeoutMs) {
  * @param {number} [options.timeoutMs]
  * @param {object} [options.log]
  * @param {function} [options.onCredentialsRefreshed]
+ * @param {function} [options.onCredentialsRefreshFailed] - called on an unrecoverable refresh failure
  * @returns {Promise<{ success: boolean, response: Response, status?: number, error?: string }>}
  */
 export async function handleVideoProxyCore({
@@ -85,6 +86,7 @@ export async function handleVideoProxyCore({
   timeoutMs = VIDEO_FETCH_TIMEOUT_MS,
   log,
   onCredentialsRefreshed,
+  onCredentialsRefreshFailed,
 }) {
   const config = getVideoConfig(provider);
   if (!config) {
@@ -142,6 +144,10 @@ export async function handleVideoProxyCore({
       }
     } else {
       log?.warn?.("TOKEN", `${provider.toUpperCase()} | video refresh failed — account needs re-auth`);
+      // The log line above has been claiming "needs re-auth" without telling
+      // anyone but the console since it was written. Permanent failures now
+      // actually mark the account; transient ones stay a plain warning.
+      await notifyRefreshFailure(refreshed, onCredentialsRefreshFailed, log);
     }
   }
 

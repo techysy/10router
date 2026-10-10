@@ -53,6 +53,36 @@ export function isUnrecoverableRefreshError(result) {
   );
 }
 
+/**
+ * Report a FAILED refresh to the app side when — and only when — the failure is
+ * unrecoverable (dead refresh token). The success side already has its sink
+ * (`onCredentialsRefreshed`); without this one the permanent case was a silent
+ * `else { log "refresh failed" }` and the dead account stayed in rotation,
+ * getting re-probed every cooldown window forever.
+ *
+ * Transient failures (network, 5xx, null result) return false and call nothing —
+ * those are the caller's normal retry/fallback path and must not mark anything.
+ *
+ * @param {object|null} newCredentials - what the refresh returned
+ * @param {function} [onCredentialsRefreshFailed] - receives the failure result
+ * @param {object} [log]
+ * @returns {Promise<boolean>} whether the failure was unrecoverable
+ */
+export async function notifyRefreshFailure(newCredentials, onCredentialsRefreshFailed, log = null) {
+  if (!isUnrecoverableRefreshError(newCredentials)) return false;
+  log?.warn?.("TOKEN_REFRESH", "Refresh token rejected — re-authorization required", {
+    code: newCredentials?.code || newCredentials?.error || null,
+  });
+  if (typeof onCredentialsRefreshFailed === "function") {
+    try {
+      await onCredentialsRefreshFailed(newCredentials);
+    } catch (error) {
+      log?.warn?.("TOKEN_REFRESH", `onCredentialsRefreshFailed failed: ${error?.message || error}`);
+    }
+  }
+  return true;
+}
+
 export function getRefreshLeadMs(provider) {
   if (REFRESH_LEAD_MS[provider]) return REFRESH_LEAD_MS[provider];
   // Legacy id after kimi-coding → kimi merge

@@ -97,8 +97,11 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
   const { state: effectiveStatus, earliestUntil: modelLockUntil } = cooldown;
   const isCooldown = effectiveStatus === "partial" || effectiveStatus === "unavailable";
   // "partial" is a new state (#46); every other status is already a word a user
-  // can read, so only the new one needs a label.
-  const statusLabel = effectiveStatus === "partial" ? translate("Partial") : effectiveStatus;
+  // can read, so only the new one needs a label. "needs-reauth" (dead refresh
+  // token) is the second: the raw token would render as "needs-reauth".
+  const statusLabel = effectiveStatus === "needs-reauth"
+    ? translate("Needs re-auth")
+    : effectiveStatus === "partial" ? translate("Partial") : effectiveStatus;
 
   useEffect(() => {
     if (!showProxyDropdown) return;

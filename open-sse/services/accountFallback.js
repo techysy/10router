@@ -281,6 +281,57 @@ export function buildClearModelLocksUpdate(connection) {
   return cleared;
 }
 
+// ─── Needs re-auth (dead refresh token) ───────────────────────────────────────
+//
+// An unrecoverable refresh failure (invalid_grant / refresh_token_reused) is not
+// a rate limit: the token family is revoked upstream and only a re-authorization
+// fixes it. Two independent things are written, on purpose:
+//
+//   testStatus = "needs-reauth"   the STICKY mark the dashboard shows. Survives
+//                                 successful requests (a live access token does
+//                                 not revive a dead refresh token) and is cleared
+//                                 only by a successful refresh, a re-auth, or a
+//                                 credential test — i.e. anything that proves the
+//                                 credentials work again.
+//   needsReauthUntil              the COOLDOWN stamp. Selection skips the account
+//                                 only while this is in the future AND the mark is
+//                                 live, so a dead account is probed once per window
+//                                 instead of every 2 minutes forever, while a
+//                                 re-auth (which flips testStatus) takes effect
+//                                 immediately instead of waiting out the timer.
+//
+// Deliberately NOT a modelLock_*: those mean "upstream is rate-limiting this
+// account", get cleared on success, and would block freshly re-authorized
+// credentials until the timer ran out.
+
+/** testStatus value meaning "refresh token is dead, human must re-authorize" */
+export const NEEDS_REAUTH_STATUS = "needs-reauth";
+
+/** How long a needs-reauth account stays out of rotation before one retry probe. */
+export const NEEDS_REAUTH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a connection is currently cooling down for re-authorization —
+ * the selection-side filter. A live mark with a lapsed timer is NOT cooling:
+ * that is the once-per-window retry probe.
+ */
+export function isNeedsReauthCooling(connection, nowMs = Date.now()) {
+  if (!connection || connection.testStatus !== NEEDS_REAUTH_STATUS) return false;
+  const until = Date.parse(connection.needsReauthUntil || "");
+  return Number.isFinite(until) && until > nowMs;
+}
+
+/**
+ * Build the update object that marks a connection as needing re-authorization.
+ * Callers add lastError / errorCode / lastErrorAt to explain WHY.
+ */
+export function buildNeedsReauthUpdate(cooldownMs = NEEDS_REAUTH_COOLDOWN_MS) {
+  return {
+    testStatus: NEEDS_REAUTH_STATUS,
+    needsReauthUntil: new Date(Date.now() + cooldownMs).toISOString(),
+  };
+}
+
 /**
  * Channel-scope block: a provider-wide pause kept in `settings.channelBlocks`
  * rather than on any single connection, because the failure is a property of

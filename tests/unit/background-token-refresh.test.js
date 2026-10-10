@@ -90,6 +90,62 @@ describe("selectConnectionsNeedingRefresh", () => {
     );
     expect(list).toHaveLength(1);
   });
+
+  // P2-11: a dead refresh token gets marked needs-reauth with a 24h window.
+  // The tick must NOT probe inside that window — every unrecoverable answer
+  // rewrites the stamp to a fresh 24h, so a 5-minute tick against a corpse
+  // would keep it benched forever instead of once per window.
+  it("skips a needs-reauth account while its cooldown window is live", async () => {
+    const { selectConnectionsNeedingRefresh } = await import(
+      "../../src/sse/services/backgroundTokenRefresh.js"
+    );
+    const list = selectConnectionsNeedingRefresh(
+      [
+        conn({
+          testStatus: "needs-reauth",
+          needsReauthUntil: new Date(NOW + 60 * 60 * 1000).toISOString(),
+          // Expired access token: would otherwise be selected.
+          expiresAt: new Date(NOW - 60 * 1000).toISOString(),
+        }),
+      ],
+      NOW
+    );
+    expect(list).toHaveLength(0);
+  });
+
+  it("probes the account again once the window lapses (timed, not permanent)", async () => {
+    const { selectConnectionsNeedingRefresh } = await import(
+      "../../src/sse/services/backgroundTokenRefresh.js"
+    );
+    const list = selectConnectionsNeedingRefresh(
+      [
+        conn({
+          testStatus: "needs-reauth",
+          needsReauthUntil: new Date(NOW - 1000).toISOString(),
+          expiresAt: new Date(NOW - 60 * 1000).toISOString(),
+        }),
+      ],
+      NOW
+    );
+    expect(list).toHaveLength(1);
+  });
+
+  it("does not skip a re-authorized account because of a stale stamp", async () => {
+    const { selectConnectionsNeedingRefresh } = await import(
+      "../../src/sse/services/backgroundTokenRefresh.js"
+    );
+    const list = selectConnectionsNeedingRefresh(
+      [
+        conn({
+          testStatus: "active",
+          needsReauthUntil: new Date(NOW + 60 * 60 * 1000).toISOString(),
+          expiresAt: new Date(NOW - 60 * 1000).toISOString(),
+        }),
+      ],
+      NOW
+    );
+    expect(list).toHaveLength(1);
+  });
 });
 
 describe("runBackgroundTokenRefreshTick", () => {

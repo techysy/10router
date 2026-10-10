@@ -18,6 +18,7 @@
 // rejects the whole run or kills the server.
 
 import * as log from "../utils/logger.js";
+import { isNeedsReauthCooling } from "open-sse/services/accountFallback.js";
 
 const DAILY_CHECKIN_URL = "https://www.codebuddy.cn/v2/billing/meter/daily-checkin";
 const STATUS_URL = "https://www.codebuddy.cn/v2/billing/meter/checkin-activity-status";
@@ -118,6 +119,9 @@ export function isEligibleCbcnConnection(conn) {
   if (!conn || !conn.accessToken) return false;
   if (conn.provider !== "codebuddy-cn") return false;
   if (conn.isActive === false) return false;
+  // Needs-reauth cooling: the token set is known-dead. A check-in would 401,
+  // its refresh re-marks the account and re-extends the cooldown window forever.
+  if (isNeedsReauthCooling(conn)) return false;
   const claims = decodeJwt(conn.accessToken) || {};
   return isCodeBuddyCnRealm(claims.iss || "");
 }
@@ -131,6 +135,8 @@ export function isEligibleCbIntlConnection(conn) {
   if (!conn || !conn.accessToken) return false;
   if (conn.provider !== "codebuddy-intl") return false;
   if (conn.isActive === false) return false;
+  // Same needs-reauth cooling skip as the CN check-in — see above.
+  if (isNeedsReauthCooling(conn)) return false;
   const claims = decodeJwt(conn.accessToken) || {};
   return isCodeBuddyRealm(claims.iss || "");
 }

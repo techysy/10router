@@ -1,10 +1,11 @@
 import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
-import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, channelBlockRemainingMs, MODEL_LOCK_ALL } from "open-sse/services/accountFallback.js";
+import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, channelBlockRemainingMs, isNeedsReauthCooling, NEEDS_REAUTH_STATUS, MODEL_LOCK_ALL } from "open-sse/services/accountFallback.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -185,6 +186,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const availableConnections = connections.filter(c => {
       if (excludeSet.has(c.id)) return false;
       if (isModelLockActive(c, model)) return false;
+      // Dead refresh token cooling down (needs-reauth). Timed, not permanent:
+      // once the cooldown lapses the account is probed again, and a re-auth
+      // clears the mark immediately — see accountFallback.isNeedsReauthCooling.
+      if (isNeedsReauthCooling(c)) return false;
       // codex：账号勾选了 enabledModels 白名单时，按请求侧 id 过滤——[1m]
       // 变体与普通 id 是两个勾选位，后端会对没勾选长上下文的账号 400
       // （errorConfig 里 codex 专属规则负责换号）。
@@ -206,17 +211,27 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     if (availableConnections.length === 0) {
       // Find earliest lock expiry across all connections for retry timing
       const lockedConns = connections.filter(c => isModelLockActive(c, model));
-      const expiries = lockedConns.map(c => getEarliestModelLockUntil(c)).filter(Boolean);
+      // Same for accounts cooling after a dead refresh token — without this a
+      // pool of all needs-reauth accounts fell through to the bare
+      // "No active credentials" 404, which lies about what is wrong (there ARE
+      // credentials; they need re-authorization, and there is a retry time).
+      const reauthConns = connections.filter(c => isNeedsReauthCooling(c));
+      const expiries = [
+        ...lockedConns.map(c => getEarliestModelLockUntil(c)),
+        ...reauthConns.map(c => c.needsReauthUntil),
+      ].filter(Boolean);
       const earliest = expiries.sort()[0] || null;
       if (earliest) {
-        const earliestConn = lockedConns[0];
-        log.warn("AUTH", `${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
+        const earliestConn = lockedConns[0] || reauthConns[0];
+        const reauthOnly = lockedConns.length === 0 && reauthConns.length > 0;
+        const errText = reauthOnly ? NEEDS_REAUTH_MESSAGE : earliestConn?.lastError;
+        log.warn("AUTH", `${provider} | all ${connections.length} accounts ${reauthOnly ? "need re-auth" : "locked"} for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${errText?.slice(0, 50)}`);
         return {
           allRateLimited: true,
           retryAfter: earliest,
           retryAfterHuman: formatRetryAfter(earliest),
-          lastError: earliestConn?.lastError || null,
-          lastErrorCode: earliestConn?.errorCode || null
+          lastError: errText || null,
+          lastErrorCode: reauthOnly ? 401 : earliestConn?.errorCode || null
         };
       }
       log.warn("AUTH", `${provider} | all ${connections.length} accounts unavailable`);
@@ -485,13 +500,21 @@ export async function clearAccountError(connectionId, currentConnection, model =
 
   // Only reset error state if no active locks remain
   if (remainingActiveLocks.length === 0) {
-    Object.assign(clearObj, {
-      testStatus: "active",
-      lastError: null,
-      errorCode: null,
-      lastErrorAt: null,
-      backoffLevel: 0
-    });
+    // "needs-reauth" is not a request-scoped error: it says the refresh token is
+    // dead, and one successful request on a still-valid access token does not
+    // revive it. Keep the mark (and the reason text that explains it) until a
+    // successful refresh / re-auth / credential test writes testStatus again —
+    // those are the events that prove the credentials work.
+    const keepNeedsReauth = conn.testStatus === NEEDS_REAUTH_STATUS;
+    Object.assign(clearObj, keepNeedsReauth
+      ? { backoffLevel: 0 }
+      : {
+        testStatus: "active",
+        lastError: null,
+        errorCode: null,
+        lastErrorAt: null,
+        backoffLevel: 0
+      });
   }
 
   await updateProviderConnection(connectionId, clearObj);

@@ -20,12 +20,17 @@ import {
   formatProviderCredentials as _formatProviderCredentials,
   getAllAccessTokens as _getAllAccessTokens,
   refreshKiroToken as _refreshKiroToken,
-  getRefreshLeadMs as _getRefreshLeadMs
+  getRefreshLeadMs as _getRefreshLeadMs,
+  isUnrecoverableRefreshError,
 } from "open-sse/services/tokenRefresh.js";
 import {
   refreshProviderCredentials as _refreshProviderCredentials,
   shouldRefreshCredentials as _shouldRefreshCredentials,
 } from "open-sse/services/oauthCredentialManager.js";
+import {
+  buildNeedsReauthUpdate,
+  NEEDS_REAUTH_COOLDOWN_MS,
+} from "open-sse/services/accountFallback.js";
 
 export const TOKEN_EXPIRY_BUFFER_MS = BUFFER_MS;
 
@@ -293,6 +298,58 @@ export async function persistRefreshedCredentials(connectionId, newCreds, option
   return false;
 }
 
+/**
+ * Human-readable reason stored in `lastError` when the refresh token is dead.
+ * Fixed sentence on purpose: translateQuotaError() resolves it through the
+ * literal table (zh-CN/zh-TW), so rewording it here drops the translation.
+ */
+export const NEEDS_REAUTH_MESSAGE =
+  "Refresh token expired or revoked. Please re-authorize this connection.";
+
+/**
+ * Mark a connection as needing re-authorization after an unrecoverable refresh
+ * failure (invalid_grant / refresh_token_reused / …) — the failure sink that
+ * pairs with persistRefreshedCredentials on the success side.
+ *
+ * Writes the sticky `testStatus: "needs-reauth"` mark plus a cooldown stamp (see
+ * accountFallback.js for why those are two separate things). The account stays
+ * out of rotation for NEEDS_REAUTH_COOLDOWN_MS and is then probed once per
+ * window; the mark itself survives until something proves the credentials work
+ * again (successful refresh, re-auth, credential test).
+ *
+ * @param {string} connectionId
+ * @param {object} [options]
+ * @param {string} [options.provider] - for the log line
+ * @param {object|string} [options.reason] - refresh result / error text
+ * @param {object} [options.log]
+ * @returns {Promise<boolean>} whether the mark was written
+ */
+export async function markConnectionNeedsReauth(connectionId, options = {}) {
+  const logger = options.log || log;
+  const { provider, reason } = options;
+  if (!connectionId || connectionId === "noauth") return false;
+
+  const code = typeof reason === "object" && reason ? reason.code || reason.error : null;
+  const ok = await updateProviderConnection(connectionId, {
+    ...buildNeedsReauthUpdate(NEEDS_REAUTH_COOLDOWN_MS),
+    lastError: NEEDS_REAUTH_MESSAGE,
+    errorCode: 401,
+    lastErrorAt: new Date().toISOString(),
+    // A dead refresh token is not a rate-limit ladder — a stale backoffLevel
+    // would mis-size the next (unrelated) cooldown this account earns.
+    backoffLevel: 0,
+  });
+
+  logger.error("TOKEN_REFRESH", "Refresh token rejected — connection marked needs re-auth", {
+    connectionId,
+    provider: provider || null,
+    code: code || null,
+    cooldownMs: NEEDS_REAUTH_COOLDOWN_MS,
+    persisted: !!ok,
+  });
+  return !!ok;
+}
+
 // ─── Local-specific: proactive token refresh ─────────────────────────────────
 
 /**
@@ -347,6 +404,15 @@ export async function checkAndRefreshToken(provider, credentials, options = {}) 
     });
 
     const newCreds = await _refreshProviderCredentials(provider, creds, log);
+    // Unrecoverable: the whole token family is revoked upstream (invalid_grant /
+    // refresh_token_reused). Not a transient refresh miss — nothing retries this
+    // back to life. Fall through with the current (possibly stale) credentials so
+    // the caller's 401 → fallback path still runs, but stop the account from
+    // being hammered every 2 minutes and tell the dashboard why.
+    if (isUnrecoverableRefreshError(newCreds)) {
+      await markConnectionNeedsReauth(creds.connectionId, { provider, reason: newCreds, log });
+      return creds;
+    }
     if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
       // Persist to DB. Losing this write is not always harmless: OpenAI-class
       // providers rotate the refresh token on every refresh, so the previous one

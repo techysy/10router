@@ -58,6 +58,15 @@ describe("model-lock cooldown is decided in one place (#46)", () => {
     expect(src).not.toMatch(/conn\.testStatus === "unavailable"/);
   });
 
+  // P2-11: same label requirement on the usage page's per-connection pill —
+  // it was a fourth site in #46 and it renders connState raw for unknown
+  // states, so "needs-reauth" needs its own branch there too.
+  it("the usage page's pill labels and reddens 'needs-reauth'", () => {
+    const src = read("src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js");
+    expect(src).toContain('connState === "needs-reauth"');
+    expect(src).toContain('translate("Needs re-auth")');
+  });
+
   it("the cooldown countdown only renders for a live lock", () => {
     // isCooldown must come from the classified state, not from a separately
     // recomputed boolean that could disagree with it.
@@ -71,6 +80,21 @@ describe("model-lock cooldown is decided in one place (#46)", () => {
     for (const rel of [CONNECTION_ROW, CONNECTIONS_CARD]) {
       const src = read(rel);
       expect(src).toContain('effectiveStatus === "partial" ? translate("Partial")');
+    }
+  });
+
+  // P2-11: "needs-reauth" would otherwise render as the raw token — the one
+  // state that needs a human action must read like an instruction. Both copies
+  // carry the same ternary chain (pin the chain, not just the presence of the
+  // string, so one copy cannot grow the branch while the other lags).
+  it("both rows label the 'needs-reauth' state, in the same ternary chain as 'partial'", () => {
+    for (const rel of [CONNECTION_ROW, CONNECTIONS_CARD]) {
+      const src = read(rel);
+      expect(src).toContain('effectiveStatus === "needs-reauth"');
+      expect(src).toContain('translate("Needs re-auth")');
+      expect(src).toMatch(
+        /effectiveStatus === "needs-reauth"[\s\S]{0,80}translate\("Needs re-auth"\)[\s\S]{0,80}effectiveStatus === "partial" \? translate\("Partial"\)/
+      );
     }
   });
 });

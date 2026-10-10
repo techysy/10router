@@ -10,7 +10,7 @@ import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { checkAndRefreshToken, persistRefreshedCredentials } from "../services/tokenRefresh.js";
+import { checkAndRefreshToken, persistRefreshedCredentials, markConnectionNeedsReauth } from "../services/tokenRefresh.js";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 
@@ -120,6 +120,9 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
           provider,
           log,
         });
+      },
+      onCredentialsRefreshFailed: async (err) => {
+        await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
       },
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);

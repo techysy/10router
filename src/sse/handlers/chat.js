@@ -25,7 +25,7 @@ import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
-import { updateProviderCredentials, checkAndRefreshToken, persistRefreshedCredentials } from "../services/tokenRefresh.js";
+import { updateProviderCredentials, checkAndRefreshToken, persistRefreshedCredentials, markConnectionNeedsReauth } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 
@@ -398,6 +398,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
           provider,
           log,
         });
+      },
+      // The failure sink that pairs with the one above: an unrecoverable refresh
+      // (invalid_grant / refresh_token_reused) marks the account needs-re-auth
+      // instead of leaving it in rotation to be re-probed every cooldown window.
+      onCredentialsRefreshFailed: async (err) => {
+        await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
       },
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);
