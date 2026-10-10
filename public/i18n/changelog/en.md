@@ -2,6 +2,32 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.4.0 (2026-10-10)
+
+### ✨ New
+
+- **Daily token limit per API key** — every client key can carry a daily cap (e.g. 100M/day); over the cap, `/v1/*` returns 429 `rate_limit_error` until the server's local midnight reset. A global master switch lives on the Endpoint page; limits can be edited or cleared per key at any time, and each row shows today's usage share live.
+- **Quota card icons link to provider sites** — the provider logo on every quota card now opens the provider's website/console in a new tab.
+- **"Hide zero-balance provider cards" toggle** — a second view filter on the Experiments page: connections whose packs are all at 0 balance/credits can now be hidden wholesale, independent of — and stackable with — the existing "hide cards with no quota" toggle.
+- **"Needs re-auth" account state** — when an OAuth account's refresh token becomes unrecoverable, the connection row lights up "Needs re-auth" and the account is cooled down for 24h instead of being hammered every 2 minutes; re-authorizing recovers it instantly.
+- **CodeBuddy catalogs aligned with the official credit page** — the international line gains the entire Claude family (Opus 5.5 / Sonnet 5.5 and 6 more), Grok-4.7, Gemini-3.8-Flash and GPT-6.1-Sol; the CN line gains GLM-5.3-FlashX (0.14x) and StepFun Step-5-Preview (0.43x); Space-Bunny returns to 0.08x as the promo window ends. New "Paid tier" and "Subscription priority" model badges.
+- **New OpenCode / Token Harbor models** — the OpenCode paid lines pick up freshly listed models including Claude Haiku 5.5 (capability declaration corrected to 1M context); Token Harbor gains `claude-haiku-5.5:free`.
+- **Trae Free catalog aligned with upstream** (issue #54) — 18 models added, 10 removed that upstream delisted.
+- **CreditDaddy gateway status on the free-provider cards** (issue #49) — already shipped in the revised Windows v1.3.5 assets; this release brings it to every channel.
+- **Platform-clustered release asset names** — Windows / macOS / fnOS packages now follow a `Name-Platform-…` convention, so same-platform assets sort together on the Release page.
+
+### 🐛 Fixed
+
+- **Combo context windows now reach clients** — combo entries previously wrote the aggregated capability only into a nested block; clients matching the top-level `context_window` got nothing and guessed the window from the model name — too high — until the upstream hard-failed.
+- **Streaming accounting corrected both ways**: a client disconnecting right after the full answer no longer records a failure (issues #48 / #50); a truncated clean EOF no longer records success — it is logged as "truncated"; dropped malformed SSE data lines are now counted and shown in the request detail.
+- **Refresh-token handling, three fixes**: a failed persist of a rotated refresh token now errors immediately instead of silently reusing the dead token and getting the whole account signed out upstream; sql.js flush failures reschedule with backoff; when the automatic 401 → refresh → retry fails, the real upstream reason is surfaced to the client.
+- **StepFun CN real-name gate no longer misreported as "out of quota"** — the 403 for incomplete face verification no longer locks the model for 2 minutes; the dashboard links straight to the real-name page and combos pass through to the next candidate instantly.
+- **GitHub Copilot quota split per category** — chat / completions monthly windows are no longer summed into the resource-pack total, matching the Antigravity presentation.
+- **Custom connection names shown first** — connection rows no longer bury a user-set name behind the account's username/email.
+- **Model catalog and capability corrections** — clients now receive context/output ceilings aligned with each provider's real values (alias drift, catalog lookup misses and combo aggregation gaps fixed together).
+- **Windows installer, three fixes**: upgrades no longer pop "unable to close" or run the old version's uninstaller; a declined UAC prompt no longer fails silently.
+- **fnOS packaging fix** — the standalone build's bundled slim `next` module is no longer overwritten (the root cause of installs that would not start).
+
 ## v1.3.5 (2026-10-05)
 
 ### ✨ New
