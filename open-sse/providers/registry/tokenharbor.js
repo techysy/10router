@@ -24,6 +24,12 @@ export default {
   },
   category: "apikey",
   authType: "apikey",
+  // Without this the card ranks ~51/53 in the API Key grid (unconnected
+  // providers fall through to `priority ?? 999`, then alphabetical) while the
+  // page folds everything past the first 20 behind "Show all". 45 keeps it
+  // ahead of the Anthropic/OpenAI tier so it lands inside the visible 20 on
+  // fresh installs.
+  priority: 45,
   transport: {
     baseUrl: "https://tokenharbor.ai/v1/chat/completions",
     validateUrl: "https://tokenharbor.ai/v1/models",

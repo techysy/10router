@@ -3,6 +3,7 @@ import { getProviderConnections } from "@/lib/localDb";
 import { backfillCodexEmails } from "@/lib/oauth/providers";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 import { isUsageEligible } from "@/shared/utils/usageEligibility";
+import { buildExternalConnectionRows } from "@/lib/externalQuota";
 
 const SAFE_FIELDS = [
   "id", "provider", "authType", "name", "email", "displayName",
@@ -31,6 +32,11 @@ function maskName(name) {
 }
 
 function sanitize(c) {
+  // Synthetic external-quota rows (pushed display-only cards, see
+  // src/lib/externalQuota.js) carry no credentials by construction — the push
+  // endpoint whitelists every field — so they pass through with their `external`
+  // / `quota` payload intact instead of the SAFE_FIELDS strip.
+  if (c.external) return { ...c };
   const safe = {};
   for (const f of SAFE_FIELDS) if (c[f] !== undefined) safe[f] = c[f];
   if (safe.name) safe.name = maskName(safe.name);
@@ -82,9 +88,23 @@ export async function GET(request) {
 
     const allConnections = await getProviderConnections();
     const eligibleConnections = allConnections.filter(isUsageEligible);
-    const providerOptions = Array.from(new Set(eligibleConnections.map((conn) => conn.provider))).sort();
 
-    const providerFilteredConnections = eligibleConnections.filter((conn) => (
+    // External-pushed quota cards (CreditDaddy and successors): synthetic,
+    // display-only rows living in _meta snapshots, never in the providers table.
+    // Fail-soft — a broken snapshot layer must not blank the real connections.
+    // They bypass isUsageEligible (that whitelist is about upstream credential
+    // providers); "eligible" here simply means "has a card to show".
+    let externalConnections = [];
+    try {
+      externalConnections = await buildExternalConnectionRows();
+    } catch {
+      externalConnections = [];
+    }
+
+    const mergedConnections = [...eligibleConnections, ...externalConnections];
+    const providerOptions = Array.from(new Set(mergedConnections.map((conn) => conn.provider))).sort();
+
+    const providerFilteredConnections = mergedConnections.filter((conn) => (
       provider === "all" || conn.provider === provider
     ));
 
@@ -111,7 +131,9 @@ export async function GET(request) {
         totalPages,
       },
       totals: {
-        eligibleConnections: eligibleConnections.length,
+        // External cards count here too: the page's empty-state gate reads
+        // eligibleConnections, and pushed-only installs must still render.
+        eligibleConnections: mergedConnections.length,
         providerFilteredConnections: providerFilteredConnections.length,
       },
     });

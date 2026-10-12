@@ -341,6 +341,21 @@ export default function ProviderLimits() {
         setPagination(nextPagination);
         setTotals(nextTotals);
         setPage(getPaginationPageValue(data.pagination, targetPage));
+        // External-pushed cards arrive with their numbers INLINE (rows built
+        // from /api/external-quota snapshots). Seed them straight into
+        // quotaData — an `ext:` id has no providers-table row, so the normal
+        // GET /api/usage/<id> revalidation would 404 and strand the card on a
+        // permanent spinner. Persisting via writeQuotaEntry also lets the
+        // cache-paint path show them before the network returns.
+        const externalSeeds = connectionList.filter((c) => c.external && c.quota);
+        if (externalSeeds.length > 0) {
+          setQuotaData((prev) => {
+            const next = { ...prev };
+            for (const c of externalSeeds) next[c.id] = c.quota;
+            return next;
+          });
+          for (const c of externalSeeds) writeQuotaEntry(c.id, c.quota);
+        }
         writeConnectionsCache(
           connectionsCacheKey({ page: targetPage, pageSize, accountFilter, providerFilter }),
           {
@@ -507,6 +522,9 @@ export default function ProviderLimits() {
       const canObserve = typeof IntersectionObserver !== "undefined";
       const tasks = [];
       for (const conn of conns) {
+        // Pushed cards have no upstream to revalidate against — their numbers
+        // ride on the connection row and refresh with fetchConnections.
+        if (conn.external) continue;
         if (skipFreshFrom && isQuotaFresh(skipFreshFrom[conn.id])) continue;
         if (lazy && canObserve && !visibleIdsRef.current.has(conn.id)) {
           pendingQuotaRef.current.set(conn.id, conn.provider);
@@ -588,10 +606,20 @@ export default function ProviderLimits() {
 
   const handleDeleteConnection = useCallback(
     async (id) => {
-      if (!confirm("Delete this connection?")) return;
+      // Pushed cards are _meta snapshots, not connections: the confirm says
+      // what actually happens (the pusher can just re-push) and the DELETE
+      // targets /api/external-quota/<source>. Native confirm() is not routed
+      // through the i18n layer, so translate explicitly here.
+      const isExternalId = typeof id === "string" && id.startsWith("ext:");
+      if (isExternalId) {
+        if (!confirm(translate("Remove this pushed quota card? The pushing app can re-add it with its next update."))) return;
+      } else if (!confirm("Delete this connection?")) return;
       setDeletingId(id);
       try {
-        const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
+        const url = isExternalId
+          ? `/api/external-quota/${encodeURIComponent(id.slice(4))}`
+          : `/api/providers/${id}`;
+        const res = await fetch(url, { method: "DELETE" });
         if (res.ok) {
           setQuotaData((prev) => {
             const next = { ...prev };
@@ -1115,15 +1143,17 @@ export default function ProviderLimits() {
   );
 
   const handleDisableDepleted = () => {
+    // External cards have no isActive to flip (PUT /api/providers/<id> would
+    // 404 on an `ext:` id — the row exists only in _meta).
     const ids = sortedConnections
-      .filter((c) => (c.isActive ?? true) && isConnectionDepleted(c, quotaData))
+      .filter((c) => !c.external && (c.isActive ?? true) && isConnectionDepleted(c, quotaData))
       .map((c) => c.id);
     bulkSetActive(ids, false);
   };
 
   const handleEnableAvailable = () => {
     const ids = sortedConnections
-      .filter((c) => !(c.isActive ?? true) && !isConnectionDepleted(c, quotaData))
+      .filter((c) => !c.external && !(c.isActive ?? true) && !isConnectionDepleted(c, quotaData))
       .map((c) => c.id);
     bulkSetActive(ids, true);
   };
@@ -1382,7 +1412,7 @@ export default function ProviderLimits() {
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {(isCodex || claudeReset) && (
+                    {(isCodex || claudeReset) && !conn.external && (
                       <>
                         <Tooltip
                           text={
@@ -1442,7 +1472,7 @@ export default function ProviderLimits() {
                     <Tooltip text="Refresh quota">
                       <button
                         type="button"
-                        onClick={() => refreshProvider(conn.id, conn.provider)}
+                        onClick={() => (conn.external ? fetchConnections(page) : refreshProvider(conn.id, conn.provider))}
                         disabled={isRefreshing || rowBusy}
                         aria-label="Refresh quota"
                         className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
@@ -1454,6 +1484,7 @@ export default function ProviderLimits() {
                         </span>
                       </button>
                     </Tooltip>
+                    {!conn.external && (
                     <Tooltip text="Edit connection">
                       <button
                         type="button"
@@ -1470,6 +1501,7 @@ export default function ProviderLimits() {
                         </span>
                       </button>
                     </Tooltip>
+                    )}
                     <Tooltip text="Delete connection">
                       <button
                         type="button"
@@ -1485,6 +1517,7 @@ export default function ProviderLimits() {
                         </span>
                       </button>
                     </Tooltip>
+                    {!conn.external && (
                     <div
                       className="inline-flex items-center pl-0.5"
                       title={
@@ -1502,6 +1535,7 @@ export default function ProviderLimits() {
                         }
                       />
                     </div>
+                    )}
                   </div>
                 </div>
               </div>

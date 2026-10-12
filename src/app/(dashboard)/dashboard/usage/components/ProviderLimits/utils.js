@@ -850,6 +850,17 @@ export function parseQuotaData(provider, data) {
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
+              // Carry the presentation flags through too — QuotaProgressBar /
+              // QuotaTable / isConnectionDepleted all consume `unlimited` /
+              // `recurring` / `percentScale` (a quota-less unlimited window must
+              // not render as 0/0 depleted), and dropping them here is what
+              // made every generic/pushed row lose them.
+              ...(quota.unlimited !== undefined ? { unlimited: quota.unlimited === true } : {}),
+              ...(quota.recurring !== undefined ? { recurring: quota.recurring === true } : {}),
+              ...(quota.displayRemaining !== undefined ? { displayRemaining: quota.displayRemaining === true } : {}),
+              ...(quota.giftPack !== undefined ? { giftPack: quota.giftPack === true } : {}),
+              ...(Number.isFinite(quota.remainingPercentage) ? { remainingPercentage: quota.remainingPercentage } : {}),
+              ...(Number.isFinite(quota.percentScale) && quota.percentScale > 0 ? { percentScale: quota.percentScale } : {}),
             });
           });
         }

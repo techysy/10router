@@ -356,6 +356,21 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  // Quota PUSH counterpart of the line above: external companion apps (e.g.
+  // CreditDaddy) post parsed quota NUMBERS for display-only cards. POST/DELETE
+  // on /api/external-quota/<source> passes with a virtual key or the CLI
+  // token; the route verifies again itself — under requireLogin=false the
+  // catch-all below would let any LAN writer through unauthenticated, and the
+  // payload whitelist (src/lib/externalQuota.js) is what keeps this path
+  // display-only. GET on the prefix stays behind the normal auth (dashboard).
+  if (
+    (request.method === "POST" || request.method === "DELETE") &&
+    pathname.startsWith("/api/external-quota/") &&
+    ((await hasValidApiKey(request)) || (await hasValidCliToken(request)))
+  ) {
+    return NextResponse.next();
+  }
+
   // Agent-managed custom provider write (POST create node / add connection) may
   // use a dashboard virtual key, so remote agents (e.g. CreditDaddy's account
   // sync) can self-serve connections without a CLI token. Only the bare root
