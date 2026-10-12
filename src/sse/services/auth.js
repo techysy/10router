@@ -660,3 +660,78 @@ export async function checkApiKeyDailyLimit(apiKey, { request, model } = {}) {
     .replace("{reset}", resetStr);
   return errorResponse(HTTP_STATUS.RATE_LIMITED, message, { "retry-after": String(retryAfterSec) });
 }
+
+/**
+ * Check if the requested model or combo is allowed by the API key's whitelist.
+ * Returns null to allow, or a 403 Response when access is denied.
+ */
+export async function checkApiKeyModelAccess(apiKey, modelStr) {
+  if (!apiKey || !modelStr) return null;
+
+  try {
+    const { getApiKeyByKey } = await import("@/lib/localDb");
+    const record = await getApiKeyByKey(apiKey);
+    if (!record) return null;
+
+    const allowedModels = record.allowedModels;
+    const allowedCombos = record.allowedCombos;
+
+    // Both whitelists absent/empty -> unrestricted access
+    if ((!allowedModels || allowedModels.length === 0) && (!allowedCombos || allowedCombos.length === 0)) {
+      return null;
+    }
+
+    const { getComboModels } = await import("./model.js");
+    const comboModels = await getComboModels(modelStr);
+    const isCombo = Boolean(comboModels && comboModels.length > 0);
+
+    if (isCombo) {
+      if (allowedCombos && allowedCombos.length > 0) {
+        const comboAllowed = allowedCombos.some(
+          (c) => c.toLowerCase() === modelStr.toLowerCase()
+        );
+        if (!comboAllowed) {
+          return errorResponse(
+            HTTP_STATUS.FORBIDDEN,
+            `Combo "${modelStr}" is not allowed for this API key.`,
+            { "x-router-error": "model_not_allowed" }
+          );
+        }
+      }
+      return null;
+    }
+
+    // Single model check
+    if (allowedModels && allowedModels.length > 0) {
+      const { matchPattern } = await import("open-sse/providers/pricing.js");
+      const modelLower = modelStr.toLowerCase();
+      const modelAllowed = allowedModels.some((allowed) => {
+        const allowedLower = allowed.toLowerCase();
+        if (allowedLower === modelLower) return true;
+        // Support wildcards, e.g. "anthropic/*" or "*claude*"
+        if (allowedLower.includes("*")) {
+          return matchPattern(allowedLower, modelLower);
+        }
+        // Support vendor-stripped matching e.g. "openai/gpt-4o" vs "gpt-4o"
+        if (modelLower.includes("/") && modelLower.split("/").pop() === allowedLower) {
+          return true;
+        }
+        return false;
+      });
+
+      if (!modelAllowed) {
+        return errorResponse(
+          HTTP_STATUS.FORBIDDEN,
+          `Model "${modelStr}" is not allowed for this API key.`,
+          { "x-router-error": "model_not_allowed" }
+        );
+      }
+    }
+
+    return null;
+  } catch (e) {
+    log.warn("AUTH", `API key model access check failed (allowing request): ${e.message}`);
+    return null;
+  }
+}
+

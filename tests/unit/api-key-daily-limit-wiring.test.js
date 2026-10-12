@@ -106,14 +106,18 @@ describe("handler enforcement wiring", () => {
 describe("schema & backup-path plumbing", () => {
   it("schema declares the additive column and bumps the version", () => {
     const src = read("src/lib/db/schema.js");
-    expect(src).toContain('export const SCHEMA_VERSION = 2;');
+    // v1.4.1 whitelist work bumped 2 → 3; the bump (not the number) is the invariant.
+    expect(src).toMatch(/export const SCHEMA_VERSION = [3-9];/);
+    expect(src).toContain('dailyTokenLimit: "INTEGER",');
+    expect(src).toContain('allowedModels: "TEXT",');
+    expect(src).toContain('allowedCombos: "TEXT",');
     expect(src).toMatch(/isActive: "INTEGER DEFAULT 1",[\s\S]*?dailyTokenLimit: "INTEGER",[\s\S]*?createdAt: "TEXT NOT NULL",\s*}\,\s*indexes: \["CREATE INDEX IF NOT EXISTS idx_ak_key/);
   });
 
   it("exportDb/importDb enumerate the column (explicit lists — silent drops otherwise)", () => {
     const src = read("src/lib/db/index.js");
-    expect(src).toMatch(/SELECT \* FROM apiKeys`\)\.map\(\(r\) => \(\{[\s\S]*?dailyTokenLimit: r\.dailyTokenLimit \?\? null[\s\S]*?\}\)\)/);
-    expect(src).toContain("INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, dailyTokenLimit, createdAt)");
+    expect(src).toMatch(/SELECT \* FROM apiKeys`\)\.map\(\(r\) => \(\{[\s\S]*?dailyTokenLimit: r\.dailyTokenLimit \?\? null[\s\S]*?allowedModels: parseJson\(r\.allowedModels, null\)[\s\S]*?allowedCombos: parseJson\(r\.allowedCombos, null\)[\s\S]*?\}\)\)/);
+    expect(src).toContain("INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, dailyTokenLimit, allowedModels, allowedCombos, createdAt)");
     // Export surface: enforcement + admin routes reach everything through it.
     expect(src).toContain("getApiKeys, getApiKeyById, getApiKeyByKey, createApiKey,");
     expect(src).toContain("localStartOfDayIso, sumApiKeyTokensSince, sumAllApiKeyTokensSince,");
@@ -128,15 +132,15 @@ describe("schema & backup-path plumbing", () => {
 
   it("rotate carries the limit across re-issue", () => {
     expect(read("src/app/api/keys/rotate/route.js"))
-      .toContain("createApiKey(`${baseName} (rotated)`, machineId, key.dailyTokenLimit)");
+      .toMatch(/createApiKey\(\s*`\$\{baseName\} \(rotated\)`,\s*machineId,\s*key\.dailyTokenLimit,\s*key\.allowedModels,\s*key\.allowedCombos\s*\)/);
   });
 });
 
 describe("admin API contract", () => {
   it("POST /api/keys accepts and echoes dailyTokenLimit", () => {
     const src = read("src/app/api/keys/route.js");
-    expect(src).toContain("const { name, dailyTokenLimit } = body;");
-    expect(src).toContain("createApiKey(name, machineId, parsed.value)");
+    expect(src).toContain("const { name, dailyTokenLimit, allowedModels, allowedCombos } = body;");
+    expect(src).toContain("createApiKey(name, machineId, parsed.value, allowedModels, allowedCombos)");
     expect(src).toContain("dailyTokenLimit: apiKey.dailyTokenLimit,");
     // GET attaches today-usage only for limited keys.
     expect(src).toContain("sumAllApiKeyTokensSince(localStartOfDayIso())");
@@ -145,7 +149,7 @@ describe("admin API contract", () => {
 
   it("PUT /api/keys/[id] only rewrites the limit when the field was sent", () => {
     const src = read("src/app/api/keys/[id]/route.js");
-    expect(src).toContain("const { isActive, dailyTokenLimit } = body;");
+    expect(src).toContain("const { isActive, dailyTokenLimit, allowedModels, allowedCombos } = body;");
     expect(src).toContain("if (dailyTokenLimit !== undefined) {");
     expect(src).toContain("updateData.dailyTokenLimit = parsed.value;");
   });

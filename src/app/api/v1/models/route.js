@@ -980,7 +980,44 @@ export async function GET(request) {
   try {
     // Detect cross-instance recursive /models fetch (another 10router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+    let data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+
+    // Filter by API key whitelists if the caller provides an authenticated key
+    const authHeader = request.headers.get("Authorization");
+    const xApiKey = request.headers.get("x-api-key");
+    const rawKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : (xApiKey || null);
+    if (rawKey) {
+      try {
+        const { getApiKeyByKey } = await import("@/lib/localDb");
+        const keyRecord = await getApiKeyByKey(rawKey);
+        if (keyRecord && (keyRecord.allowedModels?.length || keyRecord.allowedCombos?.length)) {
+          const { matchPattern } = await import("open-sse/providers/pricing.js");
+          const allowedModels = keyRecord.allowedModels || [];
+          const allowedCombos = (keyRecord.allowedCombos || []).map((c) => c.toLowerCase());
+          data = data.filter((m) => {
+            const id = m.id;
+            const idLower = id.toLowerCase();
+            if (m.owned_by === "combo") {
+              if (allowedCombos.length === 0) return true;
+              return allowedCombos.includes(idLower);
+            }
+            if (allowedModels.length > 0) {
+              return allowedModels.some((allowed) => {
+                const aLower = allowed.toLowerCase();
+                if (aLower === idLower) return true;
+                if (aLower.includes("*") && matchPattern(aLower, idLower)) return true;
+                if (idLower.includes("/") && idLower.split("/").pop() === aLower) return true;
+                return false;
+              });
+            }
+            return true;
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to filter models by API key:", e.message);
+      }
+    }
+
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });

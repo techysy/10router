@@ -52,6 +52,13 @@ export default function APIPageClient({ machineId }) {
   const [limitModal, setLimitModal] = useState(null); // key record being edited | null
   const [limitInput, setLimitInput] = useState("");
   const [limitSaving, setLimitSaving] = useState(false);
+
+  // Key Access Control Modal (Allowed Models & Combos)
+  const [accessModal, setAccessModal] = useState(null);
+  const [allowedModelsInput, setAllowedModelsInput] = useState("");
+  const [allowedCombosInput, setAllowedCombosInput] = useState("");
+  const [accessSaving, setAccessSaving] = useState(false);
+
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
@@ -745,6 +752,38 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleSaveAccess = async () => {
+    if (!accessModal) return;
+    setAccessSaving(true);
+    try {
+      const models = allowedModelsInput
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const combos = allowedCombosInput
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const res = await fetch(`/api/keys/${accessModal.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allowedModels: models.length > 0 ? models : null,
+          allowedCombos: combos.length > 0 ? combos : null,
+        }),
+      });
+      if (res.ok) {
+        setAccessModal(null);
+        await fetchData();
+      }
+    } catch (error) {
+      console.log("Error saving key access control:", error);
+    } finally {
+      setAccessSaving(false);
+    }
+  };
+
   const handleDeleteKey = async (id) => {
     setConfirmState({
       title: translate("Delete API Key"),
@@ -1185,7 +1224,7 @@ export default function APIPageClient({ machineId }) {
             {keys.map((key) => (
               <div
                 key={key.id}
-                className={`group flex items-center justify-between py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+                className={`group flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{translateKeyName(key.name)}</p>
@@ -1220,11 +1259,33 @@ export default function APIPageClient({ machineId }) {
                       {(key.todayTokens || 0) >= key.dailyTokenLimit ? ` — ${translate("Limit reached")}` : ""}
                     </p>
                   ) : null}
+                  {(key.allowedModels?.length || key.allowedCombos?.length) ? (
+                    <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">tune</span>
+                      {translate("Allowed")}: {[
+                        key.allowedModels?.length ? `${key.allowedModels.length} ${translate("models")}` : null,
+                        key.allowedCombos?.length ? `${key.allowedCombos.length} ${translate("combos")}` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">{translate("Paused")}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                  <button
+                    onClick={() => {
+                      setAccessModal(key);
+                      setAllowedModelsInput(key.allowedModels?.join("\n") || "");
+                      setAllowedCombosInput(key.allowedCombos?.join("\n") || "");
+                    }}
+                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
+                    title={translate("Allowed Models & Combos")}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      tune
+                    </span>
+                  </button>
                   <button
                     onClick={() => {
                       setLimitModal(key);
@@ -1332,6 +1393,45 @@ export default function APIPageClient({ machineId }) {
               {translate("Save")}
             </Button>
             <Button onClick={() => setLimitModal(null)} variant="ghost" fullWidth>{translate("Cancel")}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Allowed Models & Combos Modal */}
+      <Modal
+        isOpen={!!accessModal}
+        title={`${translate("Allowed Models & Combos")}${accessModal ? ` — ${translateKeyName(accessModal.name)}` : ""}`}
+        onClose={() => setAccessModal(null)}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-xs text-text-muted">
+            {translate("Restrict this key to specific models or combos. Leave empty for unrestricted access.")}
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-text-muted">{translate("Allowed Models (one per line or comma-separated)")}</label>
+            <textarea
+              rows={4}
+              value={allowedModelsInput}
+              onChange={(e) => setAllowedModelsInput(e.target.value)}
+              placeholder="claude-3-5-sonnet, gpt-4o, anthropic/*"
+              className="w-full text-xs font-mono p-2.5 rounded-lg border border-border bg-surface-2 focus:outline-none focus:border-primary resize-y"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-text-muted">{translate("Allowed Combos (one per line or comma-separated)")}</label>
+            <textarea
+              rows={3}
+              value={allowedCombosInput}
+              onChange={(e) => setAllowedCombosInput(e.target.value)}
+              placeholder="smart-coding, fallback-claude"
+              className="w-full text-xs font-mono p-2.5 rounded-lg border border-border bg-surface-2 focus:outline-none focus:border-primary resize-y"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSaveAccess} fullWidth disabled={accessSaving}>
+              {translate("Save")}
+            </Button>
+            <Button onClick={() => setAccessModal(null)} variant="ghost" fullWidth>{translate("Cancel")}</Button>
           </div>
         </div>
       </Modal>

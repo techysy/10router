@@ -32,7 +32,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, dailyTokenLimit } = body;
+    const { isActive, dailyTokenLimit, allowedModels, allowedCombos } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -49,6 +49,12 @@ export async function PUT(request, { params }) {
         return NextResponse.json({ error: parsed.error }, { status: 400 });
       }
       updateData.dailyTokenLimit = parsed.value;
+    }
+    if (allowedModels !== undefined) {
+      updateData.allowedModels = Array.isArray(allowedModels) ? allowedModels : null;
+    }
+    if (allowedCombos !== undefined) {
+      updateData.allowedCombos = Array.isArray(allowedCombos) ? allowedCombos : null;
     }
 
     const updated = await updateApiKey(id, updateData);

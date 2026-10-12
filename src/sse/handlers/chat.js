@@ -8,6 +8,7 @@ import {
   extractApiKey,
   isValidApiKey,
   checkApiKeyDailyLimit,
+  checkApiKeyModelAccess,
 } from "../services/auth.js";
 import { getSettings, getChannelBlock, setChannelBlock, clearChannelBlock } from "@/lib/localDb";
 import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint } from "open-sse/services/accountFallback.js";
@@ -88,6 +89,9 @@ export async function handleChat(request, clientRawRequest = null) {
 
   const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: modelStr });
   if (limitResponse) return limitResponse;
+
+  const accessResponse = await checkApiKeyModelAccess(apiKey, modelStr);
+  if (accessResponse) return accessResponse;
 
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
