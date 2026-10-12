@@ -93,7 +93,9 @@ if [ "$BUILD" = 1 ]; then
     TAG=$(git -C "$CLONE" describe --tags --abbrev=0 --match 'v*' | sed 's/^v//')
     M=${TAG%%.*}; rest=${TAG#*.}; m=${rest%%.*}; p=${rest##*.}
     p=$((p+1))
-    N=$(ls "$EXPORT/" 2>/dev/null | grep -oE "^10router-$M\.$m\.$p-test\.[0-9]+(-|$)" | grep -oE 'test\.[0-9]+' | cut -d. -f2 | sort -n | tail -1)
+    # `|| true`:首次跑该补丁号时目录里必然没有 1.4.1-test.* 产物,grep 以 1 退出
+    # 会被 pipefail 放大成静默死(2026-10-12:脚本在盖号前无输出退出)。
+    N=$( (ls "$EXPORT/" 2>/dev/null; true) | { grep -oE "^10router-$M\.$m\.$p-test\.[0-9]+(-|$)" || true; } | { grep -oE 'test\.[0-9]+' || true; } | cut -d. -f2 | sort -n | tail -1)
     VERSION="$M.$m.$p-test.$(( ${N:-0} + 1 ))"
     echo "== 自动测试号: $VERSION(最新 tag v$TAG 补丁位+1,轮次扫产物目录)"
   fi
