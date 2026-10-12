@@ -1,4 +1,4 @@
-import { USAGE_APIKEY_PROVIDERS, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { USAGE_APIKEY_PROVIDERS, USAGE_COOKIE_PROVIDERS, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 
 /**
  * Whether a provider connection has a quota/usage API worth querying — the one
@@ -10,6 +10,8 @@ import { USAGE_APIKEY_PROVIDERS, USAGE_SUPPORTED_PROVIDERS } from "@/shared/cons
  */
 export function isUsageEligible(connection) {
   return USAGE_SUPPORTED_PROVIDERS.includes(connection.provider) && (
-    connection.authType === "oauth" || USAGE_APIKEY_PROVIDERS.includes(connection.provider)
+    connection.authType === "oauth" ||
+    USAGE_APIKEY_PROVIDERS.includes(connection.provider) ||
+    (connection.authType === "cookie" && USAGE_COOKIE_PROVIDERS?.includes(connection.provider))
   );
 }

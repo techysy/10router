@@ -546,6 +546,40 @@ export async function POST(request) {
           break;
         }
 
+        case "tokenharbor-free": {
+          const cookie = providerSpecificData?.creditDaddyWebSession?.cookie || apiKey || providerSpecificData?.cookie;
+          if (!cookie) {
+            isValid = false;
+            error = "Session cookie required";
+            break;
+          }
+          const res = await fetch("https://tokenharbor.ai/dashboard", {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+              "Cookie": cookie.trim(),
+            },
+            redirect: "manual",
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.status === 401 || res.status === 403 || res.status === 302 || res.status === 307) {
+            isValid = false;
+            error = "Session cookie invalid or expired";
+          } else if (res.ok) {
+            const html = await res.text();
+            if (html.includes("/api/auth/signin") || html.includes("Sign in with Google")) {
+              isValid = false;
+              error = "Session cookie expired or unauthenticated";
+            } else {
+              isValid = true;
+            }
+          } else {
+            isValid = false;
+            error = `Dashboard returned HTTP ${res.status}`;
+          }
+          break;
+        }
+
         case "perplexity-web": {
           let sessionToken = apiKey;
           if (sessionToken.startsWith("__Secure-next-auth.session-token=")) {

@@ -27,6 +27,7 @@ import {
 } from "./usage/misc.js";
 import { getGlmUsage } from "./usage/glm.js";
 import { getCommandCodeUsage } from "./usage/commandcode.js";
+import { getTokenHarborFreeUsage } from "./usage/tokenharbor-free.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -89,6 +90,7 @@ const USAGE_HANDLERS = {
   stepfun: (c) => getStepfunUsage(c.apiKey, c.proxyOptions, STEPFUN_ACCOUNTS_HOSTS.stepfun),
   "stepfun-cn": (c) => getStepfunUsage(c.apiKey, c.proxyOptions, STEPFUN_ACCOUNTS_HOSTS["stepfun-cn"]),
   commandcode: (c) => getCommandCodeUsage(c.apiKey, c.proxyOptions),
+  "tokenharbor-free": (c) => getTokenHarborFreeUsage(c.apiKey, c.proxyOptions, c.providerSpecificData),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {

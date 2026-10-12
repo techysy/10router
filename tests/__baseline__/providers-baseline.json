@@ -636,6 +636,18 @@
         }
       },
       {
+        "format": "responses",
+        "baseUrl": "https://api.kimi.com/coding/v1/responses",
+        "auth": {
+          "combined": true,
+          "header": "Authorization",
+          "scheme": "bearer",
+          "hooks": [
+            "kimiHeaders"
+          ]
+        }
+      },
+      {
         "format": "claude",
         "baseUrl": "https://api.kimi.com/coding/v1/messages",
         "urlSuffix": "?beta=true",
@@ -1125,6 +1137,11 @@
       "429": 2
     },
     "format": "openai"
+  },
+  "tokenharbor-free": {
+    "baseUrl": "https://tokenharbor.ai/dashboard",
+    "format": "tokenharbor-free",
+    "authType": "cookie"
   },
   "tokenrouter": {
     "baseUrl": "https://api.tokenrouter.com/v1/chat/completions",

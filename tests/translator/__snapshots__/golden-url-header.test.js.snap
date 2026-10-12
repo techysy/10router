@@ -1649,6 +1649,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > tokenharbor → head
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > tokenharbor-free → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > tokenrouter → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2409,6 +2428,13 @@ exports[`GOLDEN buildUrl (default executor providers) > tokenharbor → url (str
 {
   "nonStream": "https://tokenharbor.ai/v1/chat/completions",
   "stream": "https://tokenharbor.ai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > tokenharbor-free → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://tokenharbor.ai/dashboard",
+  "stream": "https://tokenharbor.ai/dashboard",
 }
 `;
 

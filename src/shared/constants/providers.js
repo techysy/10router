@@ -170,6 +170,10 @@ export const USAGE_APIKEY_PROVIDERS = REGISTRY
   .filter(r => r.features?.usageApikey)
   .map(r => r.id);
 
+export const USAGE_COOKIE_PROVIDERS = REGISTRY
+  .filter(r => r.features?.usageCookie)
+  .map(r => r.id);
+
 // Provider 主页(官网/控制台),供 UI 一键跳转(配额卡片图标等)。
 // 回退顺序与 providers/[id]/page.js 的官网链接一致:notice.webUrl →
 // apiKeyUrl → signupUrl → website。接受 id 或别名(与 resolveProviderId

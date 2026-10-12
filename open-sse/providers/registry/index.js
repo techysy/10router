@@ -129,26 +129,27 @@ import p126 from "./tinyfish.js";
 import p127 from "./together.js";
 import p128 from "./tokenbom.js";
 import p129 from "./tokenharbor.js";
-import p130 from "./tokenrouter.js";
-import p131 from "./topaz.js";
-import p132 from "./tortoise.js";
-import p133 from "./trae.js";
-import p134 from "./trae-free.js";
-import p135 from "./v1m.js";
-import p136 from "./venice.js";
-import p137 from "./vercel-ai-gateway.js";
-import p138 from "./vertex-partner.js";
-import p139 from "./vertex.js";
-import p140 from "./volcengine-ark.js";
-import p141 from "./voyage-ai.js";
-import p142 from "./windsurf.js";
-import p143 from "./xai.js";
-import p144 from "./xiaomi-mimo.js";
-import p145 from "./xiaomi-tokenplan.js";
-import p146 from "./xquik.js";
-import p147 from "./youcom.js";
-import p148 from "./zcode-free.js";
-import p149 from "./zed.js";
+import p130 from "./tokenharbor-free.js";
+import p131 from "./tokenrouter.js";
+import p132 from "./topaz.js";
+import p133 from "./tortoise.js";
+import p134 from "./trae.js";
+import p135 from "./trae-free.js";
+import p136 from "./v1m.js";
+import p137 from "./venice.js";
+import p138 from "./vercel-ai-gateway.js";
+import p139 from "./vertex-partner.js";
+import p140 from "./vertex.js";
+import p141 from "./volcengine-ark.js";
+import p142 from "./voyage-ai.js";
+import p143 from "./windsurf.js";
+import p144 from "./xai.js";
+import p145 from "./xiaomi-mimo.js";
+import p146 from "./xiaomi-tokenplan.js";
+import p147 from "./xquik.js";
+import p148 from "./youcom.js";
+import p149 from "./zcode-free.js";
+import p150 from "./zed.js";
 
 export default [
   p0,
@@ -301,4 +302,5 @@ export default [
   p147,
   p148,
   p149,
+  p150,
 ];
