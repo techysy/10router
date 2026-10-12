@@ -11,6 +11,7 @@ function buildAuthHeaders(cfg, token) {
     case "bearer":     return { "Authorization": `Bearer ${token}` };
     case "token":      return { "Authorization": `Token ${token}` };
     case "x-api-key":  return { "x-api-key": token };
+    case "xi-api-key": return { "xi-api-key": token };
     case "key":        return { "Authorization": `Key ${token}` };
     default:           return { "Authorization": `Bearer ${token}` };
   }
@@ -138,6 +139,21 @@ async function transcribeHuggingFace(cfg, file, model, token) {
   return jsonResponse({ text: data.text || "" });
 }
 
+// ElevenLabs Scribe STT: multipart with model_id
+async function transcribeElevenLabs(cfg, file, model, token, formData) {
+  const fd = new FormData();
+  fd.append("file", file, file.name || "audio.wav");
+  fd.append("model_id", model || "scribe_v1");
+  const lang = formData.get("language");
+  if (lang && typeof lang === "string" && lang.trim()) {
+    fd.append("language_code", lang.trim());
+  }
+  const res = await fetch(cfg.baseUrl, { method: "POST", headers: buildAuthHeaders(cfg, token), body: fd });
+  if (!res.ok) return upstreamError(res);
+  const data = await res.json();
+  return jsonResponse({ text: data.text || "" });
+}
+
 // Default: OpenAI/Groq/Whisper-compatible multipart
 async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   const fd = new FormData();
@@ -231,6 +247,7 @@ export async function handleSttCore({ provider, model, formData, credentials, st
       case "nvidia-asr":      return await transcribeNvidia(cfg, file, model, token);
       case "huggingface-asr": return await transcribeHuggingFace(cfg, file, model, token);
       case "gemini-stt":      return await transcribeGemini(cfg, file, model, token, formData);
+      case "elevenlabs":      return await transcribeElevenLabs(cfg, file, model, token, formData);
       default:                return await transcribeOpenAICompatible(cfg, file, model, token, formData);
     }
   } catch (err) {

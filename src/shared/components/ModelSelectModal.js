@@ -198,23 +198,40 @@ export default function ModelSelectModal({
       ? NO_AUTH_PROVIDER_IDS.filter((id) => (AI_PROVIDERS[id]?.serviceKinds || ["llm"]).includes(kindFilter))
       : NO_AUTH_PROVIDER_IDS;
 
-    // Only show connected providers (including both standard and custom)
-    const providerIdsToShow = new Set([
-      ...activeConnectionIds,  // Only connected providers
-      ...noAuthIds,            // No-auth providers (kind-filtered)
+    // Connected providers + no-auth providers
+    const connectedIds = new Set([
+      ...activeConnectionIds,
+      ...noAuthIds,
     ]);
 
-    // Sort by PROVIDER_ORDER
-    const sortedProviderIds = [...providerIdsToShow].sort((a, b) => {
+    // Unconnected standard providers that match kindFilter
+    const unconnectedIds = Object.keys(allProviders).filter((id) => {
+      if (connectedIds.has(id)) return false;
+      const p = allProviders[id];
+      if (!p || p.hidden) return false;
+      if (kindFilter) {
+        const kinds = p.serviceKinds || ["llm"];
+        return kinds.includes(kindFilter);
+      }
+      return true;
+    });
+
+    const sortOrder = (a, b) => {
       const indexA = PROVIDER_ORDER.indexOf(a);
       const indexB = PROVIDER_ORDER.indexOf(b);
       return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-    });
+    };
+
+    const sortedProviderIds = [
+      ...[...connectedIds].sort(sortOrder),
+      ...[...unconnectedIds].sort(sortOrder),
+    ];
 
     sortedProviderIds.forEach((providerId) => {
       const alias = getProviderAlias(providerId);
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider = isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+      const isConnected = connectedIds.has(providerId);
 
       // For provider-as-model kinds (webSearch/webFetch): emit a single entry where value === providerId
       if (kindFilter && PROVIDER_AS_MODEL_KINDS.has(kindFilter)) {
@@ -223,6 +240,7 @@ export default function ModelSelectModal({
           alias,
           color: providerInfo.color,
           models: [{ id: providerId, name: providerInfo.name, value: providerId }],
+          isConnected,
         };
         return;
       }
@@ -332,6 +350,7 @@ export default function ModelSelectModal({
           models: modelsToShow,
           isCustom: true,
           hasModels: mergedModels.length > 0,
+          isConnected,
         };
       } else {
         const providerLiveModels = liveCatalogModels[providerId] || [];
@@ -388,6 +407,7 @@ export default function ModelSelectModal({
             alias: alias,
             color: providerInfo.color,
             models: allModels,
+            isConnected,
           };
         }
       }
@@ -559,6 +579,11 @@ export default function ModelSelectModal({
               <span className="text-[10px] text-text-muted">
                 ({group.models.length})
               </span>
+              {!group.isConnected && (
+                <span className="text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded font-normal ml-auto">
+                  {translate("Not connected")}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-1.5">

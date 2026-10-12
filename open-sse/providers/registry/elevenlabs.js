@@ -14,7 +14,8 @@ export default {
   category: "apikey",
   authType: "apikey",
   serviceKinds: [
-    "tts"
+    "tts",
+    "stt"
   ],
   ttsConfig: {
     baseUrl: "https://api.elevenlabs.io/v1/text-to-speech",
@@ -29,6 +30,18 @@ export default {
       {
         id: "eleven_turbo_v2_5",
         name: "Eleven Turbo v2.5"
+      }
+    ]
+  },
+  sttConfig: {
+    baseUrl: "https://api.elevenlabs.io/v1/speech-to-text",
+    authType: "apikey",
+    authHeader: "xi-api-key",
+    format: "elevenlabs",
+    models: [
+      {
+        id: "scribe_v1",
+        name: "Scribe v1"
       }
     ]
   }
