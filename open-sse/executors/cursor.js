@@ -95,13 +95,18 @@ function encodeHistoryMessage(message) {
   return agentMessage(1, agentMessage(1, agentMessage(1, text)));
 }
 
-function buildAgentRunFrame(messages, model) {
-  const system = messages
+function buildAgentRunFrame(messages, model, reasoningEffort = null) {
+  const cleanMessages = (messages || []).filter((msg) => {
+    if (!msg) return false;
+    const text = textFromContent(msg.content);
+    return Boolean(text || msg.tool_calls?.length || msg.role === "system");
+  });
+  const system = cleanMessages
     .filter((message) => message?.role === "system")
     .map((message) => textFromContent(message.content))
     .filter(Boolean)
     .join("\n\n");
-  const chatMessages = messages.filter((message) => message?.role !== "system");
+  const chatMessages = cleanMessages.filter((message) => message?.role !== "system");
   const currentIndex = [...chatMessages].map((message) => message?.role).lastIndexOf("user");
   const current = currentIndex >= 0 ? chatMessages[currentIndex] : chatMessages.at(-1);
   const history = chatMessages
@@ -123,7 +128,11 @@ function buildAgentRunFrame(messages, model) {
     ...(conversationHistory ? [agentMessage(7, conversationHistory)] : []),
   );
   const conversationAction = agentMessage(1, userAction);
-  const requestedModel = concatBuffers(agentString(1, model), agentBool(7, true));
+  const requestedModel = concatBuffers(
+    agentString(1, model),
+    agentBool(7, true),
+    ...(reasoningEffort ? [agentString(8, String(reasoningEffort))] : [])
+  );
   const runRequest = concatBuffers(
     // An empty ConversationStateStructure starts a fresh local agent session.
     agentMessage(1, new Uint8Array()),
@@ -493,7 +502,7 @@ export class CursorExecutor extends BaseExecutor {
     let session;
     try {
       session = this.openAgentHttp2Stream(url, headers, requestController.signal);
-      session.write(buildAgentRunFrame(body.messages || [], model));
+      session.write(buildAgentRunFrame(body.messages || [], model, body.reasoning_effort));
     } catch (error) {
       throw new Error(`Cursor AgentService request failed: ${error.message}`);
     }

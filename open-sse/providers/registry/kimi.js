@@ -46,6 +46,11 @@ export default {
       auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["kimiHeaders"] },
     },
     {
+      format: "responses",
+      baseUrl: "https://api.kimi.com/coding/v1/responses",
+      auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["kimiHeaders"] },
+    },
+    {
       format: "claude",
       baseUrl: "https://api.kimi.com/coding/v1/messages",
       urlSuffix: "?beta=true",

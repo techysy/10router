@@ -56,8 +56,9 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
     result.generationConfig.maxOutputTokens = body.max_tokens;
   }
 
-  // Build tool_call_id -> name map
+  // Build tool_call_id -> name map and deduplicate duplicate tool_call_ids
   const tcID2Name = {};
+  const tcIdCount = new Map();
   if (body.messages && Array.isArray(body.messages)) {
     for (const msg of body.messages) {
       if (msg.role === ROLE.ASSISTANT && msg.tool_calls) {
@@ -70,12 +71,15 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
     }
   }
 
-  // Build tool responses cache
+  // Build tool responses cache (queue-based in case of duplicate IDs)
   const toolResponses = {};
   if (body.messages && Array.isArray(body.messages)) {
     for (const msg of body.messages) {
       if (msg.role === ROLE.TOOL && msg.tool_call_id) {
-        toolResponses[msg.tool_call_id] = msg.content;
+        if (!toolResponses[msg.tool_call_id]) {
+          toolResponses[msg.tool_call_id] = [];
+        }
+        toolResponses[msg.tool_call_id].push(msg.content);
       }
     }
   }
@@ -120,20 +124,28 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
         }
 
         if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-          const toolCallIds = [];
+          const toolCallPairs = [];
           for (const tc of msg.tool_calls) {
             if (tc.type !== OPENAI_BLOCK.FUNCTION) continue;
 
             const args = tryParseJSON(tc.function?.arguments || "{}");
+            const rawId = tc.id || "";
+            let uniqueId = rawId;
+            const seenCount = tcIdCount.get(rawId) || 0;
+            tcIdCount.set(rawId, seenCount + 1);
+            if (seenCount > 0) {
+              uniqueId = `${rawId}_dup${seenCount}`;
+            }
+
             parts.push({
               thoughtSignature: signature,
               functionCall: {
-                id: tc.id,
+                id: uniqueId,
                 name: toolNamer.name(tc.function.name),
                 args: args
               }
             });
-            toolCallIds.push(tc.id);
+            toolCallPairs.push({ rawId, uniqueId });
           }
 
           if (parts.length > 0) {
@@ -144,24 +156,24 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
           // An empty-string result is still a result: tools with no output send
           // "", and fixMissingToolResponses fills unanswered calls with "".
           // Dropping those left a functionCall without its functionResponse (400).
-          const hasActualResponses = toolCallIds.some(fid => toolResponses[fid] !== undefined);
+          const hasActualResponses = toolCallPairs.some(({ rawId }) => toolResponses[rawId]?.length > 0);
 
           if (hasActualResponses) {
             const toolParts = [];
-            for (const fid of toolCallIds) {
-              if (toolResponses[fid] === undefined) continue;
+            for (const { rawId, uniqueId } of toolCallPairs) {
+              if (!toolResponses[rawId] || toolResponses[rawId].length === 0) continue;
 
-              let name = tcID2Name[fid];
+              let name = tcID2Name[rawId];
               if (!name) {
-                const idParts = fid.split("-");
+                const idParts = rawId.split("-");
                 if (idParts.length > 2) {
                   name = idParts.slice(0, -2).join("-");
                 } else {
-                  name = fid;
+                  name = rawId;
                 }
               }
 
-              let resp = toolResponses[fid] ?? "";
+              let resp = toolResponses[rawId].shift() ?? "";
               let parsedResp = tryParseJSON(resp);
               if (parsedResp === null) {
                 parsedResp = { result: resp };
@@ -171,7 +183,7 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
 
               toolParts.push({
                 functionResponse: {
-                  id: fid,
+                  id: uniqueId,
                   name: toolNamer.name(name),
                   response: { result: parsedResp }
                 }
