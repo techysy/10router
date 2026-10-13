@@ -17,7 +17,8 @@
 - **Kimi Code `/responses` 直连端点**:在 `kimi` 供应商注册表中新增 responses 格式直连配置，无缝对接 Kimi 官方编程助手的新一代长思考端点（`https://api.kimi.com/coding/v1/responses`）。
 - **移动端自适应布局与防溢出**:修复手机端访问 Endpoint 密钥列表、Provider Models 以及 CLI Tools 卡片时出现的横向滚动条与按钮挤压问题；超长模型名在小屏下优雅自适应截断并支持悬停复制。
 - **Combo 挑选器展示未连接模型**:在组合（Combo）编辑面板的模型选择器中，即使尚未配置某供应商的连接，该供应商的兼容模型也会以“未连接”标签清晰呈现并支持提前选入组合编排。
-- **MiniMax Code 订阅双线（OAuth 设备码直连与用量追踪）**:新增 `minimax-code`（国内站）与 `minimax-code-global`（国际站）两条编程助手订阅直连线。支持通过设备码流程（PKCE S256，client `mcode-public`）登录，直连 MiniMax Agent Mavis 网关；具备单飞防并发的单次刷新令牌轮换机制；内置用量探针自动抓取 M Plan 速率限制窗口并 fail-soft 读取 Credits 余额。别名 `mcode` 与 `mm` 正式指向国内订阅线（国际线挂 `mmg`/`mmcode`）。
+- **MiniMax Code 订阅双线（OAuth 设备码直连与用量追踪）**:新增 `minimax-code`（国内站）与 `minimax-code-global`（国际站）两条编程助手订阅直连线。支持通过设备码流程（PKCE S256，client `mcode-public`）登录，直连 MiniMax Agent Mavis 网关；具备单飞防并发的单次刷新令牌轮换机制；内置用量探针自动抓取 M Plan 速率限制窗口并 fail-soft 读取 Credits 余额。别名 `mcode` 与 `mm` 正式指向国内订阅线（国际线挂 `mmg`/`mmcode`），免费线 `minimax-free` 对应短别名优化为 `mmcf`。
+- **OAuthModal 设备码列表补齐**:修复 OAuth 弹窗中 `deviceCodeProviders` 遗漏 `minimax-code` 与 `minimax-code-global` 导致点击连接时误入授权码模式报错的问题。
 - **配额卡片显示偏好聚合弹窗与外部卡片保护**:在配额页工具栏（QuotaToolbar）新增「配额卡片显示偏好」弹窗（图标 tune），将原本散落在实验性页面的「隐藏无配额卡片」「隐藏零余额卡片」「嵌套同心圆环进度条」与新增的「显示外部推送卡片」开关聚合在同一弹窗中统一管理。同时优化过滤判定规则：外部推送卡片（`conn.external`，来自 CreditDaddy 等）拥有独立的显隐开关，彻底不受无配额/零余额的误伤；且带有错误提示（如网页会话失效需重新登录）的卡片始终强制保留呈现，确保用户不会漏看关键会话告警。
 
 ### 🔧 清理

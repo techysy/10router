@@ -10,6 +10,7 @@ export default {
   id: "minimax-free",
   priority: 57,
   alias: "minimax-free",
+  aliases: ["mmcf"],
   uiAlias: "minimax-free",
   display: {
     name: "MiniMax Code Free",

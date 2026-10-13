@@ -148,6 +148,7 @@
     "minimax-free": "minimax-free",
     "mistral": "mistral",
     "mm": "minimax-code",
+    "mmcf": "minimax-free",
     "mmcode": "minimax-code-global",
     "mmf": "mmf",
     "mmg": "minimax-code-global",
