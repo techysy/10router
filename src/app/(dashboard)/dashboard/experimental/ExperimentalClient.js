@@ -59,7 +59,6 @@ export default function ExperimentalClient() {
       window.localStorage.setItem("quotaShowExternalCards", showExternalCards ? "1" : "0");
     }
   }, [showExternalCards]);
-  }, [hideZeroBalance]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
