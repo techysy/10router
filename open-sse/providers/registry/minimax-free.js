@@ -10,8 +10,6 @@ export default {
   id: "minimax-free",
   priority: 57,
   alias: "minimax-free",
-  // `mcode` is the spelling 9Router/upstream users know for MiniMax Code.
-  aliases: ["mcode"],
   uiAlias: "minimax-free",
   display: {
     name: "MiniMax Code Free",

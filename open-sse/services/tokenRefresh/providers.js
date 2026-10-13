@@ -568,6 +568,62 @@ export async function refreshCodebuddyIntlToken(refreshToken, log) {
   }, log);
 }
 
+export async function refreshMinimaxCodeToken(provider, refreshToken, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh(provider, refreshToken, async () => {
+    const oauthConfig = PROVIDER_OAUTH[provider];
+    const tokenUrl = oauthConfig?.tokenUrl || (provider === "minimax-code-global"
+      ? "https://account.minimax.io/oauth2/token"
+      : "https://account.minimax.cn/oauth2/token");
+
+    try {
+      const response = await proxyAwareFetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: oauthConfig?.clientId || "mcode-public",
+          refresh_token: refreshToken,
+        }).toString(),
+      }, proxyOptions);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const failure = classifyOAuthRefreshError(response.status, errorText);
+        log?.warn?.("TOKEN_REFRESH", `Failed to refresh MiniMax Code token (${provider})`, {
+          status: response.status,
+          error: errorText,
+          code: failure.code,
+          permanent: failure.permanent,
+        });
+        if (failure.permanent) {
+          return { error: failure.code || "invalid_grant" };
+        }
+        return null;
+      }
+
+      const tokens = await response.json();
+      log?.info?.("TOKEN_REFRESH", `Successfully refreshed MiniMax Code token (${provider})`, {
+        hasNewAccessToken: !!tokens.access_token,
+        hasNewRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+      });
+
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || refreshToken,
+        expiresIn: tokens.expires_in,
+      };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", `Network error refreshing MiniMax Code token (${provider}): ${error.message}`);
+      return null;
+    }
+  }, log);
+}
+
 // Trae refresh — POST ExchangeToken with JSON body {ClientID, RefreshToken, ClientSecret, UserID}.
 // Response: {Result: {AccessToken, RefreshToken, TokenType, ExpiresAt}}.
 export async function refreshTraeToken(refreshToken, credentials, log) {

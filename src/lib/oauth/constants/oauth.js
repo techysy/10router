@@ -216,6 +216,10 @@ export const GLM_OAUTH_CONFIG = { ...PROVIDER_OAUTH["glm"] };
 // refresh_token 授权；铸造的 Model API key 不过期，401 只能重新登录）。
 export const MUSE_CONFIG = { ...PROVIDER_OAUTH["muse"] };
 
+// MiniMax Code (Device Code Flow)
+export const MINIMAX_CODE_CONFIG = { ...PROVIDER_OAUTH["minimax-code"] };
+export const MINIMAX_CODE_GLOBAL_CONFIG = { ...PROVIDER_OAUTH["minimax-code-global"] };
+
 // Zed hosted LLM aggregator — RSA keypair native-app auth (NOT OAuth).
 // Client generates ephemeral RSA-2048 keypair; user signs in at zed.dev/native_app_signin;
 // Zed redirects to local callback with access_token RSA-encrypted against our public key.
@@ -258,4 +262,6 @@ export const PROVIDERS = {
   GLM: "glm",
   MUSE: "muse",
   ZED: "zed",
+  MINIMAX_CODE: "minimax-code",
+  MINIMAX_CODE_GLOBAL: "minimax-code-global",
 };

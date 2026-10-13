@@ -792,6 +792,40 @@
       }
     ]
   },
+  "minimax-code-global": {
+    "baseUrl": "https://agent.minimax.io/mavis/api/v1/llm/v1/messages",
+    "format": "claude",
+    "thinkingFormat": "claude-adaptive",
+    "headers": {
+      "User-Agent": "MiniMaxAgent",
+      "X-Mavis-Agent-Id": "main"
+    },
+    "auth": {
+      "combined": true,
+      "header": "Authorization",
+      "scheme": "bearer",
+      "anthropicVersion": true
+    },
+    "clientId": "mcode-public",
+    "tokenUrl": "https://account.minimax.io/oauth2/token"
+  },
+  "minimax-code": {
+    "baseUrl": "https://agent.minimax.cn/mavis/api/v1/llm/v1/messages",
+    "format": "claude",
+    "thinkingFormat": "claude-adaptive",
+    "headers": {
+      "User-Agent": "MiniMaxAgent",
+      "X-Mavis-Agent-Id": "main"
+    },
+    "auth": {
+      "combined": true,
+      "header": "Authorization",
+      "scheme": "bearer",
+      "anthropicVersion": true
+    },
+    "clientId": "mcode-public",
+    "tokenUrl": "https://account.minimax.cn/oauth2/token"
+  },
   "minimax-free": {
     "baseUrl": "http://127.0.0.1:47860/gateway/minimax/v1/messages",
     "format": "claude",
@@ -1138,16 +1172,16 @@
     },
     "format": "openai"
   },
-  "tokenharbor-free": {
-    "baseUrl": "https://tokenharbor.ai/dashboard",
-    "format": "tokenharbor-free",
-    "authType": "cookie"
-  },
   "tokenrouter": {
     "baseUrl": "https://api.tokenrouter.com/v1/chat/completions",
     "validateUrl": "https://api.tokenrouter.com/v1/models",
     "thinkingFormat": "tokenrouter",
     "format": "openai"
+  },
+  "trae-free": {
+    "baseUrl": "http://127.0.0.1:47860/gateway/trae/v1/messages",
+    "format": "claude",
+    "noAuth": true
   },
   "trae": {
     "baseUrl": "https://core-normal.trae.ai/api/remote/v1",
@@ -1174,11 +1208,6 @@
     "clientId": "ono9krqynydwx5",
     "clientSecret": "-",
     "tokenUrl": "https://api.marscode.com/cloudide/api/v3/trae/oauth/ExchangeToken"
-  },
-  "trae-free": {
-    "baseUrl": "http://127.0.0.1:47860/gateway/trae/v1/messages",
-    "format": "claude",
-    "noAuth": true
   },
   "venice": {
     "baseUrl": "https://api.venice.ai/api/v1/chat/completions",

@@ -17,6 +17,7 @@ import {
   refreshClineToken,
   refreshZedToken,
   refreshWindsurfToken,
+  refreshMinimaxCodeToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
 
@@ -37,6 +38,7 @@ export {
   refreshClineToken,
   refreshZedToken,
   refreshWindsurfToken,
+  refreshMinimaxCodeToken,
   classifyOAuthRefreshError,
 };
 
@@ -186,6 +188,8 @@ const REFRESH_HANDLERS = {
   // Kimi Code OAuth (merged into id `kimi`); legacy id still routes here
   kimi: (c, log) => refreshKimiToken(c.refreshToken, c, log),
   "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),
+  "minimax-code": (c, log) => refreshMinimaxCodeToken("minimax-code", c.refreshToken, log),
+  "minimax-code-global": (c, log) => refreshMinimaxCodeToken("minimax-code-global", c.refreshToken, log),
   vertex: vertexRefreshHandler,
   "vertex-partner": vertexRefreshHandler
 };

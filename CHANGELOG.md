@@ -7,7 +7,6 @@
 ### ✨ 新增
 
 - **API Key 细粒度权限管控（模型与 Combo 白名单）**:为客户端 API Key 新增可调用的模型白名单（`allowedModels`）与 Combo 白名单（`allowedCombos`）。未配置时默认无限制；配置后请求不在白名单内的模型或组合立即返回 403 Forbidden（`model_not_allowed`）；同时在带 Key 访问 `GET /v1/models` 时自动按白名单过滤返回的模型列表。密钥轮换继承白名单配置；数据库表 `apiKeys` 自动无损升级增加字段（SCHEMA_VERSION 2→3）；前端 Endpoint 页提供交互式白名单编辑弹窗并在密钥列表中直观显示限制状态。
-- **Token Harbor 免费额度监控卡片（原生接线与探活）**:新增 `tokenharbor-free` 供应商（`webCookie` 类，纯配额监控不参与模型路由），支持在控制台直接输入会话 Cookie 创建连接，同时双轨兼容 CreditDaddy 推送的 `creditDaddyWebSession`；内置原生探针定期抓取 `tokenharbor.ai/dashboard` 获取 Free Allowance 与重置时间，并通过周期性请求实现网页会话滑动窗口保活（Sliding Window Keep-Alive）；抓取请求严格走 `proxyAwareFetch`、支持代理配置与安全 SSL。
 - **通用外部额度推送接口（仪表盘配额页的 display-only 卡片）**:外部伴侣应用（首个接线方为 CreditDaddy）在**自己那一侧**解析好某供应商的额度后，把它 POST 到 `POST /api/external-quota/<source>`，10Router 就在统一配额页把这些数字渲染成卡片——与 OAuth/API key 连接同一面墙、同一套分段条 / 逐包明细 / 隐藏行 / 零余额过滤，不另建外挂页面。鉴权与 `GET /api/usage/quotas` 同信任级：虚拟 key（`Bearer sk-…`）或本机 CLI token，路由自身再验一遍（`requireLogin=false` 的内网免登录部署除外——与仪表盘其他写路由同姿态）。**这条路径只接收额度数字**：载荷字段白名单 + 标量强制（嵌套对象/数组整体 400 拒绝，而不是静默剥离——cookie/token 材料从构造上就进不来），配额值以外的未知标量字段丢弃。快照存 `_meta` 的 `externalQuota.<source>`，7 天 TTL：推送方停更一周后卡片自动消失，不会长挂死数。卡片删除按钮走 `DELETE /api/external-quota/<source>`（推送方下次更新即恢复）；推送卡在 `GET /api/providers/client` 里与真实连接合并返回（合成行 `ext:<source>`，不进 providers 表、不参与路由/账号轮换），置顶排序、数字随行内联下发，客户端不发 `/api/usage/<id>`（无上游可拉，避免永久 spinner）。载荷契约与推送节奏写进 CreditDaddy 侧 issue。
   顺带修正两处通用渲染链对标志位的吞失：`parseQuotaData` 的 default 分支此前只搬 `used/total/resetAt`，把 `unlimited/recurring/percentScale` 等展示标志丢掉（0/0 的 unlimited 窗口会渲染成耗尽），现在原样透传。
 - **Gemini / Antigravity 并发与重复 `tool_call_id` 自动去重**:在 OpenAI 转换为 Gemini/Antigravity 请求时，若客户端或合并流产生重复的 `tool_call_id`，转换层自动追加唯一标识并在对应的 `functionResponse` 中保持严格映射，避免上游 Google 拒绝 400（Duplicate function call ID）。
@@ -18,7 +17,8 @@
 - **Kimi Code `/responses` 直连端点**:在 `kimi` 供应商注册表中新增 responses 格式直连配置，无缝对接 Kimi 官方编程助手的新一代长思考端点（`https://api.kimi.com/coding/v1/responses`）。
 - **移动端自适应布局与防溢出**:修复手机端访问 Endpoint 密钥列表、Provider Models 以及 CLI Tools 卡片时出现的横向滚动条与按钮挤压问题；超长模型名在小屏下优雅自适应截断并支持悬停复制。
 - **Combo 挑选器展示未连接模型**:在组合（Combo）编辑面板的模型选择器中，即使尚未配置某供应商的连接，该供应商的兼容模型也会以“未连接”标签清晰呈现并支持提前选入组合编排。
-- **`mcode` 别名接入 `minimax-free`**:MiniMax Code 免费线支持 9Router 用户熟悉的 `mcode` 短名路由（如 `mcode/MiniMax-M3`）；CreditDaddy 侧 issue #24 追加 `minimax-code` source 接线建议——免费线算力币/每日签到额度由 CD 解析后经通用推送接口上屏配额页。
+- **MiniMax Code 订阅双线（OAuth 设备码直连与用量追踪）**:新增 `minimax-code`（国内站）与 `minimax-code-global`（国际站）两条编程助手订阅直连线。支持通过设备码流程（PKCE S256，client `mcode-public`）登录，直连 MiniMax Agent Mavis 网关；具备单飞防并发的单次刷新令牌轮换机制；内置用量探针自动抓取 M Plan 速率限制窗口并 fail-soft 读取 Credits 余额。别名 `mcode` 与 `mm` 正式指向国内订阅线（国际线挂 `mmg`/`mmcode`）。
+- **供应商图标全量覆盖守卫与补齐**:为 `minimax-code` 与 `minimax-code-global` 补充标准 128px 图标资源；新增 `provider-icon-coverage.test.js` 全量自动化守卫，严密校验注册表中全部真实供应商均正确解析至现有图标文件，防止后续新增渠道出现图标 404 降级。
 
 ### 🔧 清理
 

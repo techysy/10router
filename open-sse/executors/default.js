@@ -255,7 +255,9 @@ export class DefaultExecutor extends BaseExecutor {
       clinepass: () => this.refreshCline(credentials.refreshToken, proxyOptions),
       kimi: () => this.refreshKimi(credentials, proxyOptions),
       "kimi-coding": () => this.refreshKimi(credentials, proxyOptions),
-      kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions)
+      kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions),
+      "minimax-code": () => this.refreshMinimaxCode("minimax-code", credentials, proxyOptions),
+      "minimax-code-global": () => this.refreshMinimaxCode("minimax-code-global", credentials, proxyOptions),
     };
 
     const refresher = refreshers[this.provider];
@@ -352,6 +354,13 @@ export class DefaultExecutor extends BaseExecutor {
     if (!response.ok) return null;
     const tokens = await response.json();
     return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || refreshToken, expiresIn: tokens.expires_in };
+  }
+
+  async refreshMinimaxCode(provider, credentials, proxyOptions = null) {
+    const refreshToken = credentials?.refreshToken;
+    if (!refreshToken) return null;
+    const { refreshMinimaxCodeToken } = await import("../services/tokenRefresh/providers.js");
+    return refreshMinimaxCodeToken(provider, refreshToken, console, proxyOptions);
   }
 
   async refreshKilocode(refreshToken, proxyOptions = null) {

@@ -29,6 +29,7 @@ import windsurf from "./windsurf.js";
 import zed from "./zed.js";
 import glm from "./glm.js";
 import muse from "./muse.js";
+import { minimaxCode, minimaxCodeGlobal } from "./minimax-code.js";
 
 // Provider configurations
 const PROVIDERS = {
@@ -57,6 +58,8 @@ const PROVIDERS = {
   zed,
   glm,
   muse,
+  "minimax-code": minimaxCode,
+  "minimax-code-global": minimaxCodeGlobal,
 };
 
 export { PROVIDERS };
