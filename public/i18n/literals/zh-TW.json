@@ -886,5 +886,11 @@
   "Allowed": "已限制",
   "models": "個模型",
   "combos": "個組合",
-  "Not connected": "未連線"
+  "Not connected": "未連線",
+  "Card display preferences": "配額卡片顯示偏好",
+  "Customize which quota cards are displayed and their layout style.": "自訂哪些配額卡片顯示在列表中以及進度條佈局樣式。",
+  "Show external pushed cards": "顯示外部推送卡片",
+  "Display companion cards (CreditDaddy free quotas & status notes)": "顯示外部伴侶應用（CreditDaddy 等）推送的免費額度與狀態提示卡",
+  "Hide standard connection cards that have no quota to display": "隱藏沒有配額可展示的常規連線卡片",
+  "Hide connection cards whose quota is fully depleted (0 balance / 0 credits)": "隱藏已完全耗盡的連線卡片（0 餘額 / 0 積分）"
 }

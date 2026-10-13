@@ -2043,5 +2043,11 @@
   "Allowed Combos (one per line or comma-separated)": "允许的组合（每行一个或逗号分隔）",
   "Allowed": "已限制",
   "combos": "个组合",
-  "Not connected": "未连接"
+  "Not connected": "未连接",
+  "Card display preferences": "配额卡片显示偏好",
+  "Customize which quota cards are displayed and their layout style.": "自定义哪些配额卡片显示在列表中以及进度条布局样式。",
+  "Show external pushed cards": "显示外部推送卡片",
+  "Display companion cards (CreditDaddy free quotas & status notes)": "显示外部伴侣应用（CreditDaddy 等）推送的免费额度与状态提示卡",
+  "Hide standard connection cards that have no quota to display": "隐藏没有配额可展示的常规连接卡片",
+  "Hide connection cards whose quota is fully depleted (0 balance / 0 credits)": "隐藏已完全耗尽的连接卡片（0 余额 / 0 积分）"
 }

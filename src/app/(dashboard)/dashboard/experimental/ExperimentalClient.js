@@ -28,6 +28,11 @@ export default function ExperimentalClient() {
       typeof window !== "undefined" &&
       window.localStorage.getItem("quotaHideZeroBalance") === "1",
   );
+  const [showExternalCards, setShowExternalCards] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("quotaShowExternalCards") !== "0",
+  );
   // Same client-side view preference as hideNoQuota, key read by the quota
   // page: draw contained subscription windows (滚动 ⊂ 每周 ⊂ 月度) as one
   // nested concentric track instead of split flat rows.
@@ -47,6 +52,13 @@ export default function ExperimentalClient() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("quotaHideZeroBalance", hideZeroBalance ? "1" : "0");
     }
+  }, [hideZeroBalance]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("quotaShowExternalCards", showExternalCards ? "1" : "0");
+    }
+  }, [showExternalCards]);
   }, [hideZeroBalance]);
 
   useEffect(() => {
@@ -94,9 +106,22 @@ export default function ExperimentalClient() {
                 was getting crowded. Writes the localStorage pref that page reads. */}
             <div className="flex items-start sm:items-center justify-between gap-4 pb-4 border-b border-border/50">
               <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("Show external pushed cards")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Display companion cards (CreditDaddy free quotas & status notes)")}
+                </p>
+              </div>
+              <Toggle
+                checked={showExternalCards}
+                onChange={() => setShowExternalCards((prev) => !prev)}
+              />
+            </div>
+
+            <div className="flex items-start sm:items-center justify-between gap-4 pb-4 border-b border-border/50">
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("Hide no-quota provider cards")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  {translate("Quota page view: hide cards that have no quota to display")}
+                  {translate("Hide standard connection cards that have no quota to display")}
                 </p>
               </div>
               <Toggle

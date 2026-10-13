@@ -118,6 +118,7 @@ export default function QuotaToolbar({
   refreshingAll,
   onRefreshAll,
   accountCount,
+  onOpenPreferences,
 }) {
   const [providerOpen, setProviderOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -370,6 +371,18 @@ export default function QuotaToolbar({
         >
           <span className={cn(ICON, refreshingAll && "animate-spin")}>refresh</span>
         </button>
+
+        {onOpenPreferences && (
+          <button
+            type="button"
+            onClick={onOpenPreferences}
+            className={cn(CONTROL, "w-8 justify-center px-0")}
+            title={translate("Card display preferences")}
+            aria-label={translate("Card display preferences")}
+          >
+            <span className={ICON}>tune</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -398,4 +411,5 @@ QuotaToolbar.propTypes = {
   refreshingAll: PropTypes.bool,
   onRefreshAll: PropTypes.func.isRequired,
   accountCount: PropTypes.number,
+  onOpenPreferences: PropTypes.func,
 };
