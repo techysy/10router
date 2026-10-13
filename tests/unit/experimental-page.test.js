@@ -110,24 +110,16 @@ describe("settings reorganisation", () => {
     expect(block).toContain(NEW_DESCRIPTION);
   });
 
-  it("homes the hide-no-quota view toggle on the experimental page, above OAuth import/export", () => {
+  it("directs quota display preferences to the quota page toolbar", () => {
     const src = read(EXPERIMENTAL);
-    expect(src).toContain('translate("Hide no-quota provider cards")');
-    expect(src).toContain("quotaHideNoQuota");
-    // Client-side view pref — must NOT go through the settings PATCH path.
-    expect(src).not.toMatch(/\{\s*quotaHideNoQuota:/);
-    // Requested layout: the toggle sits above the OAuth import / export row.
-    const hideNoQuota = src.indexOf('translate("Hide no-quota provider cards")');
-    const oauthTransfer = src.indexOf('translate("OAuth import / export")');
-    expect(oauthTransfer).toBeGreaterThan(hideNoQuota);
+    expect(src).toContain('translate("Quota card display preferences have moved to the Quota Tracker toolbar.")');
   });
 
-  it("quota page keeps reading the pref but no longer renders a toolbar button", () => {
+  it("quota page manages display preferences via the modal dialog", () => {
     const src = read(QUOTA_PAGE_LIMITS);
     expect(src).toContain('localStorage.getItem("quotaHideNoQuota")');
-    expect(src).not.toContain('translate("Hide no-quota');
-    // No setter on this page anymore — the Experimental page owns the write.
-    expect(src).not.toContain("setHideNoQuota");
+    expect(src).toContain('localStorage.getItem("quotaShowExternalCards")');
+    expect(src).toContain("showPreferencesModal");
   });
 
   it("removes Only with balance bulk button and keeps per-row hide and Hidden chips", () => {

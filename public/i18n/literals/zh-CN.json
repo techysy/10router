@@ -2049,5 +2049,6 @@
   "Show external pushed cards": "显示外部推送卡片",
   "Display companion cards (CreditDaddy free quotas & status notes)": "显示外部伴侣应用（CreditDaddy 等）推送的免费额度与状态提示卡",
   "Hide standard connection cards that have no quota to display": "隐藏没有配额可展示的常规连接卡片",
-  "Hide connection cards whose quota is fully depleted (0 balance / 0 credits)": "隐藏已完全耗尽的连接卡片（0 余额 / 0 积分）"
+  "Hide connection cards whose quota is fully depleted (0 balance / 0 credits)": "隐藏已完全耗尽的连接卡片（0 余额 / 0 积分）",
+  "Quota card display preferences have moved to the Quota Tracker toolbar.": "配额卡片显示偏好已移至配额追踪器工具栏统一配置。"
 }
