@@ -107,6 +107,24 @@ export function normalizeExternalQuotaPayload(source, body) {
 
   const message = clipString(body.message, 500);
 
+  // Optional refresh callback for the card's "Refresh quota" button: an
+  // expiring capability URL the pusher (CreditDaddy) answers by measuring
+  // again and re-pushing. Scalar-only like everything else here, and
+  // validated as an http(s) URL so nothing structured can ride it. Only
+  // external pushed cards carry it — the connection-card refresh path
+  // (usage API) never reads this field.
+  let refreshUrl = null;
+  if (body.refreshUrl !== undefined && body.refreshUrl !== null) {
+    if (typeof body.refreshUrl !== "string") {
+      return { ok: false, error: "refreshUrl must be a scalar http(s) URL string" };
+    }
+    const u = body.refreshUrl.trim();
+    if (u && !/^https?:\/\//i.test(u)) {
+      return { ok: false, error: "refreshUrl must start with http:// or https://" };
+    }
+    refreshUrl = u ? clipString(u, 500) : null;
+  }
+
   let entries = [];
   if (body.quotas !== undefined && body.quotas !== null) {
     if (typeof body.quotas !== "object" || Array.isArray(body.quotas)) {
@@ -170,6 +188,7 @@ export function normalizeExternalQuotaPayload(source, body) {
       label: clipString(body.label, 100),
       plan: clipString(body.plan, 100),
       message,
+      refreshUrl,
       pushedAt,
       entries,
     },
@@ -231,6 +250,10 @@ function snapshotToRow(snap) {
     external: true,
     source: snap.source,
     name: snap.label || snap.source,
+    // Pusher-supplied refresh callback (absent on older pushes and for
+    // connection cards) — the external-card refresh button calls it to make
+    // the pusher measure again; guarded at the call site, never assumed.
+    refreshUrl: snap.refreshUrl || null,
     isActive: true,
     // Ranks the pushed cards ahead of every DB connection (user-set priorities
     // start at 1; the priority sort is ascending) — the point of the push is

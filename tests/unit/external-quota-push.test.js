@@ -280,3 +280,53 @@ describe("dashboard guard: external-quota push exception", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("refreshUrl callback field (external cards only)", () => {
+  it("accepts and persists an http(s) refreshUrl on the snapshot", () => {
+    const url = "http://127.0.0.1:47860/api/quota-refresh?source=tokenharbor&exp=1893456000&sig=" + "a".repeat(64);
+    const r = normalizeExternalQuotaPayload("tokenharbor", {
+      provider: "tokenharbor",
+      refreshUrl: url,
+      quotas: { daily: { used: 1, total: 2 } },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.snapshot.refreshUrl).toBe(url);
+  });
+
+  it("drops an empty refreshUrl and leaves null on older pushes", () => {
+    const r = normalizeExternalQuotaPayload("tokenharbor", {
+      refreshUrl: "   ",
+      quotas: { daily: { used: 1, total: 2 } },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.snapshot.refreshUrl).toBeNull();
+
+    const r2 = normalizeExternalQuotaPayload("tokenharbor", { quotas: { daily: { used: 1, total: 2 } } });
+    expect(r2.snapshot.refreshUrl).toBeNull();
+  });
+
+  it("rejects non-http refreshUrl and non-scalar refreshUrl", () => {
+    // javascript: / data: URLs must never ride the whitelist
+    expect(normalizeExternalQuotaPayload("tokenharbor", {
+      refreshUrl: "javascript:alert(1)",
+      quotas: { daily: { used: 1, total: 2 } },
+    }).ok).toBe(false);
+    expect(normalizeExternalQuotaPayload("tokenharbor", {
+      refreshUrl: { url: "http://x" },
+      quotas: { daily: { used: 1, total: 2 } },
+    }).ok).toBe(false);
+    expect(normalizeExternalQuotaPayload("tokenharbor", {
+      refreshUrl: ["http://x"],
+      quotas: { daily: { used: 1, total: 2 } },
+    }).ok).toBe(false);
+  });
+
+  it("clips overlong refreshUrl instead of storing the world", () => {
+    const r = normalizeExternalQuotaPayload("tokenharbor", {
+      refreshUrl: "http://x/" + "a".repeat(2000),
+      quotas: { daily: { used: 1, total: 2 } },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.snapshot.refreshUrl.length).toBeLessThanOrEqual(500);
+  });
+});

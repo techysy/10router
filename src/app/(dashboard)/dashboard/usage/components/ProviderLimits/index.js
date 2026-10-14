@@ -549,6 +549,31 @@ export default function ProviderLimits() {
     [fetchQuota],
   );
 
+  // External pushed cards (CreditDaddy et al.): refresh = ask the pusher to
+  // measure again via the snapshot's `refreshUrl`, then re-read the snapshot.
+  // Guarded on the field — pushes that predate it (and connection cards, which
+  // never carry it) fall back to the old re-read-only behavior, so nothing
+  // here can dereference a missing URL. Connection-card refresh
+  // (refreshProvider / usage API) is a separate path and stays untouched.
+  const refreshExternal = useCallback(
+    async (conn) => {
+      setLoading((prev) => ({ ...prev, [conn.id]: true }));
+      try {
+        if (conn.refreshUrl) {
+          await fetch(conn.refreshUrl, { method: "POST", mode: "cors" });
+        }
+      } catch {
+        // Pusher unreachable (CD off, expired sig, blocked mixed content) —
+        // keep the last known numbers and just re-read the snapshot below.
+      } finally {
+        setLoading((prev) => ({ ...prev, [conn.id]: false }));
+      }
+      await fetchConnections(page);
+      setLastUpdated(new Date());
+    },
+    [fetchConnections, page],
+  );
+
   const handleResetLimit = useCallback(
     async (connectionId, provider) => {
       if ((provider !== "codex" && provider !== "claude") || resettingLimitId) return;
@@ -1487,7 +1512,7 @@ export default function ProviderLimits() {
                     <Tooltip text="Refresh quota">
                       <button
                         type="button"
-                        onClick={() => (conn.external ? fetchConnections(page) : refreshProvider(conn.id, conn.provider))}
+                        onClick={() => (conn.external ? refreshExternal(conn) : refreshProvider(conn.id, conn.provider))}
                         disabled={isRefreshing || rowBusy}
                         aria-label="Refresh quota"
                         className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"

@@ -6,6 +6,8 @@
 
 ### ✨ 新增
 
+- **外配额卡「刷新配额」按钮回源推送方（refreshUrl 回调）**:外部推送卡（CreditDaddy 等）的载荷新增可选顶层字段 `refreshUrl`——推送方签发的**过期作废能力 URL**（HMAC 签名，无裸令牌入仓）。卡片「刷新配额」按钮对 `conn.external` 行：有 `refreshUrl` 即 POST 回推送方触发「现拉 → 重推」，随后重读快照出新数字（转圈反馈）；无 `refreshUrl`（旧推送）降级为原来的重读快照，按钮照常可用。**原有连接卡的刷新链（refreshProvider → usage API）完全不动、不读该字段**——白名单只放行 `http(s)://` 标量（`javascript:` 等一律拒），超长裁 500，快照行以 `refreshUrl: null` 兜底，前端按字段存在与否分支，无空引用路径。
+
 - **API Key 细粒度权限管控（模型与 Combo 白名单）**:为客户端 API Key 新增可调用的模型白名单（`allowedModels`）与 Combo 白名单（`allowedCombos`）。未配置时默认无限制；配置后请求不在白名单内的模型或组合立即返回 403 Forbidden（`model_not_allowed`）；同时在带 Key 访问 `GET /v1/models` 时自动按白名单过滤返回的模型列表。密钥轮换继承白名单配置；数据库表 `apiKeys` 自动无损升级增加字段（SCHEMA_VERSION 2→3）；前端 Endpoint 页提供交互式白名单编辑弹窗并在密钥列表中直观显示限制状态。
 - **通用外部额度推送接口（仪表盘配额页的 display-only 卡片）**:外部伴侣应用（首个接线方为 CreditDaddy）在**自己那一侧**解析好某供应商的额度后，把它 POST 到 `POST /api/external-quota/<source>`，10Router 就在统一配额页把这些数字渲染成卡片——与 OAuth/API key 连接同一面墙、同一套分段条 / 逐包明细 / 隐藏行 / 零余额过滤，不另建外挂页面。鉴权与 `GET /api/usage/quotas` 同信任级：虚拟 key（`Bearer sk-…`）或本机 CLI token，路由自身再验一遍（`requireLogin=false` 的内网免登录部署除外——与仪表盘其他写路由同姿态）。**这条路径只接收额度数字**：载荷字段白名单 + 标量强制（嵌套对象/数组整体 400 拒绝，而不是静默剥离——cookie/token 材料从构造上就进不来），配额值以外的未知标量字段丢弃。快照存 `_meta` 的 `externalQuota.<source>`，7 天 TTL：推送方停更一周后卡片自动消失，不会长挂死数。卡片删除按钮走 `DELETE /api/external-quota/<source>`（推送方下次更新即恢复）；推送卡在 `GET /api/providers/client` 里与真实连接合并返回（合成行 `ext:<source>`，不进 providers 表、不参与路由/账号轮换），置顶排序、数字随行内联下发，客户端不发 `/api/usage/<id>`（无上游可拉，避免永久 spinner）。载荷契约与推送节奏写进 CreditDaddy 侧 issue。
   顺带修正两处通用渲染链对标志位的吞失：`parseQuotaData` 的 default 分支此前只搬 `used/total/resetAt`，把 `unlimited/recurring/percentScale` 等展示标志丢掉（0/0 的 unlimited 窗口会渲染成耗尽），现在原样透传。
