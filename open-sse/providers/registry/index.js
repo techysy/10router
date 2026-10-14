@@ -151,6 +151,7 @@ import p148 from "./xquik.js";
 import p149 from "./youcom.js";
 import p150 from "./zcode-free.js";
 import p151 from "./zed.js";
+import p152 from "./thx.js";
 
 export default [
   p0,
@@ -305,4 +306,5 @@ export default [
   p149,
   p150,
   p151,
+  p152,
 ];
