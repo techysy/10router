@@ -77,13 +77,11 @@ describe("isConnectionDepleted (shared depleted predicate)", () => {
 });
 
 describe("zero-balance view filter (quota page)", () => {
-  it("reads the localStorage pref the Experimental page owns", () => {
+  it("reads and persists the localStorage pref through the preferences modal", () => {
     const src = read(QUOTA_PAGE_LIMITS);
     expect(src).toContain('localStorage.getItem("quotaHideZeroBalance")');
-    // The page only ever READS the pref — the Experimental page owns the write.
-    expect(src).not.toContain("setHideZeroBalance");
-    // Distinct name from the retired row-level "hideDepleted" filter — the
-    // experimental-page guards forbid that older identity on this file.
+    expect(src).toContain('updatePreference("quotaHideZeroBalance", val, setHideZeroBalance)');
+    // Distinct name from the retired row-level "hideDepleted" filter.
     expect(src).not.toContain("quotaHideDepleted");
     expect(src).not.toMatch(/if \(hideDepleted\) \{/);
   });
@@ -115,26 +113,21 @@ describe("zero-balance view filter (quota page)", () => {
   });
 });
 
-describe("hide-zero-balance toggle (Experimental page)", () => {
-  it("renders the row and persists it as a client view pref", () => {
-    const src = read(EXPERIMENTAL);
-    expect(src).toContain('translate("Hide zero-balance provider cards")');
-    expect(src).toContain('translate("Quota page view: hide cards whose quota is fully depleted (0 balance / 0 credits)")');
-    expect(src).toContain('localStorage.getItem("quotaHideZeroBalance")');
-    expect(src).toContain('localStorage.setItem("quotaHideZeroBalance"');
-    // Client-side view pref — must NOT go through the settings PATCH path
-    // (same trap the hide-no-quota guard pins).
-    expect(src).not.toMatch(/\{\s*quotaHideZeroBalance:/);
-  });
-
-  it("sits directly below the hide-no-quota row it extends", () => {
-    const src = read(EXPERIMENTAL);
+describe("hide-zero-balance toggle (preferences modal)", () => {
+  it("renders the row directly below the hide-no-quota row it extends", () => {
+    const src = read(QUOTA_PAGE_LIMITS);
     const noQuota = src.indexOf('translate("Hide no-quota provider cards")');
     const zeroBalance = src.indexOf('translate("Hide zero-balance provider cards")');
     const nested = src.indexOf('translate("Nested cycle quota bars")');
     expect(noQuota).toBeGreaterThan(-1);
     expect(zeroBalance).toBeGreaterThan(noQuota);
     expect(nested).toBeGreaterThan(zeroBalance);
+  });
+
+  it("persists as a client view pref, not through the settings PATCH path", () => {
+    const src = read(QUOTA_PAGE_LIMITS);
+    expect(src).toContain('translate("Hide connection cards whose quota is fully depleted (0 balance / 0 credits)")');
+    expect(src).not.toMatch(/\{\s*quotaHideZeroBalance:/);
   });
 });
 
@@ -143,7 +136,7 @@ describe("i18n dictionaries", () => {
     for (const lang of ["zh-CN", "zh-TW"]) {
       const dict = literal(lang);
       expect(dict["Hide zero-balance provider cards"]).toBeTruthy();
-      expect(dict["Quota page view: hide cards whose quota is fully depleted (0 balance / 0 credits)"]).toBeTruthy();
+      expect(dict["Hide connection cards whose quota is fully depleted (0 balance / 0 credits)"]).toBeTruthy();
     }
   });
 });
