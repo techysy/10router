@@ -145,7 +145,7 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
                 args: args
               }
             });
-            toolCallPairs.push({ rawId, uniqueId });
+            toolCallPairs.push({ rawId, uniqueId, name: tc.function.name });
           }
 
           if (parts.length > 0) {
@@ -160,10 +160,10 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
 
           if (hasActualResponses) {
             const toolParts = [];
-            for (const { rawId, uniqueId } of toolCallPairs) {
+            for (const { rawId, uniqueId, name: localName } of toolCallPairs) {
               if (!toolResponses[rawId] || toolResponses[rawId].length === 0) continue;
 
-              let name = tcID2Name[rawId];
+              let name = localName || tcID2Name[rawId];
               if (!name) {
                 const idParts = rawId.split("-");
                 if (idParts.length > 2) {
