@@ -40,4 +40,47 @@ describe("Gemini duplicate tool_call_id deduplication", () => {
     expect(resps[1].functionResponse.id).toBe("call_123_dup1");
     expect(resps[1].functionResponse.response.result.result).toBe("22C Rainy");
   });
+
+  it("preserves correct tool name in functionResponse when identical tool_call_id is reused for different tools", () => {
+    const body = {
+      model: "gemini-2.5-flash",
+      messages: [
+        { role: "user", content: "Step 1" },
+        {
+          role: "assistant",
+          tool_calls: [
+            { id: "call_reuse", type: "function", function: { name: "read_file", arguments: "{}" } },
+          ],
+        },
+        { role: "tool", tool_call_id: "call_reuse", content: "file data" },
+        { role: "user", content: "Step 2" },
+        {
+          role: "assistant",
+          tool_calls: [
+            { id: "call_reuse", type: "function", function: { name: "patch_file", arguments: "{}" } },
+          ],
+        },
+        { role: "tool", tool_call_id: "call_reuse", content: "patch ok" },
+      ],
+    };
+
+    const req = openaiToGeminiRequest("gemini-2.5-flash", body, true);
+    expect(req.contents).toBeDefined();
+
+    const modelTurns = req.contents.filter((c) => c.role === "model");
+    expect(modelTurns).toHaveLength(2);
+
+    const responseTurns = req.contents.filter((c) => c.role === "user" && c.parts.some((p) => p.functionResponse));
+    expect(responseTurns).toHaveLength(2);
+
+    // Turn 1: functionCall & functionResponse must both have name "read_file"
+    expect(modelTurns[0].parts[0].functionCall.name).toBe("read_file");
+    expect(responseTurns[0].parts[0].functionResponse.name).toBe("read_file");
+    expect(responseTurns[0].parts[0].functionResponse.id).toBe("call_reuse");
+
+    // Turn 2: functionCall & functionResponse must both have name "patch_file" (and id call_reuse_dup1)
+    expect(modelTurns[1].parts[0].functionCall.name).toBe("patch_file");
+    expect(responseTurns[1].parts[0].functionResponse.name).toBe("patch_file");
+    expect(responseTurns[1].parts[0].functionResponse.id).toBe("call_reuse_dup1");
+  });
 });
