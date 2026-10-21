@@ -1,4 +1,5 @@
 import { AntigravityExecutor } from "./antigravity.js";
+import { AtomcodeExecutor } from "./atomcode.js";
 import { AzureExecutor } from "./azure.js";
 import { GeminiCLIExecutor } from "./gemini-cli.js";
 import { GithubExecutor } from "./github.js";
@@ -23,8 +24,13 @@ import { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
 import { MimoFreeExecutor } from "./mimo-free.js";
 import { CodeBuddyExecutor } from "./codebuddy-cn.js";
 import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
+import { CodeArtsExecutor } from "./codearts.js";
 import { ClineExecutor } from "./cline.js";
+import { LobsterAiExecutor } from "./lobsterai.js";
+import { LoomyExecutor } from "./loomy.js";
+import { OfficeAceExecutor } from "./officeace.js";
 import TraeExecutor from "./trae.js";
+import TraeSoloExecutor from "./trae-solo.js";
 import ZedExecutor from "./zed.js";
 import WindsurfExecutor from "./windsurf.js";
 import { DefaultExecutor } from "./default.js";
@@ -32,6 +38,7 @@ import { DevinCliExecutor } from "./devin-cli.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
+  atomcode: new AtomcodeExecutor(),
   azure: new AzureExecutor(),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
@@ -65,9 +72,14 @@ const executors = {
   mmf: new MimoFreeExecutor(), // Alias for mimo-free
   "codebuddy-cn": new CodeBuddyExecutor(),
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
+  codearts: new CodeArtsExecutor(),
+  lobsterai: new LobsterAiExecutor(),
+  loomy: new LoomyExecutor(),
+  officeace: new OfficeAceExecutor(),
   cline: new ClineExecutor(),
   cl: new ClineExecutor(),
   trae: new TraeExecutor(),
+  "trae-solo": new TraeSoloExecutor(),
   zed: new ZedExecutor(),
   windsurf: new WindsurfExecutor(),
   "devin-cli": new DevinCliExecutor(),
@@ -87,6 +99,8 @@ export function hasSpecializedExecutor(provider) {
 
 export { BaseExecutor } from "./base.js";
 export { AntigravityExecutor } from "./antigravity.js";
+export { AtomcodeExecutor } from "./atomcode.js";
+export { LoomyExecutor } from "./loomy.js";
 export { AzureExecutor } from "./azure.js";
 export { GeminiCLIExecutor } from "./gemini-cli.js";
 export { GithubExecutor } from "./github.js";
@@ -109,10 +123,13 @@ export { CommandCodeExecutor } from "./commandcode.js";
 export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 export { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
 export { MimoFreeExecutor } from "./mimo-free.js";
+export { OfficeAceExecutor } from "./officeace.js";
 export { CodeBuddyExecutor } from "./codebuddy-cn.js";
 export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
 export { ClineExecutor } from "./cline.js";
+export { CodeArtsExecutor } from "./codearts.js";
 export { default as TraeExecutor } from "./trae.js";
+export { default as TraeSoloExecutor } from "./trae-solo.js";
 export { default as ZedExecutor } from "./zed.js";
 export { default as WindsurfExecutor } from "./windsurf.js";
 export { DevinCliExecutor } from "./devin-cli.js";

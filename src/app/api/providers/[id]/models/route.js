@@ -13,6 +13,15 @@ import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
+import {
+  resolveAtomcodeCatalog,
+  resolveCodeartsCatalog,
+  resolveLobsterAiCatalog,
+  resolveLoomyCatalog,
+  resolveOfficeaceCatalog,
+  resolveRaccoonCatalog,
+  resolveTraeSoloCatalog,
+} from "open-sse/services/liveCatalogs.js";
 import codexProvider from "open-sse/providers/registry/codex.js";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
@@ -169,6 +178,72 @@ const resolveQoderCatalog = async (connection) => {
   }
   return { models: [], warning };
 };
+
+/** Connection-scoped proxy settings in the shape proxyAwareFetch expects. */
+function proxyOptionsFor(proxy) {
+  if (!proxy) return null;
+  return {
+    connectionProxyEnabled: proxy.connectionProxyEnabled === true,
+    connectionProxyUrl: proxy.connectionProxyUrl || "",
+    connectionNoProxy: proxy.connectionNoProxy || "",
+    vercelRelayUrl: proxy.vercelRelayUrl || "",
+    strictProxy: proxy.strictProxy === true,
+  };
+}
+
+/**
+ * Dashboard "fetch models" resolver backed by the shared live catalogues.
+ * The dashboard shows ids as `<provider>/<id>` (same as Qoder), because that
+ * is the identifier the chat router accepts; the /v1/models route strips the
+ * prefix when it builds its own aliases.
+ *
+ * A failed live fetch does NOT empty the picker: the registry floor is returned
+ * with the upstream error as `warning`, so an expired token is visible without
+ * making the provider look model-less.
+ */
+function liveCatalogDashboardResolver(provider, resolve, label) {
+  return {
+    customResolver: async (connection) => {
+      const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+      try {
+        const result = await resolve(connection, {
+          forceRefresh: true,
+          proxyOptions: proxyOptionsFor(proxy),
+        });
+        if (result?.models?.length) {
+          return {
+            models: result.models.map((model) => ({
+              id: `${connection.provider}/${model.id}`,
+              name: model.name || model.id,
+              ...(model.capabilities?.contextWindow
+                ? { contextLength: model.capabilities.contextWindow }
+                : {}),
+              ...(model.capabilities?.maxOutput
+                ? { maxOutputTokens: model.capabilities.maxOutput }
+                : {}),
+              ...(typeof model.capabilities?.vision === "boolean"
+                ? { isVL: model.capabilities.vision }
+                : {}),
+              ...(typeof model.capabilities?.reasoning === "boolean"
+                ? { isReasoning: model.capabilities.reasoning }
+                : {}),
+            })),
+          };
+        }
+        return {
+          models: getStaticProviderModels(provider),
+          warning: `${label} returned no live models; falling back to the static catalog.`,
+        };
+      } catch (error) {
+        console.log(`Live model fetch failed for ${provider}: ${error?.message || error}`);
+        return {
+          models: getStaticProviderModels(provider),
+          warning: `Failed to fetch ${label} models: ${error?.message || error}`,
+        };
+      }
+    },
+  };
+}
 
 // Provider models endpoints configuration
 const PROVIDER_MODELS_CONFIG = {
@@ -346,6 +421,16 @@ const PROVIDER_MODELS_CONFIG = {
       };
     }
   },
+  // Live catalogues for the providers whose registry list is only an offline
+  // floor. Each resolver needs the account's own credential (session / OAuth
+  // bearer / signed AK-SK / Basic), so this is the dashboard's "fetch models".
+  loomy: liveCatalogDashboardResolver("loomy", resolveLoomyCatalog, "Loomy"),
+  lobsterai: liveCatalogDashboardResolver("lobsterai", resolveLobsterAiCatalog, "LobsterAI"),
+  atomcode: liveCatalogDashboardResolver("atomcode", resolveAtomcodeCatalog, "AtomCode"),
+  raccoon: liveCatalogDashboardResolver("raccoon", resolveRaccoonCatalog, "Raccoon"),
+  codearts: liveCatalogDashboardResolver("codearts", resolveCodeartsCatalog, "CodeArts"),
+  officeace: liveCatalogDashboardResolver("officeace", resolveOfficeaceCatalog, "OfficeAce"),
+  "trae-solo": liveCatalogDashboardResolver("trae-solo", resolveTraeSoloCatalog, "Trae SOLO"),
   cursor: {
     customResolver: async (connection) => {
       const result = await resolveCursorModels({

@@ -30,38 +30,40 @@ async function readSource(relPath) {
 const TEST_UTILS = "../../src/app/api/providers/[id]/test/testUtils.js";
 
 describe("CodeBuddy intl is reachable from the dashboard's connection test", () => {
-  it("registers an OAUTH_TEST_CONFIG entry for codebuddy-intl, like codebuddy-cn", async () => {
+  it("registers both CodeBuddy variants in the WorkBuddy validator", async () => {
     const src = await readSource(TEST_UTILS);
-    const start = src.indexOf("const OAUTH_TEST_CONFIG = {");
-    const block = src.slice(start, src.indexOf("\n};", start));
 
     // Both variants of the same product must be registered together: adding one
     // without the other is precisely the regression this guards.
-    const keys = [...block.matchAll(/^\s{2}"?([a-z0-9_-]+)"?:\s*\{/gm)].map((m) => m[1]);
-    const codebuddy = keys.filter((k) => k.startsWith("codebuddy-"));
-    expect(codebuddy).toContain("codebuddy-cn");
-    expect(codebuddy).toContain("codebuddy-intl");
+    expect(src).toMatch(
+      /const WORKBUDDY_PROVIDERS = new Set\(\["codebuddy-cn", "codebuddy-intl"\]\)/
+    );
+    expect(src).toContain("testWorkbuddyConnection");
+    const oauth = src.slice(
+      src.indexOf("async function testOAuthConnection"),
+      src.indexOf("async function testApiKeyConnection")
+    );
+    expect(oauth).toContain("WORKBUDDY_PROVIDERS.has(connection.provider)");
   });
 
-  it("has an apikey-switch case for codebuddy-intl against the .ai gateway", async () => {
+  it("probes the .ai origin for intl and the Tencent origin for CN", async () => {
     const src = await readSource(TEST_UTILS);
-    const idx = src.indexOf('case "codebuddy-intl":');
-    expect(idx).toBeGreaterThan(-1);
-
-    const block = src.slice(idx, src.indexOf('case "commandcode"', idx));
-    // Guards against a copy-paste that keeps the CN endpoint on the intl case.
-    expect(block).toContain("codebuddy.ai");
-    expect(block).not.toContain("copilot.tencent.com");
+    const start = src.indexOf("function workbuddyOrigin");
+    const block = src.slice(start, src.indexOf("\n}", start));
+    expect(block).toContain('provider === "codebuddy-intl"');
+    expect(block).toContain("https://www.codebuddy.ai");
+    expect(block).toContain("https://copilot.tencent.com");
   });
 
-  it("keeps the intl apikey verdict auth-only, so a non-stream 400 is not a failure", async () => {
+  it("keeps the verdict auth-only, so a streaming-only / catalogue miss is not a failure", async () => {
     const src = await readSource(TEST_UTILS);
-    const idx = src.indexOf('case "codebuddy-intl":');
-    const block = src.slice(idx, src.indexOf('case "commandcode"', idx));
-    // The intl gateway is stream-only (forceStream), so a `stream:false` probe
-    // can come back 400/11101 — tightening this to `res.ok` would permanently
-    // report every valid intl key as invalid.
-    expect(block).toContain("res.status !== 401 && res.status !== 403");
+    const start = src.indexOf("async function testWorkbuddyConnection");
+    const block = src.slice(start, src.indexOf("// ─── Trae", start));
+    // The intl gateway has no /v3/config and is stream-only; the billing probe
+    // is the fallback. Only 401/403 may mark the credential broken.
+    expect(block).toContain("/v3/config");
+    expect(block).toContain("/v2/billing/meter/get-user-resource");
+    expect(block).toContain("res.status === 401 || res.status === 403");
   });
 });
 

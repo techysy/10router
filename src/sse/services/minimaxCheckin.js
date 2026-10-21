@@ -12,14 +12,14 @@
 // the day. Setting key: minimaxCheckin.
 
 import * as log from "../utils/logger.js";
+import { DEFAULT_CHECKIN_TIME, checkinTimeReached, nextCheckinDelay, normalizeCheckinTime } from "./checkin/schedule.js";
 import { signedAccountRequest } from "../../../open-sse/services/usage/minimax-code.js";
 
-const TICK_MS = 2 * 60 * 60 * 1000;
-const TICK_JITTER_MS = 10 * 60 * 1000;
 const MINIMAX_PROVIDERS = new Set(["minimax-code", "minimax-code-global"]);
 
 let started = false;
 let timerHandle = null;
+let scheduledTime = DEFAULT_CHECKIN_TIME;
 let doneMap = null;
 
 function isNonServerRuntime() {
@@ -30,11 +30,6 @@ function isNonServerRuntime() {
   }
   if (process.env.NEXT_RUNTIME === "edge") return true;
   return false;
-}
-
-export function msUntilNextTick(nowMs = Date.now(), rand = Math.random) {
-  const jitter = Math.floor(rand() * TICK_JITTER_MS);
-  return Math.max(TICK_MS + jitter, 1000);
 }
 
 async function loadSettingsSafe() {
@@ -281,6 +276,11 @@ async function safeTick(how) {
       log.debug("MINIMAX_CHECKIN", `Scheduled ${how}: setting off, skipping`);
       return;
     }
+    scheduledTime = normalizeCheckinTime(settings.checkinTime);
+    if (!checkinTimeReached(scheduledTime)) {
+      log.debug("MINIMAX_CHECKIN", `Scheduled ${how}: before check-in time ${scheduledTime}, skipping`);
+      return;
+    }
     const done = await getDoneMap();
     await runMinimaxCheckinTick({ skipIfCheckedToday: true, doneMap: done });
     await persistDoneMap();
@@ -298,7 +298,7 @@ function clearTimer() {
 
 function scheduleNext() {
   if (!started) return 0;
-  const delayMs = msUntilNextTick();
+  const delayMs = nextCheckinDelay(Date.now(), scheduledTime);
   clearTimer();
   timerHandle = setTimeout(() => {
     safeTick("tick").finally(() => scheduleNext());
@@ -323,11 +323,12 @@ export function startMinimaxCheckin(opts = {}) {
   }
   started = true;
 
-  if (opts.skipBoot !== true) {
-    safeTick("boot");
-  }
-  const delayMs = scheduleNext();
-  log.info("MINIMAX_CHECKIN", `每日签到调度已启动（全天轮询）— 下次约 ${fmtDuration(delayMs)} 后`);
+  const boot = opts.skipBoot === true ? Promise.resolve() : safeTick("boot");
+  boot.finally(() => {
+    if (!started) return;
+    const delayMs = scheduleNext();
+    log.info("MINIMAX_CHECKIN", `每日签到调度已启动（每日 ${scheduledTime}）— 下次约 ${fmtDuration(delayMs)} 后`);
+  });
   return true;
 }
 

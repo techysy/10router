@@ -78,9 +78,12 @@ describe("migration 006: mimo-desktop session rows flip untested → active", ()
     expect(row.data).toBe("not-json{{"); // byte-identical
   });
 
-  it("is registered as the latest migration", async () => {
+  it("stays registered after newer migrations", async () => {
+    // Newer migrations (007 checkin-runs, …) legitimately become the latest;
+    // this test only guarantees 006 itself is never dropped or renumbered.
     const { MIGRATIONS } = await import("@/lib/db/migrations/index.js");
-    expect(MIGRATIONS.at(-1).version).toBe(6);
-    expect(MIGRATIONS.at(-1).name).toBe("mimo-desktop-session-active");
+    const m6 = MIGRATIONS.find((m) => m.version === 6);
+    expect(m6?.name).toBe("mimo-desktop-session-active");
+    expect(MIGRATIONS.at(-1).version).toBeGreaterThanOrEqual(6);
   });
 });

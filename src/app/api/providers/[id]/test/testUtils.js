@@ -2,7 +2,7 @@ import { getProviderConnectionById, updateProviderConnection } from "@/lib/local
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
-import { getDefaultModel } from "open-sse/config/providerModels.js";
+import { getDefaultModel, getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
@@ -16,6 +16,12 @@ import {
   shouldRefreshCredentials,
 } from "open-sse/services/oauthCredentialManager.js";
 import {
+  LIVE_CATALOG_PROVIDERS,
+  catalogHasModel,
+} from "open-sse/services/liveCatalogs.js";
+import { resolveAtomcodeModelId } from "open-sse/shared/atomcode/catalog.js";
+import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
+import {
   GEMINI_CONFIG,
   ANTIGRAVITY_CONFIG,
   KIRO_CONFIG,
@@ -23,6 +29,7 @@ import {
   CLINE_CONFIG,
   KILOCODE_CONFIG,
   KIMCHI_CONFIG,
+  TRAE_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
@@ -73,6 +80,9 @@ const OAUTH_TEST_CONFIG = {
   // qoder / qoder-cn are handled by testQoderConnection (short-circuited at the
   // top of testOAuthConnection): the one-by-one picker can select a model, and
   // verifying it needs the account's live catalog, not a plain userinfo probe.
+  // loomy is handled by testLiveCatalogConnection: its `/models` response is
+  // also the live catalogue, so one credentialed fetch both validates the
+  // session and verifies the selected model.
   kimi: { checkExpiry: true, refreshable: true },
   "kimi-coding": { checkExpiry: true, refreshable: true },
   cursor: { tokenExists: true },
@@ -90,13 +100,10 @@ const OAUTH_TEST_CONFIG = {
     authHeader: "Authorization",
     authPrefix: "Bearer ",
   },
-  "codebuddy-cn": { tokenExists: true },
-  // Same shape as CN: the connection carries an OAuth access token and the
-  // gateway exposes no cheap token-validation endpoint, so presence of the
-  // token *is* the probe. Missing this entry made the dashboard's Test button
-  // answer "Provider test not supported" for an otherwise healthy intl account
-  // (routing was never affected — only this test path).
-  "codebuddy-intl": { tokenExists: true },
+  // codebuddy-cn / codebuddy-intl are handled by testWorkbuddyConnection:
+  // `/v3/config` (CN) or the billing endpoint (intl) proves the bearer without
+  // inference. Missing this path used to answer "Provider test not supported"
+  // for a healthy intl account (routing was never affected).
   kimchi: {
     url: KIMCHI_CONFIG.validationUrl || "https://api.cast.ai/v1/llm/openai/supported-providers",
     method: "GET",
@@ -457,12 +464,327 @@ async function testQoderConnection(connection, effectiveProxy = null, options = 
   }
 }
 
+// ─── Validators: live catalogues and cheap account probes ───────────────────
+//
+// A token-existence check cannot tell a healthy session from a revoked one,
+// and a chat probe spends quota. Each provider below either exposes a cheap,
+// credential-gated model catalogue (which also verifies the picker's model) or
+// an account endpoint that proves the credential without inference.
+//
+// `normalize` maps a dashboard/picker id to the upstream spelling before the
+// comparison (AtomCode sends `display_model_name`, not its registry display).
+const LIVE_CATALOG_TESTS = {
+  loomy: { label: "Loomy" },
+  lobsterai: { label: "LobsterAI" },
+  atomcode: { label: "AtomCode", normalize: (model) => resolveAtomcodeModelId(model) },
+  raccoon: { label: "Raccoon" },
+  codearts: { label: "CodeArts", caseInsensitive: true },
+  officeace: { label: "OfficeAce" },
+  "trae-solo": { label: "Trae SOLO" },
+};
+
+/**
+ * Refresh expiring credentials once before a credential probe, exactly like the
+ * chat path. Returns the connection to probe plus the tokens to persist.
+ */
+async function refreshForConnectionTest(provider, connection) {
+  if (!connection.refreshToken || !shouldRefreshCredentials(provider, connection)) {
+    return { working: connection, refreshed: false, newTokens: null };
+  }
+  const tokens = await refreshProviderCredentials(provider, connection, console).catch(() => null);
+  if (isUnrecoverableRefreshError(tokens)) {
+    return {
+      error: "Refresh token was rejected — re-authorize this account",
+      refreshed: false,
+      newTokens: null,
+    };
+  }
+  if (!tokens?.accessToken && !tokens?.apiKey) {
+    return { working: connection, refreshed: false, newTokens: null };
+  }
+  return {
+    working: {
+      ...connection,
+      ...tokens,
+      providerSpecificData: {
+        ...(connection.providerSpecificData || {}),
+        ...(tokens.providerSpecificData || {}),
+      },
+    },
+    refreshed: true,
+    newTokens: tokens,
+  };
+}
+
+/** Registry model ids as catalogue entries (used when no live list exists). */
+function staticModelCatalog(provider) {
+  return getModelsByProviderId(provider)
+    .filter((model) => model?.id)
+    .map((model) => ({ id: model.id, name: model.name || model.id }));
+}
+
+async function testLiveCatalogConnection(connection, effectiveProxy = null, options = {}, provider = connection.provider) {
+  const spec = LIVE_CATALOG_TESTS[provider];
+  const resolve = LIVE_CATALOG_PROVIDERS[provider];
+  if (!spec || !resolve) return { valid: false, error: "Provider test not supported", refreshed: false };
+
+  const prepared = await refreshForConnectionTest(provider, connection);
+  if (prepared.error) return { valid: false, error: prepared.error, refreshed: false };
+  const { working, refreshed, newTokens } = prepared;
+
+  let catalog;
+  try {
+    catalog = await resolve(working, {
+      // A Test button describes the account NOW, not the 10-minute cache.
+      forceRefresh: true,
+      // ...and must not pass on a stale catalogue when the credential is dead.
+      allowStale: false,
+      proxyOptions: effectiveProxy,
+    });
+  } catch (error) {
+    return {
+      valid: false,
+      error: `${spec.label} model catalogue unavailable: ${error?.message || error}`,
+      refreshed,
+      newTokens,
+    };
+  }
+
+  const models = catalog?.models || [];
+  if (!models.length) {
+    return {
+      valid: false,
+      error: `${spec.label} returned no models for this account`,
+      refreshed,
+      newTokens,
+    };
+  }
+
+  if (options.model) {
+    const requested = spec.normalize ? spec.normalize(options.model) : options.model;
+    if (!catalogHasModel(models, requested, { caseInsensitive: spec.caseInsensitive })) {
+      return {
+        valid: false,
+        error: `Model "${options.model}" is not available on this ${spec.label} account`,
+        refreshed,
+        newTokens,
+      };
+    }
+  }
+
+  return { valid: true, error: null, refreshed, newTokens };
+}
+
+// ─── WorkBuddy / CodeBuddy (CN + intl) ─────────────────────────────────────
+//
+// `/v3/config` is the official client's model catalogue; where it is absent
+// (the intl gateway publishes no catalogue) the billing endpoint still proves
+// the bearer without spending inference quota. CN's config gives a real model
+// list, so a selected model is verified against it; intl falls back to the
+// registry list and says so instead of pretending it was verified.
+const WORKBUDDY_PROVIDERS = new Set(["codebuddy-cn", "codebuddy-intl"]);
+
+function workbuddyOrigin(provider) {
+  return provider === "codebuddy-intl" ? "https://www.codebuddy.ai" : "https://copilot.tencent.com";
+}
+
+/** `GET /v3/config` → `data.models[]`; exported for the routing tests. */
+export function parseWorkbuddyConfigModels(payload) {
+  const rows = Array.isArray(payload?.data?.models) ? payload.data.models : [];
+  const models = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const id = String(row.id || row.model || row.name || "").trim();
+    if (id) models.push({ id, name: String(row.name || row.displayName || id) });
+  }
+  return models;
+}
+
+async function testWorkbuddyConnection(connection, effectiveProxy = null, options = {}) {
+  const provider = connection.provider;
+  const prepared = await refreshForConnectionTest(provider, connection);
+  if (prepared.error) return { valid: false, error: prepared.error, refreshed: false };
+  const { working, refreshed, newTokens } = prepared;
+
+  const token = working.accessToken || working.apiKey;
+  if (!token) return { valid: false, error: "No valid token found", refreshed, newTokens };
+
+  const origin = workbuddyOrigin(provider);
+  const headers = {
+    ...(PROVIDERS[provider]?.headers || {}),
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+
+  let liveModels = [];
+  let catalogueNote = "";
+  try {
+    const res = await fetchWithConnectionProxy(
+      `${origin}/v3/config`,
+      { method: "GET", headers },
+      effectiveProxy
+    );
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Token invalid or revoked", refreshed, newTokens };
+    }
+    if (res.ok) {
+      liveModels = parseWorkbuddyConfigModels(await res.json().catch(() => null));
+    } else {
+      catalogueNote = `model catalogue returned HTTP ${res.status}`;
+    }
+  } catch (error) {
+    catalogueNote = `model catalogue unavailable: ${error.message}`;
+  }
+
+  if (liveModels.length) {
+    if (options.model && !catalogHasModel(liveModels, options.model)) {
+      return {
+        valid: false,
+        error: `Model "${options.model}" is not available on this CodeBuddy account`,
+        refreshed,
+        newTokens,
+      };
+    }
+    return { valid: true, error: null, refreshed, newTokens };
+  }
+
+  // No catalogue: prove the same bearer against the billing endpoint with an
+  // empty body. It is a plain account read — no inference, no model selection.
+  try {
+    const res = await fetchWithConnectionProxy(
+      `${origin}/v2/billing/meter/get-user-resource`,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: "{}",
+      },
+      effectiveProxy
+    );
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Token invalid or revoked", refreshed, newTokens };
+    }
+    if (!res.ok) {
+      return {
+        valid: false,
+        error: `CodeBuddy account probe returned HTTP ${res.status}`,
+        refreshed,
+        newTokens,
+      };
+    }
+    const payload = await res.json().catch(() => null);
+    if (payload && payload.code !== undefined && Number(payload.code) !== 0) {
+      return {
+        valid: false,
+        error: `CodeBuddy account probe failed: ${payload.msg || payload.message || `code=${payload.code}`}`,
+        refreshed,
+        newTokens,
+      };
+    }
+    const unverifiedModel =
+      options.model && !catalogHasModel(staticModelCatalog(provider), options.model);
+    return {
+      valid: true,
+      error: null,
+      // Only a selected model can be "unverified"; a bare connection test that
+      // fell back to billing is a plain success (a warning here renders as a
+      // red error line in the dashboard).
+      warning: unverifiedModel
+        ? `Credential OK, but model "${options.model}" could not be verified (no live catalog${catalogueNote ? `; ${catalogueNote}` : ""})`
+        : null,
+      refreshed,
+      newTokens,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: `CodeBuddy account probe failed: ${error.message}`,
+      refreshed,
+      newTokens,
+    };
+  }
+}
+
+// ─── Trae (standard IDE/agent channel) ─────────────────────────────────────
+//
+// GetUserInfo is the same credential-gated identity call the login flow uses:
+// POST with a bare `x-cloudide-token`, no inference. The channel has no model
+// catalogue (the SOLO catalogue is a different gateway), so a selected model is
+// only checked against the registry list; an unknown id passes with a warning
+// rather than being reported as a broken credential.
+async function testTraeConnection(connection, effectiveProxy = null, options = {}) {
+  const prepared = await refreshForConnectionTest("trae", connection);
+  if (prepared.error) return { valid: false, error: prepared.error, refreshed: false };
+  const { working, refreshed, newTokens } = prepared;
+
+  const token = working.accessToken || working.apiKey;
+  if (!token) return { valid: false, error: "No access token", refreshed, newTokens };
+
+  const psd = working.providerSpecificData || {};
+  const origins = String(psd.site || "").toLowerCase() === "cn"
+    ? TRAE_CONFIG.cnApiOrigins
+    : TRAE_CONFIG.apiOrigins;
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": TRAE_CONFIG.userAgent,
+    "x-cloudide-token": token,
+  };
+
+  let lastError = "no successful response";
+  for (const origin of origins) {
+    const url = `${origin.replace(/\/$/, "")}${TRAE_CONFIG.getUserInfoPath}`;
+    try {
+      const res = await fetchWithConnectionProxy(
+        url,
+        { method: "POST", headers, body: "{}" },
+        effectiveProxy
+      );
+      if (res.ok) {
+        const known = catalogHasModel(staticModelCatalog("trae"), options.model);
+        return {
+          valid: true,
+          error: null,
+          warning:
+            options.model && !known
+              ? "Credential OK, but model availability could not be verified (no live catalog)"
+              : null,
+          refreshed,
+          newTokens,
+        };
+      }
+      if (res.status === 401 || res.status === 403) {
+        lastError = "Token invalid or revoked";
+        continue;
+      }
+      lastError = `HTTP ${res.status}`;
+    } catch (error) {
+      lastError = error.message;
+    }
+  }
+
+  return {
+    valid: false,
+    error: `Trae GetUserInfo failed: ${lastError}`,
+    refreshed,
+    newTokens,
+  };
+}
+
 async function testOAuthConnection(connection, effectiveProxy = null, options = {}) {
   // Qoder's test is model-aware and needs the live catalog — handled here, not
   // via OAUTH_TEST_CONFIG (which qoder-cn was never in, so it answered "Provider
   // test not supported" for an otherwise healthy account).
   if (connection.provider === "qoder" || connection.provider === "qoder-cn") {
     return testQoderConnection(connection, effectiveProxy, options);
+  }
+  if (connection.provider === "trae") {
+    return testTraeConnection(connection, effectiveProxy, options);
+  }
+  if (WORKBUDDY_PROVIDERS.has(connection.provider)) {
+    return testWorkbuddyConnection(connection, effectiveProxy, options);
+  }
+  if (LIVE_CATALOG_TESTS[connection.provider]) {
+    return testLiveCatalogConnection(connection, effectiveProxy, options);
   }
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
@@ -619,6 +941,15 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
 
 async function testApiKeyConnection(connection, effectiveProxy = null, options = {}) {
   const { model } = options;
+  // These providers store non-Bearer credentials (Loomy session, Raccoon JWT,
+  // CodeArts AK/SK, OfficeAce Basic) but all expose a catalogue endpoint, which
+  // is both cheaper and more truthful than a chat probe.
+  if (WORKBUDDY_PROVIDERS.has(connection.provider)) {
+    return testWorkbuddyConnection(connection, effectiveProxy, options);
+  }
+  if (LIVE_CATALOG_TESTS[connection.provider]) {
+    return testLiveCatalogConnection(connection, effectiveProxy, options);
+  }
   if (isOpenAICompatibleProvider(connection.provider)) {
     const modelsBase = connection.providerSpecificData?.baseUrl;
     if (!modelsBase) return { valid: false, error: "Missing base URL" };
@@ -1127,36 +1458,6 @@ case "llm7": {
             maintenance: true,
           };
         }
-        return { valid, error: valid ? null : "Invalid API key" };
-      }
-      case "codebuddy-cn": {
-        // Tencent coding plan — OpenAI-compatible chat endpoint (Bearer).
-        const baseUrl = PROVIDERS["codebuddy-cn"]?.baseUrl || "https://copilot.tencent.com/v2/chat/completions";
-        const res = await fetchWithConnectionProxy(baseUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
-          body: JSON.stringify({ model: getDefaultModel("codebuddy-cn"), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
-        }, effectiveProxy);
-        const valid = res.status !== 401 && res.status !== 403;
-        return { valid, error: valid ? null : "Invalid API key" };
-      }
-      case "codebuddy-intl": {
-        // International gateway (codebuddy.ai) — same OpenAI-compatible,
-        // stream-only surface as CN. The IDE-channel headers are required (an
-        // unapproved channel answers 11128) and `stream:false` can be rejected
-        // outright (11101), so the verdict must stay auth-only (401/403) —
-        // do NOT tighten it to `res.ok` or this case reports failure forever.
-        const baseUrl = PROVIDERS["codebuddy-intl"]?.baseUrl || "https://www.codebuddy.ai/v2/chat/completions";
-        const res = await fetchWithConnectionProxy(baseUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${connection.apiKey}`,
-            ...(PROVIDERS["codebuddy-intl"]?.headers || {}),
-          },
-          body: JSON.stringify({ model: getDefaultModel("codebuddy-intl"), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
-        }, effectiveProxy);
-        const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
       case "commandcode": {

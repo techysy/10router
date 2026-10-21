@@ -2,8 +2,8 @@
  * Qoder API constants ported from CLIProxyAPIPlus qoder-provider branch.
  *
  * Endpoint set:
- *   openapi.qoder.sh   - device flow + userinfo + quota usage
- *   center.qoder.sh    - token refresh (best-effort, currently 403 for device tokens)
+ *   openapi.qoder.sh   - device flow + userinfo + quota usage + token refresh
+ *   center.qoder.sh    - appcode-signed endpoints only (PAT job tokens)
  *   api3.qoder.sh      - inference (chat) + model list, requires COSY signing
  *   qoder.com/device   - browser landing page for device authorization
  */
@@ -21,7 +21,13 @@ export const QODER_LOGIN_URL = "https://qoder.com/device/selectAccounts";
 export const QODER_DEVICE_TOKEN_URL = `${QODER_OPENAPI_BASE}/api/v1/deviceToken/poll`;
 export const QODER_USERINFO_URL = `${QODER_OPENAPI_BASE}/api/v1/userinfo`;
 export const QODER_QUOTA_USAGE_URL = `${QODER_OPENAPI_BASE}/api/v2/quota/usage`;
-export const QODER_REFRESH_TOKEN_URL = `${QODER_CENTER_BASE}/algo/api/v3/user/refresh_token`;
+// Device-flow token refresh. Deliberately on the openapi host and unsigned:
+// the center `/algo/api/v3/user/refresh_token` endpoint requires the appcode
+// signature and answers unsigned device-token requests with
+// 403 {"errorMessage":"Request discarded"}. Kept for reference only — the
+// executor/refresh handler reads the URL from the registry oauth block.
+export const QODER_REFRESH_TOKEN_URL = `${QODER_OPENAPI_BASE}/api/v1/deviceToken/refresh`;
+export const QODER_JOB_REFRESH_URL = `${QODER_OPENAPI_BASE}/api/v1/jobToken/refresh`;
 
 // PAT (Personal Access Token, pt-...) → short-lived job token (jt-...) exchange.
 // PATs cannot sign COSY requests directly — they must be exchanged first.

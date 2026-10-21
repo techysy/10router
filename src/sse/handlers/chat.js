@@ -13,6 +13,8 @@ import {
 import { getSettings, getChannelBlock, setChannelBlock, clearChannelBlock } from "@/lib/localDb";
 import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint, withInsufficientBalanceHint, isInsufficientBalanceText } from "open-sse/services/accountFallback.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
+import { isModelAllowedForProvider } from "open-sse/services/model.js";
+import { getProviderModels } from "open-sse/config/providerModels.js";
 import { isOversizedForCbcn, describeCbcnOversize } from "open-sse/executors/codebuddy-cn.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
@@ -314,6 +316,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 
   const { provider, model } = modelInfo;
+
+  // Strict providers (registry `strictModels`) do not accept arbitrary ids:
+  // their upstream would answer 200 with a *different* default model, which is
+  // indistinguishable from success at the client. Reject locally instead.
+  if (!isModelAllowedForProvider(provider, model)) {
+    const known = getProviderModels(provider).map((entry) => entry.id);
+    log.warn("CHAT", `[${provider}] rejected unknown model`, { model });
+    return errorResponse(
+      HTTP_STATUS.BAD_REQUEST,
+      `Unknown model: "${provider}/${model}". ${provider} only serves: ${known.join(", ")}.`
+    );
+  }
 
   // Routing shown in the unified "▶" line (client model → provider/model)
 

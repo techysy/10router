@@ -258,6 +258,9 @@ export class DefaultExecutor extends BaseExecutor {
       kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions),
       "minimax-code": () => this.refreshMinimaxCode("minimax-code", credentials, proxyOptions),
       "minimax-code-global": () => this.refreshMinimaxCode("minimax-code-global", credentials, proxyOptions),
+      // On a 401 the token may still look "fresh" locally, so this is the only
+      // path that recovers an apikey connection carrying a refresh token.
+      raccoon: () => this.refreshRaccoon(credentials),
     };
 
     const refresher = refreshers[this.provider];
@@ -361,6 +364,14 @@ export class DefaultExecutor extends BaseExecutor {
     if (!refreshToken) return null;
     const { refreshMinimaxCodeToken } = await import("../services/tokenRefresh/providers.js");
     return refreshMinimaxCodeToken(provider, refreshToken, console, proxyOptions);
+  }
+
+  async refreshRaccoon(credentials) {
+    const refreshToken = credentials?.refreshToken;
+    if (!refreshToken) return null;
+    // Shared with the proactive path so rotation is deduped and parsed once.
+    const { refreshRaccoonToken } = await import("../services/tokenRefresh/providers.js");
+    return refreshRaccoonToken(refreshToken, console);
   }
 
   async refreshKilocode(refreshToken, proxyOptions = null) {

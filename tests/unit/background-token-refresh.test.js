@@ -91,6 +91,26 @@ describe("selectConnectionsNeedingRefresh", () => {
     expect(list).toHaveLength(1);
   });
 
+  it("uses providerSpecificData.expiresAt for OfficeAce (Basic never expires)", async () => {
+    const { selectConnectionsNeedingRefresh } = await import(
+      "../../src/sse/services/backgroundTokenRefresh.js"
+    );
+    const list = selectConnectionsNeedingRefresh(
+      [
+        conn({
+          id: "oa",
+          provider: "officeace",
+          expiresAt: null,
+          providerSpecificData: {
+            expiresAt: new Date(NOW + 10 * 60 * 1000).toISOString(),
+          },
+        }),
+      ],
+      NOW
+    );
+    expect(list.map((item) => item.id)).toEqual(["oa"]);
+  });
+
   // P2-11: a dead refresh token gets marked needs-reauth with a 24h window.
   // The tick must NOT probe inside that window — every unrecoverable answer
   // rewrites the stamp to a fresh 24h, so a 5-minute tick against a corpse

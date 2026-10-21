@@ -2,6 +2,7 @@ import http from "http";
 import crypto from "node:crypto";
 import { URL } from "url";
 import { CODEX_CONFIG, TRAE_CONFIG, WINDSURF_CONFIG, XIAOMI_MIMO_CONFIG, ZED_HOSTED_CONFIG } from "../constants/oauth.js";
+import { LOBSTERAI_CONFIG } from "../providers/lobsterai.js";
 
 // Loopback origin guard for local callback proxies.
 // Legit OAuth redirects are top-level navigations (no `Origin` header); a cross-site
@@ -1067,4 +1068,259 @@ export function stopXiaomiMimoProxy() {
   // registerXiaomiMimoSession() is what bounds the map, by pendingTtlMs.
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// LobsterAI dynamic-port proxy. The login portal validates that redirect_uri is
+// `http://127.0.0.1:<port>/auth/callback`, so the gateway owns a loopback
+// listener on an ephemeral port (127.0.0.1:0) and auto-exchanges the code.
+// Singleton session, same lifecycle as the Trae proxy above.
+// ───────────────────────────────────────────────────────────────────────────
 
+const LOBSTERAI_LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
+
+let lobsterAiProxyServer = null;
+let lobsterAiProxyTimeout = null;
+let lobsterAiProxyPort = null;
+let lobsterAiSession = null;
+
+export function registerLobsterAiSession({ state }) {
+  if (!state) return false;
+  lobsterAiSession = { state, status: "pending", createdAt: Date.now() };
+  return true;
+}
+
+export function getLobsterAiSessionStatus(state) {
+  if (!lobsterAiSession) return null;
+  if (state && lobsterAiSession.state !== state) return null;
+  return lobsterAiSession;
+}
+
+export function clearLobsterAiSession(state) {
+  if (!state || (lobsterAiSession && lobsterAiSession.state === state)) lobsterAiSession = null;
+}
+
+export function startLobsterAiProxy() {
+  return new Promise((resolve) => {
+    if (lobsterAiProxyServer) {
+      resolve({
+        success: true,
+        port: lobsterAiProxyPort,
+        callbackUrl: `http://127.0.0.1:${lobsterAiProxyPort}${LOBSTERAI_CONFIG.callbackPath}`,
+      });
+      return;
+    }
+
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, "http://localhost");
+      if (url.pathname !== LOBSTERAI_CONFIG.callbackPath && url.pathname !== "/auth/callback") {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+      const session = lobsterAiSession;
+      if (!session) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "No active LobsterAI login session"));
+        return;
+      }
+      // Legit redirects are top-level navigations (no Origin). A cross-origin
+      // fetch to loopback always carries one — reject it (login CSRF guard).
+      if (!isLoopbackOrigin(req.headers.origin)) {
+        res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "Cross-origin callback rejected"));
+        return;
+      }
+      const cbState = url.searchParams.get("state");
+      const code = url.searchParams.get("code");
+      if (!cbState || !session.state || cbState !== session.state || !code) {
+        session.status = "error";
+        session.error = "LobsterAI callback state/code mismatch";
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, session.error));
+        stopLobsterAiProxy();
+        return;
+      }
+
+      const redirectUri = `http://127.0.0.1:${lobsterAiProxyPort}${LOBSTERAI_CONFIG.callbackPath}`;
+      try {
+        const { exchangeTokens } = await import("../providers.js");
+        const { createProviderConnection } = await import("@/models");
+        const tokenData = await exchangeTokens("lobsterai", code, redirectUri, null, session.state);
+        const connection = await createProviderConnection({
+          provider: "lobsterai",
+          authType: "oauth",
+          ...tokenData,
+          expiresAt: tokenData.expiresIn
+            ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
+            : null,
+          testStatus: "active",
+        });
+        session.status = "done";
+        session.connectionId = connection.id;
+        session.email = connection.email;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(true, "You can close this window."));
+      } catch (err) {
+        session.status = "error";
+        session.error = err?.message || String(err);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, session.error));
+      } finally {
+        stopLobsterAiProxy();
+      }
+    });
+
+    server.on("error", (err) => {
+      resolve({ success: false, reason: err.message });
+    });
+
+    server.listen(0, "127.0.0.1", () => {
+      lobsterAiProxyServer = server;
+      lobsterAiProxyPort = server.address().port;
+      lobsterAiProxyTimeout = setTimeout(() => stopLobsterAiProxy(), LOBSTERAI_LOGIN_TIMEOUT_MS);
+      resolve({
+        success: true,
+        port: lobsterAiProxyPort,
+        callbackUrl: `http://127.0.0.1:${lobsterAiProxyPort}${LOBSTERAI_CONFIG.callbackPath}`,
+      });
+    });
+  });
+}
+
+export function stopLobsterAiProxy() {
+  if (lobsterAiProxyTimeout) {
+    clearTimeout(lobsterAiProxyTimeout);
+    lobsterAiProxyTimeout = null;
+  }
+  if (lobsterAiProxyServer) {
+    lobsterAiProxyServer.close();
+    lobsterAiProxyServer = null;
+  }
+  lobsterAiProxyPort = null;
+}
+
+
+
+// ─── CodeArts dynamic-port proxy ────────────────────────────────────────────
+// The portal only accepts the **port** from redirect_uri and composes the
+// callback path itself, so the listener binds an ephemeral port and expects
+// `providers/codearts.js` config.callbackPath. The authorization code is
+// exchanged here (the UI only polls); PKCE verifier + DPoP key are registered
+// by the /authorize branch before the popup opens.
+let codeartsProxyServer = null;
+let codeartsProxyTimeout = null;
+let codeartsProxyPort = null;
+const codeartsLoginSessions = new Map(); // state → {verifier, dpopPrivateKeyPem, redirectUri, status}
+
+export function registerCodeArtsLoginSession({ state, verifier, dpopPrivateKeyPem, redirectUri }) {
+  if (!state || !verifier) return false;
+  codeartsLoginSessions.set(String(state), {
+    state: String(state),
+    verifier: String(verifier),
+    dpopPrivateKeyPem: dpopPrivateKeyPem || null,
+    redirectUri: redirectUri || null,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+  return true;
+}
+
+export function getCodeArtsSessionStatus(state) {
+  return codeartsLoginSessions.get(String(state)) || null;
+}
+
+export function clearCodeArtsSession(state) {
+  codeartsLoginSessions.delete(String(state));
+}
+
+export function stopCodeArtsProxy() {
+  if (codeartsProxyTimeout) { clearTimeout(codeartsProxyTimeout); codeartsProxyTimeout = null; }
+  if (codeartsProxyServer) { codeartsProxyServer.close(); codeartsProxyServer = null; }
+  codeartsProxyPort = null;
+}
+
+export async function startCodeArtsProxy() {
+  if (codeartsProxyServer) {
+    return { success: true, port: codeartsProxyPort, callbackUrl: `http://127.0.0.1:${codeartsProxyPort}/oauth/callback` };
+  }
+  let callbackPath = "/oauth/callback";
+  try {
+    const { config } = await import("../providers/codearts.js");
+    callbackPath = config.callbackPath || callbackPath;
+  } catch (err) {
+    return { success: false, reason: err?.message || String(err) };
+  }
+
+  return new Promise((resolve) => {
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, "http://127.0.0.1");
+      if (url.pathname !== callbackPath) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
+        return;
+      }
+      if (!isLoopbackOrigin(req.headers.origin)) {
+        res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "Cross-origin callback rejected"));
+        return;
+      }
+      const code = url.searchParams.get("code") || "";
+      const state = url.searchParams.get("state") || "";
+      // The portal has been observed to drop state; fall back to the single
+      // pending round when there is exactly one.
+      let session = state ? codeartsLoginSessions.get(state) : null;
+      if (!session) {
+        const pending = [...codeartsLoginSessions.values()].filter(
+          (s) => s.status === "pending" && Date.now() - s.createdAt < 15 * 60 * 1000
+        );
+        if (pending.length === 1) session = pending[0];
+      }
+      if (!session || !code) {
+        const message = code ? "No matching login session (expired?)" : "Missing authorization code";
+        if (session) { session.status = "error"; session.error = message; }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, message));
+        return;
+      }
+      try {
+        const { exchangeCode } = await import("../providers/codearts.js");
+        const tokenData = await exchangeCode({
+          code,
+          codeVerifier: session.verifier,
+          dpopPrivateKeyPem: session.dpopPrivateKeyPem,
+          redirectUri: session.redirectUri,
+        });
+        const { createProviderConnection } = await import("@/models");
+        const connection = await createProviderConnection({
+          provider: "codearts",
+          authType: "oauth",
+          ...tokenData,
+          expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() : null,
+          testStatus: "active",
+        });
+        session.status = "done";
+        session.connectionId = connection.id;
+        session.email = connection.email;
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(true, "You can close this window."));
+      } catch (err) {
+        session.status = "error";
+        session.error = err?.message || String(err);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, session.error));
+      } finally {
+        stopCodeArtsProxy();
+      }
+    });
+    server.on("error", (err) => resolve({ success: false, reason: err.message }));
+    server.listen(0, "127.0.0.1", () => {
+      codeartsProxyServer = server;
+      codeartsProxyPort = server.address().port;
+      codeartsProxyTimeout = setTimeout(() => stopCodeArtsProxy(), 10 * 60 * 1000);
+      resolve({
+        success: true,
+        port: codeartsProxyPort,
+        callbackUrl: `http://127.0.0.1:${codeartsProxyPort}${callbackPath}`,
+      });
+    });
+  });
+}

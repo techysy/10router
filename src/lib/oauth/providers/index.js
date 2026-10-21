@@ -10,6 +10,7 @@ import xai from "./xai.js";
 import grokCli from "./grok-cli.js";
 import geminiCli from "./gemini-cli.js";
 import antigravity from "./antigravity.js";
+import atomcode from "./atomcode.js";
 import iflow from "./iflow.js";
 import qoder from "./qoder.js";
 import qoderCn from "./qoder-cn.js";
@@ -29,6 +30,7 @@ import windsurf from "./windsurf.js";
 import zed from "./zed.js";
 import glm from "./glm.js";
 import muse from "./muse.js";
+import lobsterai from "./lobsterai.js";
 import { minimaxCode, minimaxCodeGlobal } from "./minimax-code.js";
 
 // Provider configurations
@@ -39,6 +41,7 @@ const PROVIDERS = {
   "grok-cli": grokCli,
   "gemini-cli": geminiCli,
   antigravity,
+  atomcode,
   iflow,
   qoder,
   "qoder-cn": qoderCn,
@@ -54,10 +57,14 @@ const PROVIDERS = {
   "codebuddy-intl": codebuddyIntl,
   kimchi,
   trae,
+  // Same login flow / credential shape as `trae`; the provider is separate so
+  // the SOLO model port can hold its own connection row.
+  "trae-solo": trae,
   windsurf,
   zed,
   glm,
   muse,
+  lobsterai,
   "minimax-code": minimaxCode,
   "minimax-code-global": minimaxCodeGlobal,
 };

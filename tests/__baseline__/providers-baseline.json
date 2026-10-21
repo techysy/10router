@@ -1399,5 +1399,85 @@
     "validateUrl": "https://api.inceptionlabs.ai/v1/models",
     "thinkingFormat": "openai",
     "format": "openai"
+  },
+  "lobsterai": {
+    "baseUrl": "https://lobsterai-server.youdao.com/api/proxy/v1/chat/completions",
+    "format": "openai",
+    "forceStream": true,
+    "timeoutMs": 180000,
+    "headers": {
+      "User-Agent": "LobsterAI/0.1.0"
+    },
+    "tokenUrl": "https://lobsterai-server.youdao.com/api/auth/exchange"
+  },
+  "raccoon": {
+    "baseUrl": "https://xiaohuanxiong.com/api/web/llm/v2/chat/completions",
+    "format": "openai",
+    "headers": {
+      "Accept": "*/*"
+    }
+  },
+  "atomcode": {
+    "baseUrl": "https://api-ai.gitcode.com/v1/chat/completions",
+    "format": "openai",
+    "headers": {
+      "User-Agent": "10router-atomcode/1.0"
+    },
+    "timeoutMs": 120000,
+    "stallTimeoutMs": 120000,
+    "usage": {
+      "url": "https://api.gitcode.com/api/v5/coding-plan/status-v2"
+    },
+    "tokenUrl": "https://acs.atomgit.com/auth/token"
+  },
+  "loomy": {
+    "baseUrl": "https://loomyad.xunfei.cn/api/v1/chat/completions",
+    "format": "openai"
+  },
+  "trae-solo": {
+    "baseUrl": "https://trae-api-cn.mchost.guru",
+    "format": "openai",
+    "headers": {
+      "X-App-Id": "6eefa01c-1036-4c7e-9ca5-d891f63bfcd8",
+      "X-Ide-Version": "0.1.61",
+      "X-Ide-Version-Code": "20260820",
+      "X-Device-Type": "windows",
+      "Request-Traffic-Type": "prod"
+    },
+    "auth": {
+      "combined": true,
+      "header": "Authorization",
+      "scheme": "Cloud-IDE-JWT"
+    },
+    "defaultRegion": "cn",
+    "clientId": "ono9krqynydwx5",
+    "clientSecret": "-",
+    "tokenUrl": "https://api.marscode.com/cloudide/api/v3/trae/oauth/ExchangeToken"
+  },
+  "officeace": {
+    "baseUrl": "https://modelgw-0004.officeace.cn-southwest-2.huaweicloud-agentarts.com/v2/chat/completions",
+    "format": "openai",
+    "auth": {
+      "header": "Authorization",
+      "scheme": "raw",
+      "source": [
+        "apiKey"
+      ]
+    },
+    "forceStream": true
+  },
+  "codearts": {
+    "baseUrl": "https://snap-access.cn-north-4.myhuaweicloud.com/api/v2/chat/completions",
+    "format": "openai",
+    "headers": {
+      "X-Language": "en-us",
+      "plugin-name": "snap_vscode",
+      "plugin-version": "1.0.0"
+    },
+    "timeoutMs": 300000,
+    "stallTimeoutMs": 180000,
+    "usage": {
+      "url": "https://snap-access.cn-north-4.myhuaweicloud.com/snap-manager/v1/statistics/plugin"
+    }
   }
 }

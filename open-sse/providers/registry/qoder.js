@@ -55,7 +55,15 @@ export default {
     centerBaseUrl: "https://center.qoder.sh",
     chatBaseUrl: "https://api3.qoder.sh",
     deviceTokenUrl: "https://openapi.qoder.sh/api/v1/deviceToken/poll",
-    refreshUrl: "https://center.qoder.sh/algo/api/v3/user/refresh_token",
+    // Device-flow refresh lives on the openapi host and needs no signature.
+    // The legacy `center.qoder.sh/algo/api/v3/user/refresh_token` endpoint
+    // requires the appcode signature and drops unsigned device tokens with
+    // 403 "Request discarded", so it must NOT be used here (see
+    // tokenRefresh/providers.js refreshQoderToken).
+    refreshUrl: "https://openapi.qoder.sh/api/v1/deviceToken/refresh",
+    // PAT-derived job refresh tokens (`jrt-...`) use a separate endpoint;
+    // the two are not interchangeable.
+    jobRefreshUrl: "https://openapi.qoder.sh/api/v1/jobToken/refresh",
     userInfoUrl: "https://openapi.qoder.sh/api/v1/userinfo",
     quotaUsageUrl: "https://openapi.qoder.sh/api/v2/quota/usage",
     loginUrl: "https://qoder.com/device/selectAccounts",

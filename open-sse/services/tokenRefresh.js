@@ -13,11 +13,18 @@ import {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshQoderToken,
   refreshTraeToken,
+  refreshTraeSoloToken,
   refreshClineToken,
   refreshZedToken,
   refreshWindsurfToken,
   refreshMinimaxCodeToken,
+  refreshLobsterAiToken,
+  refreshRaccoonToken,
+  refreshAtomcodeToken,
+  refreshCodeArtsToken,
+  refreshOfficeAceToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
 
@@ -34,11 +41,18 @@ export {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshQoderToken,
   refreshTraeToken,
+  refreshTraeSoloToken,
   refreshClineToken,
   refreshZedToken,
   refreshWindsurfToken,
   refreshMinimaxCodeToken,
+  refreshLobsterAiToken,
+  refreshRaccoonToken,
+  refreshAtomcodeToken,
+  refreshCodeArtsToken,
+  refreshOfficeAceToken,
   classifyOAuthRefreshError,
 };
 
@@ -178,7 +192,14 @@ const REFRESH_HANDLERS = {
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
+  // Qoder device tokens refresh on the openapi host (unsigned); PAT job
+  // refresh tokens (`jrt-`) pick the sibling endpoint inside the handler.
+  qoder: (c, log) => refreshQoderToken("qoder", c.refreshToken, c, log),
+  "qoder-cn": (c, log) => refreshQoderToken("qoder-cn", c.refreshToken, c, log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
+  // Same Cloud-IDE-JWT family as `trae`, independent connection: the SOLO
+  // model port refreshes on ExchangeToken with a DeviceProof (legacy fallback).
+  "trae-solo": (c, log) => refreshTraeSoloToken(c.refreshToken, c, log),
   // Cline/ClinePass: upstream demands camelCase JSON (issue #21), not the
   // generic form-encoded OAuth2 body — dedicated handler, shared endpoints.
   cline: (c, log) => refreshClineToken("cline", c.refreshToken, log),
@@ -190,6 +211,14 @@ const REFRESH_HANDLERS = {
   "kimi-coding": (c, log) => refreshKimiToken(c.refreshToken, c, log),
   "minimax-code": (c, log) => refreshMinimaxCodeToken("minimax-code", c.refreshToken, log),
   "minimax-code-global": (c, log) => refreshMinimaxCodeToken("minimax-code-global", c.refreshToken, log),
+  // LobsterAI: custom payload (uuid + two keyfroms + version), JSON body, no Authorization.
+  lobsterai: (c, log) => refreshLobsterAiToken(c, log),
+  // apikey connection holding a bearer JWT + refresh token (rotates on use).
+  raccoon: (c, log) => refreshRaccoonToken(c.refreshToken, log),
+  atomcode: (c, log) => refreshAtomcodeToken(c.refreshToken, log, c.proxyOptions),
+  // OAuth login credentials: temp STS/DPoP material lives in providerSpecificData.
+  codearts: (c, log) => refreshCodeArtsToken(c, log),
+  officeace: (c, log) => refreshOfficeAceToken(c, log),
   vertex: vertexRefreshHandler,
   "vertex-partner": vertexRefreshHandler
 };

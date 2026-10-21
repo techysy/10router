@@ -25,6 +25,15 @@ import { resolveClineModels } from "open-sse/services/clineModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
+import {
+  resolveAtomcodeCatalog,
+  resolveCodeartsCatalog,
+  resolveLobsterAiCatalog,
+  resolveLoomyCatalog,
+  resolveOfficeaceCatalog,
+  resolveRaccoonCatalog,
+  resolveTraeSoloCatalog,
+} from "open-sse/services/liveCatalogs.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities, DEFAULT_CAPABILITIES } from "open-sse/providers/capabilities.js";
@@ -34,7 +43,44 @@ import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCap
 // Adding a provider here makes /v1/models prefer the live catalog for it.
 const STATIC_CL = PROVIDER_ID_TO_ALIAS["cline"] || "cline";
 
+/** Connection-scoped proxy settings in the shape proxyAwareFetch expects. */
+function proxyOptionsFor(proxy) {
+  if (!proxy) return null;
+  return {
+    connectionProxyEnabled: proxy.connectionProxyEnabled === true,
+    connectionProxyUrl: proxy.connectionProxyUrl || "",
+    connectionNoProxy: proxy.connectionNoProxy || "",
+    vercelRelayUrl: proxy.vercelRelayUrl || "",
+    strictProxy: proxy.strictProxy === true,
+  };
+}
+
+/**
+ * Wrap one live-catalogue resolver for the /v1/models route. The route only
+ * needs `models`; the resolver's cache/stale bookkeeping stays private.
+ * A transient failure returns null so the registry floor is used unchanged.
+ */
+function liveCatalog(provider, resolve) {
+  return async (conn) => {
+    try {
+      const proxy = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
+      const result = await resolve(conn, { proxyOptions: proxyOptionsFor(proxy) });
+      return result?.models?.length ? { models: result.models } : null;
+    } catch (error) {
+      console.log(`Live model fetch failed for ${provider}: ${error?.message || error}`);
+      return null;
+    }
+  };
+}
+
 const LIVE_MODEL_RESOLVERS = {
+  loomy: liveCatalog("loomy", resolveLoomyCatalog),
+  lobsterai: liveCatalog("lobsterai", resolveLobsterAiCatalog),
+  atomcode: liveCatalog("atomcode", resolveAtomcodeCatalog),
+  raccoon: liveCatalog("raccoon", resolveRaccoonCatalog),
+  codearts: liveCatalog("codearts", resolveCodeartsCatalog),
+  officeace: liveCatalog("officeace", resolveOfficeaceCatalog),
+  "trae-solo": liveCatalog("trae-solo", resolveTraeSoloCatalog),
   kiro: async (conn) => {
     const result = await resolveKiroModels({
       accessToken: conn.accessToken,

@@ -15,8 +15,11 @@ import { v4 as uuidv4 } from "uuid";
  *   3. Poll openapi.qoder.sh/api/v1/deviceToken/poll until the user authorizes
  *      and the upstream returns a `dt-...` access token.
  *
- * Tokens live ~30 days; refresh is a no-op (the upstream refresh endpoint
- * returns 403 for our flow). Users re-run login when expired.
+ * Tokens live ~30 days and rotate on refresh. Refresh happens outside this
+ * service, on the openapi host (`/api/v1/deviceToken/refresh`, unsigned) —
+ * see open-sse/services/tokenRefresh/providers.js refreshQoderToken(). The
+ * center `/algo/api/v3/user/refresh_token` endpoint is appcode-signed and
+ * rejects unsigned device-token requests with 403 "Request discarded".
  *
  * Mirrors the structure of KiroService — the COSY signing / WAF-bypass body
  * encoding / chat protocol live separately in src/lib/qoder/ because they're

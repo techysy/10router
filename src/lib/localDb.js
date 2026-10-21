@@ -14,6 +14,7 @@ export {
   getApiKeys, getApiKeyById, getApiKeyByKey, createApiKey, updateApiKey, deleteApiKey, validateApiKey,
   normalizeDailyLimit, DAILY_LIMIT_MAX,
   localStartOfDayIso, sumApiKeyTokensSince, sumAllApiKeyTokensSince,
+  recordCheckinRun, hasCheckinSuccessToday, getCheckinRuns, getCheckinSummary, pruneCheckinRuns,
   getCombos, getComboById, getComboByName,
   createCombo, updateCombo, deleteCombo,
   getModelAliases, setModelAlias, deleteModelAlias,

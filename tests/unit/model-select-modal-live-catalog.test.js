@@ -16,11 +16,15 @@ const abs = (rel) => fileURLToPath(new URL(`../../${rel}`, import.meta.url));
 const src = readFileSync(abs("src/shared/components/ModelSelectModal.js"), "utf8");
 
 describe("ModelSelectModal LIVE_CATALOG_PROVIDERS", () => {
-  it("includes zed next to cursor", () => {
-    const match = src.match(/const LIVE_CATALOG_PROVIDERS\s*=\s*\[([^\]]+)\]/);
+  it("includes every credential-backed live catalogue next to cursor/zed", () => {
+    const match = src.match(/const LIVE_CATALOG_PROVIDERS\s*=\s*\[([\s\S]*?)\];/);
     expect(match).toBeTruthy();
-    expect(match[1]).toContain('"cursor"');
-    expect(match[1]).toContain('"zed"');
+    for (const provider of [
+      "cursor", "zed", "loomy", "lobsterai", "atomcode",
+      "raccoon", "codearts", "officeace", "trae-solo",
+    ]) {
+      expect(match[1]).toContain(`"${provider}"`);
+    }
   });
 
   it("collects per-provider connection ids for every live catalog provider", () => {
@@ -31,6 +35,14 @@ describe("ModelSelectModal LIVE_CATALOG_PROVIDERS", () => {
   it("feeds live models into the group builder with static catalog as fallback", () => {
     expect(src).toContain("liveCatalogModels[providerId]");
     expect(src).toContain("getModelsByProviderId(providerId)");
+  });
+
+  it("strips the API's <provider>/ prefix before the group builder adds the alias", () => {
+    // /api/providers/[id]/models returns prefixed ids (they are the request
+    // model Basic Chat uses); this modal builds `${alias}/${id}` itself, so a
+    // retained prefix would become `loomy/loomy/...`.
+    expect(src).toContain("raw.startsWith(prefix)");
+    expect(src).toContain("raw.slice(prefix.length)");
   });
 
   it("no longer keys the live path on a cursor-only state", () => {

@@ -164,6 +164,23 @@ async function runHeavyStartup() {
       .then(({ startMinimaxCheckin }) => startMinimaxCheckin())
       .catch((e) => console.log("[MinimaxCheckin] scheduler start failed:", e.message));
   }
+
+  // W1 generic check-in adapters (raccoon / atomcode / lobsterai). One ticker
+  // for all of them; each scheduled fire re-reads the toggles and no-ops when
+  // a provider is turned off, so disabling needs no restart.
+  if (
+    settings.raccoonCheckin === true ||
+    settings.atomcodeCheckin === true ||
+    settings.lobsteraiCheckin === true ||
+    settings.loomyCheckin === true ||
+    settings.officeaceCheckin === true ||
+    settings.codeartsCheckin === true ||
+    settings.traeCheckin === true
+  ) {
+    import("@/sse/services/checkin/scheduler.js")
+      .then(({ startCheckinScheduler }) => startCheckinScheduler())
+      .catch((e) => console.log("[Checkin] scheduler start failed:", e.message));
+  }
 }
 
 function hasQuotaAutoPingEnabled(settings) {

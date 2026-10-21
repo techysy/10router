@@ -81,9 +81,11 @@ const OFFICIAL_ID = REGISTRY.flatMap((entry) =>
 );
 
 describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
-  it("is offered by the first-party provider and by opencode-go", () => {
+  it("is offered by the first-party provider, opencode-go and AtomCode", () => {
+    // AtomCode's two-source catalog (coding-plan + builtin) also publishes the
+    // bare `deepseek-flash` id; it resolves from the same canonical row.
     const providers = OFFICIAL_ID.map((m) => m.provider).sort();
-    expect(providers).toEqual(["deepseek", "opencode-go"]);
+    expect(providers).toEqual(["atomcode", "deepseek", "opencode-go"]);
   });
 
   it("resolves from the canonical row, not the V3 *deepseek* wildcard", () => {
@@ -126,8 +128,13 @@ const DOTTED_ID = REGISTRY.flatMap((entry) =>
 );
 
 describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
-  it("is offered by apinex, opencode-go, opencode-zen and both CodeBuddy gateways", () => {
-    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "opencode-go", "opencode-zen", "trae-free"]);
+  it("is offered by every gateway whose catalog publishes the dotted id", () => {
+    // CodeArts (three-source catalog) and OfficeAce (subscription seed) also
+    // publish this id; the canonical row still governs their capabilities.
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual([
+      "apinex", "codearts", "codebuddy-cn", "codebuddy-intl",
+      "officeace", "opencode-go", "opencode-zen", "trae-free",
+    ]);
   });
 
   it("resolves from the canonical row where the provider has no override", () => {

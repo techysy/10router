@@ -1,7 +1,6 @@
-import crypto from "crypto";
 import { DefaultExecutor } from "./default.js";
 import { parseCodeBuddyFrequencyLimit } from "./codebuddy-cn.js";
-import { resolveSessionId } from "../utils/sessionManager.js";
+import { buildCodeBuddyConversationHeaders, sanitizeCodeBuddyOutbound } from "./codebuddy-outbound.js";
 
 /**
  * CodeBuddyIntlExecutor — talks to https://www.codebuddy.ai/v2/chat/completions
@@ -19,36 +18,13 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
   buildHeaders(credentials, stream = true, url, model, transformedBody) {
     const headers = super.buildHeaders(credentials, stream, url, model, transformedBody);
 
-    // X-Conversation headers: CodeBuddy / WorkBuddy WAF requires session/conversation
-    // identity headers (X-Conversation-ID, X-Conversation-Request-ID, X-Conversation-Message-ID).
-    // Deriving a stable conversationId from downstream session keeps conversation continuity
-    // while satisfying upstream channel/WAF checks (prevents 11128 unapproved channel errors).
-    try {
-      const sessionId = resolveSessionId({
-        headers: credentials?.rawHeaders,
-        body: transformedBody,
-        connectionId: credentials?.connectionId,
-        scope: "codebuddy-intl"
-      });
-      // Conversation ID: 32-char hex derived from session identity
-      const convId = crypto.createHash("md5").update(sessionId || "codebuddy-intl-default").digest("hex");
-      // Turn / Request ID: unique 32-char hex per request turn
-      const reqHex = crypto.randomBytes(16).toString("hex");
-
-      headers["X-Conversation-ID"] = convId;
-      headers["X-Conversation-Request-ID"] = reqHex;
-      headers["X-Conversation-Message-ID"] = reqHex;
-      headers["X-Request-ID"] = reqHex;
-      headers["X-Agent-Intent"] = "craft";
-      headers["X-Agent-Type"] = "main";
-    } catch {
-      // Fallback: safe random hex IDs if session resolution fails
-      const fallbackId = crypto.randomBytes(16).toString("hex");
-      headers["X-Conversation-ID"] = fallbackId;
-      headers["X-Conversation-Request-ID"] = fallbackId;
-      headers["X-Conversation-Message-ID"] = fallbackId;
-      headers["X-Request-ID"] = fallbackId;
-    }
+    // Same conversation header family as codebuddy-cn: session-derived
+    // X-Conversation-ID, and a request id reused across retries / account
+    // fallback for one logical request (see codebuddy-outbound.js).
+    Object.assign(
+      headers,
+      buildCodeBuddyConversationHeaders(credentials, transformedBody, "codebuddy-intl"),
+    );
 
     return headers;
   }
@@ -127,7 +103,11 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
       }
     }
 
-    return transformed;
+    // Last step before the body leaves the gateway: same request-side 11128
+    // sanitizing as codebuddy-cn (see codebuddy-outbound.js). `developer`
+    // messages are already folded away by the rebuild above, so the role
+    // normalization is a no-op here — kept for parity and future-proofing.
+    return sanitizeCodeBuddyOutbound(transformed);
   }
 
   // 与 codebuddy-cn 同一套 6004 频率限制解析（两站错误体同构）：提取精确重置

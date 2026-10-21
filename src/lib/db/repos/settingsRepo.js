@@ -87,6 +87,9 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Global daily check-in time (local HH:mm). All enabled schedulers wait for
+  // this minute; failures retry ~every 2h until the day ends.
+  checkinTime: "09:00",
   // Experimental: auto daily check-in for CodeBuddy CN accounts.
   codeBuddyCheckin: false,
   // Experimental: auto compensation & gift claim for CodeBuddy CN accounts.
@@ -107,6 +110,19 @@ const DEFAULT_SETTINGS = {
   minimaxCheckin: false,
   // Daily-done memo for MiniMax: { [connectionId]: "YYYY-MM-DD" }
   minimaxDailyDone: {},
+  // W1 generic check-in adapters (src/sse/services/checkin/). One key per
+  // adapter; the scheduler starts when any of them is true. Defaults stay false
+  // — enabling a check-in is an explicit opt-in, same as the three legacy ones.
+  raccoonCheckin: false,
+  atomcodeCheckin: false,
+  lobsteraiCheckin: false,
+  loomyCheckin: false,
+  // One-shot reward claim (POST /v1/subscription/bonus/claim), verified by the
+  // before/after subscription delta. Controls-plane credentials required.
+  officeaceCheckin: false,
+  codeartsCheckin: false,
+  // Daily checkin_credits claim for CN Trae / Trae SOLO accounts.
+  traeCheckin: false,
   // Provider-wide channel blocks: { [provider]: { until, lastAt, strikes } }.
   // Set when an upstream answers with a channel-scope error (e.g. CodeBuddy
   // 11128 "unapproved channel"): the failure belongs to the channel, so every

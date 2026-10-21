@@ -11,7 +11,6 @@ import { describe, it, expect, vi } from "vitest";
 import {
   isEligibleCbcnConnection,
   mapDailyCheckinStatus,
-  msUntilNextTick,
   runCodebuddyCheckinTick,
   runCodebuddyCompensationTick,
   claimCompensationOne,
@@ -112,21 +111,6 @@ describe("isEligibleCbcnConnection", () => {
   it("accepts the account again once the window lapses (timed, not permanent)", () => {
     const until = new Date(Date.now() - 1000).toISOString();
     expect(isEligibleCbcnConnection(cnConn({ testStatus: "needs-reauth", needsReauthUntil: until }))).toBe(true);
-  });
-});
-
-describe("msUntilNextTick", () => {
-  it("returns a positive delay bounded to one ~2h cadence plus jitter", () => {
-    const now = Date.parse("2026-09-12T10:00:00.000Z");
-    const delay = msUntilNextTick(now, () => 0);
-    expect(delay).toBeGreaterThan(0);
-    expect(delay).toBeLessThanOrEqual(2.2 * 60 * 60 * 1000);
-  });
-
-  it("is injectable and deterministic via rand=0.5", () => {
-    const now = Date.parse("2026-09-12T00:10:00.000Z");
-    const delay = msUntilNextTick(now, () => 0.5);
-    expect(delay).toBeGreaterThan(0);
   });
 });
 

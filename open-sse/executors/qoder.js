@@ -38,6 +38,8 @@ import {
   QODER_CN_GATEWAY_BASE,
 } from "../shared/qoder/constants.js";
 import { getQoderModelConfig, resolveQoderModels, isQoderPat, resolveQoderCredentials } from "../services/qoderModels.js";
+import { refreshQoderToken } from "../services/tokenRefresh/providers.js";
+import { shouldRefreshCredentials } from "../services/oauthCredentialManager.js";
 import { OPENAI_BLOCK, CLAUDE_BLOCK } from "../translator/schema/blocks.js";
 import { encodeDataUri } from "../translator/concerns/image.js";
 
@@ -669,15 +671,32 @@ export class QoderExecutor extends BaseExecutor {
     return { response: wrapped, url, headers, transformedBody: payload };
   }
 
-  // Qoder device tokens don't refresh through OAuth — the upstream returns
-  // 403 for our flow. Surfacing failure via 401-on-chat is enough; the
-  // dashboard tells users to re-login when their token expires (~30 days).
-  async refreshCredentials() {
-    return null;
+  // Device-flow tokens (`dt-`, + `drt-` refresh token) refresh through the
+  // openapi host; the handler dedups concurrent calls per refresh token and
+  // classifies failures (401/403 → unrecoverable marker, 5xx/network → null).
+  //
+  // PAT connections (`pt-...`) are stateless: execute() re-exchanges the PAT
+  // for a short-lived job token (cached ~24h) on every request. There is no
+  // refresh_token to spend, so report "nothing to refresh" instead of
+  // fabricating one — a fake refresh would overwrite a working PAT.
+  async refreshCredentials(credentials, log, proxyOptions = null) {
+    const rawToken = credentials?.apiKey || credentials?.accessToken;
+    if (isQoderPat(rawToken)) {
+      log?.info?.("QODER", "PAT connection — job token is exchanged per request; skipping refresh_token flow");
+      return null;
+    }
+    if (!credentials?.refreshToken) return null;
+    return refreshQoderToken(this.providerId, credentials.refreshToken, credentials, log, proxyOptions);
   }
 
-  needsRefresh() {
-    return false;
+  needsRefresh(credentials) {
+    // Same PAT rule as above: the PAT itself is not on a refresh schedule and
+    // the job token is minted from it on demand.
+    if (isQoderPat(credentials?.apiKey || credentials?.accessToken)) return false;
+    if (!credentials?.refreshToken) return false;
+    // Shared 5-minute lead (TOKEN_EXPIRY_BUFFER_MS); the background scheduler
+    // applies its own, larger lead before calling this.
+    return shouldRefreshCredentials(this.providerId, credentials);
   }
 }
 

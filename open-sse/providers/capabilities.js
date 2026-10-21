@@ -259,6 +259,10 @@ export const MODEL_CAPABILITIES = {
   // vision:false）——两者都会把图片在 modality 层静默剥掉。
   "deepseek-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
   "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+  // Display-cased spelling published by Loomy's bundled catalog (lookup here is
+  // case-sensitive; without this row it falls to the *deepseek-v4* pattern and
+  // loses vision).
+  "DeepSeek-V4.1-Flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
   // 横杠形态别名：部分转售商以 `deepseek-v4-1-flash`（点号换成横杠）暴露同一模型；
   // 裸配会落 `*deepseek-v4*` 通配（vision:false），图片在 modality 层被静默剥掉。
   "deepseek-v4-1-flash": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
@@ -416,6 +420,45 @@ const QODER_CN_NAME_ALIASES = {
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
+  // LobsterAI 的静态兜底目录：上游 `/api/models/available` 是权威来源，但
+  // registry 不能联网，广告的是参考实现验证过的 19 条。上下文统一 131072
+  // （参考实现的桥接层估计值，不是逐模型实测）；视觉 / 思考位**不猜**——
+  // 上游只有远程目录才逐条声明，静态表里编一个 false 会让将来的模型被静默
+  // 剥图，编 true 又可能把不支持的图发上去。tools 走默认 true（OpenAI 透传）。
+  lobsterai: {
+    "deepseek-v4-flash": { contextWindow: 131072 },
+    "deepseek-v4-pro": { contextWindow: 131072 },
+    "MiniMax-M3": { contextWindow: 131072 },
+    "MiniMax-M2.7": { contextWindow: 131072 },
+    "qwen3.7-max": { contextWindow: 131072 },
+    "qwen3.7-plus": { contextWindow: 131072 },
+    "qwen3.6-plus": { contextWindow: 131072 },
+    "qwen3.5-plus-2026-04-20": { contextWindow: 131072 },
+    "kimi-k2.7-code": { contextWindow: 131072 },
+    "kimi-k2.7-code-highspeed": { contextWindow: 131072 },
+    "kimi-k2.6": { contextWindow: 131072 },
+    "kimi-k2.5": { contextWindow: 131072 },
+    "doubao-seed-2-1-pro-260628": { contextWindow: 131072 },
+    "doubao-seed-2-1-turbo-260628": { contextWindow: 131072 },
+    "glm-5.2": { contextWindow: 131072 },
+    "glm-5.1": { contextWindow: 131072 },
+    "glm-5v-turbo": { contextWindow: 131072 },
+    "glm-5": { contextWindow: 131072 },
+  },
+  // Loomy（讯飞）— 2026-10-20 按上游 `/api/v1/models` 的 capabilities 校准。
+  // 上游全部支持 reasoning_effort（none/low/medium/high/xhigh），故 thinkingFormat 用 openai。
+  loomy: {
+    "deepseek-v4-flash-0731": { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576 },
+    "DeepSeek-V4.1-Flash":    { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 384000 },
+    "MiniMax-M3":             { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 512000 },
+    "Kimi-k2.6":              { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 },
+    "qwen-3.8-max":           { vision: false, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
+    "GLM-5.3-Flash":          { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+    "qwen3.8-flash":          { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+    "spark-x2.6":     { vision: false, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+    "spark-x":                { vision: false, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+    "mimo-v2.5":              { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+  },
   // Kilo Gateway 的 `kilo-auto/*` 是**路由器档位**（上游自己决定落到哪个模型），
   // id 里没有任何模型家族线索，因此全部落 DEFAULT_CAPABILITIES（200K/64K、
   // vision:false）。kilo 官方条目给出了每档的实际承诺（2026-10-20 models.dev
@@ -761,6 +804,34 @@ export const PROVIDER_CAPABILITIES = {
     "laguna-s-2.1":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },
     "laguna-xs-2.1": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   },
+  // Raccoon 小浣熊 — static fallback catalog from our Rust provider
+  // (raccoon/models.rs). Only raccoon-8c4485 advertises image input; the two
+  // sn-* / raccoon-chat entries are thinking-capable. Without these rows the
+  // ids have no family marker and would fall to the 200K/64K floor, silently
+  // stripping images and clamping max_tokens.
+  "raccoon": {
+    "raccoon-8c4485":             { vision: true, reasoning: false, contextWindow: 1000000, maxOutput: 100000 },
+    "raccoon-19b265":             { vision: false, reasoning: false, contextWindow: 1000000, maxOutput: 100000 },
+    "raccoon-405a1c":             { vision: false, reasoning: false, contextWindow: 1000000, maxOutput: 100000 },
+    "raccoon-chat-ml-5-5":        { vision: false, reasoning: true, thinkingFormat: "openai", contextWindow: 180000, maxOutput: 80000 },
+    "sn-sensenova-6-8-flash-lite": { vision: false, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 63999 },
+  },
+  // CodeArts (Huawei) — three-source catalog from our Rust provider
+  // (codearts/models.rs: agent + builtin + benefit). Declared maxOutput values
+  // above 65536 are lies: the platform rejects 65537+ wholesale, so every row
+  // is capped at 65536. Multimodal models exist only in the builtin source.
+  "codearts": {
+    "GLM-5.2":                    { reasoning: true, contextWindow: 202752, maxOutput: 65536 },
+    "glm-5.2-sft-harmony":        { reasoning: false, contextWindow: 202752, maxOutput: 65536 },
+    "openpangu-2.0-pro":          { reasoning: true, contextWindow: 524288, maxOutput: 65536 },
+    "openpangu-2.0-flash":        { reasoning: true, contextWindow: 524288, maxOutput: 65536 },
+    "Qwen3-VL-235B":              { vision: true, reasoning: false, contextWindow: 200000, maxOutput: 65536 },
+    "kimi-k2.6-vl":               { vision: true, reasoning: false, contextWindow: 200000, maxOutput: 65536 },
+    "deepseek-v4-flash-0731":     { reasoning: true, contextWindow: 1048576, maxOutput: 65536 },
+    "glm-5.3-flash":              { reasoning: true, contextWindow: 1048576, maxOutput: 65536 },
+    "deepseek-v4-pro-0813":       { reasoning: true, contextWindow: 1000000, maxOutput: 65536 },
+    "deepseek-v4.1-flash":        { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 65536 },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
@@ -787,6 +858,14 @@ PROVIDER_CAPABILITIES["atria-asi"] = PROVIDER_CAPABILITIES.atria;
 PROVIDER_CAPABILITIES.qd = PROVIDER_CAPABILITIES.qoder;
 PROVIDER_CAPABILITIES.qdc = PROVIDER_CAPABILITIES["qoder-cn"];
 PROVIDER_CAPABILITIES.kgw = PROVIDER_CAPABILITIES["kilo-gateway"];
+PROVIDER_CAPABILITIES.kilogateway = PROVIDER_CAPABILITIES["kilo-gateway"];
+PROVIDER_CAPABILITIES.lobster = PROVIDER_CAPABILITIES.lobsterai;
+PROVIDER_CAPABILITIES["lobster-ai"] = PROVIDER_CAPABILITIES.lobsterai;
+PROVIDER_CAPABILITIES["youdao-lobster"] = PROVIDER_CAPABILITIES.lobsterai;
+// Loomy 的两个 registry alias（登录页 / 旧导入路径会用别名拼能力表的 key）。
+PROVIDER_CAPABILITIES["xfyun-loomy"] = PROVIDER_CAPABILITIES.loomy;
+PROVIDER_CAPABILITIES["loomy-xunfei"] = PROVIDER_CAPABILITIES.loomy;
+PROVIDER_CAPABILITIES.ca = PROVIDER_CAPABILITIES.codearts;
 
 /**
  * Pattern fallback — glob (* = wildcard), matched case-insensitively and

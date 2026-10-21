@@ -8,16 +8,16 @@
 // is confirmed, then memoized in `qoderDailyDone` for the rest of the day.
 
 import * as log from "../utils/logger.js";
+import { DEFAULT_CHECKIN_TIME, checkinTimeReached, nextCheckinDelay, normalizeCheckinTime } from "./checkin/schedule.js";
 import {
   QODER_OPENAPI_BASE,
   QODER_CN_OPENAPI_BASE,
 } from "../../../open-sse/shared/qoder/constants.js";
 
-const TICK_MS = 2 * 60 * 60 * 1000;
-const TICK_JITTER_MS = 10 * 60 * 1000;
 
 let started = false;
 let timerHandle = null;
+let scheduledTime = DEFAULT_CHECKIN_TIME;
 let doneMap = null;
 
 function isNonServerRuntime() {
@@ -28,11 +28,6 @@ function isNonServerRuntime() {
   }
   if (process.env.NEXT_RUNTIME === "edge") return true;
   return false;
-}
-
-export function msUntilNextTick(nowMs = Date.now(), rand = Math.random) {
-  const jitter = Math.floor(rand() * TICK_JITTER_MS);
-  return Math.max(TICK_MS + jitter, 1000);
 }
 
 async function loadSettingsSafe() {
@@ -376,6 +371,11 @@ async function safeTick(how) {
       log.debug("QODER_CHECKIN", `Scheduled ${how}: setting off, skipping`);
       return;
     }
+    scheduledTime = normalizeCheckinTime(settings.checkinTime);
+    if (!checkinTimeReached(scheduledTime)) {
+      log.debug("QODER_CHECKIN", `Scheduled ${how}: before check-in time ${scheduledTime}, skipping`);
+      return;
+    }
     const done = await getDoneMap();
     await runQoderCheckinTick({ skipIfCheckedToday: true, doneMap: done });
     await persistDoneMap();
@@ -393,7 +393,7 @@ function clearTimer() {
 
 function scheduleNext() {
   if (!started) return 0;
-  const delayMs = msUntilNextTick();
+  const delayMs = nextCheckinDelay(Date.now(), scheduledTime);
   clearTimer();
   timerHandle = setTimeout(() => {
     safeTick("tick").finally(() => scheduleNext());
@@ -418,13 +418,14 @@ export function startQoderCheckin(opts = {}) {
   }
   started = true;
 
-  if (opts.skipBoot !== true) {
-    safeTick("boot");
-  }
-  // One consolidated startup line (was two: "Scheduler started" + "Next tick
-  // scheduled {...}").
-  const delayMs = scheduleNext();
-  log.info("QODER_CHECKIN", `自动领取调度已启动（全天轮询）— 下次约 ${fmtDuration(delayMs)} 后`);
+  // Boot pass first: it also reads `checkinTime`, so scheduleNext() below
+  // waits for the configured time instead of a hard-coded 2h delay.
+  const boot = opts.skipBoot === true ? Promise.resolve() : safeTick("boot");
+  boot.finally(() => {
+    if (!started) return;
+    const delayMs = scheduleNext();
+    log.info("QODER_CHECKIN", `自动领取调度已启动（每日 ${scheduledTime}）— 下次约 ${fmtDuration(delayMs)} 后`);
+  });
   return true;
 }
 

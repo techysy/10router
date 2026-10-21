@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { TRAE_CONFIG } from "../constants/oauth.js";
+import { generateDeviceKeyPair, buildDeviceInfo } from "../utils/traeDevice.js";
 import { extractJsonPath } from "./_shared.js";
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -140,12 +141,14 @@ function traeApiOrigins(region = "intl") {
 }
 
 // POST ExchangeToken {ClientID, RefreshToken, ClientSecret, UserID} → {Result:{AccessToken,RefreshToken,ExpiresAt}}
-async function fetchTraeExchangeToken(refreshToken, cloudideToken, region = "intl") {
+async function fetchTraeExchangeToken(refreshToken, cloudideToken, region = "intl", device = null) {
   const body = JSON.stringify({
     ClientID: TRAE_CONFIG.clientId,
     RefreshToken: refreshToken,
     ClientSecret: TRAE_CONFIG.clientSecret,
     UserID: "",
+    // Required by the device-binding check (20405 when empty).
+    ...(device ? { DeviceInfo: buildDeviceInfo(device) } : {}),
   });
   let lastErr = "no successful response";
   let wrongSide = false;
@@ -181,6 +184,7 @@ async function fetchTraeExchangeToken(refreshToken, cloudideToken, region = "int
         refreshToken: extractJsonPath(data, [["Result", "RefreshToken"], ["result", "refresh_token"], ["refreshToken"]]) || refreshToken,
         expiresIn: null, // ExchangeToken returns ExpiresAt (absolute), converted below
         expiresAt: extractJsonPath(data, [["Result", "ExpiresAt"], ["Result", "expiresAt"], ["result", "expires_at"], ["expiresAt"]]),
+        _device: device || null,
       };
     } catch (e) { lastErr = `${url} ${e.message}`; }
   }
@@ -286,7 +290,10 @@ const trae = {
     // 只贴 token 没带 loginHost 时回落到调用方 meta 里的区域选择，
     // 国际回调带 www.trae.ai。拿错端必 20101，因此这里以回调为准。
     const site = traeRegionFromHost(loginHost, fallbackSite);
-    return { ...(await fetchTraeExchangeToken(refreshToken, cloudideToken, site)), _authMethod: "oauth", _site: site };
+    // Fresh pair per login, mirroring the official client; the private half is
+    // persisted in mapTokens so the SOLO DeviceProof refresh can use it.
+    const device = generateDeviceKeyPair();
+    return { ...(await fetchTraeExchangeToken(refreshToken, cloudideToken, site, device)), _authMethod: "oauth", _site: site };
   },
   postExchange: async (tokens) => {
     const userInfo = await fetchTraeUserInfo(tokens.accessToken, tokens._site);
@@ -338,6 +345,12 @@ const trae = {
         appVersion: TRAE_CONFIG.defaultAppVersion,
         userRegion: site === "cn" ? "CN" : (aiRegion === "SG" ? "SG" : "US"),
         userIdentity: "Free",
+        // Persisted so tokenRefresh/trae-solo.js can sign DeviceProof with the
+        // same key the login was bound to.
+        ...(tokens._device ? {
+          devicePublicKeyPem: tokens._device.publicPem,
+          devicePrivateKeyPem: tokens._device.privatePem,
+        } : {}),
       },
     };
   },

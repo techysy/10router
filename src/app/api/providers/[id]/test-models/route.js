@@ -4,6 +4,7 @@ import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "open-sse/config/provide
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { pingModelByKind } from "@/app/api/models/test/ping";
+import { LIVE_CATALOG_PROVIDER_SET } from "open-sse/config/liveCatalogProviders.js";
 
 /**
  * POST /api/providers/[id]/test-models
@@ -26,15 +27,27 @@ export async function POST(request, { params }) {
 
     const baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`;
 
-    // Compatible providers: fetch live model list
-    if (isCompatible && models.length === 0) {
+    // Compatible providers and live-catalogued providers: fetch the account's
+    // real model list. The dashboard route returns ids as `<provider>/<id>`;
+    // strip that prefix because `pingModelByKind` adds the alias itself — a
+    // double prefix (`loomy/loomy/...`) resolves to nothing.
+    const needsLiveList = (isCompatible && models.length === 0) || LIVE_CATALOG_PROVIDER_SET.has(providerId);
+    if (needsLiveList) {
       try {
         const modelsRes = await fetch(`${baseUrl}/api/providers/${id}/models`);
         if (modelsRes.ok) {
           const data = await modelsRes.json();
-          models = (data.models || []).map((m) => ({ id: m.id || m.name, name: m.name || m.id }));
+          const prefix = `${providerId}/`;
+          const liveModels = (data.models || [])
+            .map((m) => {
+              const raw = String(m.id || m.name || "").trim();
+              const id = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
+              return id ? { id, name: m.name || id } : null;
+            })
+            .filter(Boolean);
+          if (liveModels.length) models = liveModels;
         }
-      } catch { /* fallback to empty */ }
+      } catch { /* fallback to the static list */ }
     }
 
     if (models.length === 0) {

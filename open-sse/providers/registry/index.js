@@ -157,6 +157,13 @@ import p153 from "./modelscope.js";
 import p154 from "./codiv.js";
 import p155 from "./thx.js";
 import p156 from "./inception.js";
+import p157 from "./lobsterai.js";
+import p158 from "./raccoon.js";
+import p159 from "./atomcode.js";
+import p160 from "./loomy.js";
+import p161 from "./trae-solo.js";
+import p162 from "./officeace.js";
+import p163 from "./codearts.js";
 
 export default [
   p0,
@@ -317,4 +324,11 @@ export default [
   p154,
   p155,
   p156,
+  p157,
+  p158,
+  p159,
+  p160,
+  p161,
+  p162,
+  p163,
 ];

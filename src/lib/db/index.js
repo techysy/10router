@@ -76,6 +76,11 @@ export {
   localStartOfDayIso, sumApiKeyTokensSince, sumAllApiKeyTokensSince,
 } from "./repos/usageRepo.js";
 
+// Check-in ledger
+export {
+  recordCheckinRun, hasCheckinSuccessToday, getCheckinRuns, getCheckinSummary, pruneCheckinRuns,
+} from "./repos/checkinRepo.js";
+
 // Request details
 export {
   saveRequestDetail, getRequestDetails, getRequestDetailById, getDistinctProviders,

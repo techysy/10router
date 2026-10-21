@@ -24,7 +24,21 @@ const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(id => FREE_PROVI
 // 需要按账号拉取 live 目录的供应商（Cursor 的可选模型随账号订阅浮动；Zed 的
 // 静态 registry 目录是空的、靠 passthrough 透传，由 modelsUrl 实时下发）。静态
 // 目录只作拉取失败/为空时的兜底 —— 不同账号可能拿到不同的模型清单。
-const LIVE_CATALOG_PROVIDERS = ["cursor", "zed"];
+const LIVE_CATALOG_PROVIDERS = [
+  "cursor",
+  "zed",
+  // Credential-backed catalogues (open-sse/services/liveCatalogs.js). Their
+  // registry arrays are an offline floor; live ids can appear/disappear per
+  // account. The API returns them as `<provider>/<id>`, so the prefix is
+  // stripped when fetched — the group builder below adds the alias itself.
+  "loomy",
+  "lobsterai",
+  "atomcode",
+  "raccoon",
+  "codearts",
+  "officeace",
+  "trae-solo",
+];
 
 export default function ModelSelectModal({
   isOpen,
@@ -90,7 +104,14 @@ export default function ModelSelectModal({
         return Array.isArray(data.models) ? data.models : [];
       }));
       const seen = new Set();
-      return [providerId, modelLists.flat().filter((model) => {
+      const prefix = `${providerId}/`;
+      return [providerId, modelLists.flat().map((model) => {
+        const raw = String(model?.id || "").trim();
+        if (!raw) return null;
+        // Accept both prefixed (our live route) and bare (cursor/zed) ids,
+        // normalising to the bare id the group builder expects.
+        return { ...model, id: raw.startsWith(prefix) ? raw.slice(prefix.length) : raw };
+      }).filter((model) => {
         if (!model?.id || seen.has(model.id)) return false;
         seen.add(model.id);
         return true;

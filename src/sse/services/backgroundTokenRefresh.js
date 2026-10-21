@@ -64,7 +64,16 @@ export function selectConnectionsNeedingRefresh(connections, nowMs = Date.now())
     // expires probes once and (if still dead) starts a new window.
     if (isNeedsReauthCooling(conn, nowMs)) continue;
 
-    const expiresAtMs = getCredentialExpiryMs(conn);
+    let expiresAtMs = getCredentialExpiryMs(conn);
+    if (expiresAtMs === null && conn.provider === "officeace") {
+      // OfficeAce's top-level expiresAt is null by design (the gateway Basic
+      // never expires); only the control-plane STS in providerSpecificData
+      // expires. Without this fallback the account would never be selected for
+      // its 2h renewal.
+      const psdExpiry = conn.providerSpecificData?.expiresAt;
+      const parsed = psdExpiry ? Date.parse(psdExpiry) : NaN;
+      if (Number.isFinite(parsed)) expiresAtMs = parsed;
+    }
     if (expiresAtMs === null) continue;
 
     const providerLead = getRefreshLeadMs(conn.provider);

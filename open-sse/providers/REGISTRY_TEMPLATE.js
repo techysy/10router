@@ -96,4 +96,5 @@ export default {
   // features: { usage: true },
   // thinkingConfig: { options: ["auto", "none", "low", "high"], defaultMode: "auto" },
   // passthroughModels: true,
+  // strictModels: true,           // reject ids outside models[] (400) instead of forwarding
 };

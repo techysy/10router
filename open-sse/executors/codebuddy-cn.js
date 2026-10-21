@@ -1,6 +1,5 @@
-import crypto from "crypto";
 import { DefaultExecutor } from "./default.js";
-import { resolveSessionId } from "../utils/sessionManager.js";
+import { buildCodeBuddyConversationHeaders, sanitizeCodeBuddyOutbound } from "./codebuddy-outbound.js";
 
 /**
  * CodeBuddyExecutor — talks to https://copilot.tencent.com/v2/chat/completions
@@ -21,34 +20,13 @@ export class CodeBuddyExecutor extends DefaultExecutor {
 
     // X-Conversation headers: CodeBuddy / WorkBuddy WAF requires session/conversation
     // identity headers (X-Conversation-ID, X-Conversation-Request-ID, X-Conversation-Message-ID).
-    // Deriving a stable conversationId from downstream session keeps conversation continuity
-    // while satisfying upstream channel/WAF checks (prevents 11128 unapproved channel errors).
-    try {
-      const sessionId = resolveSessionId({
-        headers: credentials?.rawHeaders,
-        body: transformedBody,
-        connectionId: credentials?.connectionId,
-        scope: "codebuddy-cn"
-      });
-      // Conversation ID: 32-char hex derived from session identity
-      const convId = crypto.createHash("md5").update(sessionId || "codebuddy-cn-default").digest("hex");
-      // Turn / Request ID: unique 32-char hex per request turn
-      const reqHex = crypto.randomBytes(16).toString("hex");
-
-      headers["X-Conversation-ID"] = convId;
-      headers["X-Conversation-Request-ID"] = reqHex;
-      headers["X-Conversation-Message-ID"] = reqHex;
-      headers["X-Request-ID"] = reqHex;
-      headers["X-Agent-Intent"] = "craft";
-      headers["X-Agent-Type"] = "main";
-    } catch {
-      // Fallback: safe random hex IDs if session resolution fails
-      const fallbackId = crypto.randomBytes(16).toString("hex");
-      headers["X-Conversation-ID"] = fallbackId;
-      headers["X-Conversation-Request-ID"] = fallbackId;
-      headers["X-Conversation-Message-ID"] = fallbackId;
-      headers["X-Request-ID"] = fallbackId;
-    }
+    // The conversation id is session-derived; the request/message ids are reused
+    // across retries and account fallback for one logical request (never a fresh
+    // random id per attempt — that burst is itself what the WAF reacts to).
+    Object.assign(
+      headers,
+      buildCodeBuddyConversationHeaders(credentials, transformedBody, "codebuddy-cn"),
+    );
 
     return headers;
   }
@@ -146,7 +124,12 @@ export class CodeBuddyExecutor extends DefaultExecutor {
     // No reasoning requested: leave both unset. Forcing reasoning_effort:"medium"
     // + reasoning_summary on plain requests makes CodeBuddy trip its content
     // filter and return an error (#2071).
-    return transformed;
+
+    // Last step before the body leaves the gateway: normalize role:"developer"
+    // to "system" and rewrite any bare "11128" substring (the two request-side
+    // 11128 causes — see codebuddy-outbound.js). Deep-copies, never mutates the
+    // caller's body, fail-open.
+    return sanitizeCodeBuddyOutbound(transformed);
   }
 
   // CodeBuddy 6004 频率限制（错误体里 code=6004，HTTP 状态可能仍是 200/400）：

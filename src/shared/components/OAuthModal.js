@@ -7,7 +7,13 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Providers using the dynamic-port local callback proxy.
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
-const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed"]);
+const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed", "lobsterai", "codearts"]);
+// Cloud-side state polling (no loopback): open popup, server polls the cloud.
+const CLOUD_POLL_PROVIDERS = new Set(["officeace"]);
+// Manual callback paste (custom scheme / page shows a code).
+const MANUAL_CALLBACK_PROVIDERS = new Set(["raccoon"]);
+// Phone + SMS code, two backend actions.
+const SMS_LOGIN_PROVIDERS = new Set(["loomy"]);
 
 // 登录站点选项（issue #69）。Trae 国内站 (trae.cn) 与国际站 (trae.ai) 账号不互通：
 // refresh token 拿到另一端换必回 20101，所以必须由用户显式选站点，不能赌默认值。
@@ -53,6 +59,10 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [step, setStep] = useState("waiting"); // waiting | input | success | error
   const [authData, setAuthData] = useState(null);
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [smsPhone, setSmsPhone] = useState("");
+  const [smsCode, setSmsCode] = useState("");
+  const [smsMsgid, setSmsMsgid] = useState("");
+  const [smsBusy, setSmsBusy] = useState(false);
   const [error, setError] = useState(null);
   const [isDeviceCode, setIsDeviceCode] = useState(false);
   const [deviceData, setDeviceData] = useState(null);
@@ -234,6 +244,34 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     if (!provider) return;
     try {
       setError(null);
+
+      // Loomy: phone + SMS code (no browser popup).
+      if (SMS_LOGIN_PROVIDERS.has(provider)) {
+        setStep("sms");
+        return;
+      }
+
+      // OfficeAce: cloud-side authorization state polling.
+      if (CLOUD_POLL_PROVIDERS.has(provider) && authMode === "browser") {
+        const res = await fetch(`/api/oauth/${provider}/authorize`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setAuthData({ ...data, proxyProvider: provider });
+        setStep("waiting");
+        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
+        return;
+      }
+
+      // Raccoon: official page redirects to office-raccoon://; paste it back.
+      if (MANUAL_CALLBACK_PROVIDERS.has(provider) && authMode === "browser") {
+        const res = await fetch(`/api/oauth/${provider}/authorize`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setAuthData({ ...data });
+        setStep("input");
+        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
+        return;
+      }
 
       // Trae/Windsurf: proxy OAuth (browser mode) — handled by dedicated flow.
       // Paste-token mode is handled by handleManualSubmit (no /authorize call).
@@ -691,6 +729,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       fetch("/api/oauth/windsurf/stop-proxy").catch(() => {});
     } else if (provider === "zed") {
       fetch("/api/oauth/zed/stop-proxy").catch(() => {});
+    } else if (provider === "codearts") {
+      fetch("/api/oauth/codearts/stop-proxy").catch(() => {});
     }
     onClose();
   }, [onClose, provider]);
@@ -709,6 +749,70 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
       <div className="flex flex-col gap-4">
+        {/* OfficeAce: cloud-side poll, no manual paste. */}
+        {CLOUD_POLL_PROVIDERS.has(provider) && (step === "waiting" || step === "error") && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
+              <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
+              <span className="text-sm">等待华为云授权完成…（请在弹窗中登录并同意授权）</span>
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button onClick={handleClose} variant="ghost" fullWidth>Cancel</Button>
+          </div>
+        )}
+
+        {/* Loomy: phone + SMS code. */}
+        {SMS_LOGIN_PROVIDERS.has(provider) && step !== "success" && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-text-muted">
+              使用手机号 + 短信验证码登录；会话约 14 天，到期需要重新登录。
+            </p>
+            <Input value={smsPhone} onChange={(e) => setSmsPhone(e.target.value)} placeholder="手机号（默认 +86）" />
+            <Button
+              onClick={async () => {
+                setError(null); setSmsBusy(true);
+                try {
+                  const res = await fetch("/api/oauth/loomy/send-sms-code", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone: smsPhone }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "发送验证码失败");
+                  setSmsMsgid(data.msgid || "");
+                } catch (err) { setError(err.message); }
+                finally { setSmsBusy(false); }
+              }}
+              disabled={!smsPhone || smsBusy}
+              fullWidth
+            >
+              {smsMsgid ? "重新发送验证码" : "发送验证码"}
+            </Button>
+            <Input value={smsCode} onChange={(e) => setSmsCode(e.target.value)} placeholder="6 位验证码" />
+            <Button
+              onClick={async () => {
+                setError(null); setSmsBusy(true);
+                try {
+                  const res = await fetch("/api/oauth/loomy/verify-sms-code", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ phone: smsPhone, code: smsCode, msgid: smsMsgid }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "登录失败");
+                  setStep("success");
+                  onSuccess?.();
+                } catch (err) { setError(err.message); }
+                finally { setSmsBusy(false); }
+              }}
+              disabled={!smsCode || !smsMsgid || smsBusy}
+              fullWidth
+            >
+              登录
+            </Button>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button onClick={handleClose} variant="ghost" fullWidth>Cancel</Button>
+          </div>
+        )}
+
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
@@ -816,7 +920,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         )}
 
         {/* Waiting + Manual Input combined (non-device-code, non-proxy) */}
-        {(step === "waiting" || step === "input") && !isDeviceCode && !PROXY_OAUTH_PROVIDERS.has(provider) && (
+        {(step === "waiting" || step === "input") && !isDeviceCode && !PROXY_OAUTH_PROVIDERS.has(provider) && !CLOUD_POLL_PROVIDERS.has(provider) && !SMS_LOGIN_PROVIDERS.has(provider) && (
           <>
             {/* Option A: Auto via popup */}
             <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">

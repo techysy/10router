@@ -17,6 +17,40 @@ const SETTINGS_RESPONSE_HEADERS = {
 // Secrets must never be mass-assigned from request body (CWE-915)
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
 
+/**
+ * Restart the legacy schedulers so a new `checkinTime` takes effect now rather
+ * than on their next ~2h timer. Stop+start (start is idempotent) re-reads
+ * settings and schedules against the configured minute.
+ */
+async function rescheduleLegacyCheckinSchedulers(settings) {
+  const jobs = [];
+  if (settings.qoderCheckin === true) {
+    jobs.push(
+      import("@/sse/services/qoderCheckin.js").then((m) => {
+        m.stopQoderCheckin();
+        m.startQoderCheckin();
+      })
+    );
+  }
+  if (settings.codeBuddyCheckin === true || settings.codeBuddyCompensation === true) {
+    jobs.push(
+      import("@/sse/services/codebuddyCheckin.js").then((m) => {
+        m.stopCodebuddyCheckin();
+        m.startCodebuddyCheckin();
+      })
+    );
+  }
+  if (settings.minimaxCheckin === true) {
+    jobs.push(
+      import("@/sse/services/minimaxCheckin.js").then((m) => {
+        m.stopMinimaxCheckin();
+        m.startMinimaxCheckin();
+      })
+    );
+  }
+  await Promise.allSettled(jobs);
+}
+
 export async function GET() {
   try {
     const settings = await getSettings();
@@ -150,6 +184,7 @@ export async function PATCH(request) {
     // Experimental CodeBuddy CN auto check-in / compensation: when any toggle flips on at
     // runtime, (re)start the scheduler. It re-reads the flags on every fire, so
     // turning it off later needs no extra wiring. Module is idempotent.
+    // (The intl daily active-session probe is retired and no longer starts the scheduler.)
     if (
       (Object.prototype.hasOwnProperty.call(body, "codeBuddyCheckin") && settings.codeBuddyCheckin === true) ||
       (Object.prototype.hasOwnProperty.call(body, "codeBuddyCompensation") && settings.codeBuddyCompensation === true)
@@ -183,6 +218,30 @@ export async function PATCH(request) {
           .then(({ stopMinimaxCheckin }) => stopMinimaxCheckin())
           .catch((error) => console.warn("[MinimaxCheckin] stop failed:", error.message));
       }
+    }
+
+    // W1 generic check-in adapters (raccoon / atomcode / lobsterai). One
+    // scheduler for all; refresh re-reads the toggles and starts or stops.
+    if (
+      Object.prototype.hasOwnProperty.call(body, "raccoonCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "atomcodeCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "lobsteraiCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "loomyCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "officeaceCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "codeartsCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "traeCheckin") ||
+      Object.prototype.hasOwnProperty.call(body, "checkinTime")
+    ) {
+      import("@/sse/services/checkin/scheduler.js")
+        .then(({ refreshCheckinScheduler }) => refreshCheckinScheduler())
+        .catch((error) => console.warn("[Checkin] refresh failed:", error.message));
+    }
+
+    // A time change affects every scheduler, including the three legacy ones.
+    if (Object.prototype.hasOwnProperty.call(body, "checkinTime")) {
+      rescheduleLegacyCheckinSchedulers(settings).catch((error) =>
+        console.warn("[Checkin] legacy reschedule failed:", error.message)
+      );
     }
 
     const { password, oidcClientSecret, ...safeSettings } = settings;

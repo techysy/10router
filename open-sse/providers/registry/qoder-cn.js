@@ -61,7 +61,12 @@ export default {
     centerBaseUrl: "https://gateway.qoder.com.cn",
     chatBaseUrl: "https://gateway.qoder.com.cn",
     deviceTokenUrl: "https://openapi.qoder.com.cn/api/v1/deviceToken/poll",
-    refreshUrl: "https://gateway.qoder.com.cn/algo/api/v3/user/refresh_token",
+    // Same shape as the global deployment: device refresh on openapi (no
+    // signature), job refresh for `jrt-` tokens on its own path. The center
+    // `/algo/api/v3/user/refresh_token` endpoint requires appcode signing and
+    // rejects unsigned device tokens (403 "Request discarded").
+    refreshUrl: "https://openapi.qoder.com.cn/api/v1/deviceToken/refresh",
+    jobRefreshUrl: "https://openapi.qoder.com.cn/api/v1/jobToken/refresh",
     userInfoUrl: "https://openapi.qoder.com.cn/api/v1/userinfo",
     quotaUsageUrl: "https://openapi.qoder.com.cn/api/v2/quota/usage",
     loginUrl: "https://qoder.cn/device/selectAccounts",

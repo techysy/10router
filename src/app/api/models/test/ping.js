@@ -5,6 +5,14 @@ import { CLI_TOKEN_HEADER } from "@/lib/auth/authHeaders";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
+// Reasoning-heavy providers can spend >15s before the first content token
+// (Loomy spark-x measured 24.3s). A fixed 15s probe reports a false timeout.
+const SLOW_PING_PROVIDERS = new Set(["loomy", "codearts", "officeace", "lobsterai"]);
+function pingTimeoutMs(model) {
+  const provider = String(model || "").split("/")[0];
+  return SLOW_PING_PROVIDERS.has(provider) ? 60000 : 15000;
+}
+
 function createSilentWavFile() {
   const sampleRate = 16000;
   const channels = 1;
@@ -174,7 +182,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       stream: false,
       messages: [{ role: "user", content: "hi" }],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(pingTimeoutMs(model)),
   });
   const latencyMs = Date.now() - start;
 

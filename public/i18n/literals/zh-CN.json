@@ -2103,5 +2103,21 @@
   "Power me ⚡️": "为我发电 ⚡️",
   "Check endpoint": "检查端点",
   "Endpoint unreachable — the provider may be under maintenance, try again later": "端点不可达——供应商可能正在维护，请稍后重试",
-  "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。"
+  "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。",
+  "Daily check-in time": "每日签到时间",
+  "Local time (HH:mm). All enabled check-ins run at this minute; failures retry about every 2 hours until the day ends.": "本地时间（HH:mm）。所有已启用的签到会在这一分钟执行；失败后约每 2 小时重试，直到当天结束。",
+  "Trae CN auto daily check-in": "Trae 国内站自动签到",
+  "Daily checkin_credits claim for CN Trae / Trae SOLO accounts (no check-in exists on the intl site).": "为 Trae 国内站 / Trae SOLO 国内账号领取每日 checkin_credits（国际站没有签到活动）。",
+  "CodeArts daily check-in": "CodeArts 每日自动签到",
+  "Daily benefit claim for Huawei CodeArts accounts.": "为华为 CodeArts 账号领取每日福利。",
+  "OfficeAce daily check-in": "OfficeAce 每日自动签到",
+  "One-shot reward claim for OfficeAce subscription accounts (needs control-plane credentials).": "为 OfficeAce 订阅账号领取一次性奖励（需要控制面凭据）。",
+  "Loomy daily check-in": "Loomy 每日自动签到",
+  "Daily first-login points and newcomer tasks for Loomy accounts.": "为 Loomy 账号领取每日首次登录积分和新手任务奖励。",
+  "AtomCode plan claim": "AtomCode 套餐领取",
+  "Claims the free CodingPlan when it is available; no daily points.": "有可用免费 CodingPlan 时自动领取；不是每日积分。",
+  "Raccoon daily check-in": "Raccoon 每日自动签到",
+  "Daily desktop-login points and reward claims for Raccoon accounts.": "为 Raccoon 账号领取每日桌面登录积分和奖励。",
+  "LobsterAI daily check-in": "LobsterAI 每日自动签到",
+  "Daily activity check-in for LobsterAI accounts.": "为 LobsterAI 账号完成每日活动签到。"
 }

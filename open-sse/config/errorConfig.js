@@ -98,17 +98,32 @@ export const CHANNEL_BLOCK_ESCALATE_WINDOW_MS = 5 * 60 * 1000;
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
+  // CodeArts 并发超限：上游第 4 路回 **HTTP 400 `TM.00001041`**。账号是健康的，
+  // 只是这一瞬间满了（每号 3 路，`[DONE]` 后未释放的僵尸槽很常见）。必须走**短冷却**
+  // 而不是 429 的指数退避：把 400 归成 429（或让 400 落到「请求自身错误、不换号」）
+  // 都会让一次调度碰撞变成几分钟的整号停摆。只对本 provider 生效。
+  { provider: "codearts", text: "00001041", cooldownMs: COOLDOWN.short },
   // codex：[1m] 长上下文请求打到没勾选该变体的账号时，后端 400 回复这句——
   // 是账号级能力问题（换号可解），但它以 400 出现会撞进下方「请求自身 4xx
   // 不冷却」的兜底分支，所以必须显式置顶并按长冷却换下一个账号（上游 9f41ee75）。
   { provider: "codex", text: "model is not supported when using codex with a chatgpt account", cooldownMs: MAX_RATE_LIMIT_COOLDOWN_MS },
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
+  // trae-solo 9074 是**设备级**限流（设备号代际），不是渠道指纹：只冷却当前
+  // 连接 5s，绝不做全池熔断——全池冷却会把"换设备号能解"的问题拖成全渠道故障。
+  { provider: "trae-solo", text: "9074", cooldownMs: COOLDOWN.short },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
   // CodeBuddy 11128 "Illegal API invocation from an unapproved channel" —
   // upstream security policy. Verified on a 4-account pool: all four answer 11128
   // with the SAME model within the same second (323–654ms), while a direct
   // single request with the identical shape returns 200. So the block is on the
   // channel, and walking the account list is what makes it worse.
+  //
+  // 已先做请求侧清洗（open-sse/executors/codebuddy-outbound.js，两个 CodeBuddy
+  // 出口都在出站前执行）：① messages[].role="developer" 归一为 system；
+  // ② 请求体任意字符串里的裸串 "11128" 改写为 "11-128"。这两条是社区实测的
+  // 请求侧复现条件（MOONKEY0510/workbuddy_api，MIT）。能走到本规则说明**清洗
+  // 之后**仍被上游拦截 —— 那才是真正的渠道级风控，channelScope 熔断保留作兜底，
+  // 不是被清洗替代。不要因为加了清洗就删掉这条规则。
   { text: "unapproved channel",       channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "illegal api invocation",   channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },

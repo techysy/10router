@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
 import {
   getProvider,
   generateAuthData,
@@ -23,6 +24,11 @@ import {
   registerTraeSession,
   getTraeSessionStatus,
   clearTraeSession,
+  startLobsterAiProxy,
+  stopLobsterAiProxy,
+  registerLobsterAiSession,
+  getLobsterAiSessionStatus,
+  clearLobsterAiSession,
   startWindsurfProxy,
   stopWindsurfProxy,
   registerWindsurfSession,
@@ -39,7 +45,16 @@ import {
   getXiaomiMimoSessionStatus,
   clearXiaomiMimoSession,
   completeXiaomiMimoFlow,
+  startCodeArtsProxy,
+  stopCodeArtsProxy,
+  registerCodeArtsLoginSession,
+  getCodeArtsSessionStatus,
+  clearCodeArtsSession,
 } from "@/lib/oauth/utils/server";
+
+// OfficeAce authorizes by cloud-side state polling (no loopback): this map keeps
+// the transient poll state so concurrent UI polls do not claim twice.
+const officeAcePollSessions = new Map();
 import { detectIdeInstalled } from "@/lib/oauth/utils/ideDetect";
 import { ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
 
@@ -129,6 +144,42 @@ export async function GET(request, { params }) {
         });
       }
 
+      // OfficeAce: cloud-side state polling (PKCE+DPoP live in the provider module).
+      if (provider === "officeace") {
+        const { startLogin } = await import("@/lib/oauth/providers/officeace.js");
+        const started = await startLogin({});
+        return NextResponse.json({
+          authUrl: started.authorizeUrl,
+          state: started.state,
+          pollIntervalMs: 2500,
+          flowType: "cloud_poll",
+        });
+      }
+      // CodeArts: portal accepts only the loopback port; PKCE + DPoP key live in
+      // the server-side session keyed by state.
+      if (provider === "codearts") {
+        const [{ generatePKCE }, { buildAuthorizeUrl, generateDpopKeyPair }] = await Promise.all([
+          import("@/lib/oauth/utils/pkce.js"),
+          import("@/lib/oauth/providers/codearts.js"),
+        ]);
+        const redirectUri = searchParams.get("redirect_uri") || "http://127.0.0.1:0/oauth/callback";
+        const state = crypto.randomUUID();
+        const { codeVerifier, codeChallenge } = generatePKCE();
+        const keys = generateDpopKeyPair();
+        registerCodeArtsLoginSession({ state, verifier: codeVerifier, dpopPrivateKeyPem: keys.privateKeyPem, redirectUri });
+        return NextResponse.json({
+          authUrl: buildAuthorizeUrl({ redirectUri, state, pkceChallenge: codeChallenge }),
+          state,
+          callbackPath: "/oauth/callback",
+        });
+      }
+      // Raccoon: official page redirects to the office-raccoon:// custom scheme;
+      // the user pastes that callback back (manual-code path).
+      if (provider === "raccoon") {
+        const { buildAuthorizeUrl } = await import("@/lib/oauth/providers/raccoon.js");
+        const state = crypto.randomUUID();
+        return NextResponse.json({ authUrl: buildAuthorizeUrl({ state }), state, flowType: "manual_callback" });
+      }
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
       // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
       const reservedParams = new Set(["redirect_uri"]);
@@ -148,6 +199,14 @@ export async function GET(request, { params }) {
       // state is registered separately via /register-session after /authorize).
       if (provider === "trae") {
         const result = await startTraeProxy();
+        return NextResponse.json(result);
+      }
+      if (provider === "lobsterai") {
+        const result = await startLobsterAiProxy();
+        return NextResponse.json(result);
+      }
+      if (provider === "codearts") {
+        const result = await startCodeArtsProxy();
         return NextResponse.json(result);
       }
       if (provider === "windsurf") {
@@ -187,12 +246,49 @@ export async function GET(request, { params }) {
       if (!state) {
         return NextResponse.json({ error: "Missing state" }, { status: 400 });
       }
+      // OfficeAce: advance the cloud-side authorization poll; on 200 finish the
+      // login and create the connection exactly once.
+      if (provider === "officeace") {
+        const { pollAuthorization, finishLogin, forgetLoginSession } = await import("@/lib/oauth/providers/officeace.js");
+        let oa = officeAcePollSessions.get(state);
+        if (!oa) { oa = { state, status: "pending", createdAt: Date.now() }; officeAcePollSessions.set(state, oa); }
+        if (oa.status === "done") {
+          return NextResponse.json({ status: "done", connectionId: oa.connectionId, email: oa.email });
+        }
+        const polled = await pollAuthorization(state);
+        if (polled.status === "pending") return NextResponse.json({ status: "pending" });
+        if (polled.status === "expired") {
+          forgetLoginSession(state);
+          officeAcePollSessions.delete(state);
+          return NextResponse.json({ status: "error", error: polled.error || "授权已过期，请重新登录" });
+        }
+        try {
+          const creds = await finishLogin({ state, code: polled.code });
+          const connection = await createProviderConnection({
+            provider: "officeace",
+            authType: "oauth",
+            ...creds,
+            // Gateway Basic never expires; the control-plane STS expiry lives in psd.
+            expiresAt: null,
+            testStatus: "active",
+          });
+          oa.status = "done";
+          oa.connectionId = connection.id;
+          oa.email = connection.email;
+          return NextResponse.json({ status: "done", connectionId: connection.id, email: connection.email });
+        } catch (err) {
+          officeAcePollSessions.delete(state);
+          return NextResponse.json({ status: "error", error: err?.message || String(err) });
+        }
+      }
       let session;
       if (provider === "trae") session = getTraeSessionStatus(state);
+      else if (provider === "lobsterai") session = getLobsterAiSessionStatus(state);
       else if (provider === "windsurf") session = getWindsurfSessionStatus(state);
       else if (provider === "zed") session = getZedSessionStatus(state);
       else if (provider === "xai") session = getXaiSessionStatus(state);
       else if (provider === "codex") session = getCodexSessionStatus(state);
+      else if (provider === "codearts") session = getCodeArtsSessionStatus(state);
       else if (isXiaomiMimo(provider)) {
         const xm = getXiaomiMimoSessionStatus(state);
         if (!xm) return NextResponse.json({ status: "unknown" });
@@ -209,13 +305,19 @@ export async function GET(request, { params }) {
         }
         return NextResponse.json({ status: xm.status });
       }
-      else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+      else return NextResponse.json({ error: "Poll only supported for codex/xai/trae/windsurf/zed/lobsterai" }, { status: 400 });
       if (!session) return NextResponse.json({ status: "unknown" });
       if (session.status === "done" || session.status === "error") {
-        const payload = { ...session };
+        // CodeArts sessions carry the PKCE verifier and the DPoP private key;
+        // never serialize them to the browser.
+        const payload = provider === "codearts"
+          ? { status: session.status, error: session.error, connectionId: session.connectionId, email: session.email }
+          : { ...session };
         if (provider === "trae") clearTraeSession(state);
+        else if (provider === "lobsterai") clearLobsterAiSession(state);
         else if (provider === "windsurf") clearWindsurfSession(state);
         else if (provider === "zed") clearZedSession(state);
+        else if (provider === "codearts") clearCodeArtsSession(state);
         else if (provider === "xai") clearXaiSession(state);
         else clearCodexSession(state);
         return NextResponse.json(payload);
@@ -225,12 +327,14 @@ export async function GET(request, { params }) {
 
     if (action === "stop-proxy") {
       if (provider === "trae") stopTraeProxy();
+      else if (provider === "lobsterai") stopLobsterAiProxy();
       else if (provider === "windsurf") stopWindsurfProxy();
       else if (provider === "zed") stopZedProxy();
+      else if (provider === "codearts") stopCodeArtsProxy();
       else if (provider === "xai") stopXaiProxy();
       else if (provider === "codex") stopCodexProxy();
       else if (isXiaomiMimo(provider)) stopXiaomiMimoProxy();
-      else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+      else return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed/lobsterai" }, { status: 400 });
       return NextResponse.json({ success: true });
     }
 
@@ -275,6 +379,7 @@ export async function GET(request, { params }) {
         "grok-cli",
         "glm",
         "muse",
+        "atomcode",
       ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {
@@ -351,9 +456,11 @@ export async function POST(request, { params }) {
       if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
       let ok = false;
       if (provider === "trae") ok = registerTraeSession({ state });
+      else if (provider === "lobsterai") ok = registerLobsterAiSession({ state });
+      else if (provider === "codearts") ok = !!getCodeArtsSessionStatus(state);
       else if (provider === "windsurf") ok = registerWindsurfSession({ state });
       else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier });
-      else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });
+      else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed/lobsterai" }, { status: 400 });
       return NextResponse.json({ success: ok });
     }
 
@@ -397,8 +504,81 @@ export async function POST(request, { params }) {
       });
     }
 
+    if (action === "send-sms-code") {
+      const { phone, ccode } = body || {};
+      const { sendSmsCode } = await import("@/lib/oauth/providers/loomy.js");
+      const result = await sendSmsCode({ phone, ccode });
+      return NextResponse.json({ success: true, ...result });
+    }
+
+    if (action === "verify-sms-code") {
+      const { phone, code, msgid, ccode } = body || {};
+      const { verifySmsCode, mapTokens } = await import("@/lib/oauth/providers/loomy.js");
+      const tokens = await verifySmsCode({ phone, code, msgid, ccode });
+      const mapped = mapTokens(tokens);
+      const expiresAt = mapped.expiresAt
+        || (mapped.expiresIn ? new Date(Date.now() + mapped.expiresIn * 1000).toISOString() : null);
+      const connection = await createProviderConnection({
+        provider: "loomy",
+        authType: "oauth",
+        ...mapped,
+        expiresAt,
+        testStatus: "active",
+      });
+      return NextResponse.json({ success: true, connectionId: connection.id, email: connection.email });
+    }
+
     if (action === "exchange") {
       const { code, redirectUri, codeVerifier, state, meta } = body;
+
+      // Raccoon: manual callback / bare code, exchanged and stored here.
+      if (provider === "raccoon") {
+        const { parseCallbackUrl, exchangeCode } = await import("@/lib/oauth/providers/raccoon.js");
+        const parsed = parseCallbackUrl(code, state);
+        if (!parsed.ok) return NextResponse.json({ error: parsed.error || "Invalid callback" }, { status: 400 });
+        const tokenData = await exchangeCode(parsed.code);
+        const connection = await createProviderConnection({
+          provider: "raccoon",
+          authType: "oauth",
+          ...tokenData,
+          expiresAt: tokenData.expiresAt ? new Date(tokenData.expiresAt).toISOString() : null,
+          testStatus: "active",
+        });
+        return NextResponse.json({ success: true, connectionId: connection.id, email: connection.email });
+      }
+
+      // CodeArts: popup-blocked fallback — the pasted callback is exchanged with
+      // the verifier/DPoP key registered by /authorize.
+      if (provider === "codearts") {
+        const session = state ? getCodeArtsSessionStatus(state) : null;
+        if (session?.status === "done") {
+          clearCodeArtsSession(state);
+          return NextResponse.json({ success: true, connectionId: session.connectionId });
+        }
+        if (!session) {
+          return NextResponse.json({ error: "CodeArts login session not found; restart the login flow" }, { status: 400 });
+        }
+        const { parseLoopbackCallback, exchangeCode } = await import("@/lib/oauth/providers/codearts.js");
+        let parsed = null;
+        try { parsed = parseLoopbackCallback(code, state); } catch { parsed = null; }
+        if (!parsed?.code) return NextResponse.json({ error: "No authorization code in the pasted callback" }, { status: 400 });
+        const tokenData = await exchangeCode({
+          code: parsed.code,
+          codeVerifier: session.verifier,
+          dpopPrivateKeyPem: session.dpopPrivateKeyPem,
+          redirectUri: session.redirectUri,
+        });
+        const connection = await createProviderConnection({
+          provider: "codearts",
+          authType: "oauth",
+          ...tokenData,
+          expiresAt: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() : null,
+          testStatus: "active",
+        });
+        session.status = "done";
+        session.connectionId = connection.id;
+        return NextResponse.json({ success: true, connectionId: connection.id, email: connection.email });
+      }
 
       // Xiaomi MiMo: the decrypted session already holds the sk- key server-side.
       if (isXiaomiMimo(provider)) {
@@ -630,7 +810,7 @@ export async function POST(request, { params }) {
       }
 
       // Providers that don't use PKCE for device code
-      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "glm", "muse"];
+      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn", "codebuddy-intl", "glm", "muse", "atomcode"];
       let result;
       if (noPkceProviders.includes(provider)) {
         // kimi needs extraData._kimiDeviceId for stable X-Msh-Device-Id (CLIProxyAPI parity);

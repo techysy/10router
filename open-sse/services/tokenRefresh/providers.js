@@ -1,9 +1,26 @@
 import { PROVIDERS, PROVIDER_OAUTH } from "../../config/providers.js";
 import { OAUTH_ENDPOINTS, GITHUB_COPILOT, buildKimiHeaders } from "../../config/appConstants.js";
+import {
+  RACCOON_ACCESS_TOKEN_TTL_SEC,
+  RACCOON_REFRESH_URL,
+} from "../../config/raccoon.js";
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 import { buildClineHeaders, getClineAccessToken } from "../../shared/clineAuth.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
+import {
+  LOBSTERAI_REFRESH_URL,
+  LOBSTERAI_REQUEST_TIMEOUT_MS,
+  LOBSTERAI_USER_AGENT,
+} from "../../shared/lobsterai/constants.js";
+import {
+  jwtExpiryMs,
+  keyfromFields,
+  readNumber,
+  resolveClientVersion,
+  unwrapEnvelope,
+} from "../../shared/lobsterai/client.js";
+import { refreshAtomcodeToken as refreshAtomcodeOAuthToken } from "../../shared/atomcode/oauth.js";
 
 let _xaiServiceSingleton = null;
 export async function refreshXaiToken(refreshToken, log) {
@@ -466,6 +483,35 @@ export async function refreshCopilotToken(githubAccessToken, log) {
 // CodeBuddy (Tencent) refresh — POST /v2/plugin/auth/token/refresh with the
 // refresh token carried in the X-Refresh-Token header (not a form body),
 // matching the official CodeBuddy CLI. Response: { code: 0, data: <token> }.
+// AtomCode (AtomGit) — JSON {refresh_token} to the login broker, no client
+// credentials, and BOTH tokens rotate. A rejected refresh token is permanent
+// (the browser login has to be repeated), so surface invalid_grant instead of
+// a generic null that keeps the dead account in rotation.
+export async function refreshAtomcodeToken(refreshToken, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh("atomcode", refreshToken, async () => {
+    try {
+      const bundle = await refreshAtomcodeOAuthToken(refreshToken, proxyOptions);
+      if (!bundle?.accessToken) return null;
+      return {
+        accessToken: bundle.accessToken,
+        // Rotation: keep the previous token only when the broker omitted it.
+        refreshToken: bundle.refreshToken || refreshToken,
+        expiresIn: bundle.expiresIn || undefined,
+        providerSpecificData: {
+          ...(bundle.userId ? { userId: bundle.userId } : {}),
+          ...(bundle.username ? { username: bundle.username } : {}),
+          ...(bundle.name ? { name: bundle.name } : {}),
+        },
+      };
+    } catch (error) {
+      log?.warn?.("TOKEN_REFRESH", `atomcode refresh failed: ${error?.message || error}`);
+      if (error?.code === "invalid_grant") return { error: "invalid_grant" };
+      return null;
+    }
+  }, log);
+}
+
 export async function refreshCodebuddyToken(refreshToken, log) {
   if (!refreshToken) return null;
   return dedupRefresh("codebuddy-cn", refreshToken, async () => {
@@ -624,6 +670,226 @@ export async function refreshMinimaxCodeToken(provider, refreshToken, log, proxy
   }, log);
 }
 
+// ─── Qoder ───────────────────────────────────────────────────────────────────
+//
+// Qoder device tokens (`dt-...`) refresh on the **openapi** host, unsigned:
+//   POST {openApiBaseUrl}/api/v1/deviceToken/refresh  {"refresh_token": "..."}
+// PAT-derived job refresh tokens (`jrt-...`) use a sibling endpoint:
+//   POST {openApiBaseUrl}/api/v1/jobToken/refresh     {"refresh_token": "..."}
+// The two are NOT interchangeable. The registry's old
+// `center.../algo/api/v3/user/refresh_token` endpoint is appcode-signed and
+// drops an unsigned device-token request with 403 "Request discarded", so it
+// is never used here.
+//
+// Upstream rotates the pair on every successful refresh; the previous refresh
+// token is consumed immediately, hence dedupRefresh + full write-back.
+const QODER_REFRESH_UA = "qoder-local-proxy";
+// Device tokens live ~30 days. Used only when the response carries no
+// absolute expiry — refreshing early is harmless, never refreshing is not.
+const QODER_DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function qoderPickString(payload, keys) {
+  for (const key of keys) {
+    const value = payload?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/**
+ * Absolute expiry only. `expires_in` is milliseconds on Qoder's device
+ * endpoint (2591999994 ≈ 30 days) but seconds in other references — guessing
+ * writes a multi-decade expiry and disables proactive refresh for good.
+ */
+function qoderExpiryMs(payload, nowMs = Date.now()) {
+  for (const key of ["expires_at", "expiresAt", "expire_time", "expireTime"]) {
+    const raw = payload?.[key];
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return raw < 1e11 ? raw * 1000 : raw;
+    }
+    if (typeof raw === "string" && raw.trim()) {
+      const text = raw.trim();
+      if (/^\d+$/.test(text)) {
+        const parsed = Number.parseInt(text, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed < 1e11 ? parsed * 1000 : parsed;
+        }
+      }
+      const parsed = Date.parse(text);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return nowMs + QODER_DEFAULT_TTL_MS;
+}
+
+export async function refreshQoderToken(provider, refreshToken, credentials, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+
+  const oauth = PROVIDER_OAUTH[provider] || {};
+  const url = refreshToken.startsWith("jrt-") ? oauth.jobRefreshUrl : oauth.refreshUrl;
+  if (!url) {
+    log?.warn?.("TOKEN_REFRESH", `No Qoder refresh URL configured for ${provider}`);
+    return null;
+  }
+
+  return dedupRefresh(provider, refreshToken, async () => {
+    try {
+      const response = await proxyAwareFetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": QODER_REFRESH_UA,
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }, proxyOptions);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        const failure = classifyOAuthRefreshError(errorText, response.status);
+        const code = typeof failure.code === "string" && failure.code ? failure.code : null;
+        // 401/403 is terminal across every reference implementation: expired,
+        // rotated away, or issued for the other region. Everything else
+        // (429/5xx, or a 400 from protocol drift) is transient and must not
+        // mark the account — a wrong-endpoint 400 is our bug, not a dead token.
+        if (response.status === 401 || response.status === 403 || failure.permanent) {
+          log?.error?.("TOKEN_REFRESH", `Qoder refresh token rejected (${provider})`, {
+            status: response.status,
+            code,
+          });
+          return { error: "unrecoverable_refresh_error", code };
+        }
+        log?.warn?.("TOKEN_REFRESH", `Qoder refresh failed transiently (${provider})`, {
+          status: response.status,
+        });
+        return null;
+      }
+
+      const data = await response.json().catch(() => null);
+      const accessToken = qoderPickString(data, ["device_token", "deviceToken", "token", "access_token"]);
+      if (!accessToken) {
+        // 200 without a token is an upstream shape change, not proof the
+        // refresh token is dead — leave the account in rotation.
+        log?.warn?.("TOKEN_REFRESH", `Qoder refresh returned no token (${provider})`);
+        return null;
+      }
+
+      // Never write account A's token pair onto account B's connection.
+      const returnedUser = qoderPickString(data, ["user_id", "uid", "userId"]);
+      const expectedUser = credentials?.providerSpecificData?.userId || "";
+      if (returnedUser && expectedUser && returnedUser !== expectedUser) {
+        log?.error?.("TOKEN_REFRESH", `Qoder refresh returned a different account (${provider})`);
+        return null;
+      }
+
+      const newRefresh = qoderPickString(data, ["refresh_token", "refreshToken"]) || refreshToken;
+      const expiresIn = Math.max(1, Math.floor((qoderExpiryMs(data) - Date.now()) / 1000));
+
+      log?.info?.("TOKEN_REFRESH", `Successfully refreshed Qoder token (${provider})`, {
+        hasNewAccessToken: true,
+        hasNewRefreshToken: newRefresh !== refreshToken,
+        expiresIn,
+      });
+
+      return { accessToken, refreshToken: newRefresh, expiresIn };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", `Error refreshing Qoder token (${provider}): ${error.message}`);
+      return null;
+    }
+  }, log);
+}
+
+// Raccoon 小浣熊 — POST {authBase}/refresh {"refresh_token": "..."} ->
+// data.access_token + data.refresh_token. The refresh token ROTATES on every
+// successful call (Rust raccoon/credentials.rs), so the new value must be
+// persisted; dedupRefresh keys on the old token and hands concurrent callers
+// the same result instead of replaying a consumed token.
+//
+// The auth host is a different site from the LLM gateway and the source client
+// calls it directly (no account proxy), so this deliberately does not take
+// proxyOptions.
+function raccoonJwtExpiryMs(token) {
+  try {
+    const payloadPart = String(token).split(".")[1];
+    if (!payloadPart) return null;
+    const payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"));
+    return Number.isFinite(payload?.exp) ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshRaccoonToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("raccoon", refreshToken, async () => {
+    try {
+      const response = await proxyAwareFetch(RACCOON_REFRESH_URL, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      }, null);
+
+      const text = await response.text();
+      let payload = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        const failure = classifyOAuthRefreshError(text, response.status);
+        log?.warn?.("TOKEN_REFRESH", "Failed to refresh Raccoon token", {
+          status: response.status,
+          code: failure.code || null,
+          permanent: failure.permanent,
+        });
+        // 401/403 on a refresh call means the refresh token itself is dead —
+        // retrying cannot recover it, so surface needs-reauth instead of a miss.
+        if (response.status === 401 || response.status === 403 || failure.permanent) {
+          return { error: failure.code || "invalid_grant" };
+        }
+        return null;
+      }
+
+      const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+      const accessToken = String(data?.access_token || "").trim().replace(/^Bearer\s+/i, "");
+      if (!accessToken) {
+        // A 2xx without a token is a protocol failure, not a transient blip:
+        // repeating it will never produce a usable credential.
+        log?.warn?.("TOKEN_REFRESH", "Raccoon refresh returned no access_token", {
+          code: payload?.code ?? null,
+        });
+        return { error: "invalid_grant" };
+      }
+      const nextRefreshToken = String(data?.refresh_token || "").trim().replace(/^Bearer\s+/i, "") || refreshToken;
+      const expiresAt = raccoonJwtExpiryMs(accessToken) ?? Date.now() + RACCOON_ACCESS_TOKEN_TTL_SEC * 1000;
+
+      log?.info?.("TOKEN_REFRESH", "Successfully refreshed Raccoon token", {
+        hasNewAccessToken: true,
+        rotatedRefreshToken: nextRefreshToken !== refreshToken,
+      });
+
+      return {
+        accessToken,
+        // An apikey-category connection keeps the JWT in `apiKey`, and the
+        // executor's auth resolution prefers apiKey over accessToken. Without
+        // mirroring it here the refreshed token would be persisted but the very
+        // next request would keep sending the expired apiKey.
+        apiKey: accessToken,
+        refreshToken: nextRefreshToken,
+        expiresAt,
+      };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", `Network error refreshing Raccoon token: ${error.message}`);
+      return null;
+    }
+  }, log);
+}
+
 // Trae refresh — POST ExchangeToken with JSON body {ClientID, RefreshToken, ClientSecret, UserID}.
 // Response: {Result: {AccessToken, RefreshToken, TokenType, ExpiresAt}}.
 //
@@ -645,6 +911,10 @@ function traeSiteFromCredentials(credentials) {
   if (String(psd.scope || "") === "marscode-cn") return "cn";
   return "intl";
 }
+
+// Trae SOLO refresh lives in its own module (DeviceProof + legacy fallback);
+// re-export keeps the single import surface for tokenRefresh.js.
+export { refreshTraeSoloToken } from "./trae-solo.js";
 
 export async function refreshTraeToken(refreshToken, credentials, log) {
   if (!refreshToken) return null;
@@ -837,6 +1107,165 @@ export async function refreshClineToken(providerId, refreshToken, log) {
     } catch (error) {
       log?.error?.("TOKEN_REFRESH", `${providerId} refresh error: ${error.message}`);
       return null;
+    }
+  }, log);
+}
+
+// LobsterAI refresh: the upstream rejects a bare `{refresh_token}` OAuth grant.
+// It wants the identity payload captured at login (firstKeyfrom / latestKeyfrom,
+// optional uuid / userId) plus `version`, and **no Authorization header**.
+// `latestKeyfrom` is deliberately never refreshed — keeping the login-time value
+// is the only shape validated in production (Rust credentials.rs module head).
+export async function refreshLobsterAiToken(credentials, log = null, proxyOptions = null) {
+  const refreshToken = credentials?.refreshToken;
+  const psd = credentials?.providerSpecificData || {};
+  if (!refreshToken) return { error: "invalid_grant" };
+  if (!String(psd.firstKeyfrom || "").trim() || !String(psd.latestKeyfrom || "").trim()) {
+    // Missing keyfrom means this row can never refresh (only re-login can fix it).
+    log?.warn?.("TOKEN_REFRESH", "LobsterAI refresh token without keyfrom payload — re-auth required");
+    return { error: "invalid_grant" };
+  }
+
+  const version = await resolveClientVersion();
+  const body = Object.fromEntries(keyfromFields(psd, version));
+  body.refreshToken = refreshToken;
+
+  return dedupRefresh("lobsterai", refreshToken, async () => {
+    try {
+      const response = await proxyAwareFetch(
+        LOBSTERAI_REFRESH_URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": LOBSTERAI_USER_AGENT,
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(LOBSTERAI_REQUEST_TIMEOUT_MS),
+        },
+        proxyOptions,
+      );
+      const text = await response.text().catch(() => "");
+      if (response.status === 401 || response.status === 403) {
+        log?.warn?.("TOKEN_REFRESH", `LobsterAI refresh rejected (HTTP ${response.status}) — re-auth required`);
+        return { error: "invalid_grant" };
+      }
+      if (!response.ok) {
+        log?.warn?.("TOKEN_REFRESH", `LobsterAI refresh failed (HTTP ${response.status})`, {
+          body: text.slice(0, 200),
+        });
+        return null;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        log?.warn?.("TOKEN_REFRESH", "LobsterAI refresh response is not JSON");
+        return null;
+      }
+      const unwrapped = unwrapEnvelope(payload, "续期");
+      if (!unwrapped.ok) {
+        if (unwrapped.status === 401 || unwrapped.code === 40100 || unwrapped.code === 40101) {
+          log?.warn?.("TOKEN_REFRESH", `LobsterAI refresh rejected (${unwrapped.code ?? 401}) — re-auth required`);
+          return { error: "invalid_grant" };
+        }
+        log?.warn?.("TOKEN_REFRESH", `LobsterAI refresh error: ${unwrapped.message}`);
+        return null;
+      }
+
+      const data = unwrapped.data;
+      const accessToken = typeof data?.accessToken === "string" ? data.accessToken.trim() : "";
+      if (!accessToken) {
+        log?.warn?.("TOKEN_REFRESH", "LobsterAI refresh returned no accessToken — re-auth required");
+        return { error: "invalid_grant" };
+      }
+
+      let expiresIn = readNumber(data.expiresIn);
+      if (!expiresIn || expiresIn <= 0) {
+        const expMs = jwtExpiryMs(accessToken);
+        expiresIn = expMs > 0 ? Math.max(1, Math.floor((expMs - Date.now()) / 1000)) : undefined;
+      }
+
+      log?.info?.("TOKEN_REFRESH", "Successfully refreshed LobsterAI token", {
+        hasNewRefreshToken: !!data.refreshToken,
+        expiresIn,
+      });
+      return {
+        accessToken,
+        refreshToken: data.refreshToken || refreshToken,
+        expiresIn,
+      };
+    } catch (error) {
+      log?.warn?.("TOKEN_REFRESH", `LobsterAI refresh error: ${error?.message || error}`);
+      return null;
+    }
+  }, log);
+}
+
+// ─── CodeArts / OfficeAce OAuth refresh ─────────────────────────────────────
+//
+// Both login modules live under src/lib/oauth/providers/ and return the same
+// credential shape the login route writes (providerSpecificData + rotated
+// refreshToken). Loaded dynamically: these modules pull crypto/DPoP helpers and
+// are only needed when a credential is actually near expiry.
+
+export async function refreshCodeArtsToken(credentials, log) {
+  const refreshToken = String(credentials?.refreshToken || "").trim();
+  if (!refreshToken) return null;
+  const psd = credentials?.providerSpecificData || {};
+  return dedupRefresh("codearts", refreshToken, async () => {
+    try {
+      const mod = await import("../../../src/lib/oauth/providers/codearts.js");
+      const tokens = await mod.refresh({
+        refreshToken,
+        pkceVerifier: psd.pkceVerifier || psd.codeVerifier,
+        dpopPrivateKeyPem: psd.dpopPrivateKeyPem,
+        clientId: psd.clientId,
+      });
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        providerSpecificData: tokens.providerSpecificData,
+      };
+    } catch (error) {
+      const message = error?.message || String(error);
+      const status = Number(error?.status || error?.statusCode || 0);
+      const reauth = status === 401 || status === 403 || /invalid_grant|重新登录|缺少 PKCE/i.test(message);
+      log?.warn?.("TOKEN_REFRESH", `codearts refresh failed${reauth ? " (re-auth required)" : ""}: ${message}`);
+      return reauth ? { error: "invalid_grant", message } : null;
+    }
+  }, log);
+}
+
+export async function refreshOfficeAceToken(credentials, log) {
+  const refreshToken = String(credentials?.refreshToken || "").trim();
+  if (!refreshToken) return null;
+  const psd = credentials?.providerSpecificData || {};
+  return dedupRefresh("officeace", refreshToken, async () => {
+    try {
+      const mod = await import("../../../src/lib/oauth/providers/officeace.js");
+      const tokens = await mod.refresh({
+        refreshToken,
+        dpopPrivateKeyPem: psd.dpopPrivateKeyPem,
+      });
+      return {
+        // The Basic gateway pair does not expire; echoing it makes the generic
+        // persist path treat this as a real refresh (OfficeAce only rotates the
+        // temporary AK/SK inside providerSpecificData).
+        accessToken: credentials.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        providerSpecificData: tokens.providerSpecificData,
+      };
+    } catch (error) {
+      const message = error?.message || String(error);
+      const status = Number(error?.status || error?.statusCode || 0);
+      const reauth = status === 400 || status === 401 || status === 403 || /invalid_grant|重新登录|缺少 DPoP/i.test(message);
+      log?.warn?.("TOKEN_REFRESH", `officeace refresh failed${reauth ? " (re-auth required)" : ""}: ${message}`);
+      return reauth ? { error: "invalid_grant", message } : null;
     }
   }, log);
 }
