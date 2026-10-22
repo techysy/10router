@@ -45,16 +45,32 @@ function extractToolName(t) {
   return String(t.name || t.function?.name || "");
 }
 
+// Health is used as an EXCLUSION signal, not a ranking score.
+//
+// It used to be rendered as "health 91/100 (success 97%)" on members with
+// recent traffic and omitted entirely on cold ones. That asymmetry is worse
+// than no signal at all: a decision model reading "one member scores 91, the
+// other says nothing" reliably prefers the scored one, so a model that has not
+// been called yet is penalised for the crime of being new — and then never
+// gets called, so it never acquires data. Self-reinforcing starvation.
+//
+// So the card only ever calls out the one thing health can honestly say:
+// "this member has been failing lately". Members with good health and members
+// with no data look identical (both unmarked), which is exactly the state of
+// knowledge at decision time.
+export const FLAKY_HEALTH_THRESHOLD = 70;
+
 /**
  * Build the decision payload from the chat body + candidate member list.
  *   state     = last user turn + tool-call intent + a one-line per-member card
  *   questions = one `choice` question: which member should answer
  *
  * Member descriptions come from the resolved model info (name / provider /
- * capabilities) plus optional live health (7d success rate, when the app side
- * has traffic data) so the decision model has real criteria to rank on. The
- * answer vocabulary is the exact candidate ids — anything outside is guarded
- * downstream and degrades to fallback.
+ * capabilities) plus an optional "recently flaky" mark (see
+ * FLAKY_HEALTH_THRESHOLD). Members without traffic data are never marked and
+ * never described as low quality. The answer vocabulary is the exact
+ * candidate ids — anything outside is guarded downstream and degrades to
+ * fallback.
  *
  * @returns {{state: string, questions: Record<string, object>}}
  */
@@ -75,14 +91,16 @@ export function buildRouterDecisionPayload(body, candidates = [], modelInfoResol
     if (info?.pdf) caps.push("pdf");
     if (info?.search) caps.push("search");
     const ctx = info?.contextWindow ? ` ~${Math.round(info.contextWindow / 1000)}k ctx` : "";
-    // Live 7d health, when the caller has traffic data — lets the decision
-    // model deprioritize "capable but currently flaky" members. Absent for
-    // cold members: say so, never fabricate a number.
-    const health = info?.health != null
-      ? `, health ${info.health}/100 (success ${info.successRate}%)`
+    // Exclusion signal only (see FLAKY_HEALTH_THRESHOLD): a member is marked
+    // just when recent traffic says it is failing. Healthy members and members
+    // with no data are both unmarked — never fabricate a number, and never
+    // make "no data" look like "bad data".
+    const flaky = info?.health != null && info.health < FLAKY_HEALTH_THRESHOLD;
+    const mark = flaky
+      ? ` [recently flaky: ${info.health}/100 over recent traffic${info.successRate != null ? `, ${info.successRate}% success` : ""}]`
       : "";
     const label = clampText(info?.name || m, 80);
-    return `- ${m} (${label}${ctx ? `,${ctx}` : ""}${caps.length ? `, ${caps.join("/")}` : ""}${health})`;
+    return `- ${m} (${label}${ctx ? `,${ctx}` : ""}${caps.length ? `, ${caps.join("/")}` : ""})${mark}`;
   });
 
   const stateParts = [
@@ -90,6 +108,13 @@ export function buildRouterDecisionPayload(body, candidates = [], modelInfoResol
     `Client expects: ${streaming ? "streaming" : "non-streaming"} reply${wantsTools ? "; tool/function calling in play" : ""}`,
     tools.length ? `Tools offered: ${tools.join(", ")}` : "",
     `Candidate models (pick exactly one id):\n${memberLines.join("\n")}`,
+    // Explicit decision rule. Without it the model tends to invent its own
+    // ranking over whatever attributes happen to be present; the rule below
+    // says the only negative signal is the flaky mark, so an unmarked member
+    // is a first-class choice rather than a last resort.
+    "How to choose: prefer a member whose capabilities fit the request (tool calling, vision, pdf, context size). "
+      + "A member marked [recently flaky] should be avoided when an equally capable unmarked member exists. "
+      + "Unmarked members either have good recent health or no recent traffic data — absence of a mark is NOT a quality penalty.",
   ].filter(Boolean);
 
   // Drex/System One `choice` questions take `criteria` — an object whose keys

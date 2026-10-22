@@ -1562,7 +1562,6 @@
   "tests/unit/combo-retry-on-empty.test.js :: isFilterFinishReason does not steal normal terminals": "passed",
   "tests/unit/combo-retry-on-empty.test.js :: isFilterFinishReason recognises content-safety terminals case/space-insensitively": "passed",
   "tests/unit/combo-router.test.js :: buildRouterDecisionPayload handles empty messages without throwing": "passed",
-  "tests/unit/combo-router.test.js :: buildRouterDecisionPayload live health rides on the card when present; cold members stay unlabeled (health-aware routing)": "passed",
   "tests/unit/combo-router.test.js :: buildRouterDecisionPayload member resolver enriches the card; missing resolver info degrades to bare id": "passed",
   "tests/unit/combo-router.test.js :: buildRouterDecisionPayload state carries the last user turn, streaming intent, and every candidate": "passed",
   "tests/unit/combo-router.test.js :: buildRouterDecisionPayload tool intent is surfaced when tools are offered": "passed",

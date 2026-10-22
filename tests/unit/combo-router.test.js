@@ -26,6 +26,7 @@ const {
   buildRouterDecisionPayload,
   parseRouterDecisionResult,
   guardRouterPick,
+  FLAKY_HEALTH_THRESHOLD,
 } = await import("../../open-sse/services/combo/router.js");
 const { runRouterDecision } = await import("../../src/sse/handlers/comboRouter.js");
 
@@ -79,14 +80,42 @@ describe("buildRouterDecisionPayload", () => {
     expect(state).toContain("- claude/claude-sonnet-4.5 (claude/claude-sonnet-4.5)");
   });
 
-  it("live health rides on the card when present; cold members stay unlabeled (health-aware routing)", () => {
-    const resolver = (id) => id === CANDIDATES[0]
-      ? { name: "Gemini 2.5 Pro", vision: true, health: 91, successRate: 97 }
-      : { name: "Sonnet", tools: true };
+  it("healthy members render no health attribute; cold members are not penalised", () => {
+    // Health is an exclusion signal only: a healthy member and a member with
+    // no traffic data must look identical on the card, so "no data" can never
+    // read as "bad data" to the decision model.
+    const resolver = (id) => {
+      if (id === CANDIDATES[0]) return { name: "Gemini 2.5 Pro", vision: true, health: 91, successRate: 97 };
+      if (id === CANDIDATES[1]) return { name: "Sonnet", tools: true }; // cold: no health at all
+      return { name: "GPT", health: 85, successRate: 99 };
+    };
     const { state } = buildRouterDecisionPayload(chatBody(), CANDIDATES, resolver);
-    expect(state).toContain("health 91/100 (success 97%)");
+    expect(state).not.toContain("91/100");
+    expect(state).not.toContain("85/100");
+    expect(state).not.toContain("recently flaky:");
+    expect(state).toContain("- gemini/gemini-2.5-pro (Gemini 2.5 Pro, vision)");
     expect(state).toContain("- claude/claude-sonnet-4.5 (Sonnet, tools)");
-    expect(state).not.toContain("health /100");
+  });
+
+  it("a flaky member is marked; the mark carries the score and is the only health signal", () => {
+    const resolver = (id) =>
+      id === CANDIDATES[0] ? { name: "Gemini", health: 41, successRate: 62 } : { name: "Sonnet", tools: true };
+    const { state } = buildRouterDecisionPayload(chatBody(), CANDIDATES, resolver);
+    expect(state).toContain("[recently flaky: 41/100 over recent traffic, 62% success]");
+    // the healthy/cold member stays unmarked: only one member line carries a mark
+    expect(state.match(/\[recently flaky:/g)).toHaveLength(1);
+  });
+
+  it("the threshold boundary (70) is not marked", () => {
+    const resolver = () => ({ name: "M", health: FLAKY_HEALTH_THRESHOLD, successRate: 80 });
+    const { state } = buildRouterDecisionPayload(chatBody(), CANDIDATES, resolver);
+    expect(state).not.toContain("[recently flaky:");
+  });
+
+  it("state states the decision rule: an unmarked member is not a penalty", () => {
+    const { state } = buildRouterDecisionPayload(chatBody(), CANDIDATES);
+    expect(state).toContain("absence of a mark is NOT a quality penalty");
+    expect(state).toContain("[recently flaky] should be avoided when an equally capable unmarked member exists");
   });
 
   it("handles empty messages without throwing", () => {
