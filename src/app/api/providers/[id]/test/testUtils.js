@@ -1,7 +1,7 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
+import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
@@ -617,7 +617,10 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
   });
 }
 
-async function testApiKeyConnection(connection, effectiveProxy = null, options = {}) {
+// Exported for the test suite: the provider switch is the only place that
+// knows how each provider's key is verified, so the systemone probes are
+// asserted against this function rather than a copy of it.
+export async function testApiKeyConnection(connection, effectiveProxy = null, options = {}) {
   const { model } = options;
   if (isOpenAICompatibleProvider(connection.provider)) {
     const modelsBase = connection.providerSpecificData?.baseUrl;
@@ -1180,6 +1183,39 @@ case "llm7": {
           body: JSON.stringify({ model: getDefaultModel("dots"), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
+        return { valid, error: valid ? null : "Invalid API key" };
+      }
+      case "systemone-pure":
+      case "drex":
+      case "v1m":
+      case "thx": {
+        // Pure System One decision providers (drex / v1m / thx — serviceKinds
+        // is systemone-only). The decision endpoint itself is the only
+        // validator: no /models, no chat surface, so without this case the
+        // Test button answered "Provider test not supported" for a healthy
+        // key and the row stayed "unknown" forever. Minimal typed decision in
+        // (same shape as the model ping). Endpoint honors the connection-level
+        // providerSpecificData.baseUrl override, mirroring handleSystemoneCore.
+        // Dual-surface providers that merely list a systemone kind (codiv,
+        // openrouter) keep their own probes above — do not add them here.
+        const cfg = AI_PROVIDERS[connection.provider]?.systemoneConfig;
+        const baseUrl = connection.providerSpecificData?.baseUrl || cfg?.baseUrl;
+        if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const res = await fetchWithConnectionProxy(baseUrl.replace(/\/$/, ""), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          body: JSON.stringify({
+            model: model || getDefaultModel(connection.provider) || "test",
+            state: "Customer: I was charged twice for my order this morning.",
+            questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
+          }),
+        }, effectiveProxy);
+        // 404 is NOT a pass. THX-01 answers an UNAUTHENTICATED post with 404
+        // carrying a full decision body (so "any non-auth status" would green
+        // an empty key), and 404 also means "endpoint moved". Accept only a
+        // real 2xx, or the request-shaped 4xx that can only happen once auth
+        // passed (400/422 = payload/model rejected).
+        const valid = res.ok || res.status === 400 || res.status === 422;
         return { valid, error: valid ? null : "Invalid API key" };
       }
       default:

@@ -253,6 +253,43 @@ export async function POST(request) {
         });
       }
 
+      // System One decision-lane providers (drex / v1m / thx): serviceKinds is
+      // systemone-only, so the decision endpoint itself is the only validator —
+      // no /models or chat surface to probe. Minimal typed decision in (same
+      // shape the model ping uses). Dual-surface providers that merely list a
+      // systemone kind (codiv, openrouter) keep their existing probes — the
+      // every() guard routes only pure decision providers here.
+      const sysKinds = AI_PROVIDERS[provider]?.serviceKinds || [];
+      const sysCfg = AI_PROVIDERS[provider]?.systemoneConfig;
+      if (sysCfg?.baseUrl && sysKinds.length > 0 && sysKinds.every((k) => k === "systemone")) {
+        try {
+          const res = await fetch(sysCfg.baseUrl.replace(/\/$/, ""), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: getDefaultModel(provider) || "test",
+              state: "Customer: I was charged twice for my order this morning.",
+              questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
+          // 404 is NOT a pass: THX-01 answers an UNAUTHENTICATED post with 404
+          // carrying a full decision body, so "any non-auth status" would
+          // green an empty key; 404 also means "endpoint moved". A real 2xx,
+          // or the request-shaped 4xx that can only happen after auth passed.
+          isValid = res.ok || res.status === 400 || res.status === 422;
+        } catch {
+          maintenance = true;
+          error = "Endpoint unreachable — the provider may be under maintenance, try again later";
+          isValid = false;
+        }
+        return NextResponse.json({
+          valid: isValid,
+          error: isValid ? null : (error || "Invalid API key"),
+          maintenance: maintenance || undefined,
+        });
+      }
+
       switch (provider) {
         case "openai":
           const openaiRes = await fetch("https://api.openai.com/v1/models", {
