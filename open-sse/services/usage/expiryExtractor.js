@@ -61,6 +61,35 @@ export function quotaZone(remainingPct) {
   return "green";
 }
 
+const ZONE_RANK = { green: 0, yellow: 1, red: 2 };
+
+/**
+ * Combined colour of the two windows: the WORSE of them.
+ *
+ * A short window that just refilled to 100% says "I can serve right now", not
+ * "this account has quota left". When the long window is at 0% the account is
+ * spent for the cycle — the fresh short window only means the next burst is
+ * allowed to start, and every request sent there burns a round trip before
+ * upstream refuses. Colouring on the short window alone would paint that
+ * account green and let the relay keep hammering it.
+ *
+ * @returns {"red"|"yellow"|"green"}
+ */
+export function combineZones(shortZone, longZone) {
+  const a = ZONE_RANK[shortZone] ?? 0;
+  const b = ZONE_RANK[longZone] ?? 0;
+  return a >= b ? (shortZone || "green") : (longZone || "green");
+}
+
+// Main-allowance windows only. A one-shot bonus pack is EXTRA quota stacked on
+// top of the subscription: it expiring says nothing about whether the
+// subscription itself is spent, and letting it win the "long window" slot would
+// report a healthy subscription as exhausted. Packs still count when the
+// account has no recurring window at all (a pure credit account).
+function eligibleForWindows(quota) {
+  return quota?.recurring === true;
+}
+
 /**
  * Extract earliest-expiring available quota package from usage payload.
  *
@@ -99,11 +128,16 @@ export function extractEarliestPackageExpiry(usage) {
   let earliestIso = null;
   let minRemaining = Infinity;
 
-  // Window split. `best` holds the extreme of each end, so one pass over the
-  // buckets yields both signals without keeping the whole list.
+  // Window split. `shortest`/`longest` hold the extreme of each end, so one
+  // pass over the buckets yields both signals without keeping the whole list.
+  // `fallback*` takes the same extremes restricted to one-shot packs, used only
+  // when the account exposes no recurring window at all.
   const shortest = { period: Infinity, remaining: null };
   const longest = { period: -Infinity, remaining: null };
+  const fallbackShort = { period: Infinity, remaining: null };
+  const fallbackLong = { period: -Infinity, remaining: null };
   let windowCount = 0;
+  let recurringCount = 0;
 
   // One candidate package — a top-level quota bucket, or one itemised pack
   // inside a bucket. Updates the running "earliest live expiry" and the
@@ -164,13 +198,25 @@ export function extractEarliestPackageExpiry(usage) {
     if (perpetual || !isFuture || remaining === null) return;
     windowCount++;
     const period = windowLength(pkg, resetTime, now);
-    if (period < shortest.period) {
-      shortest.period = period;
-      shortest.remaining = remaining;
-    }
-    if (period > longest.period) {
-      longest.period = period;
-      longest.remaining = remaining;
+    if (eligibleForWindows(pkg)) {
+      recurringCount++;
+      if (period < shortest.period) {
+        shortest.period = period;
+        shortest.remaining = remaining;
+      }
+      if (period > longest.period) {
+        longest.period = period;
+        longest.remaining = remaining;
+      }
+    } else {
+      if (period < fallbackShort.period) {
+        fallbackShort.period = period;
+        fallbackShort.remaining = remaining;
+      }
+      if (period > fallbackLong.period) {
+        fallbackLong.period = period;
+        fallbackLong.remaining = remaining;
+      }
     }
     // Kept for the legacy field only; no longer the red-zone signal.
     if (remaining < minRemaining) minRemaining = remaining;
@@ -206,8 +252,16 @@ export function extractEarliestPackageExpiry(usage) {
   }
 
   if (earliestTime < Infinity || Number.isFinite(minRemaining) || windowCount > 0) {
-    const shortPct = windowCount > 0 ? shortest.remaining : null;
-    const longPct = windowCount > 0 ? longest.remaining : null;
+    // Prefer recurring subscription windows; fall back to one-shot packs only
+    // for accounts that have no subscription window at all.
+    const useRecurring = recurringCount > 0;
+    const shortSrc = useRecurring ? shortest : fallbackShort;
+    const longSrc = useRecurring ? longest : fallbackLong;
+    const shortPct = shortSrc.remaining;
+    const longPct = longSrc.remaining;
+    const shortZone = shortPct === null ? null : quotaZone(shortPct);
+    const longZone = longPct === null ? null : quotaZone(longPct);
+
     return {
       expiry: earliestIso,
       name: earliestName,
@@ -216,11 +270,16 @@ export function extractEarliestPackageExpiry(usage) {
       // Callers that only want "is the account nearly spent" should read
       // shortRemainingPct / zone instead.
       ...(Number.isFinite(minRemaining) ? { remainingPercentage: minRemaining } : {}),
-      shortRemainingPct: windowCount > 0 ? shortPct : null,
-      longRemainingPct: windowCount > 0 ? longPct : null,
-      zone: windowCount > 0 ? quotaZone(shortPct) : null,
-      longZone: windowCount > 0 ? quotaZone(longPct) : null,
+      shortRemainingPct: shortPct,
+      longRemainingPct: longPct,
+      shortZone,
+      longZone,
+      // The colour that decides routing: the worse of the two windows. A
+      // refilled short window over an exhausted long one is still spent.
+      zone: shortZone === null && longZone === null ? null : combineZones(shortZone, longZone),
       windowCount,
+      recurringWindowCount: recurringCount,
+      windowSource: useRecurring ? "recurring" : "packs",
     };
   }
 

@@ -20,6 +20,7 @@ const OPTIONAL_FIELDS = [
   // slowest-resetting windows answer different questions — "serve now?" vs
   // "how much is left?" — and the relay handoff reads the short one.
   "shortWindowRemaining", "longWindowRemaining", "quotaZone",
+  "shortZone", "longZone", "quotaWindowSource",
 ];
 
 // Every read and every write of a connection funnels through these two, which is

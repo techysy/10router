@@ -21,6 +21,48 @@ let selectionMutex = Promise.resolve();
 const _quotaRefreshInFlight = new Set();
 
 /**
+ * One-line quota identity for the selection log: the account, both windows, the
+ * combined colour that drove the decision, and when the quota was sampled.
+ *
+ * Everything here is also persisted on the connection (shortWindowRemaining /
+ * longWindowRemaining / quotaZone / quotaCheckedAt), so a log line can be
+ * matched to the DB row it came from — the point of the tag is that a drained
+ * account can be explained from the log alone, without reconstructing history.
+ */
+function quotaTag(conn) {
+  if (!conn) return "quota=?";
+  const pct = (v) => (typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(1)}%` : "?");
+  const parts = [
+    `${conn.id?.slice(0, 8) ?? "?"}`,
+    `${conn.name || conn.email || "unnamed"}`,
+    `short=${pct(conn.shortWindowRemaining)}`,
+    `long=${pct(conn.longWindowRemaining)}`,
+    `zone=${conn.quotaZone || "?"}`,
+  ];
+  if (conn.earliestPackageName) parts.push(`pkg=${conn.earliestPackageName}`);
+  const sampled = conn.quotaCheckedAt ? new Date(conn.quotaCheckedAt) : null;
+  if (sampled && Number.isFinite(sampled.getTime())) {
+    parts.push(`sampled=${Math.max(0, Math.round((Date.now() - sampled.getTime()) / 60000))}m-ago`);
+  }
+  if (conn.priority != null) parts.push(`prio=${conn.priority}`);
+  return parts.join(" | ");
+}
+
+function mostRecentUsedCarrier(ring, exclude) {
+  let best = null;
+  let bestTime = -Infinity;
+  for (const c of ring) {
+    if (!c.lastUsedAt || c.id === exclude?.id) continue;
+    const t = new Date(c.lastUsedAt).getTime();
+    if (Number.isFinite(t) && t > bestTime) {
+      bestTime = t;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
  * Background quota refresh for the earliest-expiry strategy.
  *
  * Callers skip this entirely while a channel-level breaker is active: the breaker
@@ -66,6 +108,9 @@ function triggerBackgroundQuotaRefresh(connections) {
           longWindowRemaining:
             typeof expiryInfo?.longRemainingPct === "number" ? expiryInfo.longRemainingPct : null,
           quotaZone: expiryInfo?.zone || null,
+          shortZone: expiryInfo?.shortZone || null,
+          longZone: expiryInfo?.longZone || null,
+          quotaWindowSource: expiryInfo?.windowSource || null,
           quotaCheckedAt: new Date().toISOString(),
         });
       } catch {
@@ -343,7 +388,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // recurring bucket in the pool at once (the "all accounts black-hole
       // together" failure the design forbids).
       const relay = selectRelayCarrier(orderedConnections);
+      const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, connection) : null;
       connection = relay.connection;
+      // Quota tag on every selection, handoff or not. Without it a drained
+      // account is only explainable after the fact by re-reading the DB — the
+      // old line printed a single `remaining=`, which is exactly the number
+      // that hid the short/long split (1698 read 55% while its window was 1.6%).
+      log.info("AUTH", `${provider} | ${quotaTag(connection)}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
       if (relay.stepped) {
         log.info("AUTH", `${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
       }
@@ -395,7 +446,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     if (earliestExpiryFirst && connection?.earliestPackageExpiry) {
-      log.info("AUTH", `${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"})`);
+      log.info("AUTH", `${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection)}`);
     }
 
     const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});

@@ -49,26 +49,27 @@ describe("extractEarliestPackageExpiry — window split", () => {
     // bonus pack outlives it → long window.
     const usage = {
       quotas: {
-        // Short cycle (5h refill) nearly spent; the one-shot bonus pack is the
-        // long-lived window and still has most of its allowance.
-        Monthly: { used: 96, total: 100, resetAt: iso(2 * HOUR), recurring: true, giftPack: true, periodMs: 5 * HOUR },
+        // Subscription = 5h refill (spent) + monthly refill (plenty left).
+        // The one-shot pack is extra quota and takes no part in the windows.
+        "5 hours": { used: 96, total: 100, resetAt: iso(2 * HOUR), recurring: true, periodMs: 5 * HOUR },
+        Monthly: { used: 20, total: 100, resetAt: iso(20 * DAY), recurring: true, giftPack: true, periodMs: 30 * DAY },
         "Bonus Pack 31": { used: 344.83, total: 3500, resetAt: iso(30 * DAY), recurring: false },
       },
     };
     const r = extractEarliestPackageExpiry(usage);
-    expect(r.windowCount).toBe(2);
-    // Short window = the monthly refill (30d cycle is the shorter-lived of the
-    // two here, since the bonus pack outlives it) → nearly spent → red.
+    expect(r.windowSource).toBe("recurring");
+    // Short window = 5h refill, nearly spent → red drives the colour.
     expect(r.shortRemainingPct).toBeCloseTo(4, 5);
+    expect(r.shortZone).toBe("red");
+    // Long window = monthly refill, plenty of headroom.
+    expect(r.longRemainingPct).toBeCloseTo(80, 5);
     expect(r.zone).toBe("red");
-    // Long window = the 30-day one-shot pack → plenty left overall.
-    expect(r.longRemainingPct).toBeCloseTo(90.15, 1);
   });
 
-  it("a healthy short window is green even when the long window is low", () => {
-    // Already-drained long allowance, freshly refilled short window: this
-    // account can serve, it just has little left overall. Colour follows the
-    // short window; longZone records the remaining headroom.
+  it("a refilled short window over an exhausted long window is still RED", () => {
+    // The trap: short=95% looks healthy, long=2% means the account is spent
+    // for this cycle. Colouring on the short window alone would paint it green
+    // and the relay would keep hammering a dead account.
     const usage = {
       quotas: {
         "1 hours": { used: 5, total: 100, resetAt: iso(HOUR), recurring: true },
@@ -77,9 +78,24 @@ describe("extractEarliestPackageExpiry — window split", () => {
     };
     const r = extractEarliestPackageExpiry(usage);
     expect(r.shortRemainingPct).toBeCloseTo(95, 5);
-    expect(r.zone).toBe("green");
     expect(r.longRemainingPct).toBeCloseTo(2, 5);
+    expect(r.shortZone).toBe("green");
     expect(r.longZone).toBe("red");
+    // combined colour = the worse of the two
+    expect(r.zone).toBe("red");
+  });
+
+  it("yellow short over green long is YELLOW", () => {
+    const usage = {
+      quotas: {
+        "5 hours": { used: 85, total: 100, resetAt: iso(3 * HOUR), recurring: true, periodMs: 5 * HOUR },
+        Weekly: { used: 10, total: 100, resetAt: iso(6 * DAY), recurring: true, periodMs: 7 * DAY },
+      },
+    };
+    const r = extractEarliestPackageExpiry(usage);
+    expect(r.shortZone).toBe("yellow");
+    expect(r.longZone).toBe("green");
+    expect(r.zone).toBe("yellow");
   });
 
   it("a balance (no reset date) never colours the account and never leads the expiry sort", () => {
@@ -105,6 +121,43 @@ describe("extractEarliestPackageExpiry — window split", () => {
     expect(extractEarliestPackageExpiry(usage)).toBeNull();
   });
 
+  it("a one-shot pack expiring does not make a healthy subscription look spent", () => {
+    // CodeBuddy shape: Monthly refill (healthy) + an exhausted Bonus Pack.
+    // The pack is EXTRA quota — its expiry says nothing about the
+    // subscription, so it must not win the "long window" slot.
+    const usage = {
+      quotas: {
+        Monthly: { used: 20, total: 100, resetAt: iso(20 * DAY), recurring: true, giftPack: true, periodMs: 30 * DAY },
+        "5 hours": { used: 10, total: 100, resetAt: iso(4 * HOUR), recurring: true, periodMs: 5 * HOUR },
+        "Bonus Pack 31": { used: 3500, total: 3500, resetAt: iso(30 * DAY), recurring: false },
+      },
+    };
+    const r = extractEarliestPackageExpiry(usage);
+    expect(r.windowSource).toBe("recurring");
+    expect(r.recurringWindowCount).toBe(2);
+    // windows come from the subscription only
+    expect(r.shortZone).toBe("green");
+    expect(r.longZone).toBe("green");
+    expect(r.zone).toBe("green");
+  });
+
+  it("a pure credit account falls back to its packs as windows", () => {
+    const usage = {
+      quotas: {
+        "Bonus Pack 1": { used: 95, total: 100, resetAt: iso(3 * DAY), recurring: false },
+        "Bonus Pack 2": { used: 10, total: 100, resetAt: iso(20 * DAY), recurring: false },
+      },
+    };
+    const r = extractEarliestPackageExpiry(usage);
+    expect(r.windowSource).toBe("packs");
+    expect(r.recurringWindowCount).toBe(0);
+    // Short = the soonest-expiring pack (95% used → 5% left → yellow at the
+    // 5% boundary); long = the other pack. Combined = the worse one.
+    expect(r.shortZone).toBe("yellow");
+    expect(r.longZone).toBe("green");
+    expect(r.zone).toBe("yellow");
+  });
+
   it("short/long split by reset PERIOD, not by quota size", () => {
     // Small-but-long-lived vs large-but-short-lived: size must not decide.
     const usage = {
@@ -118,7 +171,7 @@ describe("extractEarliestPackageExpiry — window split", () => {
     expect(r.longRemainingPct).toBe(100); // the 7d window
   });
 
-  it("remainingPercentage stays the legacy alias (smallest across windows)", () => {
+  it("remainingPercentage stays the legacy alias (smallest across ALL buckets)", () => {
     const usage = {
       quotas: {
         Monthly: { used: 30, total: 100, resetAt: iso(20 * DAY), recurring: true },
@@ -126,9 +179,11 @@ describe("extractEarliestPackageExpiry — window split", () => {
       },
     };
     const r = extractEarliestPackageExpiry(usage);
+    // legacy field still reports the smallest of everything (the pack, 10%)
     expect(r.remainingPercentage).toBeCloseTo(10, 5);
-    // but the colour is driven by the short window, not by the smallest
-    expect(r.shortRemainingPct).toBeCloseTo(10, 5);
+    // while the subscription colour reads only the recurring window (70%)
+    expect(r.shortRemainingPct).toBeCloseTo(70, 5);
+    expect(r.zone).toBe("green");
   });
 
   it("packs[] itemisation feeds the split from the packs, not the bucket aggregate", () => {
@@ -145,6 +200,7 @@ describe("extractEarliestPackageExpiry — window split", () => {
     };
     const r = extractEarliestPackageExpiry(usage);
     expect(r.windowCount).toBe(2);
+    expect(r.windowSource).toBe("packs");
     expect(r.shortRemainingPct).toBeCloseTo(99, 5); // p1 is the shortest-lived
     expect(r.longRemainingPct).toBeCloseTo(1, 5); // p2 has the least left
   });

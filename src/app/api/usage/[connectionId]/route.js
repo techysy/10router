@@ -231,6 +231,9 @@ export async function computeConnectionUsage(connection, { force = false } = {})
           longWindowRemaining:
             typeof expiryInfo.longRemainingPct === "number" ? expiryInfo.longRemainingPct : null,
           quotaZone: expiryInfo.zone || null,
+          shortZone: expiryInfo.shortZone || null,
+          longZone: expiryInfo.longZone || null,
+          quotaWindowSource: expiryInfo.windowSource || null,
           quotaCheckedAt: new Date().toISOString(),
         });
       } else if (usage && usage.quotas) {
@@ -241,6 +244,9 @@ export async function computeConnectionUsage(connection, { force = false } = {})
           shortWindowRemaining: null,
           longWindowRemaining: null,
           quotaZone: null,
+          shortZone: null,
+          longZone: null,
+          quotaWindowSource: null,
           quotaCheckedAt: new Date().toISOString(),
         });
       }
