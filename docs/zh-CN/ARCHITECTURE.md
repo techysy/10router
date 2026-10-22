@@ -247,6 +247,16 @@ flowchart TD
 
 fallback 决策由 `open-sse/services/accountFallback.js` 依据状态码与错误消息启发式驱动。
 
+### 组合策略：fusion / router
+
+`chat.js` 在加载组合成员后按 `fallbackStrategy` 分流：
+
+- **`fusion`** — 所有成员并发出答，交裁判模型综合，成本 N+1；
+- **`router`** — 先调一次 System One 决策模型（`comboStrategies[name].routerModel`）选出成员，选中者置顶、其余保持原顺序，再以 `fallback` 继续跑。决策失败 / 超时（默认 8s）/ 答案越界一律静默降级到原顺序，不影响可用性。
+
+`router` 的协议契约（`criteria` 而非 `options`）、健康度"排除信号"语义、失败模式与排障见
+[`combo-router-decision-technical-report.md`](combo-router-decision-technical-report.md)。
+
 ## OAuth 引导与 Token 刷新生命周期
 
 ```mermaid
