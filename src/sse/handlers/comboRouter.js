@@ -17,6 +17,7 @@ import { saveRequestUsage } from "@/lib/usageDb.js";
 import {
   buildRouterDecisionPayload,
   parseRouterDecisionResult,
+  parseRouterDecisionMeta,
   guardRouterPick,
 } from "open-sse/services/combo/router.js";
 import * as log from "../utils/logger.js";
@@ -165,7 +166,21 @@ async function decisionOnce({ routerModel, body, candidates, logTag = "COMBO", a
       return null;
     }
 
-    log.info(logTag, `router: ${routerModel} → ${guarded} of ${candidates.length} candidates`);
+    // Confidence + runner-up are logging-only: "→ A" alone cannot tell a
+    // 0.98 certainty from a 0.34 coin-flip, and a combo's picks being unstable
+    // is exactly what you look for when tuning one. A missing meta block never
+    // changes the outcome.
+    const meta = parseRouterDecisionMeta(decisionJson);
+    let detail = "";
+    if (meta) {
+      const parts = [];
+      if (meta.confidence != null) parts.push(`conf ${meta.confidence.toFixed(2)}`);
+      if (meta.runnerUp) {
+        parts.push(`next ${meta.runnerUp}${meta.runnerUpP != null ? ` ${meta.runnerUpP.toFixed(2)}` : ""}`);
+      }
+      if (parts.length) detail = ` (${parts.join(", ")})`;
+    }
+    log.info(logTag, `router: ${routerModel} → ${guarded} of ${candidates.length} candidates${detail}`);
     return guarded;
   } catch (e) {
     // Router is advisory — swallow everything (including JSON read failures).

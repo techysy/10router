@@ -182,6 +182,55 @@ export function parseRouterDecisionResult(decision) {
 }
 
 /**
+ * Decision confidence, for the log line only — never for routing.
+ *
+ * A System One `choice` answer carries `confidence` and a per-label
+ * `probabilities` map. The pick is the same whether or not we read them, so
+ * this must stay out of the decision path: it exists because "→ member A" on
+ * its own cannot distinguish a 0.98 certainty from a 0.34 coin-flip over a
+ * near-tie, which is exactly what you need to know when tuning a combo.
+ *
+ * Defensive like the parser above: providers differ in shape and a missing or
+ * malformed block must not affect routing.
+ *
+ * @returns {{confidence: number|null, runnerUp: string|null, runnerUpP: number|null} | null}
+ */
+export function parseRouterDecisionMeta(decision) {
+  try {
+    const answers = decision?.answers ?? decision?.result?.answers ?? decision?.result ?? decision;
+    const pick = answers?.pick_model ?? (answers && typeof answers === "object" && !Array.isArray(answers)
+      ? Object.values(answers)[0]
+      : null);
+    if (!pick || typeof pick !== "object") return null;
+
+    const chosen = firstAnswerValue(pick);
+    const conf = typeof pick.confidence === "number" && Number.isFinite(pick.confidence)
+      ? pick.confidence
+      : null;
+
+    // Best alternative, when the upstream returned a distribution. Lets the log
+    // show "0.52 (next: B 0.41)" — a close second means the pick is unstable.
+    let runnerUp = null;
+    let runnerUpP = null;
+    const probs = pick.probabilities;
+    if (probs && typeof probs === "object" && !Array.isArray(probs)) {
+      for (const [label, p] of Object.entries(probs)) {
+        if (label === chosen || typeof p !== "number" || !Number.isFinite(p)) continue;
+        if (runnerUpP === null || p > runnerUpP) {
+          runnerUp = label;
+          runnerUpP = p;
+        }
+      }
+    }
+
+    if (conf === null && runnerUp === null) return null;
+    return { confidence: conf, runnerUp, runnerUpP };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Membership guard: the picked id must be one of the candidates. Off-vocab
  * answers (hallucinated model, extra prose, case drift on a bare-tail hit)
  * return null so the orchestrator degrades to the fallback order.
