@@ -89,7 +89,7 @@ function mostRecentUsedCarrier(ring, exclude) {
  * cleared by a successful chat request, so refresh resumes on its own.
  */
 function triggerBackgroundQuotaRefresh(connections) {
-  const STALE_MS = 15 * 60 * 1000;
+  const STALE_MS = 5 * 60 * 1000; // 5 minutes stale threshold aligns with dashboard auto-refresh
   const now = Date.now();
 
   for (const conn of connections) {
@@ -382,16 +382,20 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     let orderedConnections = poolConnections;
+    const isPackAssetProvider = ["codebuddy-cn", "codebuddy-intl", "qoder", "qoder-cn"].includes(providerId);
+
     if (earliestExpiryFirst && poolConnections.length > 1) {
       const now = Date.now();
-      // Two-level order: red last, then soonest-expiring first.
+      // Two distinct ranking philosophies:
       //
-      // "Soonest expiry first" alone is what drained account 1698 to 1.6% of a
-      // 30-day pack while a 9-day account sat untouched: the sort was right,
-      // but the relay below kept the same carrier until it hit the red zone —
-      // and the red zone was reading a number that never got that low. Sorting
-      // a red account to the front only drains it harder, so red goes last.
-      const zoneRank = (c) => (c.quotaZone === "red" ? 1 : 0);
+      // 1. Rolling Bucket Providers (Antigravity/Google):
+      //    A red account is spent/cooling down and sinks to the end (zoneRank = 1).
+      //
+      // 2. Pack Asset Providers (CodeBuddy, Qoder):
+      //    An account with an expiring pack (e.g. 100 points expiring in 22h) MUST
+      //    stay at the top, even if its balance is low — those points must be squeezed
+      //    before they expire! Sinking it to the end would let the points rot.
+      const zoneRank = (c) => (isPackAssetProvider ? 0 : (c.quotaZone === "red" ? 1 : 0));
       const expiryMs = (c) => (c.earliestPackageExpiry && new Date(c.earliestPackageExpiry).getTime() > now
         ? new Date(c.earliestPackageExpiry).getTime()
         : Infinity);
@@ -417,27 +421,44 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     if (connection) {
       // skip strategy
     } else if (earliestExpiryFirst && orderedConnections.length > 1) {
-      // Relay: single-point dead-burn on the earliest-expiry ring. The carrier
-      // (most recently used account) keeps 100% of traffic until its live quota
-      // crosses the red zone, then the ring steps FORWARD — a refilled earlier
-      // account never cuts back in. This supersedes round-robin under the same
-      // toggle on purpose: spreading the load is exactly what drains every
-      // recurring bucket in the pool at once (the "all accounts black-hole
-      // together" failure the design forbids).
-      const relay = selectRelayCarrier(orderedConnections);
-      const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, connection) : null;
-      connection = relay.connection;
-      // Quota tag on every selection, handoff or not. Without it a drained
-      // account is only explainable after the fact by re-reading the DB — the
-      // old line printed a single `remaining=`, which is exactly the number
-      // that hid the short/long split (1698 read 55% while its window was 1.6%).
-      log.info("AUTH", `${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
-      if (relay.stepped) {
-        log.info("AUTH", `${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
+      // Distinct scheduling philosophy per provider type:
+      //
+      // 1. Pack Asset Providers (CodeBuddy CN/Intl, Qoder CN/Global):
+      //    Accounts hold discrete quota packs (e.g. 100 points expiring in 22h).
+      //    When a pack expires, it is permanently lost. The goal is 100% strict
+      //    consumption of the soonest-expiring pack right now — never lock into a
+      //    single carrier via Relay (which would keep burning 30-day packs on
+      //    account 1698 while a 9-day pack on 1697 expires untouched), and never
+      //    pre-emptively abandon the final 5% before it expires.
+      //
+      // 2. Rolling Bucket Providers (Antigravity/Google):
+      //    Accounts hold auto-refilling burst/weekly windows (5h/7d). Single-point
+      //    dead-burn with forward-only Relay step and 5% red-zone handoff is
+      //    critical here to prevent all accounts from synchronizing and draining
+      //    simultaneously.
+      if (isPackAssetProvider) {
+        connection = orderedConnections[0];
+        log.info(
+          "AUTH",
+          `${provider} | ${quotaTag(connection, { family: targetFamily })} | pack-expiry priority #1`
+        );
+        await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
+      } else {
+        const relay = selectRelayCarrier(orderedConnections);
+        const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, connection) : null;
+        connection = relay.connection;
+        // Quota tag on every selection, handoff or not. Without it a drained
+        // account is only explainable after the fact by re-reading the DB — the
+        // old line printed a single `remaining=`, which is exactly the number
+        // that hid the short/long split (1698 read 55% while its window was 1.6%).
+        log.info("AUTH", `${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
+        if (relay.stepped) {
+          log.info("AUTH", `${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
+        }
+        // Persist the carrier stamp — relay derives "who is carrying" from
+        // lastUsedAt, the same field round-robin maintains.
+        await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
       }
-      // Persist the carrier stamp — relay derives "who is carrying" from
-      // lastUsedAt, the same field round-robin maintains.
-      await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 

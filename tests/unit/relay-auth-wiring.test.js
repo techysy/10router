@@ -124,6 +124,28 @@ describe("getProviderCredentials — relay carrier under 到期优先调度", ()
     expect(mocks.updateProviderConnection).not.toHaveBeenCalled();
   });
 
+  it("pack-asset providers (CodeBuddy, Qoder) bypass relay dead-burn: strictly choose earliest-expiring pack", async () => {
+    // Scenario: b was recently used and is 90% full, but its pack expires in 30 days.
+    // a has an urgent pack expiring in 1 day (e.g. 100 points in 23h).
+    // For Antigravity (rolling window), relay would stick with b to prevent burst thrashing.
+    // For Qoder/CodeBuddy (pack assets), relay MUST NOT lock onto b — a MUST be selected!
+    for (const provider of ["codebuddy-cn", "qoder"]) {
+      vi.clearAllMocks();
+      const conns = [
+        { id: "a", provider, priority: 1, earliestPackageExpiry: inDays(1), shortWindowRemaining: 5 },
+        { id: "b", provider, priority: 2, earliestPackageExpiry: inDays(30), shortWindowRemaining: 90, lastUsedAt: new Date().toISOString() },
+      ];
+      mocks.getProviderConnections.mockResolvedValue(conns);
+      mocks.getSettings.mockResolvedValue({
+        fallbackStrategy: "fill-first",
+        providerStrategies: { [provider]: { earliestExpiryFirst: true } },
+      });
+
+      const res = await getProviderCredentials(provider);
+      expect(res.connectionId).toBe("a");
+    }
+  });
+
   it("a pinned connection short-circuits the relay", async () => {
     const conns = [
       { id: "a", provider: "p", priority: 1, earliestPackageExpiry: inDays(2) },
