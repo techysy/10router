@@ -4,13 +4,17 @@
  *   2. forward-only, never jump back (a refilled earlier account stays parked);
  *   3. aggressive pre-switch at the red zone (< 5% live remaining), unknown
  *      remaining never pre-switches.
+ *
+ * The percentage driving rule 3 is the SHORT window (fastest-resetting, see
+ * usage/expiryExtractor.js) — not "the smallest remaining across every
+ * bucket". Fixtures set `shortWindowRemaining` accordingly.
  */
 import { describe, it, expect } from "vitest";
 import { selectRelayCarrier, RELAY_RED_ZONE_PCT } from "../../open-sse/services/relaySelection.js";
 
 const conn = (id, { remaining, lastUsedAt, priority } = {}) => ({
   id,
-  earliestPackageRemaining: remaining,
+  shortWindowRemaining: remaining,
   lastUsedAt,
   priority,
 });

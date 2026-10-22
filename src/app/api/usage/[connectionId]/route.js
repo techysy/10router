@@ -226,6 +226,11 @@ export async function computeConnectionUsage(connection, { force = false } = {})
           earliestPackageName: expiryInfo.name || null,
           earliestPackageRemaining:
             typeof expiryInfo.remainingPercentage === "number" ? expiryInfo.remainingPercentage : null,
+          shortWindowRemaining:
+            typeof expiryInfo.shortRemainingPct === "number" ? expiryInfo.shortRemainingPct : null,
+          longWindowRemaining:
+            typeof expiryInfo.longRemainingPct === "number" ? expiryInfo.longRemainingPct : null,
+          quotaZone: expiryInfo.zone || null,
           quotaCheckedAt: new Date().toISOString(),
         });
       } else if (usage && usage.quotas) {
@@ -233,6 +238,9 @@ export async function computeConnectionUsage(connection, { force = false } = {})
           earliestPackageExpiry: null,
           earliestPackageName: null,
           earliestPackageRemaining: null,
+          shortWindowRemaining: null,
+          longWindowRemaining: null,
+          quotaZone: null,
           quotaCheckedAt: new Date().toISOString(),
         });
       }

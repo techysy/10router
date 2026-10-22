@@ -60,8 +60,8 @@ describe("getProviderCredentials — relay carrier under 到期优先调度", ()
     // Ring by expiry: a (2d) before b (30d). b is the current carrier (recent
     // lastUsedAt) and healthy at 60% — relay must NOT cut back to a.
     const conns = [
-      { id: "a", provider: "antigravity", priority: 1, earliestPackageExpiry: inDays(2), earliestPackageRemaining: 90 },
-      { id: "b", provider: "antigravity", priority: 2, earliestPackageExpiry: inDays(30), earliestPackageRemaining: 60, lastUsedAt: new Date().toISOString() },
+      { id: "a", provider: "antigravity", priority: 1, earliestPackageExpiry: inDays(2), shortWindowRemaining: 90 },
+      { id: "b", provider: "antigravity", priority: 2, earliestPackageExpiry: inDays(30), shortWindowRemaining: 60, lastUsedAt: new Date().toISOString() },
     ];
     mocks.getProviderConnections.mockResolvedValue(conns);
     mocks.getSettings.mockResolvedValue({
@@ -81,8 +81,8 @@ describe("getProviderCredentials — relay carrier under 到期优先调度", ()
     // wraps to a. The old head-pick would also say a here, but only by luck —
     // the point is the step is derived from carrier state, not from re-sorting.
     const conns = [
-      { id: "a", provider: "antigravity", priority: 1, earliestPackageExpiry: inDays(2), earliestPackageRemaining: 80 },
-      { id: "b", provider: "antigravity", priority: 2, earliestPackageExpiry: inDays(30), earliestPackageRemaining: 3, lastUsedAt: new Date().toISOString() },
+      { id: "a", provider: "antigravity", priority: 1, earliestPackageExpiry: inDays(2), shortWindowRemaining: 80 },
+      { id: "b", provider: "antigravity", priority: 2, earliestPackageExpiry: inDays(30), shortWindowRemaining: 3, lastUsedAt: new Date().toISOString() },
     ];
     mocks.getProviderConnections.mockResolvedValue(conns);
     mocks.getSettings.mockResolvedValue({

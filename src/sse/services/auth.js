@@ -58,6 +58,14 @@ function triggerBackgroundQuotaRefresh(connections) {
           // percentage quota (relay then degrades to "burn until 429").
           earliestPackageRemaining:
             typeof expiryInfo?.remainingPercentage === "number" ? expiryInfo.remainingPercentage : null,
+          // Fire-and-forget quota refresh stays cheap, but it must write the
+          // same split the request path reads, or the relay would keep judging
+          // on the stale "smallest of every bucket" number.
+          shortWindowRemaining:
+            typeof expiryInfo?.shortRemainingPct === "number" ? expiryInfo.shortRemainingPct : null,
+          longWindowRemaining:
+            typeof expiryInfo?.longRemainingPct === "number" ? expiryInfo.longRemainingPct : null,
+          quotaZone: expiryInfo?.zone || null,
           quotaCheckedAt: new Date().toISOString(),
         });
       } catch {
@@ -294,17 +302,24 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     let orderedConnections = availableConnections;
     if (earliestExpiryFirst && availableConnections.length > 1) {
       const now = Date.now();
-      orderedConnections = [...availableConnections].sort((a, b) => {
-        const timeA = (a.earliestPackageExpiry && new Date(a.earliestPackageExpiry).getTime() > now)
-          ? new Date(a.earliestPackageExpiry).getTime()
-          : Infinity;
-        const timeB = (b.earliestPackageExpiry && new Date(b.earliestPackageExpiry).getTime() > now)
-          ? new Date(b.earliestPackageExpiry).getTime()
-          : Infinity;
+      // Two-level order: red last, then soonest-expiring first.
+      //
+      // "Soonest expiry first" alone is what drained account 1698 to 1.6% of a
+      // 30-day pack while a 9-day account sat untouched: the sort was right,
+      // but the relay below kept the same carrier until it hit the red zone —
+      // and the red zone was reading a number that never got that low. Sorting
+      // a red account to the front only drains it harder, so red goes last.
+      const zoneRank = (c) => (c.quotaZone === "red" ? 1 : 0);
+      const expiryMs = (c) => (c.earliestPackageExpiry && new Date(c.earliestPackageExpiry).getTime() > now
+        ? new Date(c.earliestPackageExpiry).getTime()
+        : Infinity);
 
-        if (timeA !== timeB) {
-          return timeA - timeB;
-        }
+      orderedConnections = [...availableConnections].sort((a, b) => {
+        const z = zoneRank(a) - zoneRank(b);
+        if (z !== 0) return z;
+        const timeA = expiryMs(a);
+        const timeB = expiryMs(b);
+        if (timeA !== timeB) return timeA - timeB;
         return (a.priority || 999) - (b.priority || 999);
       });
     }

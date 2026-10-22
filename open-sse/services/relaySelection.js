@@ -35,15 +35,23 @@ export const RELAY_RED_ZONE_PCT = 5;
 
 /**
  * A connection is a valid carrier while it is present, not red-zone, and not
- * already exhausted. `earliestPackageRemaining` is the live remaining-percentage
- * of the account's soonest-resetting bucket (written by the background quota
- * refresh); when it is unknown (first request after enabling, or a provider
- * with no percentage quota) we treat the account as healthy and let upstream
- * 429/lock handle it — never pre-emptively switch on missing data.
+ * already exhausted.
+ *
+ * The percentage read here is the SHORT window — the fastest-resetting one
+ * (CodeBuddy's 5h-ish refill window, Antigravity's 5h, Minimax's 1h50m), NOT
+ * "the smallest of every bucket". Those are different numbers and the
+ * difference is what drains an account: a one-shot bonus pack sitting at 55%
+ * of its own allowance simultaneously means "plenty of short-window headroom"
+ * while the account's long-run allowance is nearly gone. The short window is
+ * what throttles throughput, so it is what the handoff must watch.
+ *
+ * Unknown data (first request after enabling, a provider with no percentage
+ * quota) is treated as healthy — never pre-emptively switch on missing data;
+ * upstream 429/lock stays the final backstop.
  */
 function isCarrierHealthy(conn, redZonePct) {
   if (!conn) return false;
-  const remaining = conn.earliestPackageRemaining;
+  const remaining = conn.shortWindowRemaining;
   if (typeof remaining === "number" && Number.isFinite(remaining)) {
     if (remaining <= 0) return false;
     if (remaining < redZonePct) return false;

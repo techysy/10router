@@ -16,6 +16,10 @@ const OPTIONAL_FIELDS = [
   "lastTested", "lastError", "lastErrorAt", "rateLimitedUntil", "expiresIn", "errorCode",
   "consecutiveUseCount", "idToken", "lastRefreshAt",
   "earliestPackageExpiry", "earliestPackageName", "earliestPackageRemaining", "quotaCheckedAt",
+  // Subscription health split (see usage/expiryExtractor.js): the fastest- and
+  // slowest-resetting windows answer different questions — "serve now?" vs
+  // "how much is left?" — and the relay handoff reads the short one.
+  "shortWindowRemaining", "longWindowRemaining", "quotaZone",
 ];
 
 // Every read and every write of a connection funnels through these two, which is
