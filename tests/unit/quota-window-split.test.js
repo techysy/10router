@@ -204,4 +204,34 @@ describe("extractEarliestPackageExpiry — window split", () => {
     expect(r.shortRemainingPct).toBeCloseTo(99, 5); // p1 is the shortest-lived
     expect(r.longRemainingPct).toBeCloseTo(1, 5); // p2 has the least left
   });
+
+  it("Antigravity: family filter isolates gemini vs claude_gpt pools", () => {
+    // Real Antigravity shape: gemini 5h is drained to 0% (red), while claude_gpt
+    // is full (100% green). Without family filter, the whole account is red!
+    const usage = {
+      quotas: {
+        gemini_5h: { used: 100, total: 100, resetAt: iso(HOUR), recurring: true, periodMs: 5 * HOUR },
+        gemini_weekly: { used: 90, total: 100, resetAt: iso(6 * DAY), recurring: true, periodMs: 7 * DAY },
+        claude_gpt_5h: { used: 5, total: 100, resetAt: iso(2 * HOUR), recurring: true, periodMs: 5 * HOUR },
+        claude_gpt_weekly: { used: 10, total: 100, resetAt: iso(5 * DAY), recurring: true, periodMs: 7 * DAY },
+      },
+    };
+
+    // Filter by claude_gpt: sees only the healthy claude buckets → green!
+    const claudeResult = extractEarliestPackageExpiry(usage, { family: "claude_gpt" });
+    expect(claudeResult.family).toBe("claude_gpt");
+    expect(claudeResult.shortRemainingPct).toBe(95);
+    expect(claudeResult.longRemainingPct).toBe(90);
+    expect(claudeResult.shortZone).toBe("green");
+    expect(claudeResult.longZone).toBe("green");
+    expect(claudeResult.zone).toBe("green");
+    expect(claudeResult.name).toBe("claude_gpt_5h");
+
+    // Filter by gemini: sees the drained gemini bucket → red!
+    const geminiResult = extractEarliestPackageExpiry(usage, { family: "gemini" });
+    expect(geminiResult.family).toBe("gemini");
+    expect(geminiResult.shortRemainingPct).toBe(0);
+    expect(geminiResult.zone).toBe("red");
+    expect(geminiResult.name).toBe("gemini_5h");
+  });
 });

@@ -6,7 +6,7 @@ import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
-import { getAntigravityQuotaCache, getAntigravityModelQuota } from "./antigravityQuota.js";
+import { getAntigravityQuotaCache, getAntigravityModelQuota, getAntigravityModelFamily } from "./antigravityQuota.js";
 import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
 import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
 import { errorResponse } from "open-sse/utils/error.js";
@@ -20,25 +20,42 @@ let selectionMutex = Promise.resolve();
 // In-flight tracking for non-blocking background quota refresh
 const _quotaRefreshInFlight = new Set();
 
+const ZONE_EMOJI = {
+  green: "🟩",
+  yellow: "🟨",
+  red: "🟥",
+};
+
 /**
  * One-line quota identity for the selection log: the account, both windows, the
- * combined colour that drove the decision, and when the quota was sampled.
+ * combined colour (with emoji icon) that drove the decision, and when the quota was sampled.
  *
  * Everything here is also persisted on the connection (shortWindowRemaining /
  * longWindowRemaining / quotaZone / quotaCheckedAt), so a log line can be
  * matched to the DB row it came from — the point of the tag is that a drained
  * account can be explained from the log alone, without reconstructing history.
  */
-function quotaTag(conn) {
+function quotaTag(conn, options = {}) {
   if (!conn) return "quota=?";
   const pct = (v) => (typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(1)}%` : "?");
+  const rawZone = conn.quotaZone || null;
+  const emoji = ZONE_EMOJI[rawZone] || "⬜";
+  const family = options.family || conn.family || (conn.earliestPackageName?.includes("claude") || conn.earliestPackageName?.includes("gpt")
+    ? "claude_gpt"
+    : conn.earliestPackageName?.includes("gemini")
+      ? "gemini"
+      : null);
+
   const parts = [
     `${conn.id?.slice(0, 8) ?? "?"}`,
     `${conn.name || conn.email || "unnamed"}`,
+  ];
+  if (family) parts.push(`family=${family}`);
+  parts.push(
     `short=${pct(conn.shortWindowRemaining)}`,
     `long=${pct(conn.longWindowRemaining)}`,
-    `zone=${conn.quotaZone || "?"}`,
-  ];
+    `zone=${emoji}${rawZone || "?"}`,
+  );
   if (conn.earliestPackageName) parts.push(`pkg=${conn.earliestPackageName}`);
   const sampled = conn.quotaCheckedAt ? new Date(conn.quotaCheckedAt) : null;
   if (sampled && Number.isFinite(sampled.getTime())) {
@@ -344,8 +361,28 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     // If earliestExpiryFirst is enabled, sort available connections so that the account
     // with the nearest future package expiration date is selected first.
-    let orderedConnections = availableConnections;
-    if (earliestExpiryFirst && availableConnections.length > 1) {
+    const targetFamily = isAntigravity ? getAntigravityModelFamily(model) : null;
+    let poolConnections = availableConnections;
+    if (isAntigravity && targetFamily && agQuotaCache) {
+      poolConnections = availableConnections.map((c) => {
+        const connQuotas = agQuotaCache.get(c.id);
+        if (!connQuotas) return c;
+        const famExpiry = extractEarliestPackageExpiry({ quotas: connQuotas }, { family: targetFamily });
+        if (!famExpiry) return c;
+        return {
+          ...c,
+          shortWindowRemaining: typeof famExpiry.shortRemainingPct === "number" ? famExpiry.shortRemainingPct : c.shortWindowRemaining,
+          longWindowRemaining: typeof famExpiry.longRemainingPct === "number" ? famExpiry.longRemainingPct : c.longWindowRemaining,
+          quotaZone: famExpiry.zone || c.quotaZone,
+          earliestPackageExpiry: famExpiry.expiry || c.earliestPackageExpiry,
+          earliestPackageName: famExpiry.name || c.earliestPackageName,
+          family: targetFamily,
+        };
+      });
+    }
+
+    let orderedConnections = poolConnections;
+    if (earliestExpiryFirst && poolConnections.length > 1) {
       const now = Date.now();
       // Two-level order: red last, then soonest-expiring first.
       //
@@ -359,7 +396,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         ? new Date(c.earliestPackageExpiry).getTime()
         : Infinity);
 
-      orderedConnections = [...availableConnections].sort((a, b) => {
+      orderedConnections = [...poolConnections].sort((a, b) => {
         const z = zoneRank(a) - zoneRank(b);
         if (z !== 0) return z;
         const timeA = expiryMs(a);
@@ -394,7 +431,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // account is only explainable after the fact by re-reading the DB — the
       // old line printed a single `remaining=`, which is exactly the number
       // that hid the short/long split (1698 read 55% while its window was 1.6%).
-      log.info("AUTH", `${provider} | ${quotaTag(connection)}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
+      log.info("AUTH", `${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
       if (relay.stepped) {
         log.info("AUTH", `${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
       }
@@ -446,7 +483,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     if (earliestExpiryFirst && connection?.earliestPackageExpiry) {
-      log.info("AUTH", `${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection)}`);
+      log.info("AUTH", `${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection, { family: targetFamily })}`);
     }
 
     const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});

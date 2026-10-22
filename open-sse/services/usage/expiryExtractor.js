@@ -91,6 +91,18 @@ function eligibleForWindows(quota) {
 }
 
 /**
+ * Infer model family for a quota bucket if family-partitioned (e.g. Antigravity).
+ * @param {string} label
+ * @returns {"claude_gpt"|"gemini"|null}
+ */
+export function inferBucketFamily(label) {
+  const l = String(label || "").toLowerCase();
+  if (l.includes("claude") || l.includes("gpt")) return "claude_gpt";
+  if (l.includes("gemini")) return "gemini";
+  return null;
+}
+
+/**
  * Extract earliest-expiring available quota package from usage payload.
  *
  * Scans `usage.quotas` across all packages (and, for buckets that itemise a
@@ -109,19 +121,25 @@ function eligibleForWindows(quota) {
  *   zone / longZone      — red|yellow|green for each
  *   windowCount          — how many timed windows fed the two signals
  *
+ * Options:
+ *   family: filter buckets matching this model family ("gemini" | "claude_gpt").
+ *           Enables fine-grained multi-pool accounting on Google Antigravity.
+ *
  * Balances (no reset date) feed none of them — see isPerpetual().
  *
  * @param {Object} usage
+ * @param {Object} [options]
  * @returns {{
  *   expiry: string|null, name: string|null, timestamp: number|null,
  *   remainingPercentage?: number, shortRemainingPct?: number|null,
  *   longRemainingPct?: number|null, zone?: string, longZone?: string,
- *   windowCount?: number
+ *   windowCount?: number, family?: string|null
  * } | null}
  */
-export function extractEarliestPackageExpiry(usage) {
+export function extractEarliestPackageExpiry(usage, options = {}) {
   if (!usage || typeof usage !== "object" || !usage.quotas) return null;
 
+  const targetFamily = options?.family || null;
   const now = Date.now();
   let earliestTime = Infinity;
   let earliestName = null;
@@ -144,6 +162,13 @@ export function extractEarliestPackageExpiry(usage) {
   // "most-constrained live remaining" signals.
   const consider = (label, pkg) => {
     if (!pkg || typeof pkg !== "object") return;
+
+    if (targetFamily) {
+      const bucketFam = inferBucketFamily(label) || inferBucketFamily(pkg.name) || inferBucketFamily(pkg.displayName);
+      if (bucketFam && bucketFam !== targetFamily) {
+        return; // skip buckets belonging to other model families
+      }
+    }
 
     // Packs carry `expiresAt`, top-level buckets carry `resetAt` — accept both.
     const resetRaw = pkg.resetAt ?? pkg.expiresAt;
@@ -280,6 +305,7 @@ export function extractEarliestPackageExpiry(usage) {
       windowCount,
       recurringWindowCount: recurringCount,
       windowSource: useRecurring ? "recurring" : "packs",
+      family: targetFamily,
     };
   }
 
