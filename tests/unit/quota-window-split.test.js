@@ -234,4 +234,29 @@ describe("extractEarliestPackageExpiry — window split", () => {
     expect(geminiResult.zone).toBe("red");
     expect(geminiResult.name).toBe("gemini_5h");
   });
+
+  it("the MERGED reading is family-contaminated — which is why the family columns exist", () => {
+    // The live card: Gemini weekly 87%, Claude weekly 100% (6.97d — the longest
+    // window in the pool). Scanned without a family filter the longest window
+    // wins the "long window" slot, so the Gemini row reports long=100% against a
+    // card that says 87%. Reproduced here so the contamination stays visible.
+    const usage = {
+      quotas: {
+        gemini_5h: { used: 0, total: 100, resetAt: iso(4.97 * HOUR), recurring: true, remainingPercentage: 100 },
+        gemini_weekly: { used: 13, total: 100, resetAt: iso(6.2 * DAY), recurring: true, remainingPercentage: 87 },
+        claude_gpt_5h: { used: 0, total: 100, resetAt: iso(4.98 * HOUR), recurring: true, remainingPercentage: 100 },
+        claude_gpt_weekly: { used: 0, total: 100, resetAt: iso(6.97 * DAY), recurring: true, remainingPercentage: 100 },
+      },
+    };
+
+    const merged = extractEarliestPackageExpiry(usage);
+    expect(merged.longRemainingPct).toBe(100); // ← contaminated by claude_gpt_weekly
+
+    const gemini = extractEarliestPackageExpiry(usage, { family: "gemini" });
+    expect(gemini.shortRemainingPct).toBe(100);
+    expect(gemini.longRemainingPct).toBe(87); // ← the true Gemini reading
+
+    const claude = extractEarliestPackageExpiry(usage, { family: "claude_gpt" });
+    expect(claude.longRemainingPct).toBe(100);
+  });
 });

@@ -120,6 +120,30 @@ function triggerBackgroundQuotaRefresh(connections) {
         };
         const usage = await getUsageForProvider(conn, proxyOptions);
         const expiryInfo = extractEarliestPackageExpiry(usage);
+
+        // Family-partitioned pools (Antigravity: gemini_* / claude_gpt_*) must be
+        // stored per family. A single merged reading lets the LONGEST window of
+        // the other family win the "long window" slot — with claude_gpt_weekly
+        // at 100% and gemini_weekly at 87%, the stored long came out 100 and the
+        // Gemini row reported "long=100%" while its own card showed 87%. The
+        // request path reads these columns whenever its in-memory family view
+        // misses, so a contaminated column silently overrides the correct one.
+        const famPatch = {};
+        if (usage?.quotas && conn.provider === "antigravity") {
+          for (const family of ["gemini", "claude_gpt"]) {
+            const fam = extractEarliestPackageExpiry(usage, { family });
+            if (!fam) continue;
+            const key = family === "gemini" ? "Gemini" : "ClaudeGpt";
+            famPatch[`${key}ShortWindowRemaining`] =
+              typeof fam.shortRemainingPct === "number" ? fam.shortRemainingPct : null;
+            famPatch[`${key}LongWindowRemaining`] =
+              typeof fam.longRemainingPct === "number" ? fam.longRemainingPct : null;
+            famPatch[`${key}Zone`] = fam.zone || null;
+            famPatch[`${key}PackageExpiry`] = fam.expiry || null;
+            famPatch[`${key}PackageName`] = fam.name || null;
+          }
+        }
+
         await updateProviderConnection(conn.id, {
           earliestPackageExpiry: expiryInfo?.expiry || null,
           earliestPackageName: expiryInfo?.name || null,
@@ -140,6 +164,7 @@ function triggerBackgroundQuotaRefresh(connections) {
           longZone: expiryInfo?.longZone || null,
           quotaWindowSource: expiryInfo?.windowSource || null,
           quotaCheckedAt: new Date().toISOString(),
+          ...famPatch,
         });
       } catch {
         // Non-blocking, ignore background errors
@@ -374,11 +399,36 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // with the nearest future package expiration date is selected first.
     const targetFamily = isAntigravity ? getAntigravityModelFamily(model) : null;
     let poolConnections = availableConnections;
-    if (isAntigravity && targetFamily && agQuotaCache) {
+    if (isAntigravity && targetFamily) {
+      // Live in-memory cache first (freshest), then the per-family columns the
+      // background refresh persists, and only then the merged columns. The
+      // merged ones are family-agnostic: with claude_gpt_weekly at 100% and
+      // gemini_weekly at 87%, the merged long came out 100 and the Gemini row
+      // logged long=100% against a card reading 87%. Falling back to them is
+      // still better than nothing, but they must not outrank a family-specific
+      // reading.
+      const key = targetFamily === "gemini" ? "Gemini" : "ClaudeGpt";
       poolConnections = availableConnections.map((c) => {
-        const connQuotas = agQuotaCache.get(c.id);
-        if (!connQuotas) return c;
-        const famExpiry = extractEarliestPackageExpiry({ quotas: connQuotas }, { family: targetFamily });
+        const famExpiry = (() => {
+          const connQuotas = agQuotaCache?.get(c.id);
+          if (connQuotas) {
+            const live = extractEarliestPackageExpiry({ quotas: connQuotas }, { family: targetFamily });
+            if (live) return { ...live, source: "cache" };
+          }
+          const short = c[`${key}ShortWindowRemaining`];
+          const long = c[`${key}LongWindowRemaining`];
+          if (typeof short === "number" || typeof long === "number") {
+            return {
+              shortRemainingPct: short ?? null,
+              longRemainingPct: long ?? null,
+              zone: c[`${key}Zone`] || null,
+              expiry: c[`${key}PackageExpiry`] || null,
+              name: c[`${key}PackageName`] || null,
+              source: "stored",
+            };
+          }
+          return null;
+        })();
         if (!famExpiry) return c;
         return {
           ...c,
@@ -388,6 +438,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           earliestPackageExpiry: famExpiry.expiry || c.earliestPackageExpiry,
           earliestPackageName: famExpiry.name || c.earliestPackageName,
           family: targetFamily,
+          familyQuotaSource: famExpiry.source,
         };
       });
     }
@@ -422,6 +473,11 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     let connection;
+    // Set once a strategy branch has already emitted its own quota line, so the
+    // closing "earliest-expiry selected" line below stays a summary for the
+    // branches that log nothing (pinned / round-robin / fill-first) instead of
+    // repeating the same tag twice for relay and pack-asset picks.
+    let quotaLogged = false;
     // Pin to preferred connection if specified and available
     if (preferredConnectionId) {
       connection = orderedConnections.find((c) => c.id === preferredConnectionId);
@@ -453,6 +509,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           "AUTH",
           `${zoneMarker(connection)} ${provider} | ${quotaTag(connection, { family: targetFamily })} | pack-expiry priority #1`
         );
+        quotaLogged = true;
         await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
       } else {
         const relay = selectRelayCarrier(orderedConnections);
@@ -463,6 +520,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         // old line printed a single `remaining=`, which is exactly the number
         // that hid the short/long split (1698 read 55% while its window was 1.6%).
         log.info("AUTH", `${zoneMarker(connection)} ${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
+        quotaLogged = true;
         if (relay.stepped) {
           log.info("AUTH", `${zoneMarker(connection)} ${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
         }
@@ -514,7 +572,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       connection = orderedConnections[0];
     }
 
-    if (earliestExpiryFirst && connection?.earliestPackageExpiry) {
+    if (earliestExpiryFirst && !quotaLogged && connection?.earliestPackageExpiry) {
       log.info("AUTH", `${zoneMarker(connection)} ${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection, { family: targetFamily })}`);
     }
 

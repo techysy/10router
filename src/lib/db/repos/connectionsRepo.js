@@ -21,6 +21,14 @@ const OPTIONAL_FIELDS = [
   // "how much is left?" — and the relay handoff reads the short one.
   "shortWindowRemaining", "longWindowRemaining", "quotaZone",
   "shortZone", "longZone", "quotaWindowSource",
+  // Antigravity keeps TWO independent pools (gemini_* / claude_gpt_*). The
+  // merged columns above cannot represent them — the longest window of the
+  // other family wins the "long window" slot — so the family-partitioned
+  // readings are stored separately and preferred on the request path.
+  "GeminiShortWindowRemaining", "GeminiLongWindowRemaining", "GeminiZone",
+  "GeminiPackageExpiry", "GeminiPackageName",
+  "ClaudeGptShortWindowRemaining", "ClaudeGptLongWindowRemaining", "ClaudeGptZone",
+  "ClaudeGptPackageExpiry", "ClaudeGptPackageName",
 ];
 
 // Every read and every write of a connection funnels through these two, which is
