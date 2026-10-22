@@ -48,7 +48,19 @@ describe("buildRouterDecisionPayload", () => {
     expect(state).toContain("streaming");
     for (const c of CANDIDATES) expect(state).toContain(c);
     expect(questions.pick_model.type).toBe("choice");
-    expect(questions.pick_model.options).toEqual(CANDIDATES);
+    // Drex rejects `options` ("must be an object with options"); the answer
+    // vocabulary is the KEY SET of `criteria`.
+    expect(questions.pick_model.options).toBeUndefined();
+    expect(Object.keys(questions.pick_model.criteria)).toEqual(CANDIDATES);
+  });
+
+  it("criteria keys stay unique when two ids share a 64-char prefix", () => {
+    const long = "p/" + "x".repeat(80);
+    const candidates = [`${long}a`, `${long}b`];
+    const { questions } = buildRouterDecisionPayload(chatBody(), candidates);
+    expect(Object.keys(questions.pick_model.criteria)).toEqual(candidates);
+    // every label round-trips through the membership guard untouched
+    for (const c of candidates) expect(guardRouterPick(c, candidates)).toBe(c);
   });
 
   it("tool intent is surfaced when tools are offered", () => {

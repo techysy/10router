@@ -92,13 +92,30 @@ export function buildRouterDecisionPayload(body, candidates = [], modelInfoResol
     `Candidate models (pick exactly one id):\n${memberLines.join("\n")}`,
   ].filter(Boolean);
 
+  // Drex/System One `choice` questions take `criteria` — an object whose keys
+  // are the answer labels and whose values are descriptions (string | null)
+  // — and REJECT `options` with "must be an object with options". The keys are
+  // what come back in `choice`, so the vocabulary is exactly the member ids.
+  // Descriptions stay null: each one costs input tokens, and the per-member
+  // capability card already lives in `state`.
+  //
+  // Keys are object keys, so two ids sharing a 64-char prefix would collapse
+  // into one option and silently shrink the vocabulary. Long ids therefore
+  // keep their full length (`choice` labels are not length-capped by the API);
+  // ANSWER_CAP only applies when it is lossless.
+  const criteria = {};
+  for (const m of candidates) {
+    const id = String(m);
+    criteria[id.length > ANSWER_CAP ? id : clampText(id, ANSWER_CAP)] = null;
+  }
+
   return {
     state: stateParts.join("\n"),
     questions: {
       pick_model: {
         type: "choice",
-        instructions: "Pick the single best candidate model id to answer this request. Answer with the model id only.",
-        options: candidates.map((m) => clampText(m, ANSWER_CAP)),
+        instructions: "Pick the single best candidate model id to answer this request.",
+        criteria,
       },
     },
   };
