@@ -1,7 +1,7 @@
 import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
-import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, channelBlockRemainingMs, isNeedsReauthCooling, NEEDS_REAUTH_STATUS, MODEL_LOCK_ALL } from "open-sse/services/accountFallback.js";
-import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
+import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, channelBlockRemainingMs, isNeedsReauthCooling, NEEDS_REAUTH_STATUS, MODEL_LOCK_ALL, extractQuotaResetMs } from "open-sse/services/accountFallback.js";
+import { MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
@@ -27,8 +27,20 @@ const ZONE_EMOJI = {
 };
 
 /**
+ * Zone marker for the selection log.
+ *
+ * The colour block leads the line, standing in for the logger's ℹ️ marker, and
+ * `zone=<word>` stays as the greppable token further along — the block is for
+ * the eye scrolling a live tail, the word is for `grep 'zone=red'`. Emitting
+ * both in the same field (zone=🟩green) duplicated the colour and read badly.
+ */
+function zoneMarker(conn) {
+  return ZONE_EMOJI[conn?.quotaZone] || "⚪";
+}
+
+/**
  * One-line quota identity for the selection log: the account, both windows, the
- * combined colour (with emoji icon) that drove the decision, and when the quota was sampled.
+ * combined colour that drove the decision, and when the quota was sampled.
  *
  * Everything here is also persisted on the connection (shortWindowRemaining /
  * longWindowRemaining / quotaZone / quotaCheckedAt), so a log line can be
@@ -39,7 +51,6 @@ function quotaTag(conn, options = {}) {
   if (!conn) return "quota=?";
   const pct = (v) => (typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(1)}%` : "?");
   const rawZone = conn.quotaZone || null;
-  const emoji = ZONE_EMOJI[rawZone] || "⬜";
   const family = options.family || conn.family || (conn.earliestPackageName?.includes("claude") || conn.earliestPackageName?.includes("gpt")
     ? "claude_gpt"
     : conn.earliestPackageName?.includes("gemini")
@@ -54,7 +65,7 @@ function quotaTag(conn, options = {}) {
   parts.push(
     `short=${pct(conn.shortWindowRemaining)}`,
     `long=${pct(conn.longWindowRemaining)}`,
-    `zone=${emoji}${rawZone || "?"}`,
+    `zone=${rawZone || "?"}`,
   );
   if (conn.earliestPackageName) parts.push(`pkg=${conn.earliestPackageName}`);
   const sampled = conn.quotaCheckedAt ? new Date(conn.quotaCheckedAt) : null;
@@ -440,7 +451,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         connection = orderedConnections[0];
         log.info(
           "AUTH",
-          `${provider} | ${quotaTag(connection, { family: targetFamily })} | pack-expiry priority #1`
+          `${zoneMarker(connection)} ${provider} | ${quotaTag(connection, { family: targetFamily })} | pack-expiry priority #1`
         );
         await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
       } else {
@@ -451,9 +462,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         // account is only explainable after the fact by re-reading the DB — the
         // old line printed a single `remaining=`, which is exactly the number
         // that hid the short/long split (1698 read 55% while its window was 1.6%).
-        log.info("AUTH", `${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
+        log.info("AUTH", `${zoneMarker(connection)} ${provider} | ${quotaTag(connection, { family: targetFamily })}${relay.stepped ? ` | relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : ""}`);
         if (relay.stepped) {
-          log.info("AUTH", `${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
+          log.info("AUTH", `${zoneMarker(connection)} ${provider} | relay handoff → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | remaining=${connection.earliestPackageRemaining ?? "?"}%`);
         }
         // Persist the carrier stamp — relay derives "who is carrying" from
         // lastUsedAt, the same field round-robin maintains.
@@ -504,7 +515,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     if (earliestExpiryFirst && connection?.earliestPackageExpiry) {
-      log.info("AUTH", `${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection, { family: targetFamily })}`);
+      log.info("AUTH", `${zoneMarker(connection)} ${provider} | earliest-expiry selected ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"}) | expires in ${formatRetryAfter(connection.earliestPackageExpiry)} (${connection.earliestPackageName || "package"}) | ${quotaTag(connection, { family: targetFamily })}`);
     }
 
     const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
@@ -580,7 +591,17 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     newBackoffLevel = 0;
   } else if (resetsAtMs && resetsAtMs > Date.now()) {
     shouldFallback = true;
-    cooldownMs = Math.min(resetsAtMs - Date.now(), MAX_RATE_LIMIT_COOLDOWN_MS);
+    // Which ceiling applies depends on WHAT the clock is, not on where it came
+    // from. A Google quota window (Antigravity's per-model 5h/7d bucket) is the
+    // account's real reset and sits hours out; a generic retryAfter is a
+    // per-minute hint. Both arrive here as a bare `resetsAtMs`, so capping
+    // unconditionally at 30min is what made the dashboard row count down "19m"
+    // while the upstream message said "Resets in 31h44m43s" — the lock expired
+    // long before the quota did, and every expiry bought another wasted 429.
+    // MAX_QUOTA_COOLDOWN_MS exists for exactly this case (see errorConfig.js).
+    const quotaWindowMs = extractQuotaResetMs(errorText);
+    const cap = quotaWindowMs !== null ? MAX_QUOTA_COOLDOWN_MS : MAX_RATE_LIMIT_COOLDOWN_MS;
+    cooldownMs = Math.min(resetsAtMs - Date.now(), cap);
     newBackoffLevel = 0;
   } else {
     ({ shouldFallback, cooldownMs, newBackoffLevel, channelScope } = checkFallbackError(status, errorText, backoffLevel, resolveProviderId(provider)));

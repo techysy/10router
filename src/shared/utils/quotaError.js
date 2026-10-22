@@ -101,6 +101,14 @@ export function extractQuotaResetInfo(text) {
   const delayJson = /"quotaResetDelay"\s*:\s*"([^"]+)"/.exec(raw);
   const delayPlain = /\bResets in\s+([0-9hms.]+)/i.exec(raw);
   delay = (delayJson && delayJson[1]) || (delayPlain && delayPlain[1]) || null;
+  // The sentence form ends with a period ("Resets in 31h44m43s.") and `.` is
+  // also the fractional separator the class allows for the JSON form
+  // ("1h27m36.139434956s"), so the stop lands inside the capture and
+  // parseQuotaDurationParts rejects the whole string — the row then renders
+  // the placeholder "resets shortly (in a short while)" while the real clock
+  // is sitting right there in the error. Strip trailing stops; the JSON form
+  // never ends with one.
+  if (delay) delay = delay.replace(/\.+$/, "");
 
   const tsJson = /"quotaResetTimeStamp"\s*:\s*"([^"]+)"/.exec(raw);
   const tsPlain = /"quotaResetTimeStamp"\s*:\s*(".*?"|\S+)/.exec(raw);
