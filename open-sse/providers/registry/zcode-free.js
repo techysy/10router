@@ -1,4 +1,5 @@
-// ZCode 免费体验包（Start Plan / Trust Build，GLM-5.3-Flash）→ CreditDaddy 本地网关。
+// ZCode 免费体验包（Start Plan / Trust Build，GLM-5.3-Flash；2026-10-23 1024 Dev Day
+// 起体验包加送 GLM-5.3，200M/日）→ CreditDaddy 本地网关。
 // 上游是 CreditDaddy 桌面版（techysy/CreditDaddy）的「体验包接口」（面板旧称「额度网关」）：
 //   POST http://127.0.0.1:<port>/gateway/zcode/v1/messages（Anthropic 形态）
 // 它负责账号轮换 + 隐藏窗口静默过阿里云验证码；本条目只做端点映射，模型面固定。
@@ -30,5 +31,8 @@ export default {
   },
   models: [
     { id: "glm-5.3-flash", name: "GLM 5.3 Flash" },
+    // GLM-5.3 thinking 不可关闭（canonical 能力行已标 thinkingCanDisable:false），
+    // 与 glm.js / glm-cn.js 同 id 同能力，CreditDaddy 原样转发 model 字段。
+    { id: "glm-5.3", name: "GLM 5.3" },
   ],
 };
