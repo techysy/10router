@@ -307,12 +307,13 @@ async function resolveCloudCodeProjectId(connection, accessToken, effectiveProxy
 }
 
 async function probeAntigravityModelAccess(connection, accessToken, effectiveProxy = null, targetModel = "gemini-3.8-flash-high") {
-  const userAgent = connection.provider === "antigravity"
-    ? "antigravity/ide/2.22.0 darwin/arm64"
-    : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0";
-  const url = connection.provider === "antigravity"
-    ? `https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent`
-    : `https://cloudcode-pa.googleapis.com/v1internal:generateContent`;
+  // Hand-rolling the envelope burned two releases: a missing requestId/sessionId
+  // makes Google answer a blanket 404 identical for every model, which reads as
+  // "rollout not granted" but is really a malformed probe. So the probe now goes
+  // through the REAL AntigravityExecutor transform chain — same body shape, same
+  // headers, same URL builder as live chat. Issue #82 follow-up x2.
+  const { AntigravityExecutor } = await import("open-sse/executors/antigravity.js");
+  const executor = new AntigravityExecutor();
 
   // No real project → skip the generation probe entirely rather than send a
   // fabricated project id (Google 404s those, indistinguishable from a
@@ -322,29 +323,41 @@ async function probeAntigravityModelAccess(connection, accessToken, effectivePro
     return { valid: true, error: null, warning: "Credential OK; model probe skipped (no project ID — reconnect OAuth to store it)" };
   }
 
-  const probeBody = {
-    project: projectId,
-    model: targetModel,
-    request: {
-      contents: [{ role: "user", parts: [{ text: "ping" }] }],
-      generationConfig: {
-        maxOutputTokens: 8,
-      },
-    },
+  const credentials = {
+    accessToken,
+    projectId,
+    connectionId: connection.id,
+    email: connection.email,
+    providerSpecificData: connection.providerSpecificData,
   };
+
+  const openaiishBody = {
+    model: targetModel,
+    stream: false,
+    messages: [{ role: "user", content: "ping" }],
+    max_tokens: 8,
+  };
+  // Translate to the antigravity native envelope via the same pipeline chat uses.
+  const { translateRequest, initTranslators } = await import("open-sse/translator/index.js");
+  await initTranslators();
+  const nativeBody = translateRequest("openai", "antigravity", targetModel, openaiishBody, false, credentials, "antigravity", null, [], connection.id, null);
+
+  const transformedBody = executor.transformRequest(targetModel, nativeBody, false, credentials);
+  const url = executor.buildUrl(targetModel, false, 0, credentials);
+  const headers = executor.buildHeaders(credentials, false, null, targetModel, transformedBody);
 
   const res = await fetchWithConnectionProxy(url, {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": userAgent,
-    },
-    body: JSON.stringify(probeBody),
+    headers,
+    body: JSON.stringify(transformedBody),
   }, effectiveProxy);
 
   // 2xx = completely valid
-  if (res.ok) return { valid: true, error: null };
+  if (res.ok) {
+    // Drain a little so the connection is not left half-open.
+    try { await res.text(); } catch { /* best effort */ }
+    return { valid: true, error: null };
+  }
 
   const bodyText = await res.text().catch(() => "");
 
