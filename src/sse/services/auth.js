@@ -142,6 +142,9 @@ function triggerBackgroundQuotaRefresh(connections) {
             famPatch[`${key}PackageExpiry`] = fam.expiry || null;
             famPatch[`${key}PackageName`] = fam.name || null;
           }
+          log.info("QUOTA_FAMILY", `${conn.id?.slice(0, 8)} | buckets=${Object.keys(usage.quotas).join(",")} | gemini=${JSON.stringify(famPatch.GeminiLongWindowRemaining)} claude_gpt=${JSON.stringify(famPatch.ClaudeGptLongWindowRemaining)}`);
+        } else {
+          log.info("QUOTA_FAMILY", `${conn.id?.slice(0, 8)} | SKIP provider=${conn.provider} hasQuotas=${!!usage?.quotas}`);
         }
 
         await updateProviderConnection(conn.id, {
