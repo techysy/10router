@@ -249,12 +249,61 @@ function parseProviderErrorMessage(bodyText, fallback) {
  * one-click "Verify your account" URL inside the response body. Surface that URL —
  * the bare error.message ("Verify your account to continue.") leaves the user with
  * no next step. Exported for unit tests.
+ *
+ * "Requested entity was not found" on the generation probe is Google's blanket
+ * answer for an account the model is not granted to (preview/灰度 not rolled out)
+ * — never a token problem. Expand it into an actionable sentence instead of the
+ * cryptic upstream string. Issue #82 follow-up.
  */
-export function buildCloudCodeProbeError(bodyText, fallbackStatus) {
-  return (
+const NOT_FOUND_ENTITY_RE = /Requested entity was not found/i;
+
+export function buildCloudCodeProbeError(bodyText, fallbackStatus, targetModel = null) {
+  const base = (
     buildAccountValidationMessage(bodyText) ||
     parseProviderErrorMessage(bodyText, `API returned ${fallbackStatus}`)
   );
+  // 404-with-entity-not-found during a MODEL probe is the preview-grant signal.
+  // Both facts matter to the user: the credential is fine, and THIS account is
+  // not in the model's rollout yet. Raw "Requested entity was not found" reads
+  // as a server bug and sent users hunting for one.
+  if (NOT_FOUND_ENTITY_RE.test(base)) {
+    return targetModel
+      ? `Credentials OK — model "${targetModel}" is not yet available on this account (Google preview/rollout not granted). Try another model.`
+      : `Credentials OK — the requested resource is not available on this account (Google rollout/preview not granted).`;
+  }
+  return base;
+}
+
+/**
+ * Resolve the connection's real cloudcode project ID. The generateContent probe
+ * MUST carry the account's actual project: a fabricated id makes Google answer a
+ * blanket "404 Requested entity was not found" that is identical for every model
+ * and looks exactly like "model not in preview" — which is how the probe burned
+ * healthy accounts. Order: stored projectId → loadCodeAssist lookup.
+ */
+async function resolveCloudCodeProjectId(connection, accessToken, effectiveProxy = null) {
+  const stored = String(connection.projectId || "").trim();
+  if (stored) return stored;
+  try {
+    const res = await fetchWithConnectionProxy(CLOUD_CODE_ASSIST_TEST_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": connection.provider === "antigravity"
+          ? "antigravity/ide/2.22.0 darwin/arm64"
+          : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0",
+      },
+      body: JSON.stringify({ metadata: { ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" } }),
+    }, effectiveProxy);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    const pid = data?.cloudaicompanionProject?.id || data?.cloudaicompanionProject;
+    const s = typeof pid === "string" ? pid.trim() : "";
+    return s || null;
+  } catch {
+    return null;
+  }
 }
 
 async function probeAntigravityModelAccess(connection, accessToken, effectiveProxy = null, targetModel = "gemini-3.8-flash-high") {
@@ -265,8 +314,16 @@ async function probeAntigravityModelAccess(connection, accessToken, effectivePro
     ? `https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent`
     : `https://cloudcode-pa.googleapis.com/v1internal:generateContent`;
 
+  // No real project → skip the generation probe entirely rather than send a
+  // fabricated project id (Google 404s those, indistinguishable from a
+  // not-granted model and wrong for every model equally).
+  const projectId = await resolveCloudCodeProjectId(connection, accessToken, effectiveProxy);
+  if (!projectId) {
+    return { valid: true, error: null, warning: "Credential OK; model probe skipped (no project ID — reconnect OAuth to store it)" };
+  }
+
   const probeBody = {
-    project: connection.projectId || "antigravity-probe",
+    project: projectId,
     model: targetModel,
     request: {
       contents: [{ role: "user", parts: [{ text: "ping" }] }],
@@ -298,7 +355,7 @@ async function probeAntigravityModelAccess(connection, accessToken, effectivePro
 
   return {
     valid: false,
-    error: buildCloudCodeProbeError(bodyText, res.status),
+    error: buildCloudCodeProbeError(bodyText, res.status, targetModel),
     status: res.status,
   };
 }
