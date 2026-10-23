@@ -98,6 +98,85 @@ export function isValidExternalQuotaSource(source) {
   return typeof source === "string" && SOURCE_RE.test(source);
 }
 
+// Patterns a pusher may embed in `name` when its numeric fields didn't survive:
+//   "317.57 万 / 500 万 · 赠送 · 至 10-25 · 36%已消耗"   (LongCat, CreditDaddy)
+//   "55 / 100 · 45% consumed"                            (generic fallback)
+// PREFERRED first: a remaining/total pair IS the numbers themselves, so it
+// beats a percent (which would just re-derive the same pair). All patterns
+// accept 万/亿 multipliers because CJK pushers compose magnitudes into labels.
+const REMAINING_PATTERNS = [
+  // "剩余 317.57 万 / 500 万" — explicit remaining marker
+  /剩余\s*([\d.]+)\s*(万|亿)?\s*\/\s*([\d.]+)\s*(万|亿)?/,
+  // "317.57 万 / 500 万" — bare remaining/total, anywhere in the name
+  /([\d.]+)\s*(万|亿)?\s*\/\s*([\d.]+)\s*(万|亿)?/,
+];
+const PERCENT_PATTERNS = [
+  // "36%已消耗" / "36% consumed"
+  /(\d+(?:\.\d+)?)\s*%\s*(?:已消耗|consumed)/i,
+  // "已消耗 36%" / "consumed: 36%"
+  /(?:已消耗|consumed)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/i,
+];
+
+const CJK_MAGNITUDE = { 万: 10_000, 亿: 100_000_000 };
+
+/**
+ * Defensive repair for pushers that stash the usage numbers inside `name`
+ * while pushing `used: 0` / a wrong `remainingPercentage` (LongCat via
+ * CreditDaddy, 2026-10: name said "317.57 万 / 500 万 · … · 36%已消耗" but
+ * used=0 and remainingPercentage=100 — the card then read as a full pack).
+ * Recover `used` from the name ONLY when the numeric fields are missing or
+ * zero — an explicit used always wins, and the name itself is never modified.
+ */
+function recoverUsedFromName(entry) {
+  if (typeof entry.name !== "string" || !entry.name) return;
+  if (Number.isFinite(entry.used) && entry.used > 0) return;
+
+  // A remaining/total pair in the name is the authoritative shape: scale both
+  // sides by their own 万/亿 unit, derive used, and trust the name's total when
+  // the pushed total disagrees (LongCat pushed total = the REMAINING figure).
+  for (const re of REMAINING_PATTERNS) {
+    const m = re.exec(entry.name);
+    if (!m) continue;
+    const remaining = applyMagnitude(Number(m[1]), m[2]);
+    const parsedTotal = applyMagnitude(Number(m[3]), m[4]);
+    if (
+      Number.isFinite(remaining) && remaining >= 0 &&
+      Number.isFinite(parsedTotal) && parsedTotal > 0 &&
+      remaining <= parsedTotal
+    ) {
+      const used = parsedTotal - remaining;
+      if (used > 0) {
+        entry.used = Math.round(used * 100) / 100;
+        if (Math.abs(parsedTotal - entry.total) / parsedTotal > 0.01) entry.total = parsedTotal;
+        // remainingPercentage, when pushed, described the broken shape — drop
+        // it so the renderer derives from the now-correct used/total.
+        delete entry.remainingPercentage;
+      }
+      return; // a remaining pair settles it — percent adds nothing
+    }
+  }
+
+  // Percent-of-total fallback — base on whatever total we ended up with.
+  const total = Number.isFinite(entry.total) && entry.total > 0 ? entry.total : null;
+  if (total === null) return;
+  for (const re of PERCENT_PATTERNS) {
+    const m = re.exec(entry.name);
+    if (!m) continue;
+    const pct = Number(m[1]);
+    if (Number.isFinite(pct) && pct > 0 && pct <= 100) {
+      entry.used = Math.round(((total * pct) / 100) * 100) / 100;
+      delete entry.remainingPercentage;
+    }
+    break;
+  }
+}
+
+function applyMagnitude(num, unit) {
+  const n = Number(num);
+  if (!Number.isFinite(n)) return NaN;
+  return unit && CJK_MAGNITUDE[unit] ? n * CJK_MAGNITUDE[unit] : n;
+}
+
 /**
  * Validate + normalize a push body for `source`. Returns
  * `{ ok: true, snapshot }` or `{ ok: false, error }` (the error doubles as the
@@ -180,6 +259,7 @@ export function normalizeExternalQuotaPayload(source, body) {
         if (coerced !== undefined) entry[field] = coerced;
       }
       entry.name = entry.name || key;
+      recoverUsedFromName(entry);
       entries.push(entry);
     }
   }

@@ -196,6 +196,60 @@ describe("external quota payload normalization", () => {
   });
 });
 
+// LongCat via CreditDaddy (2026-10) pushed pack rows with the real numbers
+// embedded in `name` while the numeric fields lied: used=0,
+// remainingPercentage=100, total=REMAINING. The card read as a full pack.
+// recoverUsedFromName repairs used/total from the name — only when the pushed
+// numbers are absent or zero; an explicit used always wins.
+describe("recoverUsedFromName — defensive repair of numbers-in-name pushes", () => {
+  const push = (row) => normalizeExternalQuotaPayload("longcat-704460616", { quotas: { Pack1: row } });
+
+  it("recovers used from '36%已消耗' when used=0 (real LongCat shape)", () => {
+    const r = push({
+      used: 0, total: 3175704, remainingPercentage: 100,
+      name: "317.57 万 / 500 万 · 赠送 · 至 10-25 · 36%已消耗",
+    });
+    const e = r.snapshot.entries[0];
+    // The remaining/total pair IS the numbers (5,000,000 − 3,175,700); the
+    // trailing "36%已消耗" is the pusher's own rounding of the same fact.
+    expect(e.used).toBeCloseTo(1_824_300, 0);
+    // the name's total wins over the mis-pushed one (which was the remaining)
+    expect(e.total).toBe(5_000_000);
+    // stale percentage describing the broken shape is dropped
+    expect(e.remainingPercentage).toBeUndefined();
+  });
+
+  it("recovers used from a '剩余 X / Y' remaining pair", () => {
+    const r = push({ used: 0, total: 5000000, name: "剩余 317.57 万 / 500 万" });
+    const e = r.snapshot.entries[0];
+    expect(e.used).toBeCloseTo(1_824_300, 0);
+  });
+
+  it("recovers from a percent-consumed name even without 万 units", () => {
+    const r = push({ used: 0, total: 100, name: "55 / 100 · 45% consumed" });
+    expect(r.snapshot.entries[0].used).toBeCloseTo(45, 2);
+  });
+
+  it("never touches a row whose pushed used is already > 0", () => {
+    const r = push({ used: 50, total: 100, name: "99%已消耗" });
+    const e = r.snapshot.entries[0];
+    expect(e.used).toBe(50);
+    expect(e.total).toBe(100);
+  });
+
+  it("leaves names without any recognizable pattern untouched", () => {
+    const r = push({ used: 0, total: 100, name: "赠送资源包" });
+    const e = r.snapshot.entries[0];
+    expect(e.used).toBe(0);
+    expect(e.total).toBe(100);
+  });
+
+  it("does not modify the name itself", () => {
+    const r = push({ used: 0, total: 3175704, name: "317.57 万 / 500 万 · 赠送 · 至 10-25 · 36%已消耗" });
+    expect(r.snapshot.entries[0].name).toContain("36%已消耗");
+  });
+});
+
 // ─── 2) route: auth-then-normalize-then-store, fail-soft ────────────────────
 
 const { POST, DELETE } = await import("../../src/app/api/external-quota/[source]/route.js");
