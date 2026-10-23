@@ -7,8 +7,35 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-10-21T00:30:00+08:00",
+  "updatedAt": "2026-10-24T05:04:26+08:00",
   "items": [
+    {
+      "id": "2026-10-24-quota-scheduling-behavior",
+      "date": "2026-10-24",
+      "level": "warning",
+      "title": "多账号调度行为变更：按到期压榨 + 双窗健康度",
+      "body": "CodeBuddy/Qoder 资产包改为严格按到期压榨——快过期的包必须先烧掉；订阅型账号按短窗/长窗拆分健康度，任一窗口见底即判红交接，不再死磕已抽干的账号；配额 429 冷却上限从 30 分钟改为 24 小时。",
+      "titleEn": "Scheduling behavior change: burn-by-expiry + dual-window health",
+      "bodyEn": "CodeBuddy/Qoder asset packs are now burned strictly by expiry — the soonest-expiring pack goes first. Subscription accounts split health into short/long windows: either window hitting bottom turns the row red and hands traffic over. The quota 429 cooldown cap moved from 30 minutes to 24 hours."
+    },
+    {
+      "id": "2026-10-23-zcode-free-glm53",
+      "date": "2026-10-23",
+      "level": "promo",
+      "title": "ZCode 体验包加送 GLM-5.3（10-26 09:00 前有效）",
+      "body": "1024 Dev Day 活动：zcode-free 在 GLM-5.3-Flash 之外加送 GLM-5.3（每日 200M 额度），活动额度 10-26 09:00 到期；走 CreditDaddy 体验包接口，免登录直接用（需 CreditDaddy 桌面版开启「体验包接口」）。",
+      "titleEn": "ZCode trial pack adds GLM-5.3 (until 10-26 09:00)",
+      "bodyEn": "1024 Dev Day event: zcode-free now includes GLM-5.3 (200M/day) alongside GLM-5.3-Flash; event quota expires 10-26 09:00. Served through the CreditDaddy trial-pack gateway — no login needed; CreditDaddy desktop with the trial-pack endpoint enabled is required."
+    },
+    {
+      "id": "2026-10-24-antigravity-family-quota",
+      "date": "2026-10-24",
+      "level": "feature",
+      "title": "Antigravity 按模型家族隔离配额",
+      "body": "Gemini 与 Claude/GPT 两套配额独立核算、独立选号——一个家族耗尽不再连坐误伤另一个；连接测试覆盖真实生成链路，被 Google 风控标记的账号如实标红并给出可点击的验证链接（新版 /v3/ 链接已兼容）。",
+      "titleEn": "Antigravity: per-model-family quota isolation",
+      "bodyEn": "The Gemini and Claude/GPT quota families are now tracked and selected independently — one family running dry no longer penalizes the other. Connection tests now cover the real generation path: accounts flagged by Google risk control are reported red with a clickable verification link (new /v3/ URLs supported)."
+    },
     {
       "id": "2026-10-20-proxy-strict",
       "date": "2026-10-20",
@@ -17,15 +44,6 @@
       "body": "Google Cloud Code、Gemini CLI 等渠道代理失败立即报错并顺位接力，不再回退直连死等（此前实测 788s）。连接级显式 strictProxy 优先。",
       "titleEn": "Proxy behavior change: direct-connect channels now default to strict mode",
       "bodyEn": "For channels that cannot connect directly (Google Cloud Code, Gemini CLI, …), a proxy failure now errors immediately and relays to the next account/combo member instead of hanging on a blocked direct connection (788s observed). Connection-level strictProxy overrides the default."
-    },
-    {
-      "id": "2026-10-20-qoder-qfmodel-free",
-      "date": "2026-10-20",
-      "level": "promo",
-      "title": "Qoder qfmodel 双线限免至 10-25",
-      "body": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。",
-      "titleEn": "Qoder qfmodel free on both lanes until 10-25",
-      "bodyEn": "qfmodel is renamed DeepSeek-V4.1-Flash 1017; free (0x rate) on both qoder and qoder-cn until 10-25."
     },
     {
       "id": "2026-10-20-cb-v41-flash",
@@ -71,24 +89,6 @@
       "body": "Gemini 4 Argon 全线接入（gemini / vertex / antigravity 官方三线），支持常开推理与 1M 上下文；Codex 接入 GPT-6.1 Sol，采用全新极速 Responses Lite 协议传输。",
       "titleEn": "Gemini 4 Argon & GPT-6.1 Sol official support",
       "bodyEn": "Full Gemini 4 Argon support across gemini, vertex, and antigravity with always-on reasoning and 1M context; Codex adds GPT-6.1 Sol over the new Responses Lite transport protocol."
-    },
-    {
-      "id": "2026-10-20-endpoint-picker",
-      "date": "2026-10-20",
-      "level": "feature",
-      "title": "端点模型白名单改勾选式",
-      "body": "端点「允许调用的模型与组合」由手敲 id 改为勾选式选择器。",
-      "titleEn": "Endpoint model allowlist is now checkbox-based",
-      "bodyEn": "The endpoint's allowed models/combos are picked via checkboxes instead of typing ids."
-    },
-    {
-      "id": "2026-10-21-external-quota-single-card",
-      "date": "2026-10-21",
-      "level": "feature",
-      "title": "外配额卡升级：单账号单卡 + 签到徽章",
-      "body": "MiniMax Code Free 等推送卡改为每账号一张独立卡（余额不再跨账号加总），签到徽章紧贴余额数字；弹窗移动端居中体验对齐更新日志。",
-      "titleEn": "Pushed quota cards: one card per account, badge beside the balance",
-      "bodyEn": "Pushed cards (MiniMax Code Free and friends) are now one independent card per account — balances are no longer summed across accounts — with the check-in badge right beside the number; modals are now centered on mobile, matching the changelog dialog."
     },
     {
       "id": "2026-10-20-community",
