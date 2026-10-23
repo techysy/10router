@@ -2,6 +2,25 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.6.1 (2026-10-24)
+
+### ✨ New
+
+- **Antigravity per-model-family quota isolation**: the Gemini and Claude/GPT quota families are now tracked and selected independently — one family running dry no longer penalizes the other; the account-picker logs gained 🟩🟨🟥 health chips and reset countdowns.
+- **Scheduling controls by quota type**: accounts are tagged as pack asset / rolling subscription / pure balance / gateway-free, and the provider page offers matching strategies (earliest-expiry-first, lowest/highest-balance-first, round-robin).
+- **zcode-free trial pack adds GLM-5.3** (1024 Dev Day event, 200M/day).
+- **Combo router decision logs** now carry confidence and the runner-up candidate, so tuning can tell a landslide from a coin flip.
+
+### 🐛 Fixed
+
+- **Antigravity connection test now covers the real generation path (#82)**: accounts flagged by Google risk control (VALIDATION_REQUIRED) no longer show a false green — the per-model test sends a minimal generate through the same executor chain as real chat, the error carries a clickable verification link (new /v3/ URLs supported), and un-graylisted models are reported red with an actionable message. Test errors are fully localized.
+- **Multi-account burn-down fix**: subscription accounts split health into short/long windows — either window hitting bottom turns the row red and hands traffic over instead of pinning an exhausted account; CodeBuddy / Qoder asset packs are burned strictly by expiry (the soonest-expiring pack goes first instead of rotting away).
+- **Quota cards**: drained monthly gift packs no longer count into the pooled denominator (the CodeBuddy 30/130 illusion), and expiry countdowns survive exhausted-pack removal.
+- **Quota cooldown**: the unlock cap for quota-window 429s moved from 30 minutes to 24 hours — no more hammering upstream every half hour; the "resets in a while" placeholder is fixed.
+- **Combo router**: decision cards treat only "recently failing" as a negative signal, so cold members stop being systematically skipped; the Drex decision request shape is fixed and the router strategy no longer silently degrades on every request.
+- **System One decision providers (drex / v1m / thx)**: wired into connection tests and key validation — the "Check" button no longer always reports Invalid.
+- **CD-pushed quota rows**: packs whose numbers live inside the name (e.g. LongCat) are no longer read as full/unused.
+
 ## v1.6.0 (2026-10-21)
 
 ### ✨ New

@@ -2,6 +2,29 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.6.1 (2026-10-24)
+
+### ✨ 新增
+
+- **Antigravity（Google AI Pro）按模型家族隔离配额**：Google 的 gemini_* 与 claude_gpt_* 是两套独立配额，此前全量扫描导致某家族耗尽后跨家族连坐误判。选号现在按目标模型解析家族（getAntigravityModelFamily），基于对应家族桶计算专属短/长窗与红黄绿档位——Gemini 耗尽不再误伤 Claude/GPT（反之亦然）；选号日志带 🟩🟨🟥 健康色块与 family 标识。
+- **供应商配额分类打标与差异化策略控件**：五类打标（资产包 / 循环订阅 / 纯余额 / 免密网关 / generic 兜底，未知渠道一律落 generic 保证 UI 不空白）；供应商详情页与 ConnectionsCard 按分类渲染调度控件（到期包优先 / 订阅循环接力 / 最低余额优先 / 最高余额优先 / 轮询 / 手动优先）；选号支持 balanceStrategy 余额排序。
+- **组合 router 决策日志带 confidence 与次优候选**：`router: drex → cbai of 6 candidates` 看不出这次选人有多确定——0.98 的一边倒和 0.34 的近似抛硬币在日志里长得一模一样。现在带上 `(conf 0.52, next … 0.41)`；纯日志用途，绝不参与路由。
+- **zcode-free 免费体验包加送 GLM-5.3**（2026-10-23 1024 Dev Day 活动，200M/日）：thinking 不可关闭（与 glm / glm-cn 同 canonical 能力行），CreditDaddy 网关原样透传 model 字段。
+
+### 🐛 修复
+
+- **Antigravity 连接测试未覆盖生成链路（#82 全链路）**：被 Google 风控标记（`VALIDATION_REQUIRED`）的账号此前逐测假绿——探活只打 `fetchAvailableModels` 一类接入层请求，真实 `generateContent` 全 403。现在探活通过后追加一次最小生成探测（`maxOutputTokens: 8`），且与聊天链路逐字节同构：复用 executor 的 translateRequest → transformRequest → buildUrl/buildHeaders 全链路、解析连接行真实 projectId、剥离 thinking 后缀（envelope.model 带 "(high)" 曾让所有模型一律 404 误报——「真实聊天可用、逐测全挂」的最终根因）。`2xx` 判有效；`429` 判有效 + 软告警；其余落 `lastError`。验证链接正则兼容新版 `accounts.google.com/v3/signin/continue`，「Verify your account」正常渲染。404 entity-not-found 展开为「该模型尚未对此账号开放（Google 灰度未覆盖）」、429 展开为「凭据正常；该模型额度已用尽」，连接测试错误与软告警统一走服务端字典（resolveRequestLocale + serverTranslate），中文界面不再透传英文。
+- **多账号「抽干」事故修复（relay 钉死单号）**：订阅制账号的短窗不断回血，单一 remaining 永远落不到红区，长窗（本周期总量）耗尽也不会交接——1698 被钉死 1448 次抽到 1.6%，同 provider 的 1697 自始至终没接过流量。现在按短窗（重置最快，扛不扛得住）/ 长窗（重置最慢，整体还剩多少）拆分健康度，红黄绿取两窗最差驱动 relay 交接；长窗只在周期桶里选（一次性 Bonus Pack 到期不代表订阅耗尽）；红档账号沉底、同档内按到期升序。
+- **Antigravity 家族配额按家族落库**：家族过滤此前只加在选号的内存视图上，后台刷新仍写不带 family 的全量合并列——周期最长的 claude_gpt_weekly 顶掉 gemini 槽位，Gemini 行写出 long=100% 假象、选号读到被污染的读数。现在后台刷新按家族各存一份，合并列只作无家族数据时的兜底，绝不排在家族读数前面。
+- **资产包型供应商解耦 Relay 粘性锁**：CodeBuddy (CN/Intl) 与 Qoder 本质是一次性资产包，与周期滚动限速桶是两回事——Relay「单点死磕」钉住持有长到期包的账号，任由快过期包烂掉（1698 持 30 天包被连续打死 1448 次，1697 的 9 天包正在报废）。现在资产包不进 Relay 粘性锁，排序只看包到期时间，快过期的包哪怕只剩 1 点也必须排最前烧掉，不烧完不作废。
+- **配额冷却锁上限用错常量**：精确冷却分支统一按 30min 截断，errorConfig 专备的 24h 上限在该路径从未生效——上游要 31h 恢复，每 30min 解锁白撞一次 429 再锁 30min 循环往复（连接行倒计时 19m 与上游 31h 差两个数量级）。现按错误文本区分：配额窗口走 24h，普通 retryAfter 仍走 30min。顺修「将于 稍后 重置」退化占位符：delayPlain 字符类里的 `.` 把句尾句点吞进捕获组导致整体失配。
+- **CodeBuddy 配额卡两处**：耗尽的月度赠送包不再计入聚合池分母（Intl 卡 30/130 的「凭空蒸发」假象，与路由侧 giftPack 出局规则对齐，live 包不受影响）；耗尽包出局后不再吞掉 meta 行的「N 个资源包 + 最近到期倒计时」（poolHasExpiry 守卫，纯储值池不受影响）。
+- **组合 router 决策两处**：决策卡的健康度从正向评分改为排除信号——只对低于阈值的成员标注「最近在失败」，冷成员不再因「有分数者稳定胜出」被系统性边缘化（越不选越没数据、越没数据越不选的自我强化）；Router 决策请求改用 Drex 规范要求的 `criteria` 对象（旧 `options` 数组在 Drex 上永远 422 降级，每请求白付一次决策调用），长 id 不再截断避免对象键合并缩小候选集。
+- **System One 决策 Provider（drex / v1m / thx）接入连接测试与 key 校验链**：这类只有决策端点（无 /models 无 chat 面）的 provider 此前编辑弹窗「检查」恒报 Invalid、加 key 落库 testStatus 恒为 unknown（而模型级 ping 能过，割裂）。两条链路各补 systemone 探针（最小 typed decision），判据收紧为 2xx / 400 / 422——THX 对空 key 返回 404 + 完整决策结果，「非 401/403 即通过」的旧判据会把假 key 判绿。
+- **CD 推送配额行 name 内嵌数字的防御性回解**：LongCat 等经 CD 推送的包行把真实数字写进 name（"317.57 万 / 500 万 · 36%已消耗"）而数值字段失真（used=0、remainingPercentage=100）——卡面读成满额未用。仅在 pushed used 缺失或为 0 时从 name 的剩余/总量对回解（万/亿单位感知），显式 used 恒胜，name 本身不改。
+- **杂项**：配额分类清单移除 registry 里不存在的 novita（误标 balance，删后自然落 generic 兜底）；选号日志按供应商特征极简呈现（资产包突出包名/余量/到期死期，滚动窗突出家族分类/双窗流速/重置倒计时）。
+- **docs**：决策路由技术报告落地，用户指南与 ARCHITECTURE.md 对齐 fusion/router 策略分流口径；Router 组合策略公告文案改写为「痛点→机制→开销」。
+
 ## v1.6.0 (2026-10-21)
 
 ### ✨ 新增
