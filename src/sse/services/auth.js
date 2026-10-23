@@ -393,7 +393,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // clears the breaker, after which this resumes on its own.
     const channelBlockLeftMs = channelBlockRemainingMs(settings.channelBlocks?.[providerId]);
     if (channelBlockLeftMs > 0) {
-      log.debug("AUTH", `${providerId} | channel blocked (${Math.ceil(channelBlockLeftMs / 1000)}s left) — skipping quota refresh`);
+      // info, not debug: this is the one path that silently skips the refresh,
+      // and a stale family column on the row is exactly what it causes.
+      log.info("AUTH", `${providerId} | channel blocked (${Math.ceil(channelBlockLeftMs / 1000)}s left) — skipping quota refresh`);
     } else if (earliestExpiryFirst && availableConnections.length > 1) {
       triggerBackgroundQuotaRefresh(availableConnections);
     }
