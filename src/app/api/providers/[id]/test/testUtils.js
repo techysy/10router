@@ -341,12 +341,20 @@ async function probeAntigravityModelAccess(connection, accessToken, effectivePro
   };
   // Translate to the antigravity native envelope via the same pipeline chat uses.
   const { translateRequest, initTranslators } = await import("open-sse/translator/index.js");
+  const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
   await initTranslators();
   const nativeBody = translateRequest("openai", "antigravity", targetModel, openaiishBody, false, credentials, "antigravity", null, [], connection.id, null);
 
-  const transformedBody = executor.transformRequest(targetModel, nativeBody, false, credentials);
-  const url = executor.buildUrl(targetModel, false, 0, credentials);
-  const headers = executor.buildHeaders(credentials, false, null, targetModel, transformedBody);
+  // chatCore strips the "(level)" suffix from envelope.model AFTER translation —
+  // the tier rides in thinkingConfig, and Google 404s ("entity was not found")
+  // any envelope whose model still carries it (e.g. gemini-3.8-flash-high(high)).
+  // The probe must do the same or every model 404s identically.
+  const cleanModel = stripThinkingSuffix(targetModel);
+  nativeBody.model = cleanModel;
+
+  const transformedBody = executor.transformRequest(cleanModel, nativeBody, false, credentials);
+  const url = executor.buildUrl(cleanModel, false, 0, credentials);
+  const headers = executor.buildHeaders(credentials, false, null, cleanModel, transformedBody);
 
   const res = await fetchWithConnectionProxy(url, {
     method: "POST",
