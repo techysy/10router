@@ -46,13 +46,13 @@
       "bodyEn": "For channels that cannot connect directly (Google Cloud Code, Gemini CLI, …), a proxy failure now errors immediately and relays to the next account/combo member instead of hanging on a blocked direct connection (788s observed). Connection-level strictProxy overrides the default."
     },
     {
-      "id": "2026-10-20-cb-v41-flash",
-      "date": "2026-10-20",
+      "id": "2026-10-24-cbai-v41-flash",
+      "date": "2026-10-24",
       "level": "promo",
-      "title": "CodeBuddy CN V4.1-Flash 1017 限免中",
-      "body": "codebuddy-cn 的 V4.1-Flash 1017 限免窗口内倍率 0x，结束后恢复发布倍率。",
-      "titleEn": "CodeBuddy CN V4.1-Flash 1017 free now",
-      "bodyEn": "codebuddy-cn's V4.1-Flash 1017 runs at 0x during the promo window and returns to the published rate afterwards."
+      "title": "CodeBuddy 国际线 DeepSeek-V4.1-Flash 限免中",
+      "body": "更正：限免在 cbai（CodeBuddy 国际线）——DeepSeek-V4.1-Flash 免费至 10-31（倍率 0x），11-01 起恢复发布倍率 0.11x；国内线 cbcn 不参与，维持 0.11x。",
+      "titleEn": "CodeBuddy Intl: DeepSeek-V4.1-Flash free until 10-31",
+      "bodyEn": "Correction: the promo is on the CodeBuddy intl lane (cbai) — DeepSeek-V4.1-Flash is free (0x) through Oct 31 and reverts to the published 0.11x on Nov 1. The CN lane (cbcn) is not part of the promo and stays at 0.11x."
     },
     {
       "id": "2026-10-20-minimax-free-back",
