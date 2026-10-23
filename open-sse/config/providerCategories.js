@@ -57,7 +57,6 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "siliconflow-cn",
   "groq",
   "openrouter",
-  "novita",
   "together",
   "fireworks",
   "nebius",
