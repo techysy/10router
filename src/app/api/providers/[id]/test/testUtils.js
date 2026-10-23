@@ -266,10 +266,12 @@ export function buildCloudCodeProbeError(bodyText, fallbackStatus, targetModel =
   // Both facts matter to the user: the credential is fine, and THIS account is
   // not in the model's rollout yet. Raw "Requested entity was not found" reads
   // as a server bug and sent users hunting for one.
+  // Exact-match skeleton (no interpolation) so the server-side i18n dictionary
+  // can translate it; the model name is appended after translation by the route.
   if (NOT_FOUND_ENTITY_RE.test(base)) {
     return targetModel
-      ? `Credentials OK — model "${targetModel}" is not yet available on this account (Google preview/rollout not granted). Try another model.`
-      : `Credentials OK — the requested resource is not available on this account (Google rollout/preview not granted).`;
+      ? "Model not available on this account (Google preview/rollout not granted)"
+      : "Requested resource not available on this account (Google preview/rollout not granted)";
   }
   return base;
 }
