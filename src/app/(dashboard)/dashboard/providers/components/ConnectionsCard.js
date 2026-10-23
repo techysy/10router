@@ -8,6 +8,7 @@ import { translateQuotaError } from "@/shared/utils/quotaError";
 import { cn } from "@/shared/utils/cn";
 import PropTypes from "prop-types";
 import { Card, Badge, Button, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
+import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 
 // ── CooldownTimer ──────────────────────────────────────────────
 function CooldownTimer({ until }) {
@@ -347,6 +348,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("1");
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
+  const [balanceStrategy, setBalanceStrategy] = useState("priority");
   const [confirmState, setConfirmState] = useState(null);
 
   const fetch_ = useCallback(async () => {
@@ -365,6 +367,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
+      setBalanceStrategy(override.balanceStrategy || "priority");
     } catch (e) { console.log("ConnectionsCard fetch error:", e); }
     finally { setLoading(false); }
   }, [providerId]);
@@ -376,7 +379,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
     return () => clearTimeout(t);
   }, [fetch_]);
 
-  const saveStrategy = async (strategy, stickyLimit, earliestExpiry = earliestExpiryFirst) => {
+  const saveStrategy = async (strategy, stickyLimit, earliestExpiry = earliestExpiryFirst, balStrategy = balanceStrategy) => {
     try {
       const res = await fetch("/api/settings", { cache: "no-store" });
       const data = res.ok ? await res.json() : {};
@@ -390,6 +393,9 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
 
       if (earliestExpiry) override.earliestExpiryFirst = true;
       else delete override.earliestExpiryFirst;
+
+      if (balStrategy && balStrategy !== "priority") override.balanceStrategy = balStrategy;
+      else delete override.balanceStrategy;
 
       const updated = { ...current };
       if (Object.keys(override).length === 0) delete updated[providerId];
@@ -460,50 +466,166 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h2 className="text-lg font-semibold">{translate("Connections")}</h2>
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span
-                className="text-xs text-text-muted font-medium"
-                title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
-              >
-                {translate("Earliest Expiry First")}
-              </span>
-              <Toggle
-                checked={earliestExpiryFirst}
-                onChange={(enabled) => {
-                  setEarliestExpiryFirst(enabled);
-                  saveStrategy(providerStrategy, providerStickyLimit, enabled);
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
-                title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
-              >
-                {translate("Round Robin")}
-              </span>
-              <Toggle
-                checked={providerStrategy === "round-robin"}
-                disabled={earliestExpiryFirst}
-                onChange={(enabled) => {
-                  const strategy = enabled ? "round-robin" : null;
-                  setProviderStrategy(strategy);
-                  if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-                  saveStrategy(strategy, enabled ? (providerStickyLimit || "1") : providerStickyLimit, earliestExpiryFirst);
-                }}
-              />
-              {providerStrategy === "round-robin" && (
-                <div className={cn("flex flex-wrap items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
-                  <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                  <input
-                    type="number" min={1} value={providerStickyLimit}
-                    disabled={earliestExpiryFirst}
-                    onChange={(e) => { setProviderStickyLimit(e.target.value); saveStrategy("round-robin", e.target.value, earliestExpiryFirst); }}
-                    className="w-16 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                  />
+            {/* Strategy Controls - Differentiated by Quota Category */}
+            {(() => {
+              const quotaCat = getProviderQuotaCategory(providerId);
+
+              // 1. Pack Asset Providers (CodeBuddy, Qoder)
+              if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
+                return (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs text-text-muted font-medium"
+                      title={translate("Prioritize burning resource packs that are nearest to permanent expiration")}
+                    >
+                      {translate("Earliest Pack Expiry")}
+                    </span>
+                    <Toggle
+                      checked={earliestExpiryFirst}
+                      onChange={(enabled) => {
+                        setEarliestExpiryFirst(enabled);
+                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
+                      }}
+                    />
+                  </div>
+                );
+              }
+
+              // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
+              if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
+                return (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs text-text-muted font-medium"
+                      title={translate("Relay between accounts and hand off to next carrier when window reaches 5% red zone")}
+                    >
+                      {translate("Subscription Relay")}
+                    </span>
+                    <Toggle
+                      checked={earliestExpiryFirst}
+                      onChange={(enabled) => {
+                        setEarliestExpiryFirst(enabled);
+                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
+                      }}
+                    />
+                  </div>
+                );
+              }
+
+              // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
+              if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
+                return (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-muted font-medium">
+                        {translate("Scheduling Preference")}
+                      </span>
+                      <Select
+                        value={balanceStrategy}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBalanceStrategy(val);
+                          if (val === "round-robin") {
+                            setProviderStrategy("round-robin");
+                            if (!providerStickyLimit) setProviderStickyLimit("1");
+                            saveStrategy("round-robin", providerStickyLimit || "1", false, val);
+                          } else {
+                            setProviderStrategy(null);
+                            saveStrategy(null, providerStickyLimit, false, val);
+                          }
+                        }}
+                        options={[
+                          { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          { value: "lowest-first", label: translate("Lowest Balance First") },
+                          { value: "highest-first", label: translate("Highest Balance First") },
+                          { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                        ]}
+                        selectClassName="!py-1 !text-xs w-48"
+                      />
+                    </div>
+                    {balanceStrategy === "round-robin" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={providerStickyLimit}
+                          onChange={(e) => {
+                            setProviderStickyLimit(e.target.value);
+                            saveStrategy("round-robin", e.target.value, false, balanceStrategy);
+                          }}
+                          className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // 4. Gateway Free Providers
+              if (quotaCat === PROVIDER_QUOTA_TYPES.GATEWAY_FREE) {
+                return (
+                  <span className="text-xs text-text-muted bg-surface px-2.5 py-1 rounded-md border border-border">
+                    {translate("Gateway Managed Auto Routing")}
+                  </span>
+                );
+              }
+
+              // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
+              return (
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs text-text-muted font-medium"
+                      title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
+                    >
+                      {translate("Earliest Expiry First")}
+                    </span>
+                    <Toggle
+                      checked={earliestExpiryFirst}
+                      onChange={(enabled) => {
+                        setEarliestExpiryFirst(enabled);
+                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
+                      title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
+                    >
+                      {translate("Round Robin")}
+                    </span>
+                    <Toggle
+                      checked={providerStrategy === "round-robin"}
+                      disabled={earliestExpiryFirst}
+                      onChange={(enabled) => {
+                        const strategy = enabled ? "round-robin" : null;
+                        setProviderStrategy(strategy);
+                        if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
+                        saveStrategy(strategy, enabled ? (providerStickyLimit || "1") : providerStickyLimit, earliestExpiryFirst, balanceStrategy);
+                      }}
+                    />
+                    {providerStrategy === "round-robin" && (
+                      <div className={cn("flex flex-wrap items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
+                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={providerStickyLimit}
+                          disabled={earliestExpiryFirst}
+                          onChange={(e) => {
+                            setProviderStickyLimit(e.target.value);
+                            saveStrategy("round-robin", e.target.value, earliestExpiryFirst, balanceStrategy);
+                          }}
+                          className="w-16 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         </div>
 

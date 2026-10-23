@@ -2,7 +2,7 @@ import { getProviderConnectionById, updateProviderConnection } from "@/lib/local
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
-import { getDefaultModel } from "open-sse/config/providerModels.js";
+import { getDefaultModel, getModelUpstreamId } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
@@ -257,6 +257,52 @@ export function buildCloudCodeProbeError(bodyText, fallbackStatus) {
   );
 }
 
+async function probeAntigravityModelAccess(connection, accessToken, effectiveProxy = null, targetModel = "gemini-3.8-flash-high") {
+  const userAgent = connection.provider === "antigravity"
+    ? "antigravity/ide/2.22.0 darwin/arm64"
+    : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0";
+  const url = connection.provider === "antigravity"
+    ? `https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent`
+    : `https://cloudcode-pa.googleapis.com/v1internal:generateContent`;
+
+  const probeBody = {
+    project: connection.projectId || "antigravity-probe",
+    model: targetModel,
+    request: {
+      contents: [{ role: "user", parts: [{ text: "ping" }] }],
+      generationConfig: {
+        maxOutputTokens: 8,
+      },
+    },
+  };
+
+  const res = await fetchWithConnectionProxy(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": userAgent,
+    },
+    body: JSON.stringify(probeBody),
+  }, effectiveProxy);
+
+  // 2xx = completely valid
+  if (res.ok) return { valid: true, error: null };
+
+  const bodyText = await res.text().catch(() => "");
+
+  // 429 = credentials and model access are valid, just rate-limited
+  if (res.status === 429) {
+    return { valid: true, error: null, warning: "Model rate-limited (quota exhausted)" };
+  }
+
+  return {
+    valid: false,
+    error: buildCloudCodeProbeError(bodyText, res.status),
+    status: res.status,
+  };
+}
+
 async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProxy = null) {
   const userAgent = connection.provider === "antigravity"
     ? "google-api-nodejs-client/9.15.1 vscode-antigravity/1.107.0"
@@ -496,14 +542,50 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
   }
 
   if (connection.provider === "gemini-cli" || connection.provider === "antigravity") {
-    const initial = await probeCloudCodeAssistAccess(connection, accessToken, effectiveProxy);
-    if (initial.valid) return { valid: true, error: null, refreshed, newTokens };
+    // If a specific model was requested (e.g. from the one-by-one dropdown), probe real generation for that model
+    // so that accounts lacking model access/preview access (such as 404 Requested entity not found or 403 VALIDATION_REQUIRED)
+    // are correctly identified rather than giving a false positive token check. Issue #82.
+    const selectedModel = options?.model;
+    const targetModel = selectedModel ? getModelUpstreamId(connection.provider, selectedModel) : null;
+
+    const runProbe = async (token) => {
+      // 1. First probe general Cloud Code access
+      const accessProbe = await probeCloudCodeAssistAccess(connection, token, effectiveProxy);
+      if (!accessProbe.valid) return accessProbe;
+
+      // 2. If a specific model is targeted, probe generateContent with that model
+      if (targetModel) {
+        const modelProbe = await probeAntigravityModelAccess(connection, token, effectiveProxy, targetModel);
+        if (!modelProbe.valid) return modelProbe;
+        if (modelProbe.warning) return { valid: true, error: null, warning: modelProbe.warning, soft: true };
+      }
+      return { valid: true, error: null };
+    };
+
+    const initial = await runProbe(accessToken);
+    if (initial.valid) {
+      return {
+        valid: true,
+        error: initial.warning || null,
+        warning: initial.warning || null,
+        refreshed,
+        newTokens,
+      };
+    }
 
     if (initial.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
       const tokens = await refreshOAuthToken(connection);
       if (tokens?.accessToken) {
-        const retry = await probeCloudCodeAssistAccess(connection, tokens.accessToken, effectiveProxy);
-        if (retry.valid) return { valid: true, error: null, refreshed: true, newTokens: tokens };
+        const retry = await runProbe(tokens.accessToken);
+        if (retry.valid) {
+          return {
+            valid: true,
+            error: retry.warning || null,
+            warning: retry.warning || null,
+            refreshed: true,
+            newTokens: tokens,
+          };
+        }
         return { valid: false, error: retry.error, refreshed: true, newTokens: tokens };
       }
       return { valid: false, error: "Token invalid or revoked", refreshed: false };

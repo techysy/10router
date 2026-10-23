@@ -57,6 +57,11 @@ describe("extractAccountsVerificationUrl", () => {
       .toBe("https://accounts.google.com/signin/continue?plt=A");
   });
 
+  it("extracts v3 validation URL (Issue #82)", () => {
+    const v3Url = "https://accounts.google.com/v3/signin/continue?sarp=1&scc=1&continue=https://developers.google.com/x&plt=T";
+    expect(extractAccountsVerificationUrl(v3Url)).toBe(v3Url);
+  });
+
   it("ignores non-verification Google URLs and non-strings", () => {
     expect(extractAccountsVerificationUrl("see https://myaccount.google.com/security")).toBeNull();
     expect(extractAccountsVerificationUrl(null)).toBeNull();

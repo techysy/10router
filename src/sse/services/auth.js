@@ -5,6 +5,8 @@ import { MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "open-sse/conf
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
+import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota, getAntigravityModelFamily } from "./antigravityQuota.js";
 import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
@@ -167,6 +169,9 @@ function triggerBackgroundQuotaRefresh(connections) {
           }
         }
 
+        const parsedBalance = extractConnectionBalance(usage);
+        const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
+
         await updateProviderConnection(conn.id, {
           earliestPackageExpiry: expiryInfo?.expiry || null,
           earliestPackageName: expiryInfo?.name || null,
@@ -188,6 +193,7 @@ function triggerBackgroundQuotaRefresh(connections) {
           quotaWindowSource: expiryInfo?.windowSource || null,
           quotaCheckedAt: new Date().toISOString(),
           ...famPatch,
+          ...balancePatch,
         });
       } catch {
         // Non-blocking, ignore background errors
@@ -469,7 +475,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     let orderedConnections = poolConnections;
-    const isPackAssetProvider = ["codebuddy-cn", "codebuddy-intl", "qoder", "qoder-cn"].includes(providerId);
+    const quotaCategory = getProviderQuotaCategory(providerId);
+    const isPackAssetProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PACK_ASSET;
+    const isPureBalanceProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PURE_BALANCE;
+    const balanceStrategy = providerOverride.balanceStrategy || null;
 
     if (earliestExpiryFirst && poolConnections.length > 1) {
       const now = Date.now();
@@ -493,6 +502,19 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         const timeA = expiryMs(a);
         const timeB = expiryMs(b);
         if (timeA !== timeB) return timeA - timeB;
+        return (a.priority || 999) - (b.priority || 999);
+      });
+    } else if (isPureBalanceProvider && (balanceStrategy === "lowest-first" || balanceStrategy === "highest-first") && poolConnections.length > 1) {
+      orderedConnections = [...poolConnections].sort((a, b) => {
+        const balA = typeof a.quotaBalance === "number" ? a.quotaBalance : null;
+        const balB = typeof b.quotaBalance === "number" ? b.quotaBalance : null;
+
+        // Accounts without known balance sort last
+        if (balA !== null && balB === null) return -1;
+        if (balA === null && balB !== null) return 1;
+        if (balA !== null && balB !== null && balA !== balB) {
+          return balanceStrategy === "lowest-first" ? balA - balB : balB - balA;
+        }
         return (a.priority || 999) - (b.priority || 999);
       });
     }

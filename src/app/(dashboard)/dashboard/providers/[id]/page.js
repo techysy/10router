@@ -32,6 +32,7 @@ import CodeBuddyImportModal from "./CodeBuddyImportModal";
 import OAuthTransferModal from "./OAuthTransferModal";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
+import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
@@ -110,6 +111,7 @@ export default function ProviderDetailPage() {
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
+  const [balanceStrategy, setBalanceStrategy] = useState("priority");
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
@@ -729,6 +731,7 @@ export default function ProviderDetailPage() {
     strategy,
     stickyLimit,
     earliestExpiry = earliestExpiryFirst,
+    balStrategy = balanceStrategy,
   ) => {
     try {
       const settingsRes = await fetch("/api/settings", { cache: "no-store" });
@@ -750,6 +753,12 @@ export default function ProviderDetailPage() {
         override.earliestExpiryFirst = true;
       } else {
         delete override.earliestExpiryFirst;
+      }
+
+      if (balStrategy && balStrategy !== "priority") {
+        override.balanceStrategy = balStrategy;
+      } else {
+        delete override.balanceStrategy;
       }
 
       const updated = { ...current };
@@ -774,17 +783,29 @@ export default function ProviderDetailPage() {
     const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
     if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
     setProviderStrategy(strategy);
-    saveProviderStrategy(strategy, sticky, earliestExpiryFirst);
+    saveProviderStrategy(strategy, sticky, earliestExpiryFirst, balanceStrategy);
   };
 
   const handleStickyLimitChange = (value) => {
     setProviderStickyLimit(value);
-    saveProviderStrategy("round-robin", value, earliestExpiryFirst);
+    saveProviderStrategy("round-robin", value, earliestExpiryFirst, balanceStrategy);
   };
 
   const handleEarliestExpiryToggle = (enabled) => {
     setEarliestExpiryFirst(enabled);
-    saveProviderStrategy(providerStrategy, providerStickyLimit, enabled);
+    saveProviderStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
+  };
+
+  const handleBalanceStrategyChange = (value) => {
+    setBalanceStrategy(value);
+    if (value === "round-robin") {
+      setProviderStrategy("round-robin");
+      if (!providerStickyLimit) setProviderStickyLimit("1");
+      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value);
+    } else {
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, value);
+    }
   };
 
   const saveThinkingConfig = async (mode) => {
@@ -855,6 +876,11 @@ export default function ProviderDetailPage() {
         if (typeof data.codeBuddyCompensation === "boolean") {
           setCodeBuddyCompensationEnabled(data.codeBuddyCompensation);
         }
+        const strategyOverride = (data.providerStrategies || {})[providerId] || {};
+        setProviderStrategy(strategyOverride.fallbackStrategy || null);
+        setProviderStickyLimit(strategyOverride.stickyRoundRobinLimit != null ? String(strategyOverride.stickyRoundRobinLimit) : "1");
+        setEarliestExpiryFirst(strategyOverride.earliestExpiryFirst === true);
+        setBalanceStrategy(strategyOverride.balanceStrategy || "priority");
       })
       .catch((e) => console.log("Error reading settings:", e));
   }, []);
@@ -2158,48 +2184,137 @@ export default function ProviderDetailPage() {
                   )}
                 </>
               )}
-              {/* Earliest Expiry First toggle */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="text-xs text-text-muted font-medium"
-                  title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
-                >
-                  {translate("Earliest Expiry First")}
-                </span>
-                <Toggle
-                  checked={earliestExpiryFirst}
-                  onChange={handleEarliestExpiryToggle}
-                />
-              </div>
+              {/* Strategy Controls - Differentiated by Quota Category */}
+              {(() => {
+                const quotaCat = getProviderQuotaCategory(providerId);
 
-              {/* Round Robin toggle */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
-                  title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
-                >
-                  {translate("Round Robin")}
-                </span>
-                <Toggle
-                  checked={providerStrategy === "round-robin"}
-                  disabled={earliestExpiryFirst}
-                  onChange={handleRoundRobinToggle}
-                />
-                {providerStrategy === "round-robin" && (
-                  <div className={cn("flex items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
-                    <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      disabled={earliestExpiryFirst}
-                      value={providerStickyLimit}
-                      onChange={(e) => handleStickyLimitChange(e.target.value)}
-                      placeholder="1"
-                      className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                    />
+                // 1. Pack Asset Providers (CodeBuddy, Qoder)
+                if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-xs text-text-muted font-medium"
+                        title={translate("Prioritize burning resource packs that are nearest to permanent expiration")}
+                      >
+                        {translate("Earliest Pack Expiry")}
+                      </span>
+                      <Toggle
+                        checked={earliestExpiryFirst}
+                        onChange={handleEarliestExpiryToggle}
+                      />
+                    </div>
+                  );
+                }
+
+                // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
+                if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-xs text-text-muted font-medium"
+                        title={translate("Relay between accounts and hand off to next carrier when window reaches 5% red zone")}
+                      >
+                        {translate("Subscription Relay")}
+                      </span>
+                      <Toggle
+                        checked={earliestExpiryFirst}
+                        onChange={handleEarliestExpiryToggle}
+                      />
+                    </div>
+                  );
+                }
+
+                // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
+                if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-medium">
+                          {translate("Scheduling Preference")}
+                        </span>
+                        <Select
+                          value={balanceStrategy}
+                          onChange={(e) => handleBalanceStrategyChange(e.target.value)}
+                          options={[
+                            { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                            { value: "lowest-first", label: translate("Lowest Balance First") },
+                            { value: "highest-first", label: translate("Highest Balance First") },
+                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                          ]}
+                          selectClassName="!py-1 !text-xs w-48"
+                        />
+                      </div>
+                      {balanceStrategy === "round-robin" && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // 4. Gateway Free Providers
+                if (quotaCat === PROVIDER_QUOTA_TYPES.GATEWAY_FREE) {
+                  return (
+                    <span className="text-xs text-text-muted bg-surface px-2.5 py-1 rounded-md border border-border">
+                      {translate("Gateway Managed Auto Routing")}
+                    </span>
+                  );
+                }
+
+                // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
+                return (
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-xs text-text-muted font-medium"
+                        title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
+                      >
+                        {translate("Earliest Expiry First")}
+                      </span>
+                      <Toggle
+                        checked={earliestExpiryFirst}
+                        onChange={handleEarliestExpiryToggle}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
+                        title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
+                      >
+                        {translate("Round Robin")}
+                      </span>
+                      <Toggle
+                        checked={providerStrategy === "round-robin"}
+                        disabled={earliestExpiryFirst}
+                        onChange={handleRoundRobinToggle}
+                      />
+                      {providerStrategy === "round-robin" && (
+                        <div className={cn("flex items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            disabled={earliestExpiryFirst}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
 
