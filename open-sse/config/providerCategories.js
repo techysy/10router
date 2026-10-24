@@ -66,6 +66,7 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "mistral",
   "river",
   "modelscope",
+  "oxion",
   "baidu",
   "kimi",
   "azure",
