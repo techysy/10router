@@ -114,9 +114,56 @@ export function resolveRequestLocale(request) {
  * Translate one exact string against a locale's dictionary. Falls back to the
  * input (English) on any miss — same contract as the client translate().
  */
+
+// Some error text that reaches the user is upstream free prose wrapped in
+// pipeline prefixes (`[503]: … (reset after 30s)`), so an exact dictionary
+// key can never match it. UPSTREAM_PATTERNS rewrite the matched upstream
+// sentence in place — surrounding prefixes and retry suffixes survive the
+// replace, and reworded upstream text falls back to passthrough. Server-side
+// only: these strings arrive inside dashboard test results, never through
+// the client runtime translate(), so the table lives here rather than in the
+// literals files the client also consumes.
+const UPSTREAM_PATTERNS = [
+  {
+    // Oxion gateway-wide 503 during a maintenance window (2026-10-24, live):
+    // "Our service is being upgraded right now and will be back to normal
+    // within a few minutes. Please retry shortly — your plan and balance
+    // are not affected."
+    re: /Our service is being upgraded[\s\S]*?not affected\./i,
+    "zh-CN": "上游正在升级维护，通常几分钟内恢复，稍后自动重试即可；套餐与余额不受影响。",
+    "zh-TW": "上游正在升級維護，通常幾分鐘內恢復，稍後自動重試即可；方案與餘額不受影響。",
+  },
+  {
+    // DEFAULT_ERROR_MESSAGES 503/502/504 — the bare defaults surface verbatim
+    // whenever the upstream body carries no message of its own.
+    re: /Service temporarily unavailable/gi,
+    "zh-CN": "服务暂时不可用（上游维护或过载，稍后重试）",
+    "zh-TW": "服務暫時不可用（上游維護或過載，稍後重試）",
+  },
+  {
+    re: /Bad gateway - upstream provider error/gi,
+    "zh-CN": "网关错误——上游供应商故障",
+    "zh-TW": "閘道錯誤——上游供應商故障",
+  },
+  {
+    re: /Gateway timeout/gi,
+    "zh-CN": "网关超时",
+    "zh-TW": "閘道逾時",
+  },
+];
+
 export function serverTranslate(locale, text) {
   if (!text || typeof text !== "string") return text;
   const dict = loadDict(locale);
-  if (!dict) return text;
-  return dict[text.trim()] || text;
+  const exact = dict && dict[text.trim()];
+  if (exact) return exact;
+  if (locale === "en") return text;
+  for (const pattern of UPSTREAM_PATTERNS) {
+    const replacement = pattern[locale];
+    if (replacement && pattern.re.test(text)) {
+      pattern.re.lastIndex = 0; // /g flags are stateful across .test() calls
+      return text.replace(pattern.re, replacement);
+    }
+  }
+  return text;
 }

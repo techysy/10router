@@ -4,6 +4,7 @@ import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "open-sse/config/provide
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { pingModelByKind } from "@/app/api/models/test/ping";
+import { resolveRequestLocale, serverTranslate } from "@/i18n/serverTranslate.js";
 
 /**
  * POST /api/providers/[id]/test-models
@@ -56,6 +57,14 @@ export async function POST(request, { params }) {
         })
       );
       results.push(...restResults);
+    }
+
+    // Per-model errors reach the dashboard verbatim in the model cards, so they
+    // go through the same server-side dictionary as the connection test — the
+    // client i18n runtime never sees these strings. Unknown strings pass through.
+    const locale = resolveRequestLocale(request);
+    for (const result of results) {
+      if (result.error) result.error = serverTranslate(locale, result.error);
     }
 
     return NextResponse.json({ provider: providerId, connectionId: id, results });
