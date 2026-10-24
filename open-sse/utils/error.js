@@ -82,6 +82,43 @@ export function buildAccountValidationMessage(bodyText) {
   );
 }
 
+/**
+ * BaseExecutor.parseError (and several overrides) hand the raw response body
+ * back as the "message" — for OpenAI-compatible gateways that is a JSON wall
+ * the user cannot act on (live case: Oxion 503 `service_upgrading`, whose
+ * dashboard showed `[503]: {"error":{"code":...,"message":"Our service is
+ * being upgraded…"}}` verbatim). When the text parses as JSON and carries a
+ * human message inside, unwrap just that message; anything else (non-JSON,
+ * JSON without a message field) returns null and keeps the raw text.
+ *
+ * Numeric business codes are preserved as a `[code]` prefix: ERROR_RULES text
+ * rules match on the message substring, and the raw wall used to carry them
+ * (CodeBuddy `{"code":11133,…}` being the load-bearing case — losing the code
+ * would silently change that account's cooldown behavior). String codes like
+ * `service_upgrading` are machine enums no rule matches on, so they do not
+ * pollute the friendly text. Exported for unit tests.
+ */
+export function unwrapJsonErrorMessage(bodyText) {
+  if (!bodyText || typeof bodyText !== "string") return null;
+  const trimmed = bodyText.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+  let json;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!json || typeof json !== "object") return null;
+  const human = json.error?.message ?? json.message ?? json.msg
+    ?? (typeof json.error === "string" ? json.error : null);
+  if (typeof human !== "string" || !human.trim()) return null;
+  const code = json.code ?? json.error?.code;
+  if (typeof code === "number" || (typeof code === "string" && /^\d+$/.test(code))) {
+    return human.toLowerCase().includes(String(code)) ? human : `[${code}] ${human}`;
+  }
+  return human;
+}
+
 export async function parseUpstreamError(response, executor = null) {
   let bodyText = "";
   try {
@@ -98,6 +135,7 @@ export async function parseUpstreamError(response, executor = null) {
       const parsed = executor.parseError(response, bodyText);
       if (parsed && typeof parsed === "object") {
         const msg = validationMessage
+          || unwrapJsonErrorMessage(parsed.message)
           || parsed.message
           || DEFAULT_ERROR_MESSAGES[response.status]
           || `Upstream error: ${response.status}`;
