@@ -111,6 +111,14 @@ export const ERROR_RULES = [
   // channel, and walking the account list is what makes it worse.
   { text: "unapproved channel",       channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "illegal api invocation",   channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
+  // CodeBuddy INTL 会话头闸门（2026-10-15 起官方网关强制 X-Conversation-* 头族，
+  // 11128 "conversation id missing" / "request illegal"，无头 100% 拒）：同 CN
+  // unapproved channel 的渠道级语义——所有连接同秒同答，逐号重试只会放大。
+  // 11128 是过载码（还承载 "first message is not system prompt" 这类 body 形状
+  // 问题），所以按 provider + 文案限定，不按码分类。executor 已默认带上头族，
+  // 这两条是头族回退时的防线。
+  { provider: "codebuddy-intl", text: "conversation id missing", channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
+  { provider: "codebuddy-intl", text: "request illegal", channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },
   // Missing MiMo Desktop session is a CONFIGURATION state (executors/xiaomi-mimo.js),
   // not a transient fault: cooldown 0 = account never locked, combo falls through
