@@ -118,6 +118,45 @@ describe("connection test — switch default falls through to the generic /model
     expect(result).toEqual({ valid: false, error: "Provider test not supported" });
   });
 
+  it("a selected model sends a real generation probe — 503 during maintenance is invalid, not green", async () => {
+    // The one-by-one picker's selection must be honored: a /models 200 cannot
+    // see a maintenance 503 on the chat surface (live oxion case, 2026-10-25).
+    fetchMock.mockResolvedValueOnce(jsonRes(503, JSON.stringify({
+      error: { code: "service_upgrading", message: "Our service is being upgraded right now and will be back to normal within a few minutes. Please retry shortly — your plan and balance are not affected." },
+    })));
+    const result = await testApiKeyConnection(conn("oxion"), null, { model: "deepseek-v4-flash-0731" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://oxionai.com/v1/chat/completions");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body).model).toBe("deepseek-v4-flash-0731");
+    expect(result.valid).toBe(false);
+    expect(result.maintenance).toBe(true);
+    expect(result.error).toContain("HTTP 503: Our service is being upgraded");
+  });
+
+  it("selected model + 2xx → valid; 429 → valid with the soft-warning key", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, JSON.stringify({ choices: [{ message: { content: "ok" } }] })));
+    const ok = await testApiKeyConnection(conn("oxion"), null, { model: "glm-5.2" });
+    expect(ok).toEqual({ valid: true, error: null });
+
+    fetchMock.mockResolvedValueOnce(jsonRes(429, JSON.stringify({ error: { message: "rate limited" } })));
+    const limited = await testApiKeyConnection(conn("oxion"), null, { model: "glm-5.2" });
+    expect(limited.valid).toBe(true);
+    expect(limited.error).toBe("Model rate-limited (quota exhausted)");
+  });
+
+  it("selected model + 401 → bad key (auth verdict unchanged)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(401));
+    const result = await testApiKeyConnection(conn("oxion"), null, { model: "glm-5.2" });
+    expect(result).toEqual({ valid: false, error: "Invalid API key" });
+  });
+
+  it("selected model strips the thinking suffix before the probe", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, JSON.stringify({ choices: [] })));
+    await testApiKeyConnection(conn("oxion"), null, { model: "glm-5.2(high)" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe("glm-5.2");
+  });
+
   it("curated generic cases share the helper (river) — same URL derivation", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200));
     const result = await testApiKeyConnection(conn("river"));

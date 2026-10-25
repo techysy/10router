@@ -780,21 +780,57 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
 }
 
 /**
- * Generic OpenAI-compatible key validator: GET the registry-declared
- * `validateUrl` (or a /models URL derived from the chat baseUrl) with Bearer
- * auth and judge by status. The verdict stays auth-only (401/403 = bad key) —
- * 402/429/5xx say nothing about the key itself, and several gateways 5xx
- * wholesale during maintenance windows (Oxion `service_upgrading` was
- * live-proven on 2026-10-24).
+ * Model-aware probe for generic OpenAI-compatible providers.
  *
- * Gate: the registry's explicit `validateUrl` declaration (or a baseUrl that
- * ends in /chat/completions). Providers without either — vertex, media-only,
- * selfhosted-*, custom-format chat endpoints — are not probeable this way and
- * keep answering "Provider test not supported" from the switch default.
- * Exported for unit tests.
+ * With a model selected in the one-by-one picker, the user is asking for the
+ * REAL generation path — a /models 200 cannot see a maintenance 503 on the
+ * chat surface (live: oxion `service_upgrading` green-lit the key check while
+ * every model 503'd). So a selected model sends a 1-token chat completion and
+ * the verdict maps like the antigravity model probe (#82): 2xx valid, 429
+ * valid + soft warning, 401/403 bad key, everything else invalid with the
+ * unwrapped upstream message (the route's pattern layer localizes it).
+ *
+ * With no model, fall back to the cheap key check: GET the registry-declared
+ * `validateUrl` (or a /models URL derived from the chat baseUrl) and judge by
+ * status, auth-only. The gate for either shape is the registry's explicit
+ * `validateUrl` declaration (or a baseUrl that ends in /chat/completions).
+ * Providers without either — vertex, media-only, selfhosted-*, custom-format
+ * chat endpoints — are not probeable this way and keep answering "Provider
+ * test not supported" from the switch default. Exported for unit tests.
  */
-export async function probeOpenAIModelsEndpoint(connection, effectiveProxy) {
+export async function probeOpenAIModelsEndpoint(connection, effectiveProxy, options = {}) {
   const config = PROVIDERS[connection.provider];
+  if (options.model && config?.baseUrl) {
+    const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
+    const model = stripThinkingSuffix(getModelUpstreamId(connection.provider, options.model));
+    let res;
+    try {
+      res = await fetchWithConnectionProxy(config.baseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+      }, effectiveProxy);
+    } catch (err) {
+      return {
+        valid: false,
+        error: "Endpoint unreachable — the provider may be under maintenance, try again later",
+        maintenance: true,
+      };
+    }
+    if (res.status === 401 || res.status === 403) return { valid: false, error: "Invalid API key" };
+    if (res.status === 429) return { valid: true, error: "Model rate-limited (quota exhausted)" };
+    const bodyText = await res.text().catch(() => "");
+    if (!res.ok) {
+      const detail = parseProviderErrorMessage(bodyText, `API returned ${res.status}`);
+      return {
+        valid: false,
+        error: `HTTP ${res.status}: ${detail}`,
+        maintenance: res.status >= 500,
+      };
+    }
+    return { valid: true, error: null };
+  }
+
   // Derive /models ONLY from a chat-shaped baseUrl — appending "/models" to a
   // non-chat baseUrl (vertex's https://aiplatform.googleapis.com) fabricates a
   // garbage URL that would then be probed.
@@ -1321,7 +1357,7 @@ case "llm7": {
       case "river": {
         // Generic OpenAI-compatible freeTier/apikey providers with a GET
         // /models endpoint and default Bearer auth — validate via that.
-        return probeOpenAIModelsEndpoint(connection, effectiveProxy);
+        return probeOpenAIModelsEndpoint(connection, effectiveProxy, options);
       }
       case "modelscope":
       case "sambanova":
@@ -1335,7 +1371,7 @@ case "llm7": {
         const res = await fetchWithConnectionProxy(baseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
-          body: JSON.stringify({ model: getDefaultModel(connection.provider), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+          body: JSON.stringify({ model: options.model ? getModelUpstreamId(connection.provider, options.model) : getDefaultModel(connection.provider), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
@@ -1435,7 +1471,7 @@ case "llm7": {
         // remembered the case list (modelscope / inception / apinex / oxion
         // all did); the validateUrl declaration is the real gate. Providers
         // without one keep the old answer via the helper's guard.
-        return probeOpenAIModelsEndpoint(connection, effectiveProxy);
+        return probeOpenAIModelsEndpoint(connection, effectiveProxy, options);
     }
   } catch (err) {
     return { valid: false, error: err.message };
