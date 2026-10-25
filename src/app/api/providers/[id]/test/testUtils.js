@@ -779,6 +779,65 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
   });
 }
 
+/**
+ * Generic OpenAI-compatible key validator: GET the registry-declared
+ * `validateUrl` (or a /models URL derived from the chat baseUrl) with Bearer
+ * auth and judge by status. The verdict stays auth-only (401/403 = bad key) —
+ * 402/429/5xx say nothing about the key itself, and several gateways 5xx
+ * wholesale during maintenance windows (Oxion `service_upgrading` was
+ * live-proven on 2026-10-24).
+ *
+ * Gate: the registry's explicit `validateUrl` declaration (or a baseUrl that
+ * ends in /chat/completions). Providers without either — vertex, media-only,
+ * selfhosted-*, custom-format chat endpoints — are not probeable this way and
+ * keep answering "Provider test not supported" from the switch default.
+ * Exported for unit tests.
+ */
+export async function probeOpenAIModelsEndpoint(connection, effectiveProxy) {
+  const config = PROVIDERS[connection.provider];
+  // Derive /models ONLY from a chat-shaped baseUrl — appending "/models" to a
+  // non-chat baseUrl (vertex's https://aiplatform.googleapis.com) fabricates a
+  // garbage URL that would then be probed.
+  const validateUrl = config?.validateUrl
+    || (config?.baseUrl?.endsWith("/chat/completions")
+      ? config.baseUrl.replace(/\/chat\/completions$/, "") + "/models"
+      : null);
+  if (!validateUrl || validateUrl === "/models") return { valid: false, error: "Provider test not supported" };
+  let res;
+  try {
+    res = await fetchWithConnectionProxy(validateUrl, {
+      headers: { Authorization: `Bearer ${connection.apiKey}` },
+    }, effectiveProxy);
+  } catch (err) {
+    // Network-level failure (DNS, timeout, TLS, connection reset) — the
+    // upstream endpoint may be down / still under maintenance.
+    return {
+      valid: false,
+      error: "Endpoint unreachable — the provider may be under maintenance, try again later",
+      maintenance: true,
+    };
+  }
+  // Verdict stays auth-only for JSON bodies (402/429/5xx say nothing about the
+  // key itself — Oxion 503 `service_upgrading` was live-proven), but an HTML
+  // page on a 5xx is a gateway block page (Cloudflare challenge / upstream
+  // error wall): that says the endpoint is NOT serving, and the old
+  // `!valid && …` guard made that branch unreachable for exactly those
+  // statuses (a 503 HTML page validated as green). 403 counts as blocked in
+  // both shapes — several gateways answer risk-control 403 with JSON.
+  const contentType = res.headers.get("content-type") || "";
+  const isHtml = /text\/html/i.test(contentType);
+  const html5xx = res.status >= 500 && isHtml;
+  const valid = !html5xx && res.status !== 401 && res.status !== 403;
+  if (!valid && (isHtml || res.status === 403 || !/json/i.test(contentType))) {
+    return {
+      valid: false,
+      error: "Provider may be under maintenance — blocked by its gateway (e.g. Cloudflare). Try again later or check the provider status page",
+      maintenance: true,
+    };
+  }
+  return { valid, error: valid ? null : "Invalid API key" };
+}
+
 // Exported for the test suite: the provider switch is the only place that
 // knows how each provider's key is verified, so the systemone probes are
 // asserted against this function rather than a copy of it.
@@ -1262,36 +1321,23 @@ case "llm7": {
       case "river": {
         // Generic OpenAI-compatible freeTier/apikey providers with a GET
         // /models endpoint and default Bearer auth — validate via that.
-        const validateUrl =
-          PROVIDERS[connection.provider]?.validateUrl ||
-          (PROVIDERS[connection.provider]?.baseUrl?.replace(/\/chat\/completions$/, "") + "/models");
-        if (!validateUrl || validateUrl === "/models") return { valid: false, error: "Provider test not supported" };
-        let res;
-        try {
-          res = await fetchWithConnectionProxy(validateUrl, {
-            headers: { Authorization: `Bearer ${connection.apiKey}` },
-          }, effectiveProxy);
-        } catch (err) {
-          // Network-level failure (DNS, timeout, TLS, connection reset) — the
-          // upstream endpoint may be down / still under maintenance.
-          return {
-            valid: false,
-            error: "Endpoint unreachable — the provider may be under maintenance, try again later",
-            maintenance: true,
-          };
-        }
-        // Cloudflare challenge page (or any HTML, not JSON) means the gateway
-        // is up but blocking direct API access — likely WAF / under maintenance.
-        const contentType = res.headers.get("content-type") || "";
-        const isCloudflare = /text\/html/i.test(contentType) || res.status === 403;
+        return probeOpenAIModelsEndpoint(connection, effectiveProxy);
+      }
+      case "modelscope":
+      case "sambanova":
+      case "kilo-gateway": {
+        // These gateways answer their /models catalog WITHOUT checking the key
+        // (verified with a bogus Bearer on 2026-10-25: 200), so the generic
+        // /models probe cannot discriminate — fall back to a 1-token chat ping
+        // (same shape as the codebuddy/dots pattern), judged auth-only.
+        const baseUrl = PROVIDERS[connection.provider]?.baseUrl;
+        if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const res = await fetchWithConnectionProxy(baseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          body: JSON.stringify({ model: getDefaultModel(connection.provider), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+        }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
-        if (!valid && (isCloudflare || !/json/i.test(contentType))) {
-          return {
-            valid: false,
-            error: "Provider may be under maintenance — blocked by its gateway (e.g. Cloudflare). Try again later or check the provider status page",
-            maintenance: true,
-          };
-        }
         return { valid, error: valid ? null : "Invalid API key" };
       }
       case "codebuddy-cn": {
@@ -1381,7 +1427,15 @@ case "llm7": {
         return { valid, error: valid ? null : "Invalid API key" };
       }
       default:
-        return { valid: false, error: "Provider test not supported" };
+        // No curated case for this provider. Registry entries that declare an
+        // explicit `validateUrl` are standard OpenAI-compatible gateways
+        // (GET /models, Bearer) — probe them instead of dead-ending on
+        // "Provider test not supported". Every provider shipped without a
+        // switch case landed here with a dead Test button until someone
+        // remembered the case list (modelscope / inception / apinex / oxion
+        // all did); the validateUrl declaration is the real gate. Providers
+        // without one keep the old answer via the helper's guard.
+        return probeOpenAIModelsEndpoint(connection, effectiveProxy);
     }
   } catch (err) {
     return { valid: false, error: err.message };
