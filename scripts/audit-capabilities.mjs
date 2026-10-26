@@ -107,6 +107,9 @@ export const ALLOWLIST = {
   "inception/mercury-3": "no-models-dev-entry",
   "inception/mercury-2.5": "no-models-dev-entry",
 
+  // muse-web: muse.ai Hatch 网页端会话模型，无 models.dev 条目，作为内部 agent 渠道
+  "muse-web/muse-chat": "no-models-dev-entry",
+
   // Private codenames with no public spec and no models.dev entry.
   "github/oswe-vscode-prime": "codename",
 

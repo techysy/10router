@@ -32,6 +32,11 @@ const ICON_ALIASES = {
   "alitp-cn": "alitp",
   alims: "alitp",
   alicode: "alitp",
+  // Web-cookie variants ride their brand's existing mark
+  "deepseek-web": "deepseek",
+  "muse-web": "muse",
+  "gemini-web": "gemini",
+  "chatgpt-web": "openai",
 };
 
 // Providers whose asset ships as SVG (everything else is .png).

@@ -29,6 +29,11 @@ import ZedExecutor from "./zed.js";
 import WindsurfExecutor from "./windsurf.js";
 import { DefaultExecutor } from "./default.js";
 import { DevinCliExecutor } from "./devin-cli.js";
+import { VeoAiFreeWebExecutor } from "./veoaifree-web.js";
+import { UcWebExecutor } from "./uc-web.js";
+import { ChatGptWebExecutor } from "./chatgpt-web.js";
+import { GeminiWebExecutor } from "./gemini-web.js";
+import { MuseWebExecutor } from "./muse-web.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
@@ -71,6 +76,16 @@ const executors = {
   zed: new ZedExecutor(),
   windsurf: new WindsurfExecutor(),
   "devin-cli": new DevinCliExecutor(),
+  "veoaifree-web": new VeoAiFreeWebExecutor(),
+  "veo-free": new VeoAiFreeWebExecutor(),
+  "uc-web": new UcWebExecutor(),
+  uc: new UcWebExecutor(),
+  "chatgpt-web": new ChatGptWebExecutor(),
+  cg: new ChatGptWebExecutor(),
+  "gemini-web": new GeminiWebExecutor(),
+  gweb: new GeminiWebExecutor(),
+  "muse-web": new MuseWebExecutor(),
+  mu: new MuseWebExecutor(),
 };
 
 const defaultCache = new Map();

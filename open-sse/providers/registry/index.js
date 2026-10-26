@@ -158,6 +158,11 @@ import p154 from "./codiv.js";
 import p155 from "./thx.js";
 import p156 from "./inception.js";
 import p157 from "./oxion.js";
+import p158 from "./veoaifree-web.js";
+import p159 from "./uc-web.js";
+import p160 from "./gemini-web.js";
+import p161 from "./muse-web.js";
+import p162 from "./chatgpt-web.js";
 
 export default [
   p0,
@@ -319,4 +324,9 @@ export default [
   p155,
   p156,
   p157,
+  p158,
+  p159,
+  p160,
+  p161,
+  p162,
 ];
