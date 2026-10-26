@@ -12,6 +12,7 @@ import blackForestLabs from "./blackForestLabs.js";
 import runwayml from "./runwayml.js";
 import cloudflareAi from "./cloudflareAi.js";
 import antigravity from "./antigravity.js";
+import grokWeb from "./grok-web.js";
 
 const ADAPTERS = {
   openai: createOpenAIAdapter("openai"),
@@ -34,6 +35,7 @@ const ADAPTERS = {
   "black-forest-labs": blackForestLabs,
   runwayml,
   "cloudflare-ai": cloudflareAi,
+  "grok-web": grokWeb,
 };
 
 export function getImageAdapter(provider) {
