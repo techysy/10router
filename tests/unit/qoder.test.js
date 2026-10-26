@@ -419,18 +419,22 @@ describe("wrapQoderSSE", () => {
   });
 
   // Regression for review finding #3: chunks could leak past [DONE] when
-  // the success branch had no doneEmitted guard. We synthesize an error
-  // envelope (which sets doneEmitted=true) followed by a valid envelope
-  // and assert the second envelope is NOT forwarded.
+  // the success branch had no doneEmitted guard. We synthesize a leading valid
+  // chunk, followed by an error envelope (which emits error + [DONE] and sets
+  // doneEmitted=true), followed by another valid envelope, and assert the second
+  // valid envelope is NOT forwarded.
   it("does not forward chunks after [DONE] has been emitted", async () => {
+    const leadInner = JSON.stringify({ choices: [{ delta: { content: "lead" } }] });
+    const leadEnv = JSON.stringify({ statusCodeValue: 200, body: leadInner });
     const errorEnv = JSON.stringify({ statusCodeValue: 500, body: "boom" });
     const validInner = JSON.stringify({ choices: [{ delta: { content: "leak" } }] });
     const validEnv = JSON.stringify({ statusCodeValue: 200, body: validInner });
     const wrapped = await wrapQoderSSE(
-      makeResponse([`data: ${errorEnv}\n\ndata: ${validEnv}\n\n`]),
+      makeResponse([`data: ${leadEnv}\n\ndata: ${errorEnv}\n\ndata: ${validEnv}\n\n`]),
       "qoder/auto",
     );
     const out = await drain(wrapped);
+    expect(out).toContain("lead");
     expect(out).not.toContain("leak");
     // Should still have a single [DONE].
     const doneCount = (out.match(/data: \[DONE\]/g) || []).length;
@@ -454,11 +458,24 @@ describe("wrapQoderSSE", () => {
   });
 
   it("upstream error envelope produces an error chunk + [DONE]", async () => {
+    const leadInner = JSON.stringify({ choices: [{ delta: { content: "start" } }] });
+    const leadEnv = JSON.stringify({ statusCodeValue: 200, body: leadInner });
+    const errEnv = JSON.stringify({ statusCodeValue: 503, body: "service unavailable" });
+    const wrapped = await wrapQoderSSE(makeResponse([`data: ${leadEnv}\n\ndata: ${errEnv}\n\n`]), "qoder/lite");
+    const out = await drain(wrapped);
+    expect(out).toContain("start");
+    expect(out).toContain('"type":"provider_error"');
+    expect(out).toContain("service unavailable");
+    expect(out).toContain("data: [DONE]\n\n");
+  });
+
+  it("first-frame error returns HTTP error status instead of 200 stream", async () => {
     const env = JSON.stringify({ statusCodeValue: 503, body: "service unavailable" });
     const wrapped = await wrapQoderSSE(makeResponse([`data: ${env}\n\n`]), "qoder/lite");
-    const out = await drain(wrapped);
-    expect(out).toContain("[qoder error 503");
-    expect(out).toContain("data: [DONE]\n\n");
+    expect(wrapped.status).toBe(503);
+    expect(wrapped.ok).toBe(false);
+    const data = await wrapped.json();
+    expect(data.error.message).toBe("service unavailable");
   });
 
   it("non-ok responses are returned unchanged (no transform)", async () => {

@@ -69,7 +69,21 @@ function stopTextBlock(state, results) {
 
 // Convert OpenAI stream chunk to Claude format
 export function openaiToClaudeResponse(chunk, state) {
-  if (!chunk || !chunk.choices?.[0]) return null;
+  if (!chunk) return null;
+
+  // Structured error propagation (Issue #88): emit Claude native error event
+  if (chunk.error) {
+    const errObj = typeof chunk.error === "object" ? chunk.error : { message: String(chunk.error) };
+    return [{
+      type: "error",
+      error: {
+        type: errObj.type || "api_error",
+        message: errObj.message || "Upstream error",
+      },
+    }];
+  }
+
+  if (!chunk.choices?.[0]) return null;
 
   const results = [];
   const choice = chunk.choices[0];

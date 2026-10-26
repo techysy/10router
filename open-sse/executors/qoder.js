@@ -302,14 +302,16 @@ function isBillingBlock(inner) {
 }
 
 /**
- * Turn a detected block into the HTTP error chatCore acts on.
+ * Turn a detected block or upstream error into the HTTP error chatCore acts on.
  * 10605 is a queue throttle ("isQueued", "retryAfterSeconds":30), not an
  * exhausted account: answer 429 and restate the wait in words
  * extractRetrySeconds understands, so the account cools for the time the
  * upstream asked for instead of the 2-minute 403 lock.
  * 112 / pricingUrl stay 403 (quota gone → long cooldown, fall through).
+ * Other errors (like 429 provider_error / All backends failed, 5xx) return
+ * the upstream status so chatCore can trigger fallback or return proper error.
  */
-function billingBlockResponse(code, statusVal, message) {
+function qoderErrorResponse(code, statusVal, message) {
   if (code === "10605") {
     const retry = message.match(QODER_RETRY_AFTER_RE);
     const hint = retry ? `, retry after ${retry[1]} seconds` : "";
@@ -318,15 +320,22 @@ function billingBlockResponse(code, statusVal, message) {
       { status: 429, headers: { "Content-Type": "application/json" } }
     );
   }
+  if (code === "110" || code === "112" || code === "pricingUrl") {
+    return new Response(
+      JSON.stringify({ error: { message, code: statusVal } }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  const httpStatus = statusVal >= 400 && statusVal <= 599 ? statusVal : 502;
   return new Response(
-    JSON.stringify({ error: { message, code: statusVal } }),
-    { status: 403, headers: { "Content-Type": "application/json" } }
+    JSON.stringify({ error: { message, code: statusVal, type: "provider_error" } }),
+    { status: httpStatus, headers: { "Content-Type": "application/json" } }
   );
 }
 
 /**
- * Peek the first SSE frame to detect billing errors before piping.
- * Returns { isBilling, statusVal, message, consumed } — `consumed` is every
+ * Peek the first SSE frame to detect errors (billing blocks, provider_error, etc.) before piping.
+ * Returns { isError, isBilling, code, statusVal, message, consumed } — `consumed` is every
  * byte read so far (including the peeked line) so the caller can re-process
  * it and nothing is dropped from the stream.
  */
@@ -334,7 +343,7 @@ async function peekFirstQoderFrame(reader, decoder) {
   let consumed = "";
   while (true) {
     const { done, value } = await reader.read();
-    if (done) return { isBilling: false, consumed, upstreamDone: true };
+    if (done) return { isError: false, isBilling: false, consumed, upstreamDone: true };
 
     consumed += decoder.decode(value, { stream: true });
     const nl = consumed.indexOf("\n");
@@ -344,19 +353,25 @@ async function peekFirstQoderFrame(reader, decoder) {
     if (!line.startsWith("data:")) continue;
 
     const data = line.slice(5).trimStart();
-    if (data === "[DONE]") return { isBilling: false, consumed };
+    if (data === "[DONE]") return { isError: false, isBilling: false, consumed };
 
     let envelope;
-    try { envelope = JSON.parse(data); } catch { return { isBilling: false, consumed }; }
+    try { envelope = JSON.parse(data); } catch { return { isError: false, isBilling: false, consumed }; }
 
     const statusVal = typeof envelope.statusCodeValue === "number" ? envelope.statusCodeValue : 200;
     const inner = typeof envelope.body === "string" ? envelope.body : "";
 
-    const code = statusVal !== 200 ? billingBlockCode(inner) : null;
-    if (code) {
-      return { isBilling: true, code, statusVal, message: inner || `qoder billing block (${statusVal})` };
+    if (statusVal !== 200) {
+      const code = billingBlockCode(inner);
+      return {
+        isError: true,
+        isBilling: code !== null,
+        code,
+        statusVal,
+        message: inner || `qoder upstream error (${statusVal})`,
+      };
     }
-    return { isBilling: false, consumed };
+    return { isError: false, isBilling: false, consumed };
   }
 }
 
@@ -386,12 +401,13 @@ async function wrapQoderSSE(response, model) {
   const decoder = new TextDecoder();
   const reader = response.body.getReader();
 
-  // Peek first frame to detect billing block
+  // Peek first frame to detect errors (billing block, provider_error, etc.)
   const peek = await peekFirstQoderFrame(reader, decoder);
-  if (peek?.isBilling) {
-    // Billing block detected — fail this connection so chatCore falls back
+  if (peek?.isError) {
+    // Upstream error on the first frame — fail this connection so chatCore can
+    // trigger fallback/error handling instead of emitting fake text to the client.
     await reader.cancel().catch(() => {});
-    return billingBlockResponse(peek.code, peek.statusVal, peek.message);
+    return qoderErrorResponse(peek.code, peek.statusVal, peek.message);
   }
 
   // Normal flow: re-process every byte the peek consumed, then continue.
@@ -425,7 +441,11 @@ async function wrapQoderSSE(response, model) {
         object: "chat.completion.chunk",
         created: Math.floor(Date.now() / 1000),
         model,
-        choices: [{ index: 0, delta: { content: `\n[qoder error ${statusVal}: ${truncate(msg, 200)}]` }, finish_reason: "stop" }],
+        error: {
+          message: `[qoder error ${statusVal}: ${truncate(msg, 200)}]`,
+          type: "provider_error",
+          code: statusVal,
+        },
       });
       controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
       controller.enqueue(encoder.encode(SSE_DONE));
@@ -690,4 +710,6 @@ export const __test__ = {
   wrapQoderSSE,
   buildQoderRequestBody,
   isBillingBlock,
+  qoderErrorResponse,
+  peekFirstQoderFrame,
 };

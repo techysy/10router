@@ -58,6 +58,53 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     state.responsesUsage = toResponsesUsage(chunk.usage);
   }
 
+  // Structured error propagation (Issue #88): when chunk carries an error (mid-stream failure)
+  if (chunk.error) {
+    if (state.completedSent) return [];
+    state.completedSent = true;
+    const events = [];
+    const nextSeq = () => ++state.seq;
+    const emit = (eventType, data) => {
+      data.sequence_number = nextSeq();
+      events.push({ event: eventType, data });
+    };
+    const errObj = typeof chunk.error === "object" ? chunk.error : { message: String(chunk.error) };
+    const errPayload = {
+      type: errObj.type || "server_error",
+      code: errObj.code || "server_error",
+      message: errObj.message || "Upstream error",
+    };
+    if (!state.started) {
+      state.started = true;
+      state.responseId = chunk.id ? `resp_${chunk.id}` : state.responseId;
+      emit("response.created", {
+        type: "response.created",
+        response: {
+          id: state.responseId,
+          object: "response",
+          created_at: state.created,
+          status: "in_progress",
+          background: false,
+          error: null,
+          output: [],
+        },
+      });
+    }
+    emit("response.failed", {
+      type: "response.failed",
+      response: {
+        id: state.responseId,
+        object: "response",
+        created_at: state.created,
+        status: "failed",
+        background: false,
+        error: errPayload,
+        output: [],
+      },
+    });
+    return events;
+  }
+
   if (!chunk.choices?.length) {
     // 尾部 usage chunk(choices 为空的常见形状):延迟中的 response.completed
     // 此刻已经拿到真实 usage,立即定稿补发,而不是拖到流末 flush —— 这也让
@@ -72,16 +119,17 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     }
     return [];
   }
-  
+
   const events = [];
   const nextSeq = () => ++state.seq;
-  
+
   const emit = (eventType, data) => {
     data.sequence_number = nextSeq();
     events.push({ event: eventType, data });
   };
 
-  const choice = chunk.choices[0];
+  const choice = chunk.choices?.[0];
+  if (!choice) return [];
   const idx = choice.index || 0;
   const delta = choice.delta || {};
 
