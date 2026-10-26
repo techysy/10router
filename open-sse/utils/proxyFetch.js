@@ -176,10 +176,37 @@ function shouldBypassByNoProxy(targetUrl, noProxyValue) {
   });
 }
 
+function isPrivateOrLoopbackHost(hostname) {
+  if (!hostname || typeof hostname !== "string") return false;
+  const h = hostname.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h === "0.0.0.0" || h === "::" || h === "::1") return true;
+
+  // IPv4 check
+  const parts = h.split(".");
+  if (parts.length === 4 && parts.every((p) => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255)) {
+    const [a, b] = parts.map(Number);
+    if (a === 127 || a === 10) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT / Tailscale (100.64.0.0/10)
+    return false;
+  }
+
+  // IPv6 check
+  if (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true;
+
+  return false;
+}
+
 /**
  * Get proxy URL from environment
  */
 function getEnvProxyUrl(targetUrl) {
+  let hostname;
+  try { hostname = new URL(targetUrl).hostname.toLowerCase(); } catch { return null; }
+  if (isPrivateOrLoopbackHost(hostname)) return null;
+
   const noProxy = process.env.NO_PROXY || process.env.no_proxy;
   if (shouldBypassByNoProxy(targetUrl, noProxy)) return null;
 
@@ -434,5 +461,18 @@ async function patchedFetch(url, options = {}) {
 if (globalThis.fetch !== patchedFetch) {
   globalThis.fetch = patchedFetch;
 }
+
+function resetProxyDispatchersForTest() {
+  proxyDispatchers.clear();
+}
+
+export {
+  getEnvProxyUrl,
+  isPrivateOrLoopbackHost,
+  shouldBypassByNoProxy,
+  normalizeProxyUrl,
+  MITM_BYPASS_HOSTS,
+  resetProxyDispatchersForTest,
+};
 
 export default patchedFetch;

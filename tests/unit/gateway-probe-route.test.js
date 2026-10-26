@@ -73,4 +73,16 @@ describe("gateway-probe route", () => {
     const res = await get("", port);
     expect((await res.json()).reachable).toBe(true);
   });
+
+  it("permits 100.64.0.0/10 CGNAT / Tailscale IPs and rejects outside boundaries", async () => {
+    // 100.64.0.1 is in 100.64.0.0/10 -> permitted by SSRF guard (fails TCP probe as unreachable, but returns 200 JSON)
+    const validCgnat = await get("100.64.0.1", 9);
+    expect(validCgnat.status).toBe(200);
+    const validBody = await validCgnat.json();
+    expect(validBody.reachable).toBe(false);
+
+    // 100.63.255.255 and 100.128.0.1 are outside -> rejected with 400
+    expect((await get("100.63.255.255", 9)).status).toBe(400);
+    expect((await get("100.128.0.1", 9)).status).toBe(400);
+  }, 10000);
 });

@@ -81,13 +81,9 @@ export function translateSessionId(sessionId, clientTool = "") {
     .createHash("sha256")
     .update(`opencode\0${clientTool || "generic"}\0${sessionId || ""}`)
     .digest();
-  const current = BigInt(Date.now()) * 0x1000n + 1n;
-  const value = ~current;
-  const timeHex = Array.from({ length: 6 }, (_, index) =>
-    Number((value >> BigInt(40 - 8 * index)) & 0xffn)
-      .toString(16)
-      .padStart(2, "0")
-  ).join("");
+  // Pure function: derive timeHex deterministically from digest (12 hex chars)
+  // instead of Date.now() to maintain session continuity across requests.
+  const timeHex = digest.subarray(14, 20).toString("hex");
   let randomPart = "";
   for (let i = 0; i < 14; i++) {
     randomPart += BASE62_CHARS[digest[i] % 62];
