@@ -28,6 +28,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities, DEFAULT_CAPABILITIES } from "open-sse/providers/capabilities.js";
+import { buildComboCardComparator } from "@/shared/utils/comboCardOrder.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -400,9 +401,11 @@ export async function buildModelsList(kindFilter, options = {}) {
   // rank with connected). Tie-breaks mirror the dashboard comparator via the
   // shared helper: manual order → registry priority → name.
   let providerCardOrder = [];
+  let comboCardOrder = [];
   try {
     const settings = await getSettings();
     if (Array.isArray(settings?.providerCardOrder)) providerCardOrder = settings.providerCardOrder;
+    if (Array.isArray(settings?.comboCardOrder)) comboCardOrder = settings.comboCardOrder;
   } catch (e) {
     console.log("Could not fetch provider card order:", e?.message);
   }
@@ -528,7 +531,9 @@ export async function buildModelsList(kindFilter, options = {}) {
   };
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
-  for (const combo of combos) {
+  // Order follows settings.comboCardOrder (manual drag / pin-to-top order).
+  const sortedCombos = [...combos].sort(buildComboCardComparator({ cardOrder: comboCardOrder }));
+  for (const combo of sortedCombos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
     const entry = {
       id: combo.name,

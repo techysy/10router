@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   providerStrategies: {},
   quotaVisibility: {},
   topologyVisibility: {},
+  comboCardOrder: [],
   comboStrategy: "fallback",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},

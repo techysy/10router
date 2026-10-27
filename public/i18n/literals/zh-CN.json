@@ -912,6 +912,7 @@
   "Please install Open Claw CLI to use this feature.": "请安装 Open Claw CLI 才能使用此功能。",
   "Please install OpenCode CLI to use auto-apply feature.": "请安装 OpenCode CLI 以使用自动应用功能。",
   "Please wait while we complete the authorization.": "我们正在完成授权，请稍候。",
+  "Pin to top": "置顶",
   "Point your CLI tools to http://localhost:20128": "将您的 CLI 工具指向 http://localhost:20128",
   "Pool:": "代理池：",
   "Popup blocked? Enter URL manually": "弹出窗口被拦截？请手动输入 URL",

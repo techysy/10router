@@ -6,6 +6,8 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle } from "@/shared/components";
+import DraggableCard from "@/shared/components/DraggableCard";
+import { buildComboCardComparator, moveComboCardInOrder, pinComboCardToTop, saveComboCardOrder } from "@/shared/utils/comboCardOrder";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
@@ -56,6 +58,9 @@ export default function CombosPage() {
   const [editingCombo, setEditingCombo] = useState(null);
   const [activeProviders, setActiveProviders] = useState([]);
   const [comboStrategies, setComboStrategies] = useState({});
+  const [comboCardOrder, setComboCardOrder] = useState([]);
+  const [draggingCardId, setDraggingCardId] = useState(null);
+  const [dragOverCardId, setDragOverCardId] = useState(null);
   const [capacityAdapter, setCapacityAdapter] = useState(EMPTY_CAPACITY_ADAPTER);
   const { getCaps } = useModelCaps();
   const [confirmState, setConfirmState] = useState(null);
@@ -82,6 +87,9 @@ export default function CombosPage() {
         setActiveProviders(providersData.connections || []);
       }
       setComboStrategies(settingsData.comboStrategies || {});
+      if (Array.isArray(settingsData.comboCardOrder)) {
+        setComboCardOrder(settingsData.comboCardOrder);
+      }
       const rawAdapter = settingsData.capacityAdapter || {};
       const normalized = {};
       for (const cap of CAPACITY_ADAPTER_CAPS) {
@@ -94,6 +102,44 @@ export default function CombosPage() {
       setLoading(false);
     }
   };
+
+  const handleCardDrop = useCallback(
+    (targetId) => {
+      const sourceId = draggingCardId;
+      setDraggingCardId(null);
+      setDragOverCardId(null);
+      if (!sourceId || !targetId || sourceId === targetId) return;
+
+      setComboCardOrder((prev) => {
+        const allIds = combos.map((c) => c.id);
+        const next = moveComboCardInOrder(prev, allIds, sourceId, targetId);
+        if (next !== prev) {
+          saveComboCardOrder(next).catch((err) =>
+            console.log("Failed to save combo card order:", err)
+          );
+        }
+        return next;
+      });
+    },
+    [draggingCardId, combos]
+  );
+
+  const handlePinToTop = useCallback(
+    (comboId) => {
+      if (!comboId) return;
+      setComboCardOrder((prev) => {
+        const allIds = combos.map((c) => c.id);
+        const next = pinComboCardToTop(prev, allIds, comboId);
+        if (next !== prev) {
+          saveComboCardOrder(next).catch((err) =>
+            console.log("Failed to save combo card order:", err)
+          );
+        }
+        return next;
+      });
+    },
+    [combos]
+  );
 
   const handleSetCapacityAdapter = async (next) => {
     setCapacityAdapter(next);
@@ -237,21 +283,36 @@ export default function CombosPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {(() => {
-            const comboByName = Object.fromEntries(combos.map((c) => [c.name, c.models]));
-            return combos.map((combo) => (
-              <ComboCard
+            const sortedCombos = [...combos].sort(buildComboCardComparator({ cardOrder: comboCardOrder }));
+            const comboByName = Object.fromEntries(sortedCombos.map((c) => [c.name, c.models]));
+            return sortedCombos.map((combo) => (
+              <DraggableCard
                 key={combo.id}
-                combo={combo}
-                getCaps={getCaps}
-                comboByName={comboByName}
-                activeProviders={activeProviders}
-                copied={copied}
-                onCopy={copy}
-                onEdit={() => setEditingCombo(combo)}
-                onDelete={() => handleDelete(combo.id)}
-                strategy={comboStrategies[combo.name] || {}}
-                onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
-              />
+                cardId={combo.id}
+                isDragging={draggingCardId === combo.id}
+                isOver={dragOverCardId === combo.id}
+                onDragStart={setDraggingCardId}
+                onDragOver={setDragOverCardId}
+                onDrop={handleCardDrop}
+                onDragEnd={() => {
+                  setDraggingCardId(null);
+                  setDragOverCardId(null);
+                }}
+              >
+                <ComboCard
+                  combo={combo}
+                  getCaps={getCaps}
+                  comboByName={comboByName}
+                  activeProviders={activeProviders}
+                  copied={copied}
+                  onCopy={copy}
+                  onEdit={() => setEditingCombo(combo)}
+                  onDelete={() => handleDelete(combo.id)}
+                  onPinToTop={handlePinToTop}
+                  strategy={comboStrategies[combo.name] || {}}
+                  onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
+                />
+              </DraggableCard>
             ));
           })()}
         </div>
@@ -317,7 +378,7 @@ const STRATEGY_OPTIONS = [
   { value: "router", label: translate("Router — decision model picks member") },
 ];
 
-function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, strategy = {}, onSetStrategy }) {
+function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, onPinToTop, strategy = {}, onSetStrategy }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showRouterSelect, setShowRouterSelect] = useState(false);
   const current = strategy.fallbackStrategy || "fallback";
@@ -452,7 +513,15 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-1 sm:flex">
+          <div className="grid grid-cols-4 gap-1 sm:flex">
+            <button
+              onClick={(e) => { e.stopPropagation(); onPinToTop?.(combo.id); }}
+              className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              title={translate("Pin to top")}
+            >
+              <span className="material-symbols-outlined text-[18px]">vertical_align_top</span>
+              <span className="text-[10px] leading-tight">{translate("Pin to top")}</span>
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onCopy(combo.name, `combo-${combo.id}`); }}
               className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
