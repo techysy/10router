@@ -1301,8 +1301,8 @@ export default function ProviderDetailPage() {
     const count = selectedConnectionIds.length;
     if (count === 0) return;
     setConfirmState({
-      title: `Delete ${count} Connection${count > 1 ? "s" : ""}`,
-      message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
+      title: translate("Delete {count} Connections", { count }),
+      message: translate("Delete {count} connections? This cannot be undone.", { count }),
       onConfirm: async () => {
         setConfirmState(null);
         let failed = 0;
@@ -1318,7 +1318,8 @@ export default function ProviderDetailPage() {
         }
         setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
         setSelectedConnectionIds([]);
-        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        if (failed > 0) notify.warning(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        else notify.success(translate("Deleted successfully"));
       }
     });
   };
@@ -2124,7 +2125,7 @@ export default function ProviderDetailPage() {
       ) : (
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">Connections</h2>
+            <h2 className="text-lg font-semibold">{translate("Connections")}</h2>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               {connections.length > 0 && proxyPools.length > 0 && (
                 <Button
@@ -2133,7 +2134,7 @@ export default function ProviderDetailPage() {
                   icon="lan"
                   onClick={() => setShowBulkProxyModal(true)}
                 >
-                  Apply Proxy
+                  {translate("Apply Proxy")}
                 </Button>
               )}
               {connections.length > 0 && (
@@ -2145,7 +2146,7 @@ export default function ProviderDetailPage() {
                       icon="delete"
                       onClick={handleBulkDelete}
                     >
-                      Delete Selected ({selectedConnectionIds.length})
+                      {translate("Delete Selected")} ({selectedConnectionIds.length})
                     </Button>
                   )}
                   {connections.length > 0 && models.length > 1 && (
@@ -2404,7 +2405,7 @@ export default function ProviderDetailPage() {
                       onChange={toggleSelectAllConnections}
                       className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                    Select All
+                    {translate("Select All")}
                   </label>
                 </div>
               )}
