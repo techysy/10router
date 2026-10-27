@@ -42,8 +42,6 @@ const ROLLING_SUBSCRIPTION_PROVIDERS = new Set([
   "commandcode",
   "glm",
   "glm-cn",
-  "minimax-code",
-  "minimax-code-global",
 ]);
 
 const PURE_BALANCE_PROVIDERS = new Set([
@@ -54,6 +52,8 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "anthropic",
   "minimax",
   "minimax-cn",
+  "minimax-code",
+  "minimax-code-global",
   "siliconflow-cn",
   "groq",
   "openrouter",

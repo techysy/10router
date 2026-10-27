@@ -2343,7 +2343,7 @@ export default function ProviderDetailPage() {
                       {apiKeyConnectionLabel}
                     </Button>
                     {renderOAuthTransferButtons()}
-                    {codeBuddyCheckinOn && renderCbCheckinBlock()}
+                    {/* No connections yet: do not show check-in / claim credits */}
                   </>
                 ) : (
                   <>
@@ -2352,7 +2352,7 @@ export default function ProviderDetailPage() {
                         Cookie
                       </Button>
                     )}
-                    {hasClaimCheckin && renderQoderCheckinBlock()}
+                    {/* No connections yet: do not show check-in / claim credits */}
                     {providerId === "codex" && (
                       <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
                         {translate("Bulk Add")}
