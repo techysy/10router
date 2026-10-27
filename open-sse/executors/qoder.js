@@ -289,6 +289,11 @@ async function buildQoderRequestBody({ model, body, credentials, log, proxyOptio
 // `\\*` before each quote accepts any escaping depth.
 const QODER_BLOCK_CODE_RE = /\\*"code\\*"\s*:\s*\\*"(110|112|10605)\\*"/;
 const QODER_RETRY_AFTER_RE = /\\*"retryAfterSeconds\\*"\s*:\s*(\d+)/;
+// Estimated seconds until the GLOBAL per-model queue drains. The official
+// client's "模型请求正在排队" clock — usually minutes. retryAfterSeconds (30)
+// is only the re-poll interval; cooling 30s for a queue minutes deep just
+// bought another 429 (NAS 2026-10-27: queueCount 1742, waitTime 390).
+const QODER_WAIT_TIME_RE = /\\*"waitTime\\*"\s*:\s*(\d+)/;
 
 function billingBlockCode(inner) {
   if (!inner || typeof inner !== "string") return null;
@@ -313,8 +318,13 @@ function isBillingBlock(inner) {
  */
 function qoderErrorResponse(code, statusVal, message) {
   if (code === "10605") {
-    const retry = message.match(QODER_RETRY_AFTER_RE);
-    const hint = retry ? `, retry after ${retry[1]} seconds` : "";
+    // waitTime (queue-drain estimate), not retryAfterSeconds (re-poll
+    // interval), is the honest cooldown: extractRetrySeconds picks the first
+    // "retry after N seconds" in this text, and the hint precedes the raw body.
+    const waitSec = Number((message.match(QODER_WAIT_TIME_RE) || [])[1])
+      || Number((message.match(QODER_RETRY_AFTER_RE) || [])[1])
+      || 0;
+    const hint = waitSec ? `, retry after ${waitSec} seconds` : "";
     return new Response(
       JSON.stringify({ error: { message: `qoder queue throttle (10605)${hint}: ${message}`, code: statusVal } }),
       { status: 429, headers: { "Content-Type": "application/json" } }
@@ -410,6 +420,15 @@ async function wrapQoderSSE(response, model) {
     return qoderErrorResponse(peek.code, peek.statusVal, peek.message);
   }
 
+  return wrapFromPeek(response, model, reader, decoder, peek);
+}
+
+/**
+ * Stream-building half of wrapQoderSSE, usable after an external peek — the
+ * queue-wait loop in execute() peeks itself so it can decide to resend before
+ * committing to a stream.
+ */
+function wrapFromPeek(response, model, reader, decoder, peek) {
   // Normal flow: re-process every byte the peek consumed, then continue.
   let buffer = peek.consumed || "";
   const upstreamDrained = peek.upstreamDone === true;
@@ -542,6 +561,53 @@ async function wrapQoderSSE(response, model) {
   });
 }
 
+// ─── Queue-wait (10605) — stand in line like the official client does ────────
+//
+// 10605 is a GLOBAL per-model admission queue, not an account fault: NAS
+// 2026-10-27, five accounts answered within seconds, all quoting the same
+// queueCount=1742. Switching accounts cannot dodge it (the official client
+// never tries — it just re-polls every retryAfterSeconds until waitTime
+// elapses). Three pieces here:
+//   A. execute() waits, re-signs, resends the SAME body (bounded by
+//      QUEUE_WAIT_*) instead of failing the account on the first 10605 —
+//      this is the "模型请求正在排队，预计等待不足 1 分钟" behavior.
+//   B. when the budget runs out, a per-(provider,model) flag makes sibling
+//      accounts fail fast — the account walk would otherwise serialize
+//      N × 90s of queue-standing for one global verdict.
+//   C. the 429 text carries waitTime, so extractRetrySeconds locks the model
+//      for the real window instead of the 30s re-poll interval.
+
+/** Max re-sends after the initial attempt (each preceded by one poll wait). */
+const QUEUE_WAIT_MAX_RESENDS = 2;
+/** Total time allowed standing in line across all rounds. */
+const QUEUE_WAIT_MAX_TOTAL_MS = 90_000;
+/** Fast-fail window after giving up — capped, so a recovery probe happens. */
+const QUEUE_FLAG_MAX_MS = 120_000;
+
+/** providerId:modelKey → { until: number, waitSec: number } */
+const queueFlags = new Map();
+
+// Tests inject an instant waiter; null → real abortable sleep.
+let queueSleeper = null;
+
+function defaultWait(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("aborted while waiting out qoder queue"));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("aborted while waiting out qoder queue"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener?.("abort", onAbort);
+  });
+}
+
 export class QoderExecutor extends BaseExecutor {
   /**
    * @param {string} providerId - "qoder" (global) or "qoder-cn"
@@ -628,65 +694,145 @@ export class QoderExecutor extends BaseExecutor {
     const encodedBodyStr = qoderEncodeBody(plainBody);
     const encodedBodyBuf = Buffer.from(encodedBodyStr, "latin1");
 
-    let cosyHeaders;
-    try {
-      cosyHeaders = buildCosyHeaders(
-        encodedBodyBuf,
-        url,
-        {
-          userId: psd.userId,
-          authToken: credentials.accessToken,
-          name: credentials.displayName || "",
-          email: credentials.email || "",
-          machineId: psd.machineId || "",
-        },
-      );
-    } catch (err) {
-      // cosy.js throws synchronously on missing userId/authToken — surface
-      // as 401 so chatCore prompts re-auth instead of returning a 500.
+    // B: a sibling account just measured this model's queue (or hit a hard
+    // throttle) seconds ago. The verdict is global — same model, same queue,
+    // regardless of account — so fail fast instead of paying another connect +
+    // queue-wait to learn it again. Capped window, so recovery is probed.
+    const flagKey = `${this.providerId}:${qoderKey}`;
+    const liveFlag = queueFlags.get(flagKey);
+    if (liveFlag && liveFlag.until > Date.now()) {
+      const flagSec = Math.max(1, Math.ceil((liveFlag.until - Date.now()) / 1000));
       const fakeResp = new Response(
-        JSON.stringify({ error: { message: `qoder cosy signing failed: ${err.message}` } }),
-        { status: 401, headers: { "Content-Type": "application/json" } },
+        JSON.stringify({
+          error: {
+            message: `qoder ${qoderKey} is still queued upstream (global per-model queue, est. clear ~${liveFlag.waitSec}s; all accounts share it) — skipping re-attempt, retry after ${flagSec} seconds`,
+            code: 429,
+            type: "provider_error",
+          },
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
       );
       return { response: fakeResp, url, headers: {}, transformedBody: body };
     }
 
-    const modelSource = (payload.model_config && payload.model_config.source) || "system";
-    const headers = {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      "Cache-Control": "no-cache",
-      "X-Model-Key": qoderKey,
-      "X-Model-Source": modelSource,
-      // gzip triggers signature validation on Qoder's CDN; force identity.
-      "Accept-Encoding": "identity",
-      ...cosyHeaders,
+    const buildHeaders = () => {
+      let cosyHeaders;
+      try {
+        cosyHeaders = buildCosyHeaders(
+          encodedBodyBuf,
+          url,
+          {
+            userId: psd.userId,
+            authToken: credentials.accessToken,
+            name: credentials.displayName || "",
+            email: credentials.email || "",
+            machineId: psd.machineId || "",
+          },
+        );
+      } catch (err) {
+        // cosy.js throws synchronously on missing userId/authToken — surface
+        // as 401 so chatCore prompts re-auth instead of returning a 500.
+        const errResp = new Response(
+          JSON.stringify({ error: { message: `qoder cosy signing failed: ${err.message}` } }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        );
+        return { error: errResp };
+      }
+      const modelSource = (payload.model_config && payload.model_config.source) || "system";
+      return {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Model-Key": qoderKey,
+          "X-Model-Source": modelSource,
+          // gzip triggers signature validation on Qoder's CDN; force identity.
+          "Accept-Encoding": "identity",
+          ...cosyHeaders,
+        },
+      };
     };
 
     // Abort if upstream doesn't return response headers within connect timeout.
     const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
-    const connectCtrl = new AbortController();
-    const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
-    const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
 
-    let response;
-    try {
-      response = await proxyAwareFetch(
-        url,
-        { method: "POST", headers, body: encodedBodyBuf, signal: mergedSignal },
-        proxyOptions,
-      );
-    } finally {
-      clearTimeout(connectTimer);
+    // A: send → peek → on 10605 wait the poll interval and re-sign/resend the
+    // SAME body (the signature is timestamped per request, the body is not).
+    let totalQueuedMs = 0;
+    let resends = 0;
+    while (true) {
+      const built = buildHeaders();
+      if (built.error) return { response: built.error, url, headers: {}, transformedBody: body };
+      const headers = built.headers;
+
+      const connectCtrl = new AbortController();
+      const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
+      const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
+
+      let response;
+      try {
+        response = await proxyAwareFetch(
+          url,
+          { method: "POST", headers, body: encodedBodyBuf, signal: mergedSignal },
+          proxyOptions,
+        );
+      } finally {
+        clearTimeout(connectTimer);
+      }
+
+      if (!response.ok || !response.body) {
+        // Pass error response through unchanged so chatCore can capture it.
+        return { response, url, headers, transformedBody: payload };
+      }
+
+      const decoder = new TextDecoder();
+      const reader = response.body.getReader();
+      const peek = await peekFirstQoderFrame(reader, decoder);
+      const isQueue = peek?.isError && peek.code === "10605";
+      // "All backends failed" 429s are the same global saturation without a
+      // stated wait — not worth a blind resend, but the fast-fail flag applies.
+      const isHardThrottle = peek?.isError && peek.statusVal === 429;
+
+      if (isQueue || isHardThrottle) {
+        await reader.cancel().catch(() => {});
+        const retrySec = Number((peek.message.match(QODER_RETRY_AFTER_RE) || [])[1]) || 30;
+        const waitSec = Math.max(retrySec, Number((peek.message.match(QODER_WAIT_TIME_RE) || [])[1]) || 0);
+
+        if (isQueue && resends < QUEUE_WAIT_MAX_RESENDS && totalQueuedMs + waitSec * 1000 <= QUEUE_WAIT_MAX_TOTAL_MS) {
+          resends += 1;
+          totalQueuedMs += waitSec * 1000;
+          log?.info?.("QODER", `${qoderKey} queued upstream (depth ~${waitSec}s); standing in line round ${resends}/${QUEUE_WAIT_MAX_RESENDS}`);
+          await (queueSleeper || defaultWait)(waitSec * 1000, signal);
+          continue;
+        }
+
+        // Give up: record the verdict so the account walk fast-fails (B) and
+        // answer 429 with the real wait (C).
+        const flagMs = Math.min((waitSec || retrySec) * 1000, QUEUE_FLAG_MAX_MS);
+        queueFlags.set(flagKey, { until: Date.now() + flagMs, waitSec: waitSec || retrySec });
+        return {
+          response: qoderErrorResponse(peek.code, peek.statusVal, peek.message),
+          url,
+          headers,
+          transformedBody: payload,
+        };
+      }
+
+      if (peek?.isError) {
+        await reader.cancel().catch(() => {});
+        return {
+          response: qoderErrorResponse(peek.code, peek.statusVal, peek.message),
+          url,
+          headers,
+          transformedBody: payload,
+        };
+      }
+
+      // Served — also proves the queue drained, so drop any stale flag.
+      queueFlags.delete(flagKey);
+      const wrapped = wrapFromPeek(response, `qoder/${qoderKey}`, reader, decoder, peek);
+      return { response: wrapped, url, headers, transformedBody: payload };
     }
-
-    if (!response.ok) {
-      // Pass error response through unchanged so chatCore can capture it.
-      return { response, url, headers, transformedBody: payload };
-    }
-
-    const wrapped = await wrapQoderSSE(response, `qoder/${qoderKey}`);
-    return { response: wrapped, url, headers, transformedBody: payload };
   }
 
   // Qoder device tokens don't refresh through OAuth — the upstream returns
@@ -708,8 +854,15 @@ export default QoderExecutor;
 export const __test__ = {
   normalizeMessages,
   wrapQoderSSE,
+  wrapFromPeek,
   buildQoderRequestBody,
   isBillingBlock,
   qoderErrorResponse,
   peekFirstQoderFrame,
+  queueFlags,
+  QUEUE_WAIT_MAX_RESENDS,
+  QUEUE_WAIT_MAX_TOTAL_MS,
+  QUEUE_FLAG_MAX_MS,
+  setQueueSleeper(fn) { queueSleeper = fn; },
+  resetQueueSleeper() { queueSleeper = null; },
 };
