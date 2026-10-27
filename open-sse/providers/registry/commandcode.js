@@ -71,6 +71,7 @@ export default {
     { id: "moonshotai/Kimi-K2.7-Code", name: "Kimi K2.7 Code" },
     { id: "moonshotai/Kimi-K2.7-Code-Highspeed", name: "Kimi K2.7 Code HighSpeed" },
     { id: "moonshotai/Kimi-K3", name: "Kimi K3" },
+    { id: "moonshotai/Kimi-K3.1-Pro", name: "Kimi K3.1 Pro" },
     { id: "nvidia/nemotron-3-ultra-550b-a55b", name: "Nemotron 3 Ultra" },
     { id: "poolside/laguna-s-2.1-free", name: "Laguna S 2.1" },
     { id: "Qwen/Qwen3.6-Max-Preview", name: "Qwen 3.6 Max Preview" },

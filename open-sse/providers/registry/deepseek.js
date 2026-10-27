@@ -46,6 +46,9 @@ export default {
     // 1M 输入 / 384K 输出。下面的 v4-pro* / v4-flash* 是上一代命名，官方已将它们
     // 退役并临时路由到 V4.1 Flash，保留只为不打断既有配置。
     { id: "deepseek-flash", name: "DeepSeek V4.1 Flash" },
+    // DeepSeek renamed the served id: the API only accepts "deepseek-flash"
+    // and rejects "deepseek-v4.1-flash" with HTTP 400 (#4940).
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", upstreamModelId: "deepseek-flash" },
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
     { id: "deepseek-v4-pro-max", name: "DeepSeek V4 Pro Max", upstreamModelId: "deepseek-v4-pro" },
     { id: "deepseek-v4-pro-none", name: "DeepSeek V4 Pro No Thinking", upstreamModelId: "deepseek-v4-pro" },

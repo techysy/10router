@@ -216,6 +216,7 @@ export const MODEL_CAPABILITIES = {
   // Kimi flagship + coding (platform + Kimi Code ids) — vision/video native
   "kimi-k3":           { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
   "k3":                { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+  "kimi-k3.1-pro":     { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
   "kimi-for-coding":   { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
   "kimi-for-coding-highspeed": { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
   "kimi-k2.7-code":    { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
@@ -761,6 +762,12 @@ export const PROVIDER_CAPABILITIES = {
     "laguna-s-2.1":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },
     "laguna-xs-2.1": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   },
+  // deepseek-v4.1-flash-free: the backend rejects requests above ~330k prompt
+  // tokens (issue #5097). Cap the published context window at 330000 so clients
+  // (VS Code Copilot etc.) compact correctly instead of hard-failing mid-session.
+  "opencode": {
+    "deepseek-v4.1-flash-free": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 330000, maxOutput: 128000 },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
@@ -788,6 +795,7 @@ PROVIDER_CAPABILITIES.qd = PROVIDER_CAPABILITIES.qoder;
 PROVIDER_CAPABILITIES.qdc = PROVIDER_CAPABILITIES["qoder-cn"];
 PROVIDER_CAPABILITIES.kgw = PROVIDER_CAPABILITIES["kilo-gateway"];
 PROVIDER_CAPABILITIES.kilogateway = PROVIDER_CAPABILITIES["kilo-gateway"];
+PROVIDER_CAPABILITIES.oc = PROVIDER_CAPABILITIES.opencode;
 
 /**
  * Pattern fallback — glob (* = wildcard), matched case-insensitively and
@@ -845,6 +853,9 @@ export const PATTERN_CAPABILITIES = [
   { pattern: "*nanobanana*",    caps: { vision: true, imageOutput: true } },
 
   // ── OpenAI GPT-6.x (vision + thinking + web search) ──────────────
+  // Image variants ("-image" suffix) are image models, not chat models — first
+  // match wins, so they must precede the generic family entry below.
+  { pattern: "*gpt-6*image*",   caps: { imageOutput: true } },
   // 整个 gpt-6 家族（astra/luna/sol 同）的 API 窗口是 1.05M。截得更低的网关
   // 把自家数字写在 PROVIDER_CAPABILITIES（短路优先）——Kiro 272k、codex OAuth
   // 272k/372k。此前本 pattern 抄的是 Kiro 的 272k，导致其余 provider 的 gpt-6
