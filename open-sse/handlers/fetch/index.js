@@ -1,6 +1,8 @@
 // Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa,
-// tinyfish, keenable
+// tinyfish, keenable, doubao
 // Returns normalized shape across all providers
+
+import { doubaoApiError } from "../../utils/doubaoApi.js";
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_FORMAT = "markdown";
@@ -121,6 +123,9 @@ export async function handleFetchCore({ url, format, maxCharacters, provider, pr
     }
     if (provider === "keenable") {
       return await runKeenable({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
+    }
+    if (provider === "doubao") {
+      return await runDoubao({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
     }
     return { success: false, status: 400, error: `Unsupported provider: ${provider}` };
   } catch (err) {
@@ -321,6 +326,53 @@ async function runKeenable({ url, fmt, timeoutMs, apiKey, maxCharacters, costPer
     success: true,
     data: buildData({
       provider: "keenable", url, title: json?.title || null, format: fmt, text,
+      costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
+    })
+  };
+}
+
+// Doubao (Volcengine 网页解析) — POST { Url },仅输出纯文本(ContentText,不执行
+// JS、无 markdown):请求 markdown 时降级返回 text 而非报错。双层错误模型:
+// 接口错误在 body 的 ResponseMetadata.Error(HTTP 可能仍 200),目标网页自身的
+// 状态是 Result.Data.StatusCode(非 200 视为抓取失败);robots 拒绝(10413)由
+// doubaoApiError 映射为 403 不可重试。正文上限 50000 字符,超长按 maxCharacters 裁剪。
+async function runDoubao({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl }) {
+  const endpoint = (baseUrl || "https://open.feedcoopapi.com/search_api/fetch").replace(/\/+$/, "");
+  const upstreamStart = Date.now();
+  const r = await tryFetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {})
+    },
+    body: JSON.stringify({ Url: url })
+  }, timeoutMs);
+
+  if (!r.ok) {
+    return { success: false, status: r.timeout ? 504 : 502, error: r.error };
+  }
+  const upstreamMs = Date.now() - upstreamStart;
+  const { json } = await readJsonOrText(r.res);
+  if (!r.res.ok) {
+    return { success: false, status: r.res.status, error: json?.error || `Doubao error: ${r.res.status}` };
+  }
+  const apiErr = doubaoApiError(json);
+  if (apiErr) {
+    return {
+      success: false,
+      status: apiErr.status,
+      error: `Doubao API error ${apiErr.code || apiErr.codeN || "unknown"}: ${apiErr.message || "no message"}`,
+    };
+  }
+  const d = json?.Result?.Data || {};
+  if (d.StatusCode && d.StatusCode !== 200) {
+    return { success: false, status: 502, error: `Target page returned ${d.StatusCode}` };
+  }
+  const text = truncate(d.ContentText || "", maxCharacters);
+  return {
+    success: true,
+    data: buildData({
+      provider: "doubao", url, title: d.Title || null, format: "text", text,
       costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
     })
   };

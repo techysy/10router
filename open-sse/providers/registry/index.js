@@ -164,6 +164,7 @@ import p160 from "./gemini-web.js";
 import p161 from "./muse-web.js";
 import p162 from "./chatgpt-web.js";
 import p163 from "./nace.js";
+import p164 from "./doubao.js";
 
 export default [
   p0,
@@ -331,4 +332,5 @@ export default [
   p161,
   p162,
   p163,
+  p164,
 ];
