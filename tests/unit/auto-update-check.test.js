@@ -118,11 +118,11 @@ describe("the CLI launcher's marker follows the setting", () => {
 describe("desktop tray", () => {
   const main = readSource("desktop/main.js");
   it("the manual 'Check for updates' is explicit (?check=1)", () => {
-    const fn = main.slice(main.indexOf("async function checkForUpdates()"), main.indexOf("async function autoCheckUpdate()"));
+    const fn = main.slice(main.indexOf("async function checkForUpdates()"), main.indexOf("async function backgroundCheckForUpdates()"));
     expect(fn).toContain("/api/version?check=1");
   });
-  it("the startup balloon uses the plain probe, so it goes quiet when checks are off", () => {
-    const fn = main.slice(main.indexOf("async function autoCheckUpdate()"), main.indexOf("function showAbout()"));
+  it("the background check uses the plain probe, so it goes quiet when checks are off", () => {
+    const fn = main.slice(main.indexOf("async function backgroundCheckForUpdates()"), main.indexOf("async function backgroundPreDownload("));
     expect(fn).toContain("/api/version`");
     expect(fn).not.toContain("check=1");
   });

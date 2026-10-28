@@ -49,8 +49,10 @@ describe("unified HTML update window", () => {
     it("keeps the behavior contract: ?check=1, releases fallback, stopServer before spawn", () => {
         expect(main).toContain("/api/version?check=1");
         expect(main).toContain("shell.openExternal(RELEASES_URL)");
-        const idx = main.lastIndexOf("tr('update.installNow')");
-        const segment = main.slice(idx, idx + 1200);
+        const segment = main.slice(
+            main.indexOf("async function installDownloadedUpdate()"),
+            main.indexOf("async function checkUpdateViaGitHub()")
+        );
         expect(segment.indexOf("await stopServer()")).toBeGreaterThan(-1);
         expect(segment.indexOf("await stopServer()")).toBeLessThan(segment.indexOf("spawn(file"));
     });

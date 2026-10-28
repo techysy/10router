@@ -31,6 +31,7 @@ const path = require('path');
 const { createPasswordStore } = require('./passwordStore');
 const releaseUpdater = require('./releaseUpdater');
 const updateRequest = require('./updateRequest');
+const updateScheduler = require('./updateScheduler');
 
 // 必须先于一切 getPath('userData') 调用:productName "10Router" 在 Windows(大小写
 // 不敏感)上会与服务数据目录 %APPDATA%\10router 撞名,壳日志会混进服务数据。
@@ -79,6 +80,7 @@ const STRINGS = {
         'update.latestTitle': 'Up to date',
         'update.latestBody': 'You are on the latest version v{current}.',
         'update.balloonBody': 'v{latest} is available (current v{current}). Open the tray menu "Check for Updates" to visit the Releases download page.',
+        'update.readyBalloonBody': 'v{latest} has been downloaded and verified in the background — open the tray menu "Check for Updates" and click "Install Now".',
         'update.downloadInstall': 'Download and Install',
         'update.downloadBody': 'v{latest} is available (you are on v{current}).\n\n10Router will download 10Router-Win-Setup-{latest}.exe ({size}) from GitHub Releases, verify its SHA256 and run the installer — the app quits during install.',
         'update.downloadingTitle': 'Downloading v{latest}',
@@ -205,6 +207,7 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '当前 v{current} 已是最新版本。',
         'update.balloonBody': '发现新版本 v{latest}(当前 v{current})。可打开托盘菜单「检查更新」前往 Releases 下载页。',
+        'update.readyBalloonBody': 'v{latest} 已在后台下载并通过校验——打开托盘菜单「检查更新」后点击「立即安装」即可。',
         'update.downloadInstall': '下载并安装',
         'update.downloadBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n将从 GitHub Releases 下载 10Router-Win-Setup-{latest}.exe({size}),SHA256 校验通过后运行安装——安装时 10Router 会先退出。',
         'update.downloadingTitle': '正在下载 v{latest}',
@@ -331,6 +334,7 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '目前 v{current} 已是最新版本。',
         'update.balloonBody': '發現新版本 v{latest}(目前 v{current})。可開啟系統列選單「檢查更新」前往 Releases 下載頁。',
+        'update.readyBalloonBody': 'v{latest} 已在背景下載並通過校驗——開啟系統列選單「檢查更新」後點擊「立即安裝」即可。',
         'update.downloadInstall': '下載並安裝',
         'update.downloadBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n將從 GitHub Releases 下載 10Router-Win-Setup-{latest}.exe({size}),SHA256 校驗通過後執行安裝——安裝時 10Router 會先結束。',
         'update.downloadingTitle': '正在下載 v{latest}',
@@ -637,7 +641,7 @@ async function startServer() {
         notify(tr('notify.started'), `${DASHBOARD_URL}${lanIp ? tr('notify.lanHint', { ip: lanIp, port: PORT }) : ''}`);
         if (!win || win.isDestroyed()) createWindow();      // 启动成功直接打开界面
         else win.loadURL(DASHBOARD_URL).catch(() => { });
-        autoCheckUpdate();                    // 静默检查,仅发现新版本时弹托盘气泡引导
+        scheduleBackgroundUpdateChecks();     // 后台定时检查更新(30s 首检 + 6h 轮询,预下载不自动装)
     } else {
         setState('stopped');
         if (nodeProc) { try { killProcTree(nodeProc.pid); } catch { } }
@@ -1025,6 +1029,21 @@ async function checkForUpdates() {
         return;
     }
     if (info.hasUpdate) {
+        // 后台已为本版本预下载过安装包 → 直接进 ready 态（秒装，不重新下载）
+        if (updateScheduler.canReuseDownloadedInstaller({
+            phase: updateCtx.phase,
+            instVersion: updateCtx.inst ? updateCtx.inst.version : null,
+            fileExists: !!updateCtx.file && fs.existsSync(updateCtx.file),
+            latestVersion: info.latestVersion,
+        })) {
+            updateCtx.phase = 'install';
+            sendUpdateState('ready', {
+                title: tr('update.readyTitle', { latest: info.latestVersion }),
+                body: tr('update.readyBody'),
+                installLabel: tr('update.installNow'),
+            });
+            return;
+        }
         await offerUpdate(info.latestVersion, info.currentVersion);
     } else {
         sendUpdateState('latest', {
@@ -1225,18 +1244,93 @@ async function checkUpdateViaGitHub() {
     }
 }
 
-// 启动后静默检查更新:仅发现新版本时弹托盘气泡引导(点击气泡打开 Releases);
-// 无更新/网络失败均静默,不打扰。与手动「检查更新」菜单项互补。
-async function autoCheckUpdate() {
+// ───────────────── 后台定时检查更新（预下载，不自动安装） ─────────────────
+// 对齐 CreditDaddy 的「定时检查 + 预下载」，但不自动装：10R 是常驻网关，
+// 静默重启会掐断正在跑的 agent 会话，安装始终由用户点「立即安装」触发。
+// 后台路径绝不打开更新窗（sendUpdateState 在窗口未开时只落 updateView，
+// 用户之后手动开窗经 update:bootstrap 即见最新状态），所有失败一律静默。
+let backgroundUpdateTimer = null;
+let backgroundCheckInFlight = false;
+
+// 设置「自动检查更新」的镜像 marker（src/lib/updateCheck.js 同步写入）。
+// 直读文件而非问 /api/version：服务未起/挂了时判定依然正确。
+function autoUpdateCheckDisabled() {
     try {
+        return fs.existsSync(updateScheduler.updateCheckDisabledMarkerPath(DATA_DIR));
+    } catch { return false; }
+}
+
+async function backgroundCheckForUpdates() {
+    if (backgroundCheckInFlight) return;
+    // 每次触发前重读开关：设置里关闭后，已挂着的定时器不再产生任何查询
+    // （手动「检查更新」走强制刷新参数，不受此开关影响）。
+    if (!updateScheduler.shouldRunBackgroundCheck({ markerExists: autoUpdateCheckDisabled() })) return;
+    backgroundCheckInFlight = true;
+    try {
+        // 普通探测(无强制刷新参数):后台路径尊重服务端开关与 1h 缓存,不主动打 npm registry
         const info = await fetchJson(`${BASE_URL}/api/version`);
-        if (info && info.hasUpdate && info.latestVersion) {
+        if (!info || !info.hasUpdate || !info.latestVersion) return;
+        const action = updateScheduler.resolveBackgroundUpdateAction({
+            hasUpdate: true,
+            latestVersion: info.latestVersion,
+            canInstallInPlace: canInstallInPlace(),
+            alreadyReadyForVersion: updateCtx.phase === 'install'
+                && updateCtx.inst && updateCtx.inst.version === info.latestVersion
+                && !!updateCtx.file && fs.existsSync(updateCtx.file),
+        });
+        if (action === 'pre-download') {
+            await backgroundPreDownload(info.latestVersion);
+        } else if (action === 'notify-ready') {
+            notify(
+                tr('update.readyTitle', { latest: info.latestVersion }),
+                tr('update.readyBalloonBody', { latest: info.latestVersion })
+            );
+        } else if (action === 'notify-only') {
             notify(
                 tr('update.availableTitle'),
                 tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
             );
         }
-    } catch { /* 静默失败 */ }
+    } catch { /* 后台路径绝不打扰用户 */ } finally {
+        backgroundCheckInFlight = false;
+    }
+}
+
+// 静默预下载:无进度 UI(downloadInstallerToTemp 的 onProgress 传 null 即可,
+// SHA256 校验内建),成功后 updateCtx 进入 install 态——用户点「立即安装」秒装。
+async function backgroundPreDownload(latestVersion) {
+    let inst = null;
+    try {
+        inst = await resolveInstaller(latestVersion);
+    } catch { /* release 未发布 / 网络失败 → 静默,等下个周期 */ }
+    if (!inst) return;
+    try {
+        const file = await downloadInstallerToTemp(inst, null, null);
+        updateCtx.phase = 'install';
+        updateCtx.inst = inst;
+        updateCtx.file = file;
+        sendUpdateState('ready', {
+            title: tr('update.readyTitle', { latest: inst.version }),
+            body: tr('update.readyBody'),
+            installLabel: tr('update.installNow'),
+        });
+        notify(
+            tr('update.readyTitle', { latest: inst.version }),
+            tr('update.readyBalloonBody', { latest: inst.version })
+        );
+    } catch { /* 下载/校验失败静默,等下个周期或手动检查 */ }
+}
+
+// 调度:启动 30s 后首检(避开启动高峰),之后每 6h 一轮;.unref() 不阻塞退出。
+function scheduleBackgroundUpdateChecks() {
+    if (backgroundUpdateTimer) return;
+    const first = setTimeout(async () => {
+        await backgroundCheckForUpdates();
+        backgroundUpdateTimer = setInterval(backgroundCheckForUpdates, updateScheduler.CHECK_INTERVAL_MS);
+        if (backgroundUpdateTimer.unref) backgroundUpdateTimer.unref();
+    }, updateScheduler.INITIAL_DELAY_MS);
+    if (first.unref) first.unref();
+    backgroundUpdateTimer = first;
 }
 
 // ───────────────── 仪表盘发起的更新请求（数据目录 marker 握手） ─────────────────
@@ -2231,6 +2325,7 @@ if (!gotLock) {
     app.on('before-quit', (e) => {
         quitting = true;
         if (updateRequestTimer) { clearInterval(updateRequestTimer); updateRequestTimer = null; }
+        if (backgroundUpdateTimer) { clearTimeout(backgroundUpdateTimer); clearInterval(backgroundUpdateTimer); backgroundUpdateTimer = null; }
         if (!quitStopping && nodeProc) {
             quitStopping = true;
             e.preventDefault();
