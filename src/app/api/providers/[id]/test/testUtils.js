@@ -1438,6 +1438,7 @@ case "llm7": {
       }
       case "systemone-pure":
       case "drex":
+      case "nace":
       case "v1m":
       case "thx": {
         // Pure System One decision providers (drex / v1m / thx — serviceKinds

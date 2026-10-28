@@ -340,7 +340,28 @@ const flattenAnyOfOneOf = schemaPass(node => {
 const flattenTypeArrays = schemaPass(node => {
   if (Array.isArray(node.type)) {
     const nonNullTypes = node.type.filter(t => t !== "null");
-    node.type = nonNullTypes.length > 0 ? nonNullTypes[0] : "string";
+    if (nonNullTypes.length === 0) {
+      node.type = "string";
+    } else if (nonNullTypes.length === 1) {
+      node.type = nonNullTypes[0];
+    } else {
+      // Multiple types: choose best fitting type (prefer structural clues then string over boolean/number)
+      if (node.properties && nonNullTypes.includes("object")) {
+        node.type = "object";
+      } else if (node.items && typeof node.items === "object" && Object.keys(node.items).length > 0 && node.items.type && nonNullTypes.includes("array")) {
+        node.type = "array";
+      } else if (nonNullTypes.includes("string")) {
+        node.type = "string";
+      } else if (nonNullTypes.includes("number")) {
+        node.type = "number";
+      } else if (nonNullTypes.includes("integer")) {
+        node.type = "integer";
+      } else if (nonNullTypes.includes("boolean")) {
+        node.type = "boolean";
+      } else {
+        node.type = nonNullTypes[0];
+      }
+    }
   }
 });
 
@@ -364,7 +385,19 @@ const convertPrefixItems = schemaPass(node => {
 
 // Gemini requires items on every type:"array" schema — fill a permissive placeholder
 const ensureArrayItems = schemaPass(node => {
-  if (node.type === "array" && !node.items) node.items = { type: "string" };
+  if (node.type === "array") {
+    if (!node.items || typeof node.items !== "object" || Object.keys(node.items).length === 0) {
+      node.items = { type: "string" };
+    } else if (!node.items.type) {
+      if (node.items.properties) {
+        node.items.type = "object";
+      } else if (node.items.items) {
+        node.items.type = "array";
+      } else {
+        node.items.type = "string";
+      }
+    }
+  }
 });
 
 // Drop required entries that name no declared property
@@ -387,6 +420,35 @@ const placeholderReason = () => ({
 const addPlaceholders = schemaPass(node => {
   if (Object.keys(node).length === 0 || (node.type === "object" && (!node.properties || Object.keys(node.properties).length === 0))) {
     Object.assign(node, placeholderReason());
+  }
+});
+
+// Gemini Schema proto validation rules:
+// 1. Schema.items predicate: $type == Type.ARRAY. If type is not "array", items field MUST NOT exist.
+// 2. Schema.properties / required predicate: $type == Type.OBJECT. If type is not "object", properties and required MUST NOT exist.
+const enforceTypeConstraints = schemaPass(node => {
+  if (node.type === "array") {
+    delete node.properties;
+    delete node.required;
+    if (!node.items || typeof node.items !== "object" || Object.keys(node.items).length === 0) {
+      node.items = { type: "string" };
+    } else if (!node.items.type) {
+      if (node.items.properties) {
+        node.items.type = "object";
+      } else if (node.items.items) {
+        node.items.type = "array";
+      } else {
+        node.items.type = "string";
+      }
+    }
+  } else {
+    // Non-array schemas MUST NOT carry items
+    delete node.items;
+  }
+
+  if (node.type !== "object") {
+    delete node.properties;
+    delete node.required;
   }
 });
 
@@ -420,6 +482,9 @@ export function cleanJSONSchemaForAntigravity(schema) {
 
   // Phase 5: Add placeholder for empty object schemas (Antigravity requirement)
   addPlaceholders(cleaned);
+
+  // Phase 6: Enforce Gemini protobuf type predicates (items only on array, properties/required only on object)
+  enforceTypeConstraints(cleaned);
 
   return cleaned;
 }

@@ -50,6 +50,7 @@ afterEach(() => {
 describe("testApiKeyConnection — pure System One providers", () => {
   it.each([
     ["drex", "https://drex.nace.ai/v1/systemone", "drex-v1.0"],
+    ["nace", "https://console.nace.ai/v1/systemone", "drex-max"],
     ["v1m", "https://v1m.ir/v1/systemone", "rev-latest"],
     ["thx", "https://api.hal-x.ai/v1/systemone", "thx-01"],
   ])("%s probes its decision endpoint with a typed decision and Bearer auth", async (provider, url, model) => {
@@ -114,6 +115,14 @@ describe("POST /api/providers/validate — pure System One providers", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).valid).toBe(true);
     expect(fetchMock.mock.calls[0][0]).toBe("https://drex.nace.ai/v1/systemone");
+  });
+
+  it("validates nace against console.nace.ai decision endpoint", async () => {
+    fetchMock.mockResolvedValue(jsonRes(200));
+    const res = await validate(req({ provider: "nace", apiKey: "nace_sk_test" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).valid).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://console.nace.ai/v1/systemone");
   });
 
   it("maps 401 to invalid and a 404 to invalid (THX quirk)", async () => {
