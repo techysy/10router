@@ -1366,12 +1366,19 @@ case "llm7": {
         // (verified with a bogus Bearer on 2026-10-25: 200), so the generic
         // /models probe cannot discriminate — fall back to a 1-token chat ping
         // (same shape as the codebuddy/dots pattern), judged auth-only.
+        // Strip the "(high)"-style thinking suffix first: getModelUpstreamId
+        // preserves it by design, the upstream rejects the decorated id, and a
+        // perfectly good key tests invalid (same trap antigravity #82 hit).
+        const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
         const baseUrl = PROVIDERS[connection.provider]?.baseUrl;
         if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const probeModel = options.model
+          ? stripThinkingSuffix(getModelUpstreamId(connection.provider, options.model))
+          : getDefaultModel(connection.provider);
         const res = await fetchWithConnectionProxy(baseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
-          body: JSON.stringify({ model: options.model ? getModelUpstreamId(connection.provider, options.model) : getDefaultModel(connection.provider), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+          body: JSON.stringify({ model: probeModel, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };

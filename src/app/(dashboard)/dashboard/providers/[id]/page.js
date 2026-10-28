@@ -1318,7 +1318,7 @@ export default function ProviderDetailPage() {
         }
         setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
         setSelectedConnectionIds([]);
-        if (failed > 0) notify.warning(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        if (failed > 0) notify.warning(translate("Deleted {deleted} connection(s), {failed} failed.", { deleted: idsToDelete.length - failed, failed }));
         else notify.success(translate("Deleted successfully"));
       }
     });

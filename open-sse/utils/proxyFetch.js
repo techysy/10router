@@ -193,8 +193,10 @@ function isPrivateOrLoopbackHost(hostname) {
     return false;
   }
 
-  // IPv6 check
-  if (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true;
+  // IPv6 check — prefix tests must only run on actual IPv6 literals, or every
+  // public domain starting "fc"/"fd"/"fe80" (fda.gov, fcm.googleapis.com,
+  // fdroid.org) reads as private and silently bypasses the proxy (#87).
+  if (h.includes(":") && (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80"))) return true;
 
   return false;
 }

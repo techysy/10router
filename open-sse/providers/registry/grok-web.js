@@ -16,7 +16,11 @@ export default {
   category: "webCookie",
   authType: "cookie",
   serviceKinds: ["llm", "image", "video"],
-  videoConfig: { executorDriven: true },
+  // Video: the executor-side generateMedia(kind:"video") exists, but /v1/videos/*
+  // is the xAI transparent proxy (videoConfig.baseUrl) and the executor bridge
+  // for it is not built — advertising the kind only produced 500s. Hide the kind
+  // (image/llm stay listed); drop this hiddenKinds once the bridge lands.
+  hiddenKinds: ["video"],
   authHint: "Paste your sso= or full Cookie header from grok.com (with cf_clearance for image/video)",
   transport: {
     baseUrl: "https://grok.com/rest/app-chat/conversations/new",

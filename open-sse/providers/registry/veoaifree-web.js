@@ -15,7 +15,9 @@ export default {
   authHint: "No credentials needed — veoaifree.com free tier (about 6 requests/hour per IP)",
   transport: null,
   serviceKinds: ["image", "video"],
-  videoConfig: { executorDriven: true },
+  // Video: no /v1/videos* wiring (see grok-web.js) — hide the kind instead of
+  // 500-crashing the transparent proxy on a missing videoConfig.baseUrl.
+  hiddenKinds: ["video"],
   models: [
     { id: "veo", name: "VEO 3.1 (Free)", params: ["seconds", "size"], kind: "video" },
     { id: "seedance", name: "Seedance (Free)", params: ["seconds", "size"], kind: "video" },

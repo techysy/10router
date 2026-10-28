@@ -52,6 +52,12 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     return flushEvents(state);
   }
 
+  // Nothing legitimate follows a terminal frame — a producer that keeps
+  // streaming deltas after its own error chunk (any non-terminal error
+  // emitter, not just Qoder's wrap) would otherwise append output_text deltas
+  // after response.failed.
+  if (state.completedSent) return [];
+
   // 在 choices 守卫之前先捕获 usage：最后一个 OpenAI chunk 可能同时携带 usage
   // 和空的 choices 数组（OpenAI 正是这么发尾部 chunk 的），不能丢。
   if (chunk.usage) {

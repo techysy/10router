@@ -128,6 +128,35 @@ describe("Issue #87 - Bug 3: Private and loopback IPs bypass env proxy", () => {
     expect(getEnvProxyUrl("http://100.63.255.255:80/test")).toBe("http://proxy.corp.internal:8888");
     expect(getEnvProxyUrl("http://100.128.0.1:80/test")).toBe("http://proxy.corp.internal:8888");
   });
+
+  it("does not misclassify public domains that merely start with fc/fd/fe80 as private", async () => {
+    const { getEnvProxyUrl, isPrivateOrLoopbackHost } = await import(
+      "../../open-sse/utils/proxyFetch.js"
+    );
+
+    process.env.HTTPS_PROXY = "http://proxy.corp.internal:8888";
+    process.env.HTTP_PROXY = "http://proxy.corp.internal:8888";
+
+    // The fc/fd/fe80 prefixes are IPv6 UNIQUE-LOCAL/LINK-LOCAL literals, not
+    // hostname prefixes: fda.gov / fcm.googleapis.com / fdroid.org are public
+    // and must go through the proxy like any other domain.
+    for (const target of [
+      "https://fda.gov/",
+      "https://fcm.googleapis.com/",
+      "https://fdroid.org/",
+      "https://fe80.example.com/",
+    ]) {
+      expect(getEnvProxyUrl(target)).toBe("http://proxy.corp.internal:8888");
+      expect(isPrivateOrLoopbackHost(new URL(target).hostname)).toBe(false);
+    }
+
+    // Real IPv6 literals keep their classification.
+    expect(isPrivateOrLoopbackHost("fd00::1")).toBe(true);
+    expect(isPrivateOrLoopbackHost("[fc00::abcd]")).toBe(true);
+    expect(isPrivateOrLoopbackHost("fe80::1")).toBe(true);
+    expect(getEnvProxyUrl("http://[fd00::1]:8080/api")).toBeNull();
+    expect(getEnvProxyUrl("http://[2001:db8::1]:8080/api")).toBe("http://proxy.corp.internal:8888");
+  });
 });
 
 describe("Issue #87 - Bug 4: translateSessionId is a deterministic pure function", () => {

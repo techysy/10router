@@ -384,6 +384,7 @@
   "Delete Combo": "删除组合",
   "Delete Selected": "删除所选",
   "Deleted successfully": "删除成功",
+  "Deleted {deleted} connection(s), {failed} failed.": "已删除 {deleted} 个连接，{failed} 个失败。",
   "Delete {count} Connections": "删除 {count} 个连接",
   "Delete {count} connections? This cannot be undone.": "确定删除 {count} 个连接吗？此操作无法撤销。",
   "Delete connection": "删除连接",

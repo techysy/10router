@@ -6,6 +6,9 @@ export default {
     "gweb",
   ],
   uiAlias: "gemini-web",
+  // Executor is a stub — generateMedia/execute throw unconditionally — so the
+  // provider is not advertised in the add-catalog until it is implemented.
+  hidden: true,
   display: {
     name: "Gemini Web",
     icon: "auto_awesome",

@@ -6,6 +6,9 @@ export default {
     "mu",
   ],
   uiAlias: "muse-web",
+  // Executor is a stub — generateMedia throws unconditionally — so the
+  // provider is not advertised in the add-catalog until it is implemented.
+  hidden: true,
   display: {
     name: "Muse Web",
     icon: "auto_awesome",
@@ -16,7 +19,9 @@ export default {
   category: "webCookie",
   authType: "cookie",
   serviceKinds: ["image", "video"],
-  videoConfig: { executorDriven: true },
+  // Video: no /v1/videos* wiring (see grok-web.js) — hide the kind instead of
+  // 500-crashing the transparent proxy on a missing videoConfig.baseUrl.
+  hiddenKinds: ["video"],
   authHint: "Paste your muse.ai cookies (hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=...) from a logged-in muse.ai session",
   transport: {
     baseUrl: "https://muse.ai",

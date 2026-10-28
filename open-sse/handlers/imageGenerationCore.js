@@ -58,7 +58,15 @@ export async function handleImageGenerationCore({
   if (adapter.useExecutor && adapter.executeViaExecutor) {
     try {
       log?.debug?.("IMAGE", `${provider.toUpperCase()} | ${model} | prompt="${body.prompt.slice(0, 50)}..." (executor)`);
+      const apiKeyBefore = credentials?.apiKey;
       const responseBody = await adapter.executeViaExecutor(model, body, credentials, log);
+      // Executors hand rotated credentials back by mutating the object in place
+      // (uc-web's per-call Clerk __client rotation). Persist the new value here
+      // or the rotation chain drifts away from the stored cookie and the next
+      // mint fails with "session not found".
+      if (onCredentialsRefreshed && credentials?.apiKey && credentials.apiKey !== apiKeyBefore) {
+        await onCredentialsRefreshed({ apiKey: credentials.apiKey });
+      }
       if (onRequestSuccess) await onRequestSuccess();
       const normalized = adapter.normalize(responseBody, body.prompt);
       const finalBody = (normalized.created && Array.isArray(normalized.data)) ? normalized : responseBody;

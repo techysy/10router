@@ -2,6 +2,27 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## 未发布（Unreleased）
+
+### ✨ 新增
+
+- **Qoder 10605 排队等位与全局队列快速失败**：上游 10605 是按 modelKey 的全局排队（实测多账号同一 queueCount），换账号绕不开。现在对齐官方客户端行为：执行器收到 10605 先按 retryAfterSeconds 排队重试（≤2 轮 / 90s 预算，重签 COSY 重发同一 body），浅队列直接被放行；预算耗尽后按 (provider, model) 快速失败标记，账号游走不再串行重学同一判定；429 文本携带 waitTime（队列排空估算），冷却按真实窗口而非 30s 轮询间隔。
+- **网页版生图/多媒体提供商生态**：接入 UC（uc-web，Clerk 会话铸造）、Grok Imagine（grok-web 网页版订阅，图像 + 视频载荷）、Veo AI Free（veoaifree-web，免登录）、Muse Web / ChatGPT Web / Gemini Web（后三者为执行器存根，暂从添加目录隐藏）。
+- **组合页面卡片拖拽排序、快速置顶与顺序持久化（#89）**：拖拽 / 置顶写入 `comboCardOrder`，`/v1/models` 组合列表同序输出。
+- **Oxion AI 供应商**（oxionai.com USD 预付聚合网关）。
+- **连接测试选中模型即发真实生成探测**：对齐 antigravity #82 语义，探活通过后按所选模型追加最小生成请求；通用探针下沉 default 分支，registry 声明 validateUrl 即可测。
+- **上游错误 JSON 墙解包 + 服务端字典本地化**：OpenAI 兼容网关 503 不再透传原始 body；错误模式层原位改写 + 逐测路由本地化，`/api/models/test` 单模型 ping 接入服务端字典。
+
+### 🐛 修复
+
+- **Qoder 错误不再转为正常正文（#88）**：首帧拦截触发回退且流中传播结构化错误； Responses/Claude 翻译器在终态错误帧后丢弃后续 delta / 重复 error 帧。
+- **Claude 缓存计量口径、环境代理内网穿透与 opencode 会话纯度（#87）**：canonicalizeUsage 不再重复计入 cached_tokens；内网判断的 fc/fd/fe80 前缀只对真实 IPv6 字面量生效（fda.gov 等公网域名不再被误判绕过代理）；会话 id 翻译保持确定性。
+- **CodeBuddy Intl 会话头族硬化**：uuid5 会话 id、幂等头写入、body 会话字段透传。
+- **MiniMax Code 配额分类修正为积分余额**（原误标订阅），且无连接时隐藏「领取积分」入口。
+- **连接批量删除 / 应用代理 / 全选等国际化补齐**；部分失败告警文案一并本地化。
+- **媒体生成健壮性**：grok-web 媒体请求补上声明未用的图像/视频回合超时（此前上游挂起只能靠客户端 abort）；uc-web 的 Clerk `__client` 轮换 cookie 现已持久化回连接（原先只写内存，轮换链必断）。
+- **多媒体提供商视频路径清理**：`/v1/videos/*` 透明代理需要 videoConfig.baseUrl，四个执行器驱动型 provider（grok-web / uc-web / muse-web / veoaifree-web）此前宣告无消费者的 `executorDriven` 旗标会 500 崩溃——现在隐藏 video kind（图像/对话不受影响），待执行器桥接落地后再放开。
+
 ## v1.6.1 (2026-10-24)
 
 ### ✨ 新增

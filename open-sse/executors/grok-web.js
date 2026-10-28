@@ -10,6 +10,18 @@ const IMAGE_TURN_TIMEOUT_MS = 170000;
 const VIDEO_TURN_TIMEOUT_MS = 300000;
 const GROK_VIDEO_RESOLUTION = "480p";
 
+/**
+ * Bound a media turn (upstream POST or asset download) by the declared
+ * timeout, merged with the client's abort signal. Without it a grok.com
+ * request that never answers (or an asset download that stalls mid-body)
+ * hangs until the client gives up, holding the generation slot.
+ */
+function withTurnTimeout(signal, timeoutMs) {
+  const timeoutSignal = typeof AbortSignal?.timeout === "function" ? AbortSignal.timeout(timeoutMs) : null;
+  if (signal && timeoutSignal && typeof AbortSignal.any === "function") return AbortSignal.any([signal, timeoutSignal]);
+  return signal || timeoutSignal || undefined;
+}
+
 function isCloudflareChallenge(text) {
   if (typeof text !== "string") return false;
   return text.includes("<title>Just a moment...</title>") || text.includes("challenge-running") || text.includes("cf-browser-verification");
@@ -470,7 +482,7 @@ export class GrokWebExecutor extends BaseExecutor {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-        signal,
+        signal: withTurnTimeout(signal, kind === "video" ? VIDEO_TURN_TIMEOUT_MS : IMAGE_TURN_TIMEOUT_MS),
       });
 
       const text = await res.text();
@@ -492,7 +504,7 @@ export class GrokWebExecutor extends BaseExecutor {
         const dl = await fetch(fullUrl, {
           method: "GET",
           headers: { "User-Agent": GROK_USER_AGENT, Referer: "https://grok.com/", Cookie: cookieHeader },
-          signal,
+          signal: withTurnTimeout(signal, VIDEO_TURN_TIMEOUT_MS),
         });
         if (!dl.ok) throw new Error(`video download failed: HTTP ${dl.status}`);
         const buf = Buffer.from(await dl.arrayBuffer());
@@ -526,7 +538,7 @@ export class GrokWebExecutor extends BaseExecutor {
       const dl = await fetch(imageUrl, {
         method: "GET",
         headers: { "User-Agent": GROK_USER_AGENT, Referer: "https://grok.com/", Cookie: cookieHeader },
-        signal,
+        signal: withTurnTimeout(signal, IMAGE_TURN_TIMEOUT_MS),
       });
       if (!dl.ok) throw new Error(`image download failed: HTTP ${dl.status}`);
       const buf = Buffer.from(await dl.arrayBuffer());

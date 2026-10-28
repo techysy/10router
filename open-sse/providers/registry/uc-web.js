@@ -12,7 +12,9 @@ export default {
   category: "webCookie",
   authType: "cookie",
   serviceKinds: ["image", "video"],
-  videoConfig: { executorDriven: true },
+  // Video: no /v1/videos* wiring (see grok-web.js) — hide the kind instead of
+  // 500-crashing the transparent proxy on a missing videoConfig.baseUrl.
+  hiddenKinds: ["video"],
   authHint: "Paste your full uncensored.com Cookie header (must include the __client cookie) from a logged-in session — image + video are un-metered on the web plan",
   transport: {
     baseUrl: "https://internal.chatuncensored.ai",
