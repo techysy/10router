@@ -2,6 +2,22 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.6.2 (2026-10-28)
+
+### ✨ New
+
+- **Qoder queue-wait & global queue fast-fail**: aligns with official client behavior by standing in line inside the executor upon code 10605 (≤90s), allowing shallow-queue requests to pass seamlessly instead of immediately returning 429; deep queues fast-fail across sibling accounts and cool down according to upstream's estimated queue drain time.
+- **Combo card drag-reorder & pin-to-top (#89)**: supports native card dragging and one-click pinning with persistent order; `/v1/models` combo list order matches the dashboard UI exactly.
+- **Media & web provider ecosystem**: added Grok Web (Imagine image & chat), UC Web (Clerk session minting & persistent cookie rotation), Veo AI Free (no-login free generation), and Oxion AI gateway; delisted non-functional stubs.
+- **Connection tests cover real generation**: aligned with antigravity #82 semantics, probe strips thinking suffixes so high-effort models are no longer falsely reported as 400 Bad Request.
+
+### 🐛 Fixed
+
+- **Proxy bypass bug for public domains starting with fc/fd/fe80 (#87)**: fixed a bug where public hosts (e.g. fda.gov, fcm.googleapis.com) were misclassified as IPv6 private networks and bypassed HTTP_PROXY.
+- **Qoder error handling & stream terminal guards (#88)**: first-frame errors trigger combo fallback; Responses/Claude translators strictly drop invalid trailing chunks after a terminal error event.
+- **MiniMax Code quota categorization**: correctly classified as pure credit balance, and the "Claim Credits" button is hidden when no connections exist.
+- **Localization cleanups**: completed internationalization for connection bulk delete, proxy application, and batch failure warnings.
+
 ## v1.6.1 (2026-10-24)
 
 ### ✨ New

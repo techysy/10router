@@ -1,6 +1,6 @@
 {
   "name": "10router-app",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "10Router web dashboard",
   "private": true,
   "scripts": {
