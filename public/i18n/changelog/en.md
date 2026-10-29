@@ -2,6 +2,27 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.6.5 (2026-10-29)
+
+### ✨ New
+
+- **Desktop background check & silent pre-download (#81)**: on Windows setup builds, new installer versions are automatically downloaded and verified in the background every 6h. Clicking "Check for updates" installs instantly without waiting; Portable/macOS notify without downloading; respects the "automatic update check" toggle in Settings.
+- **Doubao web search & single-page fetch provider (#84)**: integrates Volcengine Doubao Web Search and Web Fetch sharing a 500 query/month free quota; maps internal error structures to standard HTTP statuses to drive seamless multi-account failover.
+- **Security audit closure & DNS rebinding defense (#43)**:
+  - Enforces Host header validation on trusted loopback paths (`isLocalRequest`) to block DNS rebinding attacks from malicious web pages; supports `TRUSTED_HOSTS` allowlist.
+  - Documents the login rate-limiting architecture tradeoff (in-memory protection keyed to TCP peer IP).
+  - Publishes deprecation roadmap for `LEGACY_FALLBACK_SECRET` and legacy `sk-<random8>` key formats (scheduled for v2.0.0).
+  - Hardens Windows Root CA ACLs and locks down update status port CORS.
+- **Model ecosystem evolution & upstream features**:
+  - Full Claude 5.5 family support (Sonnet 5.5, Haiku 5.5, Opus 5.5) with native thinking parameters.
+  - Added OpenAI GPT-6.1 Terra (500k context) and Nace Drex decision engine.
+  - CommandCode CLI 1.88.0 headers and Gemini Protobuf Schema type constraint enforcement.
+
+### 🐛 Fixed
+
+- **Desktop build files packaging fix**: packaged installers now reliably include `updateScheduler.js` to avoid runtime startup crashes.
+- **Installer reuse state preservation**: fixed an issue where manual update checks reset phase state and failed to reuse pre-downloaded installers.
+
 ## v1.6.2 (2026-10-28)
 
 ### ✨ New

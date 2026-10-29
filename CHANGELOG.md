@@ -2,6 +2,32 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.6.5 (2026-10-29)
+
+### ✨ 新增
+
+- **桌面端后台定时检查更新 + 静默预下载（#81）**：桌面托盘版支持启动 30 秒首检及每 6 小时静默后台探测；Windows 安装版在后台自动预下载最新安装包并完成 SHA256 校验，用户点击「检查更新」时直接进入就绪态秒装；Portable 与 macOS 仅气泡提醒；「设置 → 安全」关闭自动检查时定时器静默空转，不主动产生任何查询；加固前后台下载并发互斥与同版本气泡去重。
+- **火山引擎豆包联网搜索与单页抓取 Provider（#84）**：
+  - 新增 Web Search 联网搜索能力，Query 自动安全截断至官方 100 字符上限，多片段纯文本过滤归一化。
+  - 新增 Web Fetch 单网页正文抓取能力，支持纯文本智能提取与 markdown 请求降级。
+  - 内置火山双层错误映射层（`ResponseMetadata.Error` 700429→429、10406/10412 额度耗尽→403 等），Body 级错误精准转换为真实 HTTP 状态码并驱动既有多账号平滑轮询。
+- **安全审计收尾与全链路加固（#43）**：
+  - **Host 头校验与 DNS Rebinding 阻断**：受信本机路径（`isLocalRequest`）实施严格 Host 校验，拦截恶意网页通过重绑定域名（如 `rebind.attacker.com -> 127.0.0.1`）穿透免密路径；新增 `TRUSTED_HOSTS` 环境变量白名单支持。
+  - **登录防爆破限流架构声明**：明确记录网络防爆破与内存限流权衡（Accepted Tradeoff），防止高频爆破时的磁盘 I/O 放大与写锁竞争，严格基于 `custom-server` 签名 IP 隔离桶。
+  - **API Key 废弃时间表与告警**：正式公布 `LEGACY_FALLBACK_SECRET` 与旧格式 `sk-<random8>` 废弃时间表（计划于 v2.0.0 彻底移除），运行时提供非阻塞迁移提示。
+  - **Windows Root CA ACL 与状态口 CORS**：全量测试钉死权限加固与状态口安全面。
+- **模型生态演进与上游能力吸收**：
+  - 支持 Claude 5.5（Sonnet 5.5 / Haiku 5.5 / Opus 5.5）全套点号模型思考配置与无缝转换。
+  - 收录 OpenAI GPT-6.1 Terra（500k 上下文）与 Nace Drex 决策平台（console.nace.ai）。
+  - 接入 CommandCode CLI 1.88.0 会话头族支持与 NVIDIA NIM reasoning 别名规范化。
+  - Gemini Protobuf Schema 严格执行类型谓词约束（`enforceTypeConstraints`），规避空 items 或非对象属性导致的结构体序列化异常。
+
+### 🐛 修复
+
+- **桌面打包丢失 `updateScheduler.js` 缺陷**：`desktop/package.json` 的 `build.files` 显式登记决策模块并加入回归测试钉，防止打包后启动崩溃。
+- **桌面更新复用判定失效修复**：修复 `checkForUpdates` 初始化重置导致预下载安装包无法秒装的问题。
+- **非流式 SSE 错误拦截**：解析非流式响应首帧错误结构，防止上游异常被误作为正常回复输出。
+
 ## v1.6.2 (2026-10-28)
 
 ### ✨ 新增

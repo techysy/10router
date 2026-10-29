@@ -136,18 +136,47 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 // Accepts a Host header, a URL hostname or a raw socket address. Splitting on the first
 // colon only works for IPv4 and would reduce every IPv6 form to "", so a dual-stack
 // listener handing back ::ffff:127.0.0.1 would not read as loopback.
-function isLoopbackHostname(h) {
-  if (!h) return false;
+export function extractHostname(h) {
+  if (!h) return "";
   let name = String(h).trim().toLowerCase();
   if (name.startsWith("[")) {
     const end = name.indexOf("]");
-    if (end === -1) return false;
+    if (end === -1) return "";
     name = name.slice(1, end);
   } else if (name.indexOf(":") !== -1 && name.indexOf(":") === name.lastIndexOf(":")) {
     name = name.slice(0, name.indexOf(":"));
   }
   if (name.startsWith("::ffff:")) name = name.slice(7);
+  return name;
+}
+
+export function isLoopbackHostname(h) {
+  const name = extractHostname(h);
   return LOOPBACK_HOSTS.has(name);
+}
+
+export function getTrustedHosts() {
+  const list = new Set(LOOPBACK_HOSTS);
+  if (process.env.TRUSTED_HOSTS) {
+    for (const h of process.env.TRUSTED_HOSTS.split(",")) {
+      const trimmed = extractHostname(h.trim());
+      if (trimmed) list.add(trimmed);
+    }
+  }
+  if (process.env.BASE_URL) {
+    try {
+      const u = new URL(process.env.BASE_URL);
+      const h = extractHostname(u.hostname);
+      if (h) list.add(h);
+    } catch {}
+  }
+  return list;
+}
+
+export function isAllowedHost(host) {
+  const h = extractHostname(host);
+  if (!h) return false;
+  return getTrustedHosts().has(h);
 }
 
 function isLoopbackPeer(request) {
@@ -167,6 +196,16 @@ export function isLocalRequest(request) {
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
   if (request.headers.get("x-10r-via-proxy")) return false;
   if (!isLoopbackPeer(request)) return false;
+
+  // Issue #43 item 1: Host header validation against DNS rebinding attacks.
+  // An external browser navigated to an attacker-controlled domain whose DNS
+  // resolves to 127.0.0.1 hits the local socket with TCP peer 127.0.0.1, but
+  // carries Host: attacker-domain.com. Demanding that Host matches a trusted
+  // local hostname or TRUSTED_HOSTS ensures DNS rebinding cannot masquerade
+  // as a trusted loopback call to bypass passwordless local access.
+  const host = request.headers.get("host");
+  if (host && !isAllowedHost(host)) return false;
+
   const origin = request.headers.get("origin");
   if (origin) {
     try {

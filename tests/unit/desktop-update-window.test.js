@@ -25,6 +25,7 @@ describe("unified HTML update window", () => {
     it("build.files ships the new assets (漏登记=打包后静默消失)", () => {
         expect(pkg.build.files).toContain("update-window.html");
         expect(pkg.build.files).toContain("preload-update.js");
+        expect(pkg.build.files).toContain("updateScheduler.js");
     });
 
     it("the update flow no longer uses native dialogs or the data-URL progress window", () => {

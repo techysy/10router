@@ -147,6 +147,7 @@ describe("served changelog files", () => {
     // existed, strict equality resumed. Removed for the v1.5.0 cycle; re-add
     // a lead constant only when the next release intentionally previews its
     // changelog before tagging.)
+    const PRE_RELEASE_LEAD = "1.6.5";
     let newestTag = null;
     try {
       newestTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
@@ -157,7 +158,7 @@ describe("served changelog files", () => {
     }
     for (const locale of LOCALES) {
       const top = readChangelog(locale).match(/^## v?(\d+\.\d+\.\d+)/m)[1];
-      expect(newestTag, locale).toBe(top);
+      expect([newestTag, PRE_RELEASE_LEAD], locale).toContain(top);
     }
   });
 });

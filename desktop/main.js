@@ -1017,6 +1017,9 @@ function retryUpdatePhase() {
 // Portable 则维持「打开 Releases 页面」的旧引导。
 async function checkForUpdates() {
     openUpdateWindow();
+    const prevPhase = updateCtx.phase;
+    const prevInst = updateCtx.inst;
+    const prevFile = updateCtx.file;
     updateCtx.phase = 'check';
     sendUpdateState('checking', { title: tr('update.checking') });
     let info = null;
@@ -1031,12 +1034,14 @@ async function checkForUpdates() {
     if (info.hasUpdate) {
         // 后台已为本版本预下载过安装包 → 直接进 ready 态（秒装，不重新下载）
         if (updateScheduler.canReuseDownloadedInstaller({
-            phase: updateCtx.phase,
-            instVersion: updateCtx.inst ? updateCtx.inst.version : null,
-            fileExists: !!updateCtx.file && fs.existsSync(updateCtx.file),
+            phase: prevPhase,
+            instVersion: prevInst ? prevInst.version : null,
+            fileExists: !!prevFile && fs.existsSync(prevFile),
             latestVersion: info.latestVersion,
         })) {
             updateCtx.phase = 'install';
+            updateCtx.inst = prevInst;
+            updateCtx.file = prevFile;
             sendUpdateState('ready', {
                 title: tr('update.readyTitle', { latest: info.latestVersion }),
                 body: tr('update.readyBody'),
@@ -1201,11 +1206,24 @@ function startUpdateDownload(inst) {
 // 同路径注释见文件尾部 before-quit);失败回落 error 态,可重试。
 async function installDownloadedUpdate() {
     const file = updateCtx.file;
-    if (!file) return;
+    if (!file || !fs.existsSync(file)) {
+        sendUpdateState('error', {
+            title: tr('update.spawnFailedTitle'),
+            detail: tr('update.spawnFailedBody', { message: 'Installer file not found', path: file || '' }),
+        });
+        return;
+    }
     try {
         // 先停服务再 spawn:安装器到达卸载/替换阶段时文件锁必须已经释放。
         await stopServer();
-        spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+        const child = spawn(file, [], { detached: true, stdio: 'ignore' });
+        child.on('error', (e) => {
+            sendUpdateState('error', {
+                title: tr('update.spawnFailedTitle'),
+                detail: tr('update.spawnFailedBody', { message: String((e && e.message) || e), path: file }),
+            });
+        });
+        child.unref();
         app.quit();   // 先退出再让安装器接管;NSIS 遇到残留进程也会引导关闭
     } catch (e) {
         sendUpdateState('error', {
@@ -1251,6 +1269,7 @@ async function checkUpdateViaGitHub() {
 // 用户之后手动开窗经 update:bootstrap 即见最新状态），所有失败一律静默。
 let backgroundUpdateTimer = null;
 let backgroundCheckInFlight = false;
+let lastNotifiedUpdateVersion = null;
 
 // 设置「自动检查更新」的镜像 marker（src/lib/updateCheck.js 同步写入）。
 // 直读文件而非问 /api/version：服务未起/挂了时判定依然正确。
@@ -1269,7 +1288,10 @@ async function backgroundCheckForUpdates() {
     try {
         // 普通探测(无强制刷新参数):后台路径尊重服务端开关与 1h 缓存,不主动打 npm registry
         const info = await fetchJson(`${BASE_URL}/api/version`);
-        if (!info || !info.hasUpdate || !info.latestVersion) return;
+        if (!info || !info.hasUpdate || !info.latestVersion) {
+            lastNotifiedUpdateVersion = null;
+            return;
+        }
         const action = updateScheduler.resolveBackgroundUpdateAction({
             hasUpdate: true,
             latestVersion: info.latestVersion,
@@ -1279,17 +1301,26 @@ async function backgroundCheckForUpdates() {
                 && !!updateCtx.file && fs.existsSync(updateCtx.file),
         });
         if (action === 'pre-download') {
-            await backgroundPreDownload(info.latestVersion);
+            // 前台正在手动下载中则避让，不发起并发预下载
+            if (!updateDlCtrl) {
+                await backgroundPreDownload(info.latestVersion);
+            }
         } else if (action === 'notify-ready') {
-            notify(
-                tr('update.readyTitle', { latest: info.latestVersion }),
-                tr('update.readyBalloonBody', { latest: info.latestVersion })
-            );
+            if (lastNotifiedUpdateVersion !== info.latestVersion) {
+                lastNotifiedUpdateVersion = info.latestVersion;
+                notify(
+                    tr('update.readyTitle', { latest: info.latestVersion }),
+                    tr('update.readyBalloonBody', { latest: info.latestVersion })
+                );
+            }
         } else if (action === 'notify-only') {
-            notify(
-                tr('update.availableTitle'),
-                tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
-            );
+            if (lastNotifiedUpdateVersion !== info.latestVersion) {
+                lastNotifiedUpdateVersion = info.latestVersion;
+                notify(
+                    tr('update.availableTitle'),
+                    tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
+                );
+            }
         }
     } catch { /* 后台路径绝不打扰用户 */ } finally {
         backgroundCheckInFlight = false;
@@ -1299,11 +1330,13 @@ async function backgroundCheckForUpdates() {
 // 静默预下载:无进度 UI(downloadInstallerToTemp 的 onProgress 传 null 即可,
 // SHA256 校验内建),成功后 updateCtx 进入 install 态——用户点「立即安装」秒装。
 async function backgroundPreDownload(latestVersion) {
+    if (updateDlCtrl) return;
     let inst = null;
     try {
         inst = await resolveInstaller(latestVersion);
     } catch { /* release 未发布 / 网络失败 → 静默,等下个周期 */ }
     if (!inst) return;
+    if (updateDlCtrl) return;
     try {
         const file = await downloadInstallerToTemp(inst, null, null);
         updateCtx.phase = 'install';
@@ -1314,10 +1347,13 @@ async function backgroundPreDownload(latestVersion) {
             body: tr('update.readyBody'),
             installLabel: tr('update.installNow'),
         });
-        notify(
-            tr('update.readyTitle', { latest: inst.version }),
-            tr('update.readyBalloonBody', { latest: inst.version })
-        );
+        if (lastNotifiedUpdateVersion !== inst.version) {
+            lastNotifiedUpdateVersion = inst.version;
+            notify(
+                tr('update.readyTitle', { latest: inst.version }),
+                tr('update.readyBalloonBody', { latest: inst.version })
+            );
+        }
     } catch { /* 下载/校验失败静默,等下个周期或手动检查 */ }
 }
 

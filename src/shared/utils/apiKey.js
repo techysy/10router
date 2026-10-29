@@ -37,8 +37,16 @@ function ensureGeneratedSecret() {
   return _generatedSecretCache;
 }
 
+let legacyKeyWarned = false;
+
 // Resolved per call (cheap after first rotation): env secret → generated
 // secret (rotation on) → legacy fallback (rotation off, production warns).
+//
+// Deprecation schedule for LEGACY_FALLBACK_SECRET (Issue #43, Item 3):
+// - v1.2.0: Introduced per-machine random secret with opt-in rotation ($DATA_DIR/api-key-secret).
+// - v1.6.5: Formal deprecation logging for legacy keys and fallback secret.
+// - v2.0.0: Target version to remove LEGACY_FALLBACK_SECRET; generated machine secret
+//   will become the default on fresh installs and migrations.
 async function resolveApiKeySecret() {
   const fromEnv = process.env.API_KEY_SECRET;
   if (fromEnv) return fromEnv;
@@ -49,6 +57,7 @@ async function resolveApiKeySecret() {
       resolveApiKeySecret._warned = true;
       console.warn(
         "[auth] API_KEY_SECRET is unset — falling back to a well-known built-in secret. " +
+          "This fallback is deprecated and scheduled for removal in v2.0.0. " +
           "Set API_KEY_SECRET, or enable key rotation in Endpoint settings (experimental; " +
           "existing API keys will need to be re-issued after enabling).",
       );
@@ -120,8 +129,15 @@ export async function parseApiKey(apiKey) {
     return { machineId, keyId, isNewFormat: true };
   }
 
-  // Old format: sk-{random8} = 2 parts
+  // Old format: sk-{random8} = 2 parts (deprecated in v1.6.5, removal targeted for v2.0.0)
   if (parts.length === 2) {
+    if (!legacyKeyWarned) {
+      legacyKeyWarned = true;
+      console.warn(
+        "[auth] Deprecation warning: Legacy API key format 'sk-<random8>' is deprecated and scheduled " +
+          "for removal in v2.0.0. Please re-issue your API keys in the dashboard to adopt the machine-bound format."
+      );
+    }
     return { machineId: null, keyId: parts[1], isNewFormat: false };
   }
 
