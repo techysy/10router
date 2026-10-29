@@ -796,6 +796,23 @@ export default function ProviderDetailPage() {
     saveProviderStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
   };
 
+  const handlePackOrSubStrategyChange = (value) => {
+    if (value === "round-robin") {
+      setEarliestExpiryFirst(false);
+      setProviderStrategy("round-robin");
+      if (!providerStickyLimit) setProviderStickyLimit("1");
+      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, balanceStrategy);
+    } else if (value === "earliest") {
+      setEarliestExpiryFirst(true);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, true, balanceStrategy);
+    } else {
+      setEarliestExpiryFirst(false);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy);
+    }
+  };
+
   const handleBalanceStrategyChange = (value) => {
     setBalanceStrategy(value);
     if (value === "round-robin") {
@@ -2191,36 +2208,74 @@ export default function ProviderDetailPage() {
 
                 // 1. Pack Asset Providers (CodeBuddy, Qoder)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
+                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                   return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Prioritize burning resource packs that are nearest to permanent expiration")}
-                      >
-                        {translate("Earliest Pack Expiry")}
-                      </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
-                      />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-medium">
+                          {translate("Scheduling Preference")}
+                        </span>
+                        <Select
+                          value={currentValue}
+                          onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                          options={[
+                            { value: "earliest", label: translate("Earliest Pack Expiry") },
+                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          ]}
+                          selectClassName="!py-1 !text-xs w-48"
+                        />
+                      </div>
+                      {currentValue === "round-robin" && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 }
 
                 // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
+                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                   return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Relay between accounts and hand off to next carrier when window reaches 5% red zone")}
-                      >
-                        {translate("Subscription Relay")}
-                      </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
-                      />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-medium">
+                          {translate("Scheduling Preference")}
+                        </span>
+                        <Select
+                          value={currentValue}
+                          onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                          options={[
+                            { value: "earliest", label: translate("Subscription Relay") },
+                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          ]}
+                          selectClassName="!py-1 !text-xs w-48"
+                        />
+                      </div>
+                      {currentValue === "round-robin" && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -2272,47 +2327,37 @@ export default function ProviderDetailPage() {
                 }
 
                 // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
+                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                 return (
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
-                      >
-                        {translate("Earliest Expiry First")}
+                      <span className="text-xs text-text-muted font-medium">
+                        {translate("Scheduling Preference")}
                       </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
+                      <Select
+                        value={fallbackCurrentValue}
+                        onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                        options={[
+                          { value: "earliest", label: translate("Earliest Expiry First") },
+                          { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                          { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                        ]}
+                        selectClassName="!py-1 !text-xs w-48"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
-                        title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
-                      >
-                        {translate("Round Robin")}
-                      </span>
-                      <Toggle
-                        checked={providerStrategy === "round-robin"}
-                        disabled={earliestExpiryFirst}
-                        onChange={handleRoundRobinToggle}
-                      />
-                      {providerStrategy === "round-robin" && (
-                        <div className={cn("flex items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
-                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            disabled={earliestExpiryFirst}
-                            value={providerStickyLimit}
-                            onChange={(e) => handleStickyLimitChange(e.target.value)}
-                            placeholder="1"
-                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {fallbackCurrentValue === "round-robin" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={providerStickyLimit}
+                          onChange={(e) => handleStickyLimitChange(e.target.value)}
+                          placeholder="1"
+                          className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })()}
