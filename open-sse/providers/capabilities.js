@@ -531,6 +531,20 @@ export const PROVIDER_CAPABILITIES = {
     // 会落进 *claude*haiku* 兜底拿到 200K/claude-budget,导致 combo 被 min 拉成 200K。此处精确锁定 1M/adaptive。
     "claude-haiku-5.5:free":    { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   },
+  // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
+  // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
+  // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压
+  // 到 65536 / 128000）——按各家族第一方剖面全量显式声明。
+  // spark-x2.6 无公开规格（讯飞自家模型，×0.0 免费），保留 floor + allowlist。
+  "loomy": {
+    "qwen3.8-flash":          { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
+    "qwen-3.8-max":           { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
+    "DeepSeek-V4.1-Flash":    { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-0731": { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "MiniMax-M3":             { vision: true, reasoning: true, thinkingFormat: "minimax", contextWindow: 1000000, maxOutput: 131072 },
+    "Kimi-k2.6":              { vision: true, reasoning: true, thinkingFormat: "kimi", contextWindow: 262144, maxOutput: 262144 },
+    "GLM-5.3-Flash":          { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
+  },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     // codex OAuth 后端把 gpt-6 家族截到 272k（不同于 OpenAI API 的 1.05M 窗口，

@@ -329,6 +329,17 @@ const PROVIDER_MODELS_CONFIG = {
   nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
   nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
+  // Loomy (讯飞, issue #92 的内置收录版)：/models 只认自定义 `token:` 头，
+  // Bearer 反而 100002「缺少 token」。authHeader 换成 token、空前缀即可，
+  // 与 chat 端点（认 Bearer）分属不同鉴权中间件。
+  loomy: {
+    url: "https://loomyad.xunfei.cn/api/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    authHeader: "token",
+    authPrefix: "",
+    parseResponse: parseOpenAIStyleModels,
+  },
   assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
   "vercel-ai-gateway": createOpenAIModelsConfig("https://ai-gateway.vercel.sh/v1/models"),
   kimchi: {

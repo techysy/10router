@@ -76,6 +76,7 @@ import p72 from "./kimi.js";
 import p73 from "./kiro.js";
 import p74 from "./linkup.js";
 import p75 from "./llm7.js";
+import p75b from "./loomy.js";
 import p76 from "./local-device.js";
 import p77 from "./longcat-intl.js";
 import p78 from "./longcat.js";
@@ -244,6 +245,7 @@ export default [
   p73,
   p74,
   p75,
+  p75b,
   p76,
   p77,
   p78,

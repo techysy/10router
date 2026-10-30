@@ -714,6 +714,15 @@
     "validateUrl": "https://api.llm7.io/v1/models",
     "format": "openai"
   },
+  "loomy": {
+    "baseUrl": "https://loomyad.xunfei.cn/api/v1/chat/completions",
+    "format": "openai",
+    "auth": {
+      "combined": true,
+      "header": "Authorization",
+      "scheme": "bearer"
+    }
+  },
   "longcat-intl": {
     "baseUrl": "https://api.longcat.ai/openai/v1/chat/completions",
     "validateUrl": "https://api.longcat.ai/openai/v1/models",

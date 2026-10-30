@@ -394,6 +394,17 @@ export async function POST(request) {
           break;
         }
 
+        case "loomy": {
+          // 发现端点探活（GET 不烧免费积分）；只认 `token:` 头，Bearer 会
+          // 100002「缺少 token」（issue #92 实测口径）。
+          const res = await fetch("https://loomyad.xunfei.cn/api/v1/models", {
+            headers: { token: apiKey },
+            signal: AbortSignal.timeout(8000),
+          });
+          isValid = res.ok;
+          break;
+        }
+
         case "deepseek":
         case "groq":
         case "xai":
