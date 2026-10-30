@@ -723,7 +723,14 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         {connections.length === 0 ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-text-muted">No connections yet</p>
-            <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
+            <div className="flex gap-2">
+              <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
+              {providerId === "loomy" && (
+                <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                  {translate("SMS Login")}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <>
