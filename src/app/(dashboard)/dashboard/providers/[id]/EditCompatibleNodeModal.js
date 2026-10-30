@@ -16,15 +16,41 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   const [checkModelId, setCheckModelId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [modelsHeaderName, setModelsHeaderName] = useState("");
+  const [modelsHeaderValue, setModelsHeaderValue] = useState("{apiKey}");
+
+  const buildAuthHeaders = () => {
+    if (modelsHeaderName.trim()) {
+      return {
+        models: {
+          [modelsHeaderName.trim()]: modelsHeaderValue.trim() || "{apiKey}",
+        },
+      };
+    }
+    return null;
+  };
 
   useEffect(() => {
     if (node) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         name: node.name || "",
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
       });
+      const modelsHeader = node.authHeaders?.models;
+      if (modelsHeader && typeof modelsHeader === "object") {
+        const firstKey = Object.keys(modelsHeader)[0] || "";
+        setModelsHeaderName(firstKey);
+        setModelsHeaderValue(modelsHeader[firstKey] || "{apiKey}");
+        setShowAdvanced(true);
+      } else {
+        setModelsHeaderName("");
+        setModelsHeaderValue("{apiKey}");
+        setShowAdvanced(false);
+      }
     }
   }, [node, isAnthropic]);
 
@@ -41,6 +67,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
+        authHeaders: buildAuthHeaders(),
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -61,7 +88,8 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           baseUrl: formData.baseUrl,
           apiKey: checkKey,
           type: isAnthropic ? "anthropic-compatible" : "openai-compatible",
-          modelId: checkModelId.trim() || undefined
+          modelId: checkModelId.trim() || undefined,
+          authHeaders: buildAuthHeaders(),
         }),
       });
       const data = await res.json();
@@ -128,6 +156,42 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           placeholder="e.g. my-model-id"
           hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
         />
+
+        {/* Issue #92: Advanced Custom Auth Headers (e.g. for Loomy token: {apiKey}) */}
+        <div className="rounded-lg border border-border/60 bg-surface-2/30 p-3">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex w-full items-center justify-between text-xs font-medium text-text-muted hover:text-text-main"
+          >
+            <span>Advanced / Custom Headers</span>
+            <span className="material-symbols-outlined text-[16px]">
+              {showAdvanced ? "expand_less" : "expand_more"}
+            </span>
+          </button>
+          {showAdvanced && (
+            <div className="mt-3 flex flex-col gap-2 pt-2 border-t border-border/40">
+              <span className="text-[11px] text-text-muted">
+                Custom Header for /models Discovery (e.g. iFlytek Loomy requires &apos;token: &#123;apiKey&#125;&apos;)
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  label="Header Name"
+                  placeholder="e.g. token"
+                  value={modelsHeaderName}
+                  onChange={(e) => setModelsHeaderName(e.target.value)}
+                />
+                <Input
+                  label="Header Value Template"
+                  placeholder="{apiKey}"
+                  value={modelsHeaderValue}
+                  onChange={(e) => setModelsHeaderValue(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {validationResult && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
             {validationResult === "success" ? "Valid" : "Invalid"}

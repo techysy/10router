@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
 import { isLocalRequest } from "@/dashboardGuard";
+import { resolveEndpointAuthHeaders } from "@/shared/utils/endpointAuthHeaders";
 
 // Fetch with timeout wrapper
 const fetchWithTimeout = (url, options, timeout = 10000) => {
@@ -55,7 +56,7 @@ const getChatErrorMessage = (status) => {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { baseUrl, apiKey, type, modelId } = body;
+    const { baseUrl, apiKey, type, modelId, authHeaders } = body;
 
     if (!baseUrl || !apiKey) {
       return NextResponse.json({ error: "Base URL and API key required" }, { status: 400 });
@@ -160,8 +161,11 @@ export async function POST(request) {
 
     // OpenAI Compatible Validation (Default)
     const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
+    const modelsHeaders = resolveEndpointAuthHeaders(authHeaders, "models", apiKey, {
+      "Authorization": `Bearer ${apiKey}`
+    });
     const res = await fetchWithTimeout(modelsUrl, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
+      headers: modelsHeaders,
     });
 
     if (res.ok) return NextResponse.json({ valid: true });

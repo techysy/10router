@@ -7,6 +7,7 @@ import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-t
 import { buildCommandCodeHeaders } from "open-sse/shared/commandCodeHeaders.js";
 import { resolveQoderCredentials, resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { resolveEndpointAuthHeaders } from "@/shared/utils/endpointAuthHeaders";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -106,9 +107,11 @@ export async function POST(request) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
-        const res = await fetch(modelsUrl, {
-          headers: { "Authorization": `Bearer ${apiKey}` },
+        const authHeadersConfig = node.authHeaders || providerSpecificData?.authHeaders;
+        const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", apiKey, {
+          "Authorization": `Bearer ${apiKey}`,
         });
+        const res = await fetch(modelsUrl, { headers });
         isValid = res.ok;
         return NextResponse.json({
           valid: isValid,

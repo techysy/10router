@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getProviderConnectionById } from "@/models";
+import { getProviderConnectionById, getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { resolveEndpointAuthHeaders } from "@/shared/utils/endpointAuthHeaders";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
@@ -525,12 +526,19 @@ export async function GET(request, { params }) {
         return NextResponse.json({ error: "No base URL configured for OpenAI compatible provider" }, { status: 400 });
       }
       const url = `${baseUrl.replace(/\/$/, "")}/models`;
+
+      // Issue #92: support custom per-endpoint auth headers template (e.g. { models: { "token": "{apiKey}" } })
+      // for upstreams like iFlytek Loomy that require different headers for /models discovery vs /chat
+      const node = await getProviderNodeById(connection.provider).catch(() => null);
+      const authHeadersConfig = node?.authHeaders || connection.providerSpecificData?.authHeaders;
+      const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", connection.apiKey, {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${connection.apiKey}`,
+      });
+
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${connection.apiKey}`,
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -564,14 +572,18 @@ export async function GET(request, { params }) {
       }
 
       const url = `${baseUrl}/models`;
+      const node = await getProviderNodeById(connection.provider).catch(() => null);
+      const authHeadersConfig = node?.authHeaders || connection.providerSpecificData?.authHeaders;
+      const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", connection.apiKey, {
+        "Content-Type": "application/json",
+        "x-api-key": connection.apiKey,
+        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${connection.apiKey}`
+      });
+
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": connection.apiKey,
-          "anthropic-version": "2023-06-01",
-          "Authorization": `Bearer ${connection.apiKey}`
-        },
+        headers,
       });
 
       if (!response.ok) {

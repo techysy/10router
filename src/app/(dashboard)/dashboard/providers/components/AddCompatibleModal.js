@@ -50,16 +50,34 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const [checkModelId, setCheckModelId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [modelsHeaderName, setModelsHeaderName] = useState("");
+  const [modelsHeaderValue, setModelsHeaderValue] = useState("{apiKey}");
+
+  const buildAuthHeaders = () => {
+    if (modelsHeaderName.trim()) {
+      return {
+        models: {
+          [modelsHeaderName.trim()]: modelsHeaderValue.trim() || "{apiKey}",
+        },
+      };
+    }
+    return undefined;
+  };
 
   // openai: reset baseUrl when apiType changes; anthropic: reset checks when opened
   useEffect(() => {
     if (config.hasApiType) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData((prev) => ({ ...prev, baseUrl: config.defaultBaseUrl }));
     } else if (isOpen) {
       setValidationResult(null);
       setCheckKey("");
       setCheckModelId("");
       setSubmitError("");
+      setShowAdvanced(false);
+      setModelsHeaderName("");
+      setModelsHeaderValue("{apiKey}");
     }
   }, [config.hasApiType ? formData.apiType : isOpen]);
 
@@ -77,6 +95,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           ...(config.hasApiType ? { apiType: formData.apiType } : {}),
           baseUrl: formData.baseUrl,
           type: config.type,
+          authHeaders: buildAuthHeaders(),
         }),
       });
       const data = await res.json();
@@ -86,6 +105,9 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
         setCheckKey("");
         setValidationResult(null);
         setSubmitError("");
+        setShowAdvanced(false);
+        setModelsHeaderName("");
+        setModelsHeaderValue("{apiKey}");
       } else {
         setSubmitError(data?.error || "Failed to create provider");
       }
@@ -108,6 +130,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           apiKey: checkKey,
           type: config.type,
           modelId: checkModelId.trim() || undefined,
+          authHeaders: buildAuthHeaders(),
         }),
       });
       const data = await res.json();
@@ -185,6 +208,42 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           placeholder={config.modelIdPlaceholder}
           hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
         />
+
+        {/* Issue #92: Advanced Custom Auth Headers (e.g. for Loomy token: {apiKey}) */}
+        <div className="rounded-lg border border-border/60 bg-surface-2/30 p-3">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex w-full items-center justify-between text-xs font-medium text-text-muted hover:text-text-main"
+          >
+            <span>Advanced / Custom Headers</span>
+            <span className="material-symbols-outlined text-[16px]">
+              {showAdvanced ? "expand_less" : "expand_more"}
+            </span>
+          </button>
+          {showAdvanced && (
+            <div className="mt-3 flex flex-col gap-2 pt-2 border-t border-border/40">
+              <span className="text-[11px] text-text-muted">
+                Custom Header for /models Discovery (e.g. iFlytek Loomy requires &apos;token: &#123;apiKey&#125;&apos;)
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  label="Header Name"
+                  placeholder="e.g. token"
+                  value={modelsHeaderName}
+                  onChange={(e) => setModelsHeaderName(e.target.value)}
+                />
+                <Input
+                  label="Header Value Template"
+                  placeholder="{apiKey}"
+                  value={modelsHeaderValue}
+                  onChange={(e) => setModelsHeaderValue(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button
             onClick={handleValidate}
