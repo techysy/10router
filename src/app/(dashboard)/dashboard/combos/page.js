@@ -795,7 +795,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
   );
 }
 
-function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+function ModelItem({ id, index, model, isFirst, isLast, disabled, onEdit, onMoveUp, onMoveDown, onRemove, onToggleDisabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -838,8 +838,18 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </svg>
       </button>
 
+      {/* Enable/disable toggle (issue #91 方案 A)：禁用置灰保留排序位，调度展开时跳过 */}
+      <button
+        type="button"
+        onClick={onToggleDisabled}
+        className={`shrink-0 rounded p-0.5 transition-colors ${disabled ? "text-text-muted/30 hover:text-text-muted" : "text-emerald-500 hover:bg-emerald-500/10"}`}
+        title={disabled ? "Disabled — scheduler skips this entry (click to enable)" : "Enabled (click to disable without removing)"}
+      >
+        <span className="material-symbols-outlined text-[14px]">{disabled ? "toggle_off" : "toggle_on"}</span>
+      </button>
+
       {/* Index badge */}
-      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
+      <span className={`text-[10px] font-medium w-3 text-center shrink-0 ${disabled ? "text-text-muted/30" : "text-text-muted"}`}>{index + 1}</span>
 
       {/* Inline editable model value */}
       {editing ? (
@@ -853,7 +863,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         />
       ) : (
         <div
-          className="min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5"
+          className={`min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs hover:bg-black/5 dark:hover:bg-white/5 ${disabled ? "text-text-muted/40 line-through" : "text-text-main"}`}
           onClick={() => setEditing(true)}
           title="Click to edit"
         >
@@ -897,6 +907,10 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   // Initialize state with combo values - key prop on parent handles reset on remount
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
+  // 旁挂禁用清单（issue #91 方案 A）：models 保序，禁用 id 存这里
+  const [disabledModels, setDisabledModels] = useState(
+    Array.isArray(combo?.disabledModels) ? combo.disabledModels.filter((m) => (combo?.models || []).includes(m)) : []
+  );
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -964,10 +978,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
 
   const handleDeselectModel = (model) => {
     setModels(models.filter((m) => m !== model.value));
+    setDisabledModels(disabledModels.filter((m) => m !== model.value));
   };
 
   const handleRemoveModel = (index) => {
+    const removed = models[index];
     setModels(models.filter((_, i) => i !== index));
+    setDisabledModels(disabledModels.filter((m) => m !== removed));
+  };
+
+  const handleToggleDisabled = (index) => {
+    const model = models[index];
+    setDisabledModels(disabledModels.includes(model)
+      ? disabledModels.filter((m) => m !== model)
+      : [...disabledModels, model]);
   };
 
   const handleMoveUp = (index) => {
@@ -987,7 +1011,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   const handleSave = async () => {
     if (!validateName(name)) return;
     setSaving(true);
-    await onSave({ name: name.trim(), models });
+    await onSave({ name: name.trim(), models, disabledModels });
     setSaving(false);
   };
 
@@ -1036,14 +1060,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                       model={model}
                       isFirst={index === 0}
                       isLast={index === modelItems.length - 1}
+                      disabled={disabledModels.includes(model)}
                       onEdit={(newVal) => {
                         const updated = [...models];
                         updated[index] = newVal;
                         setModels(updated);
+                        // 禁用清单记的是 id——改名时同步，否则禁用状态静默丢失
+                        if (disabledModels.includes(model)) {
+                          setDisabledModels(disabledModels.map((m) => (m === model ? newVal : m)));
+                        }
                       }}
                       onMoveUp={() => handleMoveUp(index)}
                       onMoveDown={() => handleMoveDown(index)}
                       onRemove={() => handleRemoveModel(index)}
+                      onToggleDisabled={() => handleToggleDisabled(index)}
                     />
                   ))}
                 </div>

@@ -5,11 +5,13 @@ import Modal from "./Modal";
 import Input from "./Input";
 import Button from "./Button";
 import ModelSelectModal from "./ModelSelectModal";
+import { cn } from "@/shared/utils/cn";
 
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 
-// Inline editable model item
-function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+// Inline editable model item. disabled=true 时置灰保留排序位（issue #91 方案 A），
+// 调度层展开时跳过——活动渠道额度耗尽不必删条目，重新启用一键恢复首选位。
+function ModelItem({ index, model, isFirst, isLast, disabled, onEdit, onMoveUp, onMoveDown, onRemove, onToggleDisabled }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(model);
   const commit = () => {
@@ -23,13 +25,20 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
     if (e.key === "Escape") { setDraft(model); setEditing(false); }
   };
   return (
-    <div className="group flex min-w-0 items-center gap-1.5 rounded-md bg-black/[0.02] px-2 py-1 transition-colors hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
-      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
+    <div className={cn("group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
+      disabled ? "bg-black/[0.02] dark:bg-white/[0.02]" : "bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04]")}>
+      <button onClick={onToggleDisabled}
+        className={`shrink-0 rounded p-0.5 transition-colors ${disabled ? "text-text-muted/30 hover:text-text-muted" : "text-emerald-500 hover:bg-emerald-500/10"}`}
+        title={disabled ? "Disabled — scheduler skips this entry (click to enable)" : "Enabled (click to disable without removing)"}>
+        <span className="material-symbols-outlined text-[14px]">{disabled ? "toggle_off" : "toggle_on"}</span>
+      </button>
+      <span className={`text-[10px] font-medium w-3 text-center shrink-0 ${disabled ? "text-text-muted/30" : "text-text-muted"}`}>{index + 1}</span>
       {editing ? (
         <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown}
           className="min-w-0 flex-1 rounded border border-primary/40 bg-white px-1.5 py-0.5 font-mono text-xs text-text-main outline-none dark:bg-black/20" />
       ) : (
-        <div className="min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5"
+        <div className={cn("min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs hover:bg-black/5 dark:hover:bg-white/5",
+          disabled ? "text-text-muted/40 line-through" : "text-text-main")}
           onClick={() => setEditing(true)} title="Click to edit">{model}</div>
       )}
       <div className="flex shrink-0 items-center gap-0.5">
@@ -57,6 +66,10 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
     : "";
   const [name, setName] = useState(initialName);
   const [models, setModels] = useState(combo?.models || []);
+  // 旁挂禁用清单（issue #91 方案 A）：models 数组保持原序，禁用的 id 存这里
+  const [disabledModels, setDisabledModels] = useState(
+    Array.isArray(combo?.disabledModels) ? combo.disabledModels.filter((m) => (combo?.models || []).includes(m)) : []
+  );
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -88,8 +101,19 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
   };
   const handleDeselectModel = (model) => {
     setModels(models.filter((m) => m !== model.value));
+    setDisabledModels(disabledModels.filter((m) => m !== model.value));
   };
-  const handleRemoveModel = (i) => setModels(models.filter((_, idx) => idx !== i));
+  const handleRemoveModel = (i) => {
+    const removed = models[i];
+    setModels(models.filter((_, idx) => idx !== i));
+    setDisabledModels(disabledModels.filter((m) => m !== removed));
+  };
+  const handleToggleDisabled = (i) => {
+    const model = models[i];
+    setDisabledModels(disabledModels.includes(model)
+      ? disabledModels.filter((m) => m !== model)
+      : [...disabledModels, model]);
+  };
   const handleMoveUp = (i) => {
     if (i === 0) return;
     const a = [...models]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; setModels(a);
@@ -102,7 +126,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
   const handleSave = async () => {
     if (!validateName(name)) return;
     setSaving(true);
-    await onSave({ name: forcePrefix + name.trim(), models });
+    await onSave({ name: forcePrefix + name.trim(), models, disabledModels });
     setSaving(false);
   };
 
@@ -143,10 +167,18 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
                 {models.map((model, index) => (
                   <ModelItem key={index} index={index} model={model}
                     isFirst={index === 0} isLast={index === models.length - 1}
-                    onEdit={(v) => { const a = [...models]; a[index] = v; setModels(a); }}
+                    disabled={disabledModels.includes(model)}
+                    onEdit={(v) => {
+                      const a = [...models]; a[index] = v; setModels(a);
+                      // 禁用清单记的是 id——改名时同步，否则禁用状态静默丢失
+                      if (disabledModels.includes(model)) {
+                        setDisabledModels(disabledModels.map((m) => (m === model ? v : m)));
+                      }
+                    }}
                     onMoveUp={() => handleMoveUp(index)}
                     onMoveDown={() => handleMoveDown(index)}
-                    onRemove={() => handleRemoveModel(index)} />
+                    onRemove={() => handleRemoveModel(index)}
+                    onToggleDisabled={() => handleToggleDisabled(index)} />
                 ))}
               </div>
             )}

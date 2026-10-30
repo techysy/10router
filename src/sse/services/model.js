@@ -109,7 +109,9 @@ export async function getComboModels(modelStr) {
 
   const combo = await getComboByName(modelStr);
   if (combo && combo.models && combo.models.length > 0) {
-    return combo.models;
+    // issue #91 方案 A：过滤手动禁用的条目（旁挂 disabledModels，models 排序位不动）
+    const dis = Array.isArray(combo.disabledModels) ? new Set(combo.disabledModels) : null;
+    return dis ? combo.models.filter((m) => !dis.has(m)) : combo.models;
   }
   return null;
 }

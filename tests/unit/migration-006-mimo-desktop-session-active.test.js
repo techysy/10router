@@ -78,9 +78,12 @@ describe("migration 006: mimo-desktop session rows flip untested → active", ()
     expect(row.data).toBe("not-json{{"); // byte-identical
   });
 
-  it("is registered as the latest migration", async () => {
+  it("is registered in the migration chain (watermark follows new migrations)", async () => {
     const { MIGRATIONS } = await import("@/lib/db/migrations/index.js");
-    expect(MIGRATIONS.at(-1).version).toBe(6);
-    expect(MIGRATIONS.at(-1).name).toBe("mimo-desktop-session-active");
+    const m006 = MIGRATIONS.find((m) => m.version === 6);
+    expect(m006?.name).toBe("mimo-desktop-session-active");
+    // 007（issue #91 combo-disabled-models）之后的最新水位
+    expect(MIGRATIONS.at(-1).version).toBe(7);
+    expect(MIGRATIONS.at(-1).name).toBe("combo-disabled-models");
   });
 });

@@ -266,6 +266,22 @@ export function resetComboRotation(comboName) {
 }
 
 /**
+ * Filter disabled entries out of a combo's model list (issue #91 方案 A).
+ * disabledModels 是旁挂数组（combos.disabledModels），models 数组本身不动——
+ * 排序位天然保留，编辑器置灰即可恢复。全禁用时返回空数组：上层 fallback
+ * 循环零次后报「无可用模型」，比静默打到禁用渠道诚实。
+ * @param {string[]} models
+ * @param {string[]|null|undefined} disabledModels
+ * @returns {string[]}
+ */
+export function filterDisabledComboModels(models, disabledModels) {
+  if (!Array.isArray(models)) return models;
+  if (!Array.isArray(disabledModels) || disabledModels.length === 0) return models;
+  const disabled = new Set(disabledModels);
+  return models.filter((m) => !disabled.has(m));
+}
+
+/**
  * Get combo models from combos data
  * @param {string} modelStr - Model string to check
  * @param {Array|Object} combosData - Array of combos or object with combos
@@ -274,13 +290,13 @@ export function resetComboRotation(comboName) {
 export function getComboModelsFromData(modelStr, combosData) {
   // Don't check if it's in provider/model format
   if (modelStr.includes("/")) return null;
-  
+
   // Handle both array and object formats
   const combos = Array.isArray(combosData) ? combosData : (combosData?.combos || []);
-  
+
   const combo = combos.find(c => c.name === modelStr);
   if (combo && combo.models && combo.models.length > 0) {
-    return combo.models;
+    return filterDisabledComboModels(combo.models, combo.disabledModels);
   }
   return null;
 }

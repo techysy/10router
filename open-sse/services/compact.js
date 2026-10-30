@@ -11,13 +11,15 @@
 export function getComboModelsFromData(modelStr, combosData) {
   // Don't check if it's in provider/model format
   if (modelStr.includes("/")) return null;
-  
+
   // Handle both array and object formats
   const combos = Array.isArray(combosData) ? combosData : (combosData?.combos || []);
-  
+
   const combo = combos.find(c => c.name === modelStr);
   if (combo && combo.models && combo.models.length > 0) {
-    return combo.models;
+    // 与 combo.js filterDisabledComboModels 同款（本文件刻意零依赖，勿改回 import）
+    const dis = Array.isArray(combo.disabledModels) ? new Set(combo.disabledModels) : null;
+    return dis ? combo.models.filter((m) => !dis.has(m)) : combo.models;
   }
   return null;
 }
