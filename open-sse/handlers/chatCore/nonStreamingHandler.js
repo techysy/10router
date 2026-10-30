@@ -15,6 +15,7 @@ import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { restoreGeminiToolName } from "../../translator/concerns/geminiTools.js";
+import { restoreBody } from "../../privacy/streamRestorer.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
 
 function parseToolArguments(value) {
@@ -344,7 +345,7 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 /**
  * Handle non-streaming response from provider.
  */
-export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, trackDone, appendLog, pxpipe, reqTag, log }) {
+export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, trackDone, appendLog, pxpipe, reqTag, log, privacyCtx }) {
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
   let responseBody;
@@ -485,6 +486,11 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       headers["request-id"] = `req_${Date.now()}`;
     }
   }
+
+  // Privacy restore (issue #90): placeholders the model echoed back are
+  // reversed against the outbound mapping before the body reaches the client.
+  // Unknown placeholders pass through inertly (leak-safe direction).
+  if (privacyCtx?.map?.size) restoreBody(translatedResponse, privacyCtx.map);
 
   return {
     success: true,

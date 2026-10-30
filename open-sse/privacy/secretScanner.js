@@ -30,6 +30,25 @@ import {
   MAX_WALK_DEPTH,
 } from "./constants.js";
 
+// ── per-connection opt-in (phase 2 wiring) ─────────────────────────────────
+
+/**
+ * Whether privacy redaction is ON for this account attempt. Explicit opt-in
+ * only: `credentials.providerSpecificData.privacy` as `true` or
+ * `{ enabled: true }` (same plumbing as strictProxy). No provider-class
+ * defaults yet — shipping silent redaction on any channel by default would
+ * break operators relying on zero behavior change (issue #90 phase 3 adds
+ * the dashboard toggle + trust-level defaults).
+ * @param {object|null} credentials
+ * @returns {boolean}
+ */
+export function privacyEnabledFor(credentials) {
+  const p = credentials?.providerSpecificData?.privacy;
+  if (p === true) return true;
+  if (p && typeof p === "object" && p.enabled === true) return true;
+  return false;
+}
+
 // ── salt ────────────────────────────────────────────────────────────────────
 
 /**

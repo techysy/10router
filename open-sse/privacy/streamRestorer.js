@@ -121,3 +121,96 @@ export function createStreamRestorer(map) {
     },
   };
 }
+
+// ── structured-chunk restore (stream.js mount, phase 2) ─────────────────────
+
+// Only model-generated text payload fields ride the sliding window. Whitelist
+// matters: pushing id/model/finish_reason strings would hold back innocent
+// trailing underscores and delay whole frames. `delta` is the Responses-API
+// output_text delta field (string), distinct from OpenAI's delta *object*.
+const RESTORE_FIELDS = new Set(["content", "reasoning_content", "thinking", "text", "arguments", "delta"]);
+const MAX_CHUNK_DEPTH = 12;
+
+/**
+ * Multi-window restorer for structured SSE chunks. Each text-payload field
+ * is its own continuous stream (content ≠ thinking ≠ each tool_call's
+ * arguments), so windows are keyed by the field's path inside the chunk and
+ * state persists across chunks of the same stream.
+ *
+ * Mutates the chunk in place. Call restoreChunk() before serializing each
+ * translated chunk; call flushLost() when the stream ends to account for a
+ * partial placeholder the model left unterminated (truncation scenario —
+ * those chars were held but never completed; see stream.js flush).
+ *
+ * @param {Map<string,string>|null} map placeholder → secret
+ * @returns {{ restoreChunk(item: object): boolean, flushLost(): string }}
+ */
+export function createChunkRestorer(map) {
+  const windows = new Map(); // path → single-window restorer
+
+  const windowFor = (path) => {
+    let w = windows.get(path);
+    if (!w) {
+      w = createStreamRestorer(map);
+      windows.set(path, w);
+    }
+    return w;
+  };
+
+  return {
+    /**
+     * Restore every whitelisted text field of one structured chunk.
+     * @param {object} item client-format chunk (mutated in place)
+     * @returns {boolean} true when any text changed (callers that forward the
+     *   original serialized line instead of re-serializing must re-serialize)
+     */
+    restoreChunk(item) {
+      if (!item || typeof item !== "object" || !map || map.size === 0) return false;
+      let replaced = false;
+      try {
+        const walk = (node, path, depth) => {
+          if (node == null || typeof node !== "object" || depth > MAX_CHUNK_DEPTH) return;
+          if (Array.isArray(node)) {
+            for (let i = 0; i < node.length; i++) walk(node[i], `${path}[${i}]`, depth + 1);
+            return;
+          }
+          for (const key of Object.keys(node)) {
+            const value = node[key];
+            const fieldPath = `${path}.${key}`;
+            if (typeof value === "string") {
+              if (RESTORE_FIELDS.has(key) && value.length > 0) {
+                const safe = windowFor(fieldPath).push(value);
+                if (safe !== value) {
+                  node[key] = safe;
+                  replaced = true;
+                }
+              }
+            } else if (value && typeof value === "object") {
+              walk(value, fieldPath, depth + 1);
+            }
+          }
+        };
+        walk(item, "", 0);
+      } catch {
+        return replaced; // fail-open: keep whatever was restored
+      }
+      return replaced;
+    },
+
+    /**
+     * Stream ended: emit the fragments each window still held (a partial
+     * placeholder the model never finished — truncation only). Returned text
+     * is inert (placeholders here never matched a full secret), so it can be
+     * surfaced or dropped by the caller; either way nothing leaks.
+     * @returns {string}
+     */
+    flushLost() {
+      let lost = "";
+      for (const w of windows.values()) {
+        const tail = w.flush();
+        if (tail) lost += tail;
+      }
+      return lost;
+    },
+  };
+}

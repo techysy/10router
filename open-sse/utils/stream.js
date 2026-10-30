@@ -50,7 +50,8 @@ export function createSSEStream(options = {}) {
     connectionId = null,
     body = null,
     onStreamComplete = null,
-    apiKey = null
+    apiKey = null,
+    privacyCtx = null
   } = options;
 
   let buffer = "";
@@ -157,6 +158,18 @@ export function createSSEStream(options = {}) {
     }
 
     if (onStreamComplete) {
+      // Privacy (issue #90): the sliding windows may still hold the tail of a
+      // placeholder the model never finished (truncation only). Those chars
+      // were held back and can no longer reach a frame — account for them so
+      // the row is not booked as a byte-perfect success. Inert text either way.
+      let restoreLost = 0;
+      if (privacyCtx?.chunkRestorer) {
+        const lost = privacyCtx.chunkRestorer.flushLost();
+        if (lost) {
+          restoreLost = lost.length;
+          console.warn(`[PRIVACY] stream ended with ${lost.length} chars of unterminated placeholder fragment(s) held (truncated output) — not restorable, not forwarded`);
+        }
+      }
       onStreamComplete({
         content: accumulatedContent,
         thinking: accumulatedThinking,
@@ -165,6 +178,7 @@ export function createSSEStream(options = {}) {
         // success, and so dropped content is not invisible.
         incomplete: endedWithoutTerminal,
         parseFailures,
+        ...(restoreLost ? { restoreLost } : {}),
       }, settledUsage, ttftAt);
     }
   };
@@ -268,6 +282,14 @@ export function createSSEStream(options = {}) {
 
               if (!hasValuableContent(parsed, FORMATS.OPENAI)) {
                 continue;
+              }
+
+              // Privacy restore (issue #90): model output text rides the
+              // sliding-window restorer per field path BEFORE accumulation and
+              // serialization; a replacement forces re-serializing the chunk
+              // since the original raw line still carries the placeholder.
+              if (privacyCtx?.chunkRestorer?.restoreChunk(parsed)) {
+                fieldsInjected = true;
               }
 
               const delta = parsed.choices?.[0]?.delta;
@@ -454,6 +476,13 @@ export function createSSEStream(options = {}) {
               continue; // Skip this empty chunk
             }
 
+            // Privacy restore (issue #90): structured client-format chunk —
+            // slide each text payload field (content/thinking/text/arguments)
+            // through its window BEFORE formatSSE serializes the frame, so a
+            // placeholder the upstream tokenizer split across chunks reassembles
+            // here and the client only ever sees the restored secret.
+            if (privacyCtx?.chunkRestorer) privacyCtx.chunkRestorer.restoreChunk(item);
+
             // Inject estimated usage if finish chunk has no valid usage
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
@@ -614,7 +643,7 @@ export function createSSEStream(options = {}) {
   });
 }
 
-export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, customToolNames = null) {
+export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, customToolNames = null, privacyCtx = null) {
   return createSSEStream({
     mode: STREAM_MODE.TRANSLATE,
     targetFormat,
@@ -627,11 +656,12 @@ export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, p
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    privacyCtx
   });
 }
 
-export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, privacyCtx = null) {
   return createSSEStream({
     mode: STREAM_MODE.PASSTHROUGH,
     provider,
@@ -640,6 +670,7 @@ export function createPassthroughStreamWithLogger(provider = null, reqLogger = n
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    privacyCtx
   });
 }

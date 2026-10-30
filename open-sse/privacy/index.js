@@ -11,6 +11,7 @@
 // issue #90. Conventions identical to rtk/: fail-open, in-place mutation,
 // never throw into the request path.
 export {
+  privacyEnabledFor,
   resolvePrivacySalt,
   createRedactionContext,
   scanText,
@@ -20,4 +21,5 @@ export {
   restoreText,
   restoreBody,
   createStreamRestorer,
+  createChunkRestorer,
 } from "./streamRestorer.js";
