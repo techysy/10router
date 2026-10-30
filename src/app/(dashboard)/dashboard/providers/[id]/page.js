@@ -25,6 +25,7 @@ import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
 import AddApiKeyModal from "./AddApiKeyModal";
+import LoomySmsModal from "../components/LoomySmsModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
@@ -78,6 +79,7 @@ export default function ProviderDetailPage() {
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
   const [showCodeBuddyImport, setShowCodeBuddyImport] = useState(false);
@@ -2418,6 +2420,11 @@ export default function ProviderDetailPage() {
                         </span>
                       ) : "Add Connection")}
                     </Button>
+                    {providerId === "loomy" && (
+                      <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                        {translate("SMS Login")}
+                      </Button>
+                    )}
                     {renderOAuthTransferButtons()}
                   </>
                 )}
@@ -2514,6 +2521,11 @@ export default function ProviderDetailPage() {
                       >
                         Add
                       </Button>
+                      {providerId === "loomy" && (
+                        <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                          {translate("SMS Login")}
+                        </Button>
+                      )}
                       {renderOAuthTransferButtons("w-full sm:w-auto")}
                       {hasClaimCheckin && renderQoderCheckinBlock()}
                     </>
@@ -2695,6 +2707,13 @@ export default function ProviderDetailPage() {
           setShowAddApiKeyModal(false);
         }}
       />
+      {providerId === "loomy" && showLoomySmsModal && (
+        <LoomySmsModal
+          isOpen
+          onClose={() => setShowLoomySmsModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
       <EditConnectionModal
         isOpen={showEditModal}
         connection={selectedConnection}
