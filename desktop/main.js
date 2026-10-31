@@ -905,6 +905,7 @@ const UPDATE_HTML = path.join(__dirname, 'update-window.html');
 const UPDATE_PRELOAD = path.join(__dirname, 'preload-update.js');
 let updateWin = null;
 let updateDlCtrl = null;                       // 下载中的 AbortController(关窗/取消 → abort)
+let backgroundDlCtrl = null;                   // 后台静默预下载的 AbortController(手动下载启动时 abort,防两路并发写同一临时文件)
 let updateView = { state: 'checking' };        // 最近一次推给页面的状态(页面晚加载时由 bootstrap 补发)
 let updateCtx = { phase: 'check', inst: null, file: null };   // error 态「重试」所需的上下文
 
@@ -1161,6 +1162,12 @@ async function downloadInstallerToTemp(inst, onProgress, signal) {
 // 下载中:进度推页(got/total,页面格式化 % 与 MB)+ 任务栏进度条;
 // 关窗/取消按钮 → AbortController → 静默结束;失败 → error 态(可重试)
 function startUpdateDownload(inst) {
+    // 后台静默预下载在途则先中止（它无 UI、失败静默等下个周期）——两路并发写
+    // 同一个 temp 安装包文件会互相损坏
+    if (backgroundDlCtrl) {
+        try { backgroundDlCtrl.abort(); } catch { /* noop */ }
+        backgroundDlCtrl = null;
+    }
     updateCtx.phase = 'download';
     const ctrl = new AbortController();
     updateDlCtrl = ctrl;
@@ -1302,7 +1309,7 @@ async function backgroundCheckForUpdates() {
         });
         if (action === 'pre-download') {
             // 前台正在手动下载中则避让，不发起并发预下载
-            if (!updateDlCtrl) {
+            if (!updateDlCtrl && !backgroundDlCtrl) {
                 await backgroundPreDownload(info.latestVersion);
             }
         } else if (action === 'notify-ready') {
@@ -1330,15 +1337,19 @@ async function backgroundCheckForUpdates() {
 // 静默预下载:无进度 UI(downloadInstallerToTemp 的 onProgress 传 null 即可,
 // SHA256 校验内建),成功后 updateCtx 进入 install 态——用户点「立即安装」秒装。
 async function backgroundPreDownload(latestVersion) {
-    if (updateDlCtrl) return;
+    if (updateDlCtrl || backgroundDlCtrl) return;
     let inst = null;
     try {
         inst = await resolveInstaller(latestVersion);
     } catch { /* release 未发布 / 网络失败 → 静默,等下个周期 */ }
-    if (!inst) return;
-    if (updateDlCtrl) return;
+    if (!inst || updateDlCtrl || backgroundDlCtrl) return;
+    // 在途标志全程持有：两路（后台/手动）写的是同一个 temp 路径（asset.name），
+    // 并发写会互相损坏——手动路径启动时会 abort 这条腿，SHA256 门只是最后防线
+    const ctrl = new AbortController();
+    backgroundDlCtrl = ctrl;
     try {
-        const file = await downloadInstallerToTemp(inst, null, null);
+        const file = await downloadInstallerToTemp(inst, null, ctrl.signal);
+        if (ctrl.signal.aborted || backgroundDlCtrl !== ctrl) return;
         updateCtx.phase = 'install';
         updateCtx.inst = inst;
         updateCtx.file = file;
@@ -1354,7 +1365,9 @@ async function backgroundPreDownload(latestVersion) {
                 tr('update.readyBalloonBody', { latest: inst.version })
             );
         }
-    } catch { /* 下载/校验失败静默,等下个周期或手动检查 */ }
+    } catch { /* 下载/校验失败静默,等下个周期或手动检查 */ } finally {
+        if (backgroundDlCtrl === ctrl) backgroundDlCtrl = null;
+    }
 }
 
 // 调度:启动 30s 后首检(避开启动高峰),之后每 6h 一轮;.unref() 不阻塞退出。
@@ -1383,7 +1396,7 @@ function startUpdateRequestPolling() {
         if (quitting) return;
         const req = updateRequest.consumeUpdateRequest(DATA_DIR);
         if (!req) return;
-        if (updateDlCtrl) {
+        if (updateDlCtrl || backgroundDlCtrl) {
             log('dashboard update request ignored: a download is already running');
             return;
         }

@@ -120,7 +120,10 @@ describe("main.js wiring (后台路径)", () => {
             main.indexOf("async function backgroundPreDownload("),
             main.indexOf("function scheduleBackgroundUpdateChecks()")
         );
-        expect(fn).toContain("downloadInstallerToTemp(inst, null, null)");
+        // 下载腿持有自己的 AbortController（手动下载启动时会 abort 它），
+        // 完成后须复核仍是在途者本人再落 install 态
+        expect(fn).toContain("downloadInstallerToTemp(inst, null, ctrl.signal)");
+        expect(fn).toContain("if (ctrl.signal.aborted || backgroundDlCtrl !== ctrl) return;");
         expect(fn).toContain("updateCtx.phase = 'install'");
         expect(fn).not.toContain("installDownloadedUpdate");
     });
