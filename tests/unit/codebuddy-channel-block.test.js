@@ -93,7 +93,8 @@ describe("CodeBuddy 11128 unapproved channel — channel-scope classification", 
 
   it("keeps the pre-existing rules intact (no regression)", () => {
     expect(checkFallbackError(401, "unauthorized").cooldownMs).toBe(2 * 60 * 1000);
-    expect(checkFallbackError(402, "payment required").cooldownMs).toBe(2 * 60 * 1000);
+    // 402 欠费走 30 分钟计费冷却（issue #91 方案 B：余额/活动包耗尽不在秒级自愈）
+    expect(checkFallbackError(402, "payment required").cooldownMs).toBe(30 * 60 * 1000);
     expect(checkFallbackError(403, "forbidden").cooldownMs).toBe(2 * 60 * 1000);
     expect(checkFallbackError(404, "not found").cooldownMs).toBe(2 * 60 * 1000);
     expect(checkFallbackError(429, "slow down").backoff).toBeUndefined(); // backoff path, not fixed

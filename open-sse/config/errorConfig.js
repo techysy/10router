@@ -52,6 +52,13 @@ export const TRANSIENT_COOLDOWN_MS = 30 * 1000;
 // Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h)
 export const MAX_RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000;
 
+// 402 Payment Required: 余额/免费活动包耗尽不会在秒级自愈（每日积分也要等次日
+// 登录刷新）。COOLDOWN.long 的 2 分钟只够"错误呈现"，到期后又对同一欠费渠道
+// 发起必败请求（issue #91 方案 B 的实测缺口）。30 分钟避让 + 到期单次重探：
+// 若已充值/活动恢复则成功并清锁，仍欠费则再锁 30 分钟——代价是每 30 分钟一次
+// 探测请求，换来期间每一次请求都零耗时直落下一个健康渠道。
+export const BILLING_COOLDOWN_MS = 30 * 60 * 1000;
+
 // Google-style quota windows (Antigravity 429 RESOURCE_EXHAUSTED with
 // quotaResetDelay) are the account's REAL reset clock — hours by design.
 // Honoring them needs a bigger ceiling than the generic 30min hint cap.
@@ -150,7 +157,7 @@ export const ERROR_RULES = [
 
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },
-  { status: 402, cooldownMs: COOLDOWN.long },
+  { status: 402, cooldownMs: BILLING_COOLDOWN_MS },
   { status: 403, cooldownMs: COOLDOWN.long },
   { status: 404, cooldownMs: COOLDOWN.long },
   { status: 429, backoff: true },

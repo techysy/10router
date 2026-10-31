@@ -1,0 +1,136 @@
+/**
+ * Loomy usage — GET https://loomyad.xunfei.cn/api/v1/points/records?pageNo=1&pageSize=1&recordType=all
+ * Auth: `token: <session>`（与 /models 同款自定义头，issue #92/#93）
+ *
+ * 客户端没有 /points/balance 端点——余额字段就挂在 records 响应 data.data 上：
+ *   balance      永久积分（客户端 UI 就叫「永久积分」，不过期）
+ *   dailyBalance 每日赠送积分剩余（每日登录自动刷新为 5000，上限来自文案口径）
+ * 成功码字符串 '000000'；100002 = 会话不被积分侧识别 → 按客户端协议补调
+ * POST /api/v1/points/first-login（幂等初始化）后重试一次。
+ *
+ * ⚠️ 积分服务与 models/auth 同域 loomyad.xunfei.cn。客户端 points-config 的
+ * ossptest.voicecloud.cn 是测试环境，积分会话表与生产独立——生产 session 打它
+ * 必得 100002（认证层 baseInfo 却活着，极具迷惑性）。绝不要打 ossptest。
+ * 100002 重试后仍失败时只报「积分暂不可查」，绝不误判成登录过期（认证层可能
+ * 仍是好的——issue #93 坑 2）。
+ */
+
+import { proxyAwareFetch } from "../../utils/proxyFetch.js";
+
+const POINTS_RECORDS_URL =
+  "https://loomyad.xunfei.cn/api/v1/points/records?pageNo=1&pageSize=1&recordType=all";
+const POINTS_FIRST_LOGIN_URL = "https://loomyad.xunfei.cn/api/v1/points/first-login";
+/** 客户端文案口径：每日赠送积分在每日登录后自动刷新为 5000（生产响应不回上限） */
+const DAILY_LIMIT_DEFAULT = 5000;
+
+const OK_CODES = new Set(["000000", 0, "0"]);
+const SESSION_UNRECOGNIZED = new Set(["100002", "020002"]);
+
+function toFiniteNumber(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+async function recordsCall(apiKey, proxyOptions) {
+  const response = await proxyAwareFetch(
+    POINTS_RECORDS_URL,
+    {
+      method: "GET",
+      headers: { token: String(apiKey).trim(), Accept: "application/json" },
+    },
+    proxyOptions,
+  );
+  if (response.status === 401 || response.status === 403) {
+    return { status: response.status };
+  }
+  const data = await response.json().catch(() => null);
+  return { status: response.status, data };
+}
+
+async function firstLogin(apiKey, proxyOptions) {
+  // 幂等初始化；失败不阻断——把暴露交给余额重试
+  try {
+    await proxyAwareFetch(
+      POINTS_FIRST_LOGIN_URL,
+      {
+        method: "POST",
+        headers: { token: String(apiKey).trim(), "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({}),
+      },
+      proxyOptions,
+    );
+  } catch { /* best effort */ }
+}
+
+/**
+ * @param {string|null|undefined} apiKey - loomy session（SMS 直登 / 本机导入）
+ * @param {object|null} proxyOptions
+ */
+export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+    return { message: "Loomy session not available. Add a connection (SMS login or paste session) to view points." };
+  }
+
+  try {
+    let result = await recordsCall(apiKey, proxyOptions);
+    if (result.status === 401 || result.status === 403) {
+      return {
+        plan: "Loomy",
+        message: "Loomy authentication failed. The session has expired — log in again (SMS or client).",
+      };
+    }
+
+    let data = result.data;
+    if (data && SESSION_UNRECOGNIZED.has(String(data.code))) {
+      // 按客户端协议补 first-login 初始化后重试一次
+      await firstLogin(apiKey, proxyOptions);
+      result = await recordsCall(apiKey, proxyOptions);
+      data = result.data;
+    }
+
+    if (!data || typeof data !== "object" || (data.code !== undefined && !OK_CODES.has(String(data.code)))) {
+      const desc = data?.desc || data?.message || "";
+      // 认证层可能仍是好的——只报积分面不可查，绝不建议把连接标记失效
+      return {
+        plan: "Loomy",
+        message: desc
+          ? `Loomy points unavailable: ${desc}`
+          : `Loomy points API error (${result.status})`,
+      };
+    }
+
+    const d = data?.data || {};
+    const permanent = toFiniteNumber(d.balance);
+    const dailyRemaining = toFiniteNumber(d.dailyBalance);
+    const dailyLimit = toFiniteNumber(d.dailyLimitPoints, 0) || DAILY_LIMIT_DEFAULT;
+
+    const quotas = {};
+    if (permanent > 0) {
+      // 储值行：单值余额，不过期——Credit-pot 口径（QuotaTable 把 remaining
+      // 当 0-100 百分比，显式 remainingPercentage 表达"还有多少兑多少"）
+      quotas["永久积分"] = {
+        used: 0,
+        total: permanent,
+        remainingPercentage: 100,
+        resetAt: null,
+        unlimited: true,
+      };
+    }
+    if (dailyRemaining > 0 || dailyLimit > 0) {
+      // 每日行：真实 used/total（5000 基数），剩余由表格按百分比呈现
+      quotas["每日赠送积分"] = {
+        used: Math.max(0, dailyLimit - dailyRemaining),
+        total: dailyLimit,
+        resetAt: null,
+      };
+    }
+
+    if (Object.keys(quotas).length === 0) {
+      return { plan: "Loomy", message: "Loomy connected. No points data returned." };
+    }
+
+    return { plan: "Loomy", quotas };
+  } catch (error) {
+    return { message: `Loomy error: ${error.message}` };
+  }
+}
