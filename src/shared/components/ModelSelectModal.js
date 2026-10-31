@@ -199,7 +199,11 @@ export default function ModelSelectModal({
     };
 
     // Get all active provider IDs from connections (filtered by kindFilter if set)
-    const activeConnectionIds = filteredActiveProviders.map(p => p.provider);
+    // 「仅已连接的提供商」= 有**启用中**的连接。isActive=false 的禁用连接
+    // （issue #91 后续）不进可选池——组合里能加进来的必须真的可路由。
+    const activeConnectionIds = filteredActiveProviders
+      .filter((p) => p.isActive !== false)
+      .map((p) => p.provider);
 
     // No-auth providers: filter by kindFilter as well
     const noAuthIds = kindFilter
