@@ -63,6 +63,14 @@ describe("getLoomyUsage — records V1 卡面", () => {
     expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 1494 });
   });
 
+  it("dailyConsumedPoints=0 is read as-is — no phantom used from limit-minus-remaining (CD#42)", async () => {
+    proxyAwareFetch.mockResolvedValue(okRecords(100, 3000, { dailyLimitPoints: 5000, dailyConsumedPoints: 0 }));
+    const { getLoomyUsage } = await import("../../open-sse/services/usage/loomy.js");
+    const usage = await getLoomyUsage(SESSION, null);
+    // 旧 || 链会把如实上报的 0 当缺失 → 倒推 5000-3000=2000 幻影已用
+    expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 0 });
+  });
+
   it("resolves legacy field aliases (permanentPoints/dailyPoints/dailyLimit)", async () => {
     proxyAwareFetch.mockResolvedValue({
       ok: true, status: 200,

@@ -112,7 +112,12 @@ export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
     const dailyRemaining = toFiniteNumber(d.dailyBalance ?? d.dailyPoints ?? d.dailyGiftPoints);
     const dailyLimit =
       toFiniteNumber(d.dailyLimitPoints ?? d.dailyLimit ?? d.daily_limit, 0) || (hasAny ? DAILY_LIMIT_DEFAULT : 0);
-    const dailyUsed = toFiniteNumber(d.dailyConsumedPoints) || Math.max(0, dailyLimit - dailyRemaining);
+    // 服务端上报的 dailyConsumedPoints 存在即直读（哪怕是 0），缺字段才倒推——
+    // || 链会把如实上报的 0 当缺失，倒推出幻影「已用」（CD#42，与 CD loomyClient 同口径修正）
+    const hasConsumed = d.dailyConsumedPoints !== undefined && d.dailyConsumedPoints !== null;
+    const dailyUsed = hasConsumed
+      ? toFiniteNumber(d.dailyConsumedPoints)
+      : Math.max(0, dailyLimit - dailyRemaining);
 
     const quotas = {};
     if (permanent > 0) {
