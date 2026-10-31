@@ -843,7 +843,7 @@ function ModelItem({ id, index, model, isFirst, isLast, disabled, onEdit, onMove
         type="button"
         onClick={onToggleDisabled}
         className={`shrink-0 rounded p-0.5 transition-colors ${disabled ? "text-text-muted/30 hover:text-text-muted" : "text-emerald-500 hover:bg-emerald-500/10"}`}
-        title={disabled ? "Disabled — scheduler skips this entry (click to enable)" : "Enabled (click to disable without removing)"}
+        title={disabled ? translate("Disabled — scheduler skips this entry (click to enable)") : translate("Enabled (click to disable without removing)")}
       >
         <span className="material-symbols-outlined text-[14px]">{disabled ? "toggle_off" : "toggle_on"}</span>
       </button>

@@ -18,6 +18,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
   - Added OpenAI GPT-6.1 Terra (500k context) and Nace Drex decision engine.
   - CommandCode CLI 1.88.0 headers and Gemini Protobuf Schema type constraint enforcement.
 
+- **iFlytek Loomy built-in + SMS login + points card**: Loomy ships natively in the free-tier section (8 live-verified models); log in with a phone code without the desktop client; connections show a points card (permanent + daily gift points).
+- **Combo entry enable/disable + billing fast-fail (#91)**: disable a combo entry without removing it (greyed out, order preserved, scheduler skips instantly); 402 payment-required cooldown raised to 30 minutes.
+- **Per-endpoint custom auth headers for compatible nodes (#92)**: upstreams whose /models auth differs from chat auth (e.g. Loomy) accept a header template — one-click model import works out of the box.
+- **Privacy redaction pipeline (#90)**: outbound secret redaction + inbound restore, per-connection explicit switch (off by default).
 ### 🐛 Fixed
 
 - **Desktop build files packaging fix**: packaged installers now reliably include `updateScheduler.js` to avoid runtime startup crashes.

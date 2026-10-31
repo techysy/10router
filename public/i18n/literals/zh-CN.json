@@ -290,6 +290,8 @@
   "Connection Details": "连接详情",
   "Connection Failed": "连接失败",
   "Connections": "连接",
+  "Disabled — scheduler skips this entry (click to enable)": "已禁用——调度器将跳过该条目（点击启用）",
+  "Enabled (click to disable without removing)": "已启用（点击禁用，无需删除）",
   "Loomy SMS Login": "Loomy 手机验证码登录",
   "Log in with your iFlytek phone number — no Loomy client needed. The session lasts about 14 days and is added as a connection automatically.": "使用讯飞手机号验证码直接登录——无需安装 Loomy 客户端。会话约 14 天有效，登录后自动添加为连接。",
   "Phone Number": "手机号",

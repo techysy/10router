@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { translate } from "@/i18n/runtime";
 import Modal from "./Modal";
 import Input from "./Input";
 import Button from "./Button";
@@ -29,7 +30,7 @@ function ModelItem({ index, model, isFirst, isLast, disabled, onEdit, onMoveUp, 
       disabled ? "bg-black/[0.02] dark:bg-white/[0.02]" : "bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04]")}>
       <button onClick={onToggleDisabled}
         className={`shrink-0 rounded p-0.5 transition-colors ${disabled ? "text-text-muted/30 hover:text-text-muted" : "text-emerald-500 hover:bg-emerald-500/10"}`}
-        title={disabled ? "Disabled — scheduler skips this entry (click to enable)" : "Enabled (click to disable without removing)"}>
+        title={disabled ? translate("Disabled — scheduler skips this entry (click to enable)") : translate("Enabled (click to disable without removing)")}>
         <span className="material-symbols-outlined text-[14px]">{disabled ? "toggle_off" : "toggle_on"}</span>
       </button>
       <span className={`text-[10px] font-medium w-3 text-center shrink-0 ${disabled ? "text-text-muted/30" : "text-text-muted"}`}>{index + 1}</span>

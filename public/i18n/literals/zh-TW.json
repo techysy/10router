@@ -1,4 +1,6 @@
 {
+  "Disabled — scheduler skips this entry (click to enable)": "已停用——排程器將跳過該條目（點擊啟用）",
+  "Enabled (click to disable without removing)": "已啟用（點擊停用，無需移除）",
   "Loomy SMS Login": "Loomy 手機簡訊登入",
   "Log in with your iFlytek phone number — no Loomy client needed. The session lasts about 14 days and is added as a connection automatically.": "使用訊飛手機號碼驗證碼直接登入——無需安裝 Loomy 用戶端。工作階段約 14 天有效，登入後自動新增為連線。",
   "Phone Number": "手機號碼",

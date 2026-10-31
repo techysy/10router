@@ -41,4 +41,9 @@ export default {
   ],
   serviceKinds: ["llm"],
   passthroughModels: true,
+  // 积分额度卡（issue #93）：records 探测出「永久积分 + 每日赠送积分」两张条
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
 };
