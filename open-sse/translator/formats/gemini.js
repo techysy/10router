@@ -368,6 +368,10 @@ const flattenTypeArrays = schemaPass(node => {
 // Infer missing type=object when properties exist (Gemini requires explicit type)
 const ensureObjectType = schemaPass(node => {
   if (node.properties && !node.type) node.type = "object";
+  // {"items": {...}} without type is the legal "array of X" shorthand — claim
+  // it here or enforceTypeConstraints (running later) deletes items and leaves
+  // an empty {} that addPlaceholders (running earlier) can no longer rescue
+  if (!node.type && node.items && typeof node.items === "object" && !node.properties) node.type = "array";
 });
 
 // Convert prefixItems (tuple validation) to items — Gemini cannot express tuples,
