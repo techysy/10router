@@ -106,9 +106,11 @@ export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
 
     const quotas = {};
     if (permanent > 0) {
-      // 储值行：单值余额，不过期——Credit-pot 口径（QuotaTable 把 remaining
-      // 当 0-100 百分比，显式 remainingPercentage 表达"还有多少兑多少"）
+      // 储值行：单值余额，不过期。isCreditBalance 让 QuotaPackBar 把它识别为
+      // stored-value（STORED_VALUE_RE 只认 balance/余额 等词，"永久积分"不在
+      // 内——不加旗标它会掉进资源包池，卡上多出"N 个资源包 + 逐包明细"）
       quotas["永久积分"] = {
+        isCreditBalance: true,
         used: 0,
         total: permanent,
         remainingPercentage: 100,
@@ -117,8 +119,9 @@ export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
       };
     }
     if (dailyRemaining > 0 || dailyLimit > 0) {
-      // 每日行：真实 used/total（5000 基数），剩余由表格按百分比呈现
+      // 每日行：recurring 滚动窗口（每日登录刷新），不是资源包
       quotas["每日赠送积分"] = {
+        recurring: true,
         used: Math.max(0, dailyLimit - dailyRemaining),
         total: dailyLimit,
         resetAt: null,

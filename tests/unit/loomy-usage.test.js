@@ -42,8 +42,9 @@ describe("getLoomyUsage — records V1 卡面", () => {
     expect(init.headers.token).toBe(SESSION);
 
     expect(usage.plan).toBe("Loomy");
-    expect(usage.quotas["永久积分"]).toMatchObject({ total: 10500, used: 0, unlimited: true });
-    expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 5000 - 4119 });
+    // isCreditBalance → QuotaPackBar 储值行渲染（不掉进资源包池）；recurring → 每日滚动窗口
+    expect(usage.quotas["永久积分"]).toMatchObject({ total: 10500, used: 0, unlimited: true, isCreditBalance: true });
+    expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 5000 - 4119, recurring: true });
   });
 
   it("daily row uses the 5000文案上限 even when the response omits dailyLimitPoints", async () => {
