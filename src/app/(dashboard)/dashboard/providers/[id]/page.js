@@ -780,22 +780,9 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const handleRoundRobinToggle = (enabled) => {
-    const strategy = enabled ? "round-robin" : null;
-    const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
-    if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-    setProviderStrategy(strategy);
-    saveProviderStrategy(strategy, sticky, earliestExpiryFirst, balanceStrategy);
-  };
-
   const handleStickyLimitChange = (value) => {
     setProviderStickyLimit(value);
     saveProviderStrategy("round-robin", value, earliestExpiryFirst, balanceStrategy);
-  };
-
-  const handleEarliestExpiryToggle = (enabled) => {
-    setEarliestExpiryFirst(enabled);
-    saveProviderStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
   };
 
   const handlePackOrSubStrategyChange = (value) => {
