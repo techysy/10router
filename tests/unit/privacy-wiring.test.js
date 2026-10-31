@@ -15,6 +15,7 @@ import {
   scanBody,
   createChunkRestorer,
   restoreBody,
+  mountPrivacyRedaction,
 } from "../../open-sse/privacy/index.js";
 
 const SALT = "wiring-test-salt";
@@ -74,6 +75,26 @@ describe("createChunkRestorer — per-field sliding windows over structured chun
     expect(c1.choices[0].delta.content + c2.choices[0].delta.content).toBe(SECRET);
     // arguments stream (its own window): JSON reassembles with the secret inside
     expect(c1.choices[0].delta.tool_calls[0].function.arguments + c2.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"k":"${SECRET}"}`);
+  });
+
+  it("parallel tool_calls deltas get INDEPENDENT windows keyed by the delta `index` field", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    // Two parallel calls interleaved, each echoing the SAME placeholder split
+    // across its own two fragments — every delta carries a single-element
+    // array (position 0); only the `index` field distinguishes the streams.
+    const c1 = { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: `{"a":"${ph.slice(0, 10)}` } }] } }] };
+    const c2 = { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: `{"b":"${ph.slice(0, 10)}` } }] } }] };
+    r.restoreChunk(c1);
+    r.restoreChunk(c2);
+    const c3 = { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: `${ph.slice(10)}"}` } }] } }] };
+    const c4 = { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: `${ph.slice(10)}"}` } }] } }] };
+    r.restoreChunk(c3);
+    r.restoreChunk(c4);
+    expect(c1.choices[0].delta.tool_calls[0].function.arguments
+      + c3.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"a":"${SECRET}"}`);
+    expect(c2.choices[0].delta.tool_calls[0].function.arguments
+      + c4.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"b":"${SECRET}"}`);
   });
 
   it("non-payload fields (id, model, finish_reason) are never touched or held", () => {
@@ -141,18 +162,68 @@ describe("round-trip: outbound scan → model echo → chunked restore → clien
   });
 });
 
+describe("mountPrivacyRedaction — behavioral mount contract (what chatCore calls)", () => {
+  const PRIV = { providerSpecificData: { privacy: true } };
+  const withSalt = async (fn) => {
+    process.env.PRIVACY_SALT = SALT;
+    try { await fn(); } finally { delete process.env.PRIVACY_SALT; }
+  };
+
+  it("redacts on a DEEP CLONE: returned body carries the placeholder, original stays pristine", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: `use ${SECRET} please` }] };
+      const { body: redacted, privacyCtx } = await mountPrivacyRedaction(original, PRIV);
+      expect(redacted).not.toBe(original);
+      expect(redacted.messages[0].content).not.toContain(SECRET);
+      expect(original.messages[0].content).toBe(`use ${SECRET} please`);
+      // response leg is ready: the ctx restorer reverses the placeholder
+      const ph = [...privacyCtx.map.keys()][0];
+      const chunk = { choices: [{ delta: { content: ph } }] };
+      expect(privacyCtx.chunkRestorer.restoreChunk(chunk)).toBe(true);
+      expect(chunk.choices[0].delta.content).toBe(SECRET);
+    });
+  });
+
+  it("nothing to redact → original body BY REFERENCE, ctx null (no restorer overhead)", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: "just chat" }] };
+      const { body: out, privacyCtx } = await mountPrivacyRedaction(original, PRIV);
+      expect(out).toBe(original);
+      expect(privacyCtx).toBeNull();
+    });
+  });
+
+  it("feature off → input untouched, no cloning, ctx null", async () => {
+    const original = { messages: [{ role: "user", content: `use ${SECRET} please` }] };
+    const { body: out, privacyCtx } = await mountPrivacyRedaction(original, { providerSpecificData: {} });
+    expect(out).toBe(original);
+    expect(privacyCtx).toBeNull();
+  });
+
+  it("fail-open: an uncloneable body (DataCloneError) returns the original untouched, ctx null, error surfaced", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: SECRET }], uncloneable: () => {} };
+      const errors = [];
+      const { body: out, privacyCtx } = await mountPrivacyRedaction(original, PRIV, (e) => errors.push(e));
+      expect(out).toBe(original);
+      expect(privacyCtx).toBeNull();
+      expect(errors).toHaveLength(1);
+    });
+  });
+});
+
 describe("mainline wiring pins (mount points and ordering)", () => {
   const chatCore = read("open-sse/handlers/chatCore.js");
 
-  it("outbound scan mounts after account selection, before translation, on a deep copy", () => {
+  it("outbound scan mounts via mountPrivacyRedaction before translation, no inline scan wiring", () => {
     const mount = chatCore.slice(chatCore.indexOf("// ── Privacy redaction"), chatCore.indexOf("let translatedBody"));
     expect(mount).toBeTruthy();
-    expect(mount).toContain("privacyEnabledFor(credentials)");
-    expect(mount).toContain("structuredClone(body)");
-    expect(mount).toContain("createChunkRestorer(privacyCtx.map)");
-    // fail-open: the whole mount is inside a try that nulls the ctx
-    expect(mount).toContain("} catch (e) {");
-    expect(mount).toContain("privacyCtx = null");
+    expect(mount).toContain("mountPrivacyRedaction(body, credentials");
+    // 回归钉（P0 曾把 scanBody 的 stats 返回值当请求体发出）：挂载体内不得手写
+    // 扫描/克隆——克隆与 stats 判定的语义由 mount 行为测试钉死
+    expect(mount).not.toContain("scanBody(");
+    expect(mount).not.toContain("structuredClone");
+    expect(chatCore).not.toContain("body = redacted");
   });
 
   it("per-attempt semantics: the request-line metric and sharedCtx carry the ctx", () => {
@@ -175,6 +246,17 @@ describe("mainline wiring pins (mount points and ordering)", () => {
     // the very next statement forces re-serialization (the raw line still
     // carries the placeholder text the window just replaced)
     expect(passthrough.slice(at, at + 140)).toContain("fieldsInjected = true");
+  });
+
+  it("stream.js Responses same-format lane (codex↔codex) restores parsed chunks BEFORE re-emitting", () => {
+    const s = read("open-sse/utils/stream.js");
+    const at = s.indexOf("keepsOpenAIResponsesFormat && openAIResponsesEventName) {");
+    expect(at).toBeGreaterThan(-1);
+    const lane = s.slice(at, at + 600);
+    const restoreAt = lane.indexOf("chunkRestorer.restoreChunk(parsed)");
+    const formatAt = lane.indexOf("formatSSE(");
+    expect(restoreAt).toBeGreaterThan(-1);
+    expect(formatAt).toBeGreaterThan(restoreAt);
   });
 
   it("stream finish accounts for held placeholder fragments (restoreLost)", () => {

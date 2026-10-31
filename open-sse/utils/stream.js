@@ -447,6 +447,11 @@ export function createSSEStream(options = {}) {
 
         // Responses same-format passthrough: re-emit with original event framing
         if (keepsOpenAIResponsesFormat && openAIResponsesEventName) {
+          // Privacy restore (issue #90): this lane re-serializes parsed directly,
+          // so it restores here too — same invariant as the OpenAI passthrough
+          // and the translate loop (a placeholder echoed by the model must never
+          // reach the client, in every output layer).
+          if (privacyCtx?.chunkRestorer) privacyCtx.chunkRestorer.restoreChunk(parsed);
           const output = formatSSE({ event: openAIResponsesEventName, data: parsed }, sourceFormat);
           reqLogger?.appendConvertedChunk?.(output);
           controller.enqueue(sharedEncoder.encode(output));

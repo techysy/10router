@@ -34,7 +34,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType, sanitizeToolSchemas, shouldSanitizeToolSchemas } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isFreeModel, formatFreeRateLimitMessage } from "../utils/freeModel.js";
-import { privacyEnabledFor, createRedactionContext, resolvePrivacySalt, scanBody, createChunkRestorer } from "../privacy/index.js";
+import { mountPrivacyRedaction } from "../privacy/index.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -182,26 +182,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // ── Privacy redaction (issue #90): per-connection opt-in, off by default ──
   // Mounted BEFORE translation (passthrough included) so placeholders ride
-  // through every translator unchanged, and on a DEEP COPY so the caller's
-  // body stays pristine: chat.js retries the same body on the next account
-  // attempt, and a trusted channel must never receive placeholders minted
-  // for a failed untrusted one. Fail-open: any error skips redaction.
+  // through every translator unchanged. mountPrivacyRedaction works on a DEEP
+  // COPY so the caller's body stays pristine: chat.js retries the same body
+  // on the next account attempt, and a trusted channel must never receive
+  // placeholders minted for a failed untrusted one. Fail-open: any error
+  // skips redaction and returns the original body untouched.
   let privacyCtx = null;
-  if (privacyEnabledFor(credentials)) {
-    try {
-      privacyCtx = createRedactionContext({ salt: await resolvePrivacySalt() });
-      const redacted = scanBody(structuredClone(body), privacyCtx);
-      if (redacted) {
-        body = redacted;
-        privacyCtx.chunkRestorer = createChunkRestorer(privacyCtx.map);
-      } else {
-        privacyCtx = null;
-      }
-    } catch (e) {
-      log?.debug?.("PRIVACY", `redaction skipped: ${e?.message || e}`);
-      privacyCtx = null;
-    }
-  }
+  ({ body, privacyCtx } = await mountPrivacyRedaction(body, credentials, (e) =>
+    log?.debug?.("PRIVACY", `redaction skipped: ${e?.message || e}`),
+  ));
 
   // Expose raw client headers to translators/executors for session-id resolution
   if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};

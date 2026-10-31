@@ -23,3 +23,4 @@ export {
   createStreamRestorer,
   createChunkRestorer,
 } from "./streamRestorer.js";
+export { mountPrivacyRedaction } from "./mount.js";

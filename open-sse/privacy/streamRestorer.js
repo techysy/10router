@@ -171,7 +171,19 @@ export function createChunkRestorer(map) {
         const walk = (node, path, depth) => {
           if (node == null || typeof node !== "object" || depth > MAX_CHUNK_DEPTH) return;
           if (Array.isArray(node)) {
-            for (let i = 0; i < node.length; i++) walk(node[i], `${path}[${i}]`, depth + 1);
+            for (let i = 0; i < node.length; i++) {
+              const el = node[i];
+              // OpenAI streaming tool_calls arrive as one single-element delta
+              // per chunk; parallel calls are distinguished only by the `index`
+              // field inside. Key the window by that index (position is always
+              // 0) or parallel calls share one window and a held partial tail
+              // corrupts the next call's arguments.
+              const idx =
+                path.endsWith(".tool_calls") && el && typeof el === "object" && Number.isInteger(el.index)
+                  ? el.index
+                  : i;
+              walk(el, `${path}[${idx}]`, depth + 1);
+            }
             return;
           }
           for (const key of Object.keys(node)) {
