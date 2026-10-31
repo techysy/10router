@@ -5,6 +5,11 @@
  * 客户端没有 /points/balance 端点——余额字段就挂在 records 响应 data.data 上：
  *   balance      永久积分（客户端 UI 就叫「永久积分」，不过期）
  *   dailyBalance 每日赠送积分剩余（每日登录自动刷新为 5000，上限来自文案口径）
+ *   dailyConsumedPoints 今日已消耗（服务端报了就直读，否则按上限-剩余倒推）
+ * 另兼容少量旧字段名（permanentPoints/currentBalance、dailyPoints/dailyGiftPoints、
+ * dailyLimit/daily_limit，与 CD normalizePointsBalance 同口径）。不提供积分 base 覆盖：
+ * 积分域钉死 loomyad——base 可配正是当年打错 ossptest 测试环境的根因（CD 留了
+ * meta.pointsBaseUrl 逃生门，这里有意不留）。
  * 成功码字符串 '000000'；100002 = 会话不被积分侧识别 → 按客户端协议补调
  * POST /api/v1/points/first-login（幂等初始化）后重试一次。
  *
@@ -100,9 +105,14 @@ export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
     }
 
     const d = data?.data || {};
-    const permanent = toFiniteNumber(d.balance);
-    const dailyRemaining = toFiniteNumber(d.dailyBalance);
-    const dailyLimit = toFiniteNumber(d.dailyLimitPoints, 0) || DAILY_LIMIT_DEFAULT;
+    // hasAny：records 成功但 data.data 为空（积分档案未初始化）时，不凭 5000 文案
+    // 上限凭空造一条「每日赠送积分」行——如实报「无积分数据」
+    const hasAny = Object.keys(d).length > 0;
+    const permanent = toFiniteNumber(d.balance ?? d.permanentPoints ?? d.currentBalance ?? d.longTermPoints);
+    const dailyRemaining = toFiniteNumber(d.dailyBalance ?? d.dailyPoints ?? d.dailyGiftPoints);
+    const dailyLimit =
+      toFiniteNumber(d.dailyLimitPoints ?? d.dailyLimit ?? d.daily_limit, 0) || (hasAny ? DAILY_LIMIT_DEFAULT : 0);
+    const dailyUsed = toFiniteNumber(d.dailyConsumedPoints) || Math.max(0, dailyLimit - dailyRemaining);
 
     const quotas = {};
     if (permanent > 0) {
@@ -118,11 +128,12 @@ export async function getLoomyUsage(apiKey = null, proxyOptions = null) {
         unlimited: true,
       };
     }
-    if (dailyRemaining > 0 || dailyLimit > 0) {
-      // 每日行：recurring 滚动窗口（每日登录刷新），不是资源包
+    if (dailyRemaining > 0 || (hasAny && dailyLimit > 0)) {
+      // 每日行：recurring 滚动窗口（每日登录刷新），不是资源包。
+      // 已消耗数优先直读服务端 dailyConsumedPoints，缺了才按上限-剩余倒推
       quotas["每日赠送积分"] = {
         recurring: true,
-        used: Math.max(0, dailyLimit - dailyRemaining),
+        used: Math.max(0, dailyUsed),
         total: dailyLimit,
         resetAt: null,
       };

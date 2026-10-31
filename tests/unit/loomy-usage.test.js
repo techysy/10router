@@ -12,11 +12,11 @@ vi.mock("../../open-sse/utils/proxyFetch.js", () => ({ proxyAwareFetch }));
 
 const SESSION = "4f27cdd4b0-test-session";
 
-const okRecords = (balance = 10500, dailyBalance = 4119) => ({
+const okRecords = (balance = 10500, dailyBalance = 4119, extra = {}) => ({
   ok: true, status: 200,
   json: async () => ({
     code: "000000", desc: "成功",
-    data: { balance, dailyBalance, list: [], total: 0 },
+    data: { balance, dailyBalance, list: [], total: 0, ...extra },
   }),
   text: async () => "",
 });
@@ -54,6 +54,40 @@ describe("getLoomyUsage — records V1 卡面", () => {
     // 全零：无永久行，每日行仍以 5000 为基数呈现（remaining 0 → 全部已用）
     expect(usage.quotas["永久积分"]).toBeUndefined();
     expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 5000 });
+  });
+
+  it("prefers server-reported dailyConsumedPoints over the limit-minus-remaining guess", async () => {
+    proxyAwareFetch.mockResolvedValue(okRecords(10500, 3506, { dailyLimitPoints: 5000, dailyConsumedPoints: 1494 }));
+    const { getLoomyUsage } = await import("../../open-sse/services/usage/loomy.js");
+    const usage = await getLoomyUsage(SESSION, null);
+    expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 5000, used: 1494 });
+  });
+
+  it("resolves legacy field aliases (permanentPoints/dailyPoints/dailyLimit)", async () => {
+    proxyAwareFetch.mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({
+        code: "000000", desc: "成功",
+        data: { permanentPoints: 100, dailyPoints: 40, dailyLimit: 500, list: [], total: 0 },
+      }),
+      text: async () => "",
+    });
+    const { getLoomyUsage } = await import("../../open-sse/services/usage/loomy.js");
+    const usage = await getLoomyUsage(SESSION, null);
+    expect(usage.quotas["永久积分"].total).toBe(100);
+    expect(usage.quotas["每日赠送积分"]).toMatchObject({ total: 500, used: 460 });
+  });
+
+  it("empty records data reports no-points instead of fabricating a 5000 daily row", async () => {
+    proxyAwareFetch.mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ code: "000000", desc: "成功", data: {} }),
+      text: async () => "",
+    });
+    const { getLoomyUsage } = await import("../../open-sse/services/usage/loomy.js");
+    const usage = await getLoomyUsage(SESSION, null);
+    expect(usage.quotas).toBeUndefined();
+    expect(usage.message).toContain("No points data returned");
   });
 
   it("100002 → POST first-login → retry records once (client protocol)", async () => {
