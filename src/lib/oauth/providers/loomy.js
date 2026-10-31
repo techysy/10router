@@ -19,6 +19,8 @@ export const LOOMY_AUTH_CONFIG = {
 };
 
 const PHONE_RE = /^1[3-9]\d{9}$/;
+/** 路由层限流键预校验用（与 sendLoomySms/loginLoomyBySms 内部同一条规则） */
+export const LOOMY_PHONE_RE = PHONE_RE;
 
 function contentMD5(body) {
   const hash = crypto.createHash("md5").update(body, "utf8").digest();

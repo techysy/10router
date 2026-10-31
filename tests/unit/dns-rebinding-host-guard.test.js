@@ -22,6 +22,7 @@ describe("Issue #43 Item 1: Host header validation & DNS rebinding defense", () 
     process.env.TENROUTER_PEER_TOKEN = "test-token";
     delete process.env.TRUSTED_HOSTS;
     delete process.env.BASE_URL;
+    delete process.env.NEXT_PUBLIC_BASE_URL;
   });
 
   afterEach(() => {
@@ -70,6 +71,15 @@ describe("Issue #43 Item 1: Host header validation & DNS rebinding defense", () 
       expect(isAllowedHost("gw.company.org:8443")).toBe(true);
       expect(isAllowedHost("gw.company.org")).toBe(true);
       expect(isAllowedHost("evil.com")).toBe(false);
+    });
+
+    it("respects NEXT_PUBLIC_BASE_URL host (same fallback pair oidc.js/saml.js honor)", () => {
+      // 免密部署按文档把 NEXT_PUBLIC_BASE_URL 绑到 LAN 主机名后，本机用该
+      // 主机名访问不能被 Host 校验锁在门外（v1.6.2 回归钉）
+      process.env.NEXT_PUBLIC_BASE_URL = "http://192.168.1.5:20128";
+      expect(isAllowedHost("192.168.1.5")).toBe(true);
+      expect(isAllowedHost("192.168.1.5:20128")).toBe(true);
+      expect(isAllowedHost("192.168.1.6")).toBe(false);
     });
   });
 

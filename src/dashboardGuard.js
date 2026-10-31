@@ -163,9 +163,13 @@ export function getTrustedHosts() {
       if (trimmed) list.add(trimmed);
     }
   }
-  if (process.env.BASE_URL) {
+  // Same fallback pair oidc.js/saml.js honor: NEXT_PUBLIC_BASE_URL is the
+  // documented deployment env — a passwordless setup binding it to a LAN
+  // hostname must still pass the Host check when browsed from the host itself.
+  for (const env of [process.env.BASE_URL, process.env.NEXT_PUBLIC_BASE_URL]) {
+    if (!env) continue;
     try {
-      const u = new URL(process.env.BASE_URL);
+      const u = new URL(env);
       const h = extractHostname(u.hostname);
       if (h) list.add(h);
     } catch {}
