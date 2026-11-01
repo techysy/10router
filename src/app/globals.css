@@ -220,22 +220,30 @@
   color: var(--color-text-main);
 }
 
-/* 主操作按钮也换成"贴纸"语言：粗黑描边 + 硬投影 + 黑字（橙底黑字对比度
-   8:1，比原先的橙底白字 2.9:1 更可读）。只作用于 button/a 上的 bg-primary，
-   不碰进度条、徽章之类的同色元素。 */
+/* 主操作按钮也换成"贴纸"语言：粗黑描边 + 硬投影 + 黑字。
+   要同时匹配两个 token：`bg-primary` 是 CSS 变量别名，而 Button 组件的 primary 变体
+   实际写的是 `bg-brand-500`，只兜底前者会漏掉登录页的 Login 按钮（橙底白字，对比度
+   仅 2.9:1）。橙底黑字是 8:1。
+   只作用于 button/a，不碰进度条、徽章之类的同色元素；danger/success 按钮保持白字。 */
 .brutal button[class~="bg-primary"],
-.brutal a[class~="bg-primary"] {
+.brutal button[class~="bg-brand-500"],
+.brutal a[class~="bg-primary"],
+.brutal a[class~="bg-brand-500"] {
   border: 2.5px solid #14131a;
   box-shadow: 3px 3px 0 0 #14131a;
   color: #14131a;
 }
 .brutal button[class~="bg-primary"]:not(:disabled):hover,
-.brutal a[class~="bg-primary"]:hover {
+.brutal button[class~="bg-brand-500"]:not(:disabled):hover,
+.brutal a[class~="bg-primary"]:hover,
+.brutal a[class~="bg-brand-500"]:hover {
   transform: translate(-2px, -2px);
   box-shadow: 5px 5px 0 0 #14131a;
 }
 .brutal button[class~="bg-primary"]:not(:disabled):active,
-.brutal a[class~="bg-primary"]:active {
+.brutal button[class~="bg-brand-500"]:not(:disabled):active,
+.brutal a[class~="bg-primary"]:active,
+.brutal a[class~="bg-brand-500"]:active {
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 0 #14131a;
 }
