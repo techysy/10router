@@ -7,8 +7,28 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-10-24T05:04:26+08:00",
+  "updatedAt": "2026-11-02T00:00:00+08:00",
   "items": [
+    {
+      "id": "2026-11-01-v165-release",
+      "date": "2026-11-01",
+      "level": "feature",
+      "title": "v1.6.5 发布：Loomy 全链路 · 组合条目禁用 · 隐私脱敏 · 桌面后台更新",
+      "body": "① 兼容节点 per-endpoint 自定义鉴权头，/models 与 chat 鉴权不一致的上游开箱即用；② 组合编辑器每个条目可一键禁用（保留排序位），402 欠费冷却升为 30 分钟计费档；③ 隐私脱敏管道（连接级开关，默认关）：出站密钥确定性脱敏、入站自动还原，保上游缓存命中；④ 桌面托盘版后台定时检查更新 + 静默预下载秒装；⑤ Host 头校验与 DNS Rebinding 阻断（#43）。",
+      "titleEn": "v1.6.5: Loomy end-to-end · combo entry toggles · privacy redaction · desktop background updates",
+      "bodyEn": "① Per-endpoint custom auth headers for compatible nodes; ② one-click disable per combo entry (order preserved), 402 billing cooldown raised to 30 minutes; ③ privacy redaction pipeline (per-connection opt-in, off by default) with deterministic outbound placeholders and inbound restore; ④ desktop tray background update checks + silent pre-download; ⑤ Host header validation & DNS rebinding defense (#43).",
+      "link": "https://github.com/techysy/10router/releases/tag/v1.6.5"
+    },
+    {
+      "id": "2026-11-01-loomy-free-pool",
+      "date": "2026-11-01",
+      "level": "promo",
+      "title": "讯飞 Loomy 免费池收录：8 个模型免费用，手机验证码直登",
+      "body": "免费额度区块原生收录讯飞 Loomy（spark-x2.6、qwen3.8-flash、GLM、Kimi、DeepSeek 等实测可用模型），无需安装客户端——供应商页手机号验证码两步直登换 14 天会话；连接自动探测积分卡（永久积分 + 每日赠送积分）。免费池高峰期响应偏慢属正常。",
+      "titleEn": "iFlytek Loomy free pool onboarded: 8 models via SMS login",
+      "bodyEn": "Loomy's free pool is now built into the free-tier section (spark-x2.6, qwen3.8-flash, GLM, Kimi, DeepSeek and more). No client install needed — sign in on the provider page with a phone SMS code (14-day session); the connection auto-detects the points card. Slower responses at peak hours are normal for the free pool.",
+      "link": "https://loomy.xunfei.cn"
+    },
     {
       "id": "2026-10-24-quota-scheduling-behavior",
       "date": "2026-10-24",
