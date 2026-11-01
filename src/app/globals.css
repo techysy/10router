@@ -332,6 +332,23 @@
   box-shadow: 3px 3px 0 0 #14131a;
 }
 
+/* ── 活跃热力图：狂野派专属阶梯 ──
+   四个 level token 全站仅热力图使用（精确兜底）。透明度阶梯在奶油纸上
+   发粉发灰——狂野派无 alpha，换成实色平涂阶梯；空格从灰换纸色。
+   图例色块同 token 自动跟随；悬停 ring 走 text-main 变量天然是黑。 */
+.brutal [class~="bg-primary/25"] {
+  background-color: #ffc099; /* brand-200 */
+}
+.brutal [class~="bg-primary/50"] {
+  background-color: #ff9d6b; /* brand-300 */
+}
+.brutal [class~="bg-primary/75"] {
+  background-color: #ff8248; /* brand-400 */
+}
+.brutal [class~="bg-black/[0.07]"] {
+  background-color: #f0e6cf;
+}
+
 
 
 
