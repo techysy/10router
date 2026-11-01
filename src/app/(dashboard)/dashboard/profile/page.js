@@ -1059,7 +1059,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="inline-flex p-1 rounded-lg bg-black/5 dark:bg-white/5 w-full sm:w-auto">
-              {["light", "dark", "system"].map((option) => (
+              {["light", "dark", "brutal", "system"].map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -1072,7 +1072,13 @@ export default function ProfilePage() {
                   )}
                 >
                   <span className="material-symbols-outlined text-[18px]">
-                    {option === "light" ? "light_mode" : option === "dark" ? "dark_mode" : "contrast"}
+                    {option === "light"
+                      ? "light_mode"
+                      : option === "dark"
+                        ? "dark_mode"
+                        : option === "brutal"
+                          ? "palette"
+                          : "contrast"}
                   </span>
                   <span className="capitalize text-xs sm:text-sm">{option}</span>
                 </button>

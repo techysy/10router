@@ -125,6 +125,158 @@
 }
 
 /* ============================================================
+   Neo-Brutalism 主题（第三主题 · 粗野派）
+   奶油纸底 + 硬黑描边 + 无模糊硬投影。
+   全部走同一套语义变量，所以任何用 bg-surface / border-border /
+   text-text-main / shadow-soft 的组件都会自动换肤，无需逐个改组件。
+   与 .dark 互斥（applyTheme 保证只挂其中一个类）。
+   ============================================================ */
+.brutal {
+  /* Brand — 亮橙，比默认珊瑚色更冲 */
+  --color-brand-50: #fff2e8;
+  --color-brand-100: #ffe0c7;
+  --color-brand-200: #ffc099;
+  --color-brand-300: #ff9d6b;
+  --color-brand-400: #ff8248;
+  --color-brand-500: #ff6b35;
+  --color-brand-600: #e8541c;
+  --color-brand-700: #c23f0e;
+  --color-brand-800: #8f2d08;
+  --color-brand-900: #5c1c04;
+
+  --color-primary: #ff6b35;
+  --color-primary-hover: #e8541c;
+
+  /* Surfaces — 奶油纸 */
+  --color-bg: #fff6e5;
+  --color-bg-alt: #ffedcf;
+  --color-surface: #fffdf7;
+  --color-surface-2: #ffeccd;
+  --color-surface-3: #ffddab;
+  --color-sidebar: rgba(255, 246, 229, 0.94);
+
+  /* Borders — 硬黑描边 */
+  --color-border: #14131a;
+  --color-border-subtle: rgba(20, 19, 26, 0.72);
+
+  /* Text */
+  --color-text: #14131a;
+  --color-text-main: #14131a;
+  --color-text-muted: #4a4757;
+  --color-text-subtle: #6b6774;
+
+  /* Status — 在奶油底上仍保持 AA 对比 */
+  --color-danger: #e5484d;
+  --color-success: #0fae7a;
+  --color-warning: #d98200;
+  --color-info: #2e5bff;
+
+  /* Radius — 更方，接近贴纸/卡片切割感 */
+  --radius-brand: 6px;
+  --radius-brand-lg: 12px;
+
+  /* Shadows — 零模糊硬投影，这是粗野派的灵魂 */
+  --shadow-soft: 3px 3px 0 0 #14131a;
+  --shadow-warm: 4px 4px 0 0 #ff6b35;
+  --shadow-elevated: 4px 4px 0 0 #14131a;
+  --shadow-elev: 5px 5px 0 0 #14131a;
+  --shadow-focus: 0 0 0 3px #ffd93d;
+
+  color-scheme: light;
+}
+
+/* 网格点底纹：让"纸感"出来，且不干扰内容阅读 */
+.brutal body {
+  background-image: radial-gradient(rgba(20, 19, 26, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-attachment: fixed;
+}
+
+/* 全边框容器加粗 —— 用 [class~="border"] 精确匹配独立 token，
+   不会误伤 border-b / border-t 这类单边类（那会把四边都画出来）。 */
+.brutal [class~="border"] {
+  border-width: 2.5px;
+}
+.brutal [class~="border-2"] {
+  border-width: 2.5px;
+}
+
+.brutal .card-soft,
+.brutal .card-elev {
+  border: 2.5px solid var(--color-border);
+}
+
+/* 选中/焦点也用撞色，统一语言 */
+.brutal ::selection {
+  background-color: #ffd93d;
+  color: #14131a;
+}
+
+.brutal select {
+  color-scheme: light;
+}
+.brutal select option {
+  background-color: var(--color-surface);
+  color: var(--color-text-main);
+}
+
+/* 主操作按钮也换成"贴纸"语言：粗黑描边 + 硬投影 + 黑字。
+   要同时匹配两个 token：`bg-primary` 是 CSS 变量别名，而 Button 组件的 primary 变体
+   实际写的是 `bg-brand-500`，只兜底前者会漏掉登录页的 Login 按钮（橙底白字，对比度
+   仅 2.9:1）。橙底黑字是 8:1。
+   只作用于 button/a，不碰进度条、徽章之类的同色元素；danger/success 按钮保持白字。 */
+.brutal button[class~="bg-primary"],
+.brutal button[class~="bg-brand-500"],
+.brutal a[class~="bg-primary"],
+.brutal a[class~="bg-brand-500"] {
+  border: 2.5px solid #14131a;
+  box-shadow: 3px 3px 0 0 #14131a;
+  color: #14131a;
+}
+.brutal button[class~="bg-primary"]:not(:disabled):hover,
+.brutal button[class~="bg-brand-500"]:not(:disabled):hover,
+.brutal a[class~="bg-primary"]:hover,
+.brutal a[class~="bg-brand-500"]:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 0 #14131a;
+}
+.brutal button[class~="bg-primary"]:not(:disabled):active,
+.brutal button[class~="bg-brand-500"]:not(:disabled):active,
+.brutal a[class~="bg-primary"]:active,
+.brutal a[class~="bg-brand-500"]:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 #14131a;
+}
+
+/* 侧边栏/浮层的毛玻璃在奶油纸上会发灰，换成半透明奶油 + 硬边 */
+.brutal .bg-vibrancy {
+  background: rgba(255, 246, 229, 0.94);
+}
+
+/* 补偿硬阴影：组件里写死的 Tailwind shadow-* 类不走 --shadow-* 变量，
+   这里统一换成零模糊硬投影，让卡片/弹层和主题语言对齐。
+   只匹配独立 token，"hover:shadow-md" 之类变体不受影响。 */
+.brutal [class~="shadow-sm"],
+.brutal [class~="shadow"],
+.brutal [class~="shadow-md"],
+.brutal [class~="shadow-lg"],
+.brutal [class~="shadow-xl"],
+.brutal [class~="shadow-2xl"] {
+  box-shadow: 3px 3px 0 0 #14131a;
+}
+
+/* 侧边栏与主区之间画一条硬分隔线，和卡片描边同一个重量级 */
+.brutal aside {
+  border-right: 2.5px solid #14131a;
+}
+.brutal aside a:hover {
+  background-color: var(--color-surface-2);
+}
+
+
+
+
+/* ============================================================
    Fix native select dropdowns in dark mode
    ============================================================ */
 select {
