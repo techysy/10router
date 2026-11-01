@@ -20,6 +20,15 @@
       "link": "https://github.com/techysy/10router/releases/tag/v1.6.5"
     },
     {
+      "id": "2026-11-02-brutal-theme",
+      "date": "2026-11-02",
+      "level": "feature",
+      "title": "新主题「狂野派」上线（Neo-Brutalism）",
+      "body": "奶油纸底 + 硬黑描边 + 零模糊硬投影；右上角调色板或菜单切换，四态循环。顺带修复首屏主题闪烁与手机地址栏跟色。",
+      "titleEn": "New theme: Brutal (Neo-Brutalism)",
+      "bodyEn": "Cream paper, hard black outlines, zero-blur hard shadows — cycle it from the palette icon or the menu. Also fixes first-paint theme flash and mobile address-bar tint."
+    },
+    {
       "id": "2026-11-01-loomy-free-pool",
       "date": "2026-11-01",
       "level": "promo",
