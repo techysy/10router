@@ -327,6 +327,11 @@
   color: #e0356b;
 }
 
+/* 捐赠二维码等白底图：贴纸同款硬投影（否则白卡浮在奶油纸上没有层次） */
+.brutal img[class~="bg-white"] {
+  box-shadow: 3px 3px 0 0 #14131a;
+}
+
 
 
 

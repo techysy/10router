@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "@/shared/hooks/useTheme";
+import { translate } from "@/i18n/runtime";
 import { cn } from "@/shared/utils/cn";
 
 // Four-state cycle: system → light → dark → brutal (the store's toggleTheme).
@@ -41,8 +42,8 @@ export default function ThemeToggle({ className, variant = "default" }) {
     <button
       onClick={toggleTheme}
       className={cn(variants[variant], className)}
-      aria-label={mode.label}
-      title={mode.label}
+      aria-label={translate(mode.label)}
+      title={translate(mode.label)}
       data-theme-mode={theme}
     >
       <span
