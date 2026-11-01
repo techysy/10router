@@ -349,6 +349,70 @@
   background-color: #f0e6cf;
 }
 
+/* ── 状态色系兜底：透明 tint → 实色贴纸 ──
+   bg-{c}-500/NN 系半透明 tint 全站约 200 处（状态徽章/横幅/警告条），
+   奶油纸上发灰。用 "/\"" 子串匹配只中带透明度的变体——实色 bg-{c}-500
+   徽章（白字彩底）不受影响；*-50 与 *-900/20 用精确 token 匹配。
+   文字色保留状态色（粉底红字可读），边框统一硬黑成贴纸。 */
+.brutal [class*="bg-red-500/"],
+.brutal [class~="bg-red-50"],
+.brutal [class~="bg-red-900/20"] {
+  background-color: #ffdede;
+}
+.brutal [class*="bg-green-500/"],
+.brutal [class*="bg-emerald-500/"],
+.brutal [class~="bg-green-50"],
+.brutal [class~="bg-emerald-50"],
+.brutal [class~="bg-green-900/20"] {
+  background-color: #d9f4e3;
+}
+.brutal [class*="bg-yellow-500/"],
+.brutal [class~="bg-yellow-50"] {
+  background-color: #fff3c4;
+}
+.brutal [class*="bg-amber-500/"],
+.brutal [class~="bg-amber-50"],
+.brutal [class~="bg-amber-900/20"] {
+  background-color: #ffeccd;
+}
+.brutal [class*="bg-blue-500/"],
+.brutal [class*="bg-sky-500/"],
+.brutal [class~="bg-blue-50"],
+.brutal [class~="bg-blue-900/20"] {
+  background-color: #dfe9ff;
+}
+.brutal [class*="bg-purple-500/"],
+.brutal [class*="bg-violet-500/"] {
+  background-color: #efe3ff;
+}
+.brutal [class*="bg-pink-500/"],
+.brutal [class*="bg-rose-500/"] {
+  background-color: #ffd0e0;
+}
+
+/* 状态色卡边框统一硬黑（子串匹配覆盖 border-{c}-500/NN 全部透明度变体） */
+.brutal [class*="border-red-5"],
+.brutal [class*="border-green-5"],
+.brutal [class*="border-emerald-5"],
+.brutal [class*="border-yellow-5"],
+.brutal [class*="border-amber-5"],
+.brutal [class*="border-blue-5"],
+.brutal [class*="border-sky-5"],
+.brutal [class*="border-purple-5"],
+.brutal [class*="border-violet-5"],
+.brutal [class*="border-pink-5"],
+.brutal [class*="border-rose-5"] {
+  border-color: #14131a;
+}
+
+/* 渐变拍平：狂野派无渐变语言（侧栏 logo 块等），实色 brand + 既有硬投影 */
+.brutal [class~="bg-gradient-to-br"],
+.brutal [class~="bg-gradient-to-r"],
+.brutal [class~="bg-gradient-to-b"] {
+  background-image: none;
+  background-color: var(--color-primary);
+}
+
 
 
 
