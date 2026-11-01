@@ -13,111 +13,84 @@
       "id": "2026-11-01-v165-release",
       "date": "2026-11-01",
       "level": "feature",
-      "title": "v1.6.5 发布：Loomy 全链路 · 组合条目禁用 · 隐私脱敏 · 桌面后台更新",
-      "body": "① 兼容节点 per-endpoint 自定义鉴权头，/models 与 chat 鉴权不一致的上游开箱即用；② 组合编辑器每个条目可一键禁用（保留排序位），402 欠费冷却升为 30 分钟计费档；③ 隐私脱敏管道（连接级开关，默认关）：出站密钥确定性脱敏、入站自动还原，保上游缓存命中；④ 桌面托盘版后台定时检查更新 + 静默预下载秒装；⑤ Host 头校验与 DNS Rebinding 阻断（#43）。",
-      "titleEn": "v1.6.5: Loomy end-to-end · combo entry toggles · privacy redaction · desktop background updates",
-      "bodyEn": "① Per-endpoint custom auth headers for compatible nodes; ② one-click disable per combo entry (order preserved), 402 billing cooldown raised to 30 minutes; ③ privacy redaction pipeline (per-connection opt-in, off by default) with deterministic outbound placeholders and inbound restore; ④ desktop tray background update checks + silent pre-download; ⑤ Host header validation & DNS rebinding defense (#43).",
+      "title": "v1.6.5 发布：Loomy 直登 · 组合禁用 · 隐私脱敏",
+      "body": "兼容节点自定义鉴权头；组合条目一键禁用（402 冷却 30 分钟）；隐私脱敏管道上线（连接级开关，默认关）；桌面托盘后台检查更新。",
+      "titleEn": "v1.6.5: Loomy SMS login · combo toggles · privacy redaction",
+      "bodyEn": "Per-endpoint custom auth headers; one-click combo entry disable (402 cooldown 30 min); privacy redaction pipeline (per-connection, off by default); desktop background update checks.",
       "link": "https://github.com/techysy/10router/releases/tag/v1.6.5"
     },
     {
       "id": "2026-11-01-loomy-free-pool",
       "date": "2026-11-01",
       "level": "promo",
-      "title": "讯飞 Loomy 免费池收录：8 个模型免费用，手机验证码直登",
-      "body": "免费额度区块原生收录讯飞 Loomy（spark-x2.6、qwen3.8-flash、GLM、Kimi、DeepSeek 等实测可用模型），无需安装客户端——供应商页手机号验证码两步直登换 14 天会话；连接自动探测积分卡（永久积分 + 每日赠送积分）。免费池高峰期响应偏慢属正常。",
-      "titleEn": "iFlytek Loomy free pool onboarded: 8 models via SMS login",
-      "bodyEn": "Loomy's free pool is now built into the free-tier section (spark-x2.6, qwen3.8-flash, GLM, Kimi, DeepSeek and more). No client install needed — sign in on the provider page with a phone SMS code (14-day session); the connection auto-detects the points card. Slower responses at peak hours are normal for the free pool.",
+      "title": "讯飞 Loomy 免费池：8 个模型，短信直登",
+      "body": "免费额度区块原生收录，手机验证码直登换 14 天会话，无需装客户端；高峰期偏慢属正常。",
+      "titleEn": "iFlytek Loomy free pool: 8 models via SMS login",
+      "bodyEn": "Built into the free-tier section — phone SMS code signs a 14-day session, no client needed. Slower at peak hours.",
       "link": "https://loomy.xunfei.cn"
     },
     {
       "id": "2026-10-24-quota-scheduling-behavior",
       "date": "2026-10-24",
       "level": "warning",
-      "title": "多账号调度行为变更：按到期压榨 + 双窗健康度",
-      "body": "CodeBuddy/Qoder 资产包改为严格按到期压榨——快过期的包必须先烧掉；订阅型账号按短窗/长窗拆分健康度，任一窗口见底即判红交接，不再死磕已抽干的账号；配额 429 冷却上限从 30 分钟改为 24 小时。",
-      "titleEn": "Scheduling behavior change: burn-by-expiry + dual-window health",
-      "bodyEn": "CodeBuddy/Qoder asset packs are now burned strictly by expiry — the soonest-expiring pack goes first. Subscription accounts split health into short/long windows: either window hitting bottom turns the row red and hands traffic over. The quota 429 cooldown cap moved from 30 minutes to 24 hours."
-    },
-    {
-      "id": "2026-10-23-zcode-free-glm53",
-      "date": "2026-10-23",
-      "level": "promo",
-      "title": "ZCode 体验包加送 GLM-5.3（10-26 09:00 前有效）",
-      "body": "1024 Dev Day 活动：zcode-free 在 GLM-5.3-Flash 之外加送 GLM-5.3（每日 200M 额度），活动额度 10-26 09:00 到期；走 CreditDaddy 体验包接口，免登录直接用（需 CreditDaddy 桌面版开启「体验包接口」）。",
-      "titleEn": "ZCode trial pack adds GLM-5.3 (until 10-26 09:00)",
-      "bodyEn": "1024 Dev Day event: zcode-free now includes GLM-5.3 (200M/day) alongside GLM-5.3-Flash; event quota expires 10-26 09:00. Served through the CreditDaddy trial-pack gateway — no login needed; CreditDaddy desktop with the trial-pack endpoint enabled is required."
+      "title": "调度变更：到期包优先烧 + 双窗健康度",
+      "body": "资产包严格按到期压榨；订阅账号任一窗口见底即交接；429 冷却上限 24 小时。",
+      "titleEn": "Scheduling change: burn-by-expiry + dual-window health",
+      "bodyEn": "Asset packs burn soonest-expiring first; subscription accounts hand over when either window bottoms out; 429 cooldown capped at 24h."
     },
     {
       "id": "2026-10-24-antigravity-family-quota",
       "date": "2026-10-24",
       "level": "feature",
-      "title": "Antigravity 按模型家族隔离配额",
-      "body": "Gemini 与 Claude/GPT 两套配额独立核算、独立选号——一个家族耗尽不再连坐误伤另一个；连接测试覆盖真实生成链路，被 Google 风控标记的账号如实标红并给出可点击的验证链接（新版 /v3/ 链接已兼容）。",
-      "titleEn": "Antigravity: per-model-family quota isolation",
-      "bodyEn": "The Gemini and Claude/GPT quota families are now tracked and selected independently — one family running dry no longer penalizes the other. Connection tests now cover the real generation path: accounts flagged by Google risk control are reported red with a clickable verification link (new /v3/ URLs supported)."
+      "title": "Antigravity 按家族隔离配额",
+      "body": "Gemini 与 Claude/GPT 配额独立核算、独立选号；风控账号标红并附验证链接。",
+      "titleEn": "Antigravity: per-family quota isolation",
+      "bodyEn": "Gemini vs Claude/GPT quotas tracked and selected independently; risk-flagged accounts go red with a verify link."
     },
     {
       "id": "2026-10-20-proxy-strict",
       "date": "2026-10-20",
       "level": "warning",
-      "title": "代理行为变更：不可直连渠道默认严格模式",
-      "body": "Google Cloud Code、Gemini CLI 等渠道代理失败立即报错并顺位接力，不再回退直连死等（此前实测 788s）。连接级显式 strictProxy 优先。",
-      "titleEn": "Proxy behavior change: direct-connect channels now default to strict mode",
-      "bodyEn": "For channels that cannot connect directly (Google Cloud Code, Gemini CLI, …), a proxy failure now errors immediately and relays to the next account/combo member instead of hanging on a blocked direct connection (788s observed). Connection-level strictProxy overrides the default."
-    },
-    {
-      "id": "2026-10-24-cbai-v41-flash",
-      "date": "2026-10-24",
-      "level": "promo",
-      "title": "CodeBuddy 国际线 DeepSeek-V4.1-Flash 限免中",
-      "body": "更正：限免在 cbai（CodeBuddy 国际线）——DeepSeek-V4.1-Flash 免费至 10-31（倍率 0x），11-01 起恢复发布倍率 0.11x；国内线 cbcn 不参与，维持 0.11x。",
-      "titleEn": "CodeBuddy Intl: DeepSeek-V4.1-Flash free until 10-31",
-      "bodyEn": "Correction: the promo is on the CodeBuddy intl lane (cbai) — DeepSeek-V4.1-Flash is free (0x) through Oct 31 and reverts to the published 0.11x on Nov 1. The CN lane (cbcn) is not part of the promo and stays at 0.11x."
+      "title": "代理变更：不可直连渠道默认严格模式",
+      "body": "代理失败立即报错接力，不再回退直连死等（曾实测 788 秒）。",
+      "titleEn": "Proxy change: direct-connect channels default to strict",
+      "bodyEn": "Proxy failures now error immediately and relay instead of hanging on blocked direct connections (788s seen)."
     },
     {
       "id": "2026-10-20-minimax-free-back",
       "date": "2026-10-20",
       "level": "promo",
       "title": "MiniMax Code Free 回归",
-      "body": "minimax-free 免登录网关线回归（CreditDaddy 闭环）；订阅线支持每日自动签到，模型面已对齐 M3.1 Flash 正式 id。",
+      "body": "免登录网关线回归，订阅线支持每日自动签到。",
       "titleEn": "MiniMax Code Free is back",
-      "bodyEn": "The minimax-free no-auth gateway lane is back (CreditDaddy closed loop); subscription lines gain daily auto check-in, and the model list is aligned to the official M3.1 Flash ids."
-    },
-    {
-      "id": "2026-10-20-inception",
-      "date": "2026-10-20",
-      "level": "feature",
-      "title": "新增 Inception Labs（Mercury 扩散模型）",
-      "body": "OpenAI 兼容。mercury-3：1M ctx / 工具调用 / ~1000 tok/s，launch 半价 $0.10/$0.35，新 key 送 1 亿 tokens（额度经 CreditDaddy 通用卡推送）。",
-      "titleEn": "New provider: Inception Labs (Mercury diffusion models)",
-      "bodyEn": "OpenAI compatible. mercury-3: 1M ctx / tool calling / ~1000 tok/s, 50% off launch at $0.10/$0.35; new keys include 100M free tokens (quota via the CreditDaddy generic card)."
+      "bodyEn": "The no-auth gateway lane is back; subscription lines gain daily auto check-in."
     },
     {
       "id": "2026-10-20-combo-router",
       "date": "2026-10-20",
       "level": "feature",
-      "title": "组合新增 router 策略",
-      "body": "固定顺序/轮询不看谁更擅长当前任务；Router 由决策模型分析用户 prompt，动态挑最擅长的成员回答——仅一次额外调用，兼顾能力与速度；失败/超时 8s 内自动退回原顺序。",
+      "title": "组合 router 策略",
+      "body": "决策模型分析 prompt 动态挑最擅长的成员回答，失败 8 秒内退回原顺序。",
       "titleEn": "Combo router strategy",
-      "bodyEn": "Order/round-robin ignores model strengths. Router analyzes your prompt and picks the best-suited member to answer — one extra call; failures/timeouts fall back to the original order within 8s."
+      "bodyEn": "A decision model picks the best-suited member per prompt; failures fall back within 8s."
     },
     {
       "id": "2026-10-21-gemini4-argon-gpt61",
       "date": "2026-10-21",
       "level": "feature",
-      "title": "Gemini 4 Argon 与 GPT-6.1 Sol 正式收录",
-      "body": "Gemini 4 Argon 全线接入（gemini / vertex / antigravity 官方三线），支持常开推理与 1M 上下文；Codex 接入 GPT-6.1 Sol，采用全新极速 Responses Lite 协议传输。",
-      "titleEn": "Gemini 4 Argon & GPT-6.1 Sol official support",
-      "bodyEn": "Full Gemini 4 Argon support across gemini, vertex, and antigravity with always-on reasoning and 1M context; Codex adds GPT-6.1 Sol over the new Responses Lite transport protocol."
+      "title": "Gemini 4 Argon 与 GPT-6.1 Sol 收录",
+      "body": "Gemini 4 Argon 三线接入（1M 上下文）；Codex 新增 GPT-6.1 Sol（Responses Lite 协议）。",
+      "titleEn": "Gemini 4 Argon & GPT-6.1 Sol onboarded",
+      "bodyEn": "Gemini 4 Argon across three lanes (1M context); Codex adds GPT-6.1 Sol over Responses Lite."
     },
     {
       "id": "2026-10-20-community",
       "date": "2026-10-20",
       "level": "info",
       "title": "社区与捐赠",
-      "body": "侧边栏新增 Community 分区：飞书群 / Discord / Telegram / GitHub。捐赠渠道：GitHub Sponsors / 爱发电 / 支付宝 / 微信。",
+      "body": "飞书 / Discord / Telegram / GitHub；捐赠：Sponsors / 爱发电 / 支付宝 / 微信。",
       "titleEn": "Community & donations",
-      "bodyEn": "New sidebar Community section: Feishu / Discord / Telegram / GitHub. Donations: GitHub Sponsors / AiFaDian / Alipay / WeChat."
+      "bodyEn": "Feishu / Discord / Telegram / GitHub; donations: Sponsors / AiFaDian / Alipay / WeChat."
     }
   ]
 }
