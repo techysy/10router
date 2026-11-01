@@ -60,6 +60,17 @@ function applyTheme(theme) {
   // Keeps native widgets (scrollbars, date pickers, select popups) in step
   // with the active skin instead of following the OS.
   root.style.colorScheme = effectiveTheme === "dark" ? "dark" : "light";
+
+  // Mobile browser chrome (address bar) follows the skin at runtime too — the
+  // inline first-paint script in layout.js only covers the refresh path, so
+  // switching themes live never updated it. Colors mirror that script.
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute(
+      "content",
+      effectiveTheme === "brutal" ? "#FFF6E5" : effectiveTheme === "dark" ? "#0a0a0a" : "#FDFAF6",
+    );
+  }
 }
 
 export default useThemeStore;
