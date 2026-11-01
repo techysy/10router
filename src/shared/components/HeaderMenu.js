@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "@/shared/hooks/useTheme";
+import { MODE_META } from "./ThemeToggle";
 import ChangelogModal from "./ChangelogModal";
 import { ConfirmModal } from "./Modal";
 import { translate } from "@/i18n/runtime";
@@ -53,6 +54,8 @@ export default function HeaderMenu({ onLogout }) {
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  // MODE_META 覆盖全部四态——三元式兜底会在新增主题时静默掉进 dark 分支
+  const themeMeta = MODE_META[theme] || MODE_META.system;
   const menuRef = useRef(null);
 
   const handleShutdown = async () => {
@@ -99,8 +102,8 @@ export default function HeaderMenu({ onLogout }) {
               onClick={() => { close(); setChangelogOpen(true); }}
             />
             <MenuItem
-              icon={theme === "system" ? "routine" : theme === "light" ? "light_mode" : "dark_mode"}
-              label={translate(theme === "system" ? "Theme: system" : theme === "light" ? "Theme: light" : "Theme: dark")}
+              icon={themeMeta.icon}
+              label={translate(themeMeta.label)}
               onClick={() => { toggleTheme(); close(); }}
             />
             <MenuItem
