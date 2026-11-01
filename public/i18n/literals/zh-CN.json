@@ -2137,5 +2137,8 @@
   "Power me ⚡️": "为我发电 ⚡️",
   "Check endpoint": "检查端点",
   "Endpoint unreachable — the provider may be under maintenance, try again later": "端点不可达——供应商可能正在维护，请稍后重试",
-  "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。"
+  "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。",
+  "Privacy redaction (experimental)": "隐私脱敏（实验性）",
+  "Redact API keys and secrets in the outbound request body, restore them in the model response. Enable only for untrusted upstreams.": "对出站请求体中的 API 密钥与敏感串做确定性脱敏，模型回显内容自动还原。仅在对上游不信任时开启（默认关）。",
+  "Privacy redaction on: secrets in the request body are redacted for this upstream": "隐私脱敏已开启：该上游的请求体敏感串将被脱敏"
 }

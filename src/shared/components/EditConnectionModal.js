@@ -6,6 +6,7 @@ import Modal from "@/shared/components/Modal";
 import Input from "@/shared/components/Input";
 import Button from "@/shared/components/Button";
 import Badge from "@/shared/components/Badge";
+import Toggle from "@/shared/components/Toggle";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import Select from "@/shared/components/Select";
 import { translate } from "@/i18n/runtime";
@@ -30,6 +31,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [privacyEnabled, setPrivacyEnabled] = useState(false);
 
   useEffect(() => {
     if (connection) {
@@ -50,6 +52,10 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       if (connection.provider === "cloudflare-ai" && connection.providerSpecificData) {
         setCloudflareData({ accountId: connection.providerSpecificData.accountId || "" });
       }
+      // Privacy opt-in (issue #90 phase 3): same truth table as the engine's
+      // privacyEnabledFor — true | {enabled:true} count as on.
+      const psd = connection.providerSpecificData || {};
+      setPrivacyEnabled(psd.privacy === true || psd.privacy?.enabled === true);
       // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
@@ -196,7 +202,15 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       if (providerRegions && region) {
         updates.providerSpecificData = buildRegionSpecificData();
       }
-      
+
+      // Privacy opt-in (issue #90 phase 3): sent as a partial patch — the PUT
+      // route deep-merges providerSpecificData, so other stored keys (phone,
+      // credentialSource, proxyPoolId…) survive the roundtrip.
+      updates.providerSpecificData = {
+        ...(updates.providerSpecificData || {}),
+        privacy: privacyEnabled,
+      };
+
       await onSave(updates);
     } finally {
       setSaving(false);
@@ -322,6 +336,15 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
             )}
           </div>
         )}
+
+        <div className="bg-sidebar/50 p-3 rounded-lg border border-accent/10">
+          <Toggle
+            checked={privacyEnabled}
+            onChange={setPrivacyEnabled}
+            label={translate("Privacy redaction (experimental)")}
+            description={translate("Redact API keys and secrets in the outbound request body, restore them in the model response. Enable only for untrusted upstreams.")}
+          />
+        </div>
 
         {!isCompatible && !isAzure && !isCloudflareAi && (
           <div className="flex items-center gap-3">

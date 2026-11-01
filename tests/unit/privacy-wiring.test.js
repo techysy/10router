@@ -31,6 +31,7 @@ describe("privacyEnabledFor — explicit opt-in only (zero upgrade behavior chan
     ["no credentials", null, false],
     ["no privacy block", { providerSpecificData: {} }, false],
     ["privacy: true", { providerSpecificData: { privacy: true } }, true],
+    ["privacy: false", { providerSpecificData: { privacy: false } }, false],
     ["privacy: {enabled:true}", { providerSpecificData: { privacy: { enabled: true } } }, true],
     ["privacy: {enabled:false}", { providerSpecificData: { privacy: { enabled: false } } }, false],
     ["privacy: {}", { providerSpecificData: { privacy: {} } }, false],

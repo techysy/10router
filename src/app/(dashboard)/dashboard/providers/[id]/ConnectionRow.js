@@ -37,6 +37,10 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const boundProxyPool = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
   const hasAnyProxy = !!boundProxyPoolId || hasLegacyProxy;
+  // issue #90 phase 3: same truth table as the engine's privacyEnabledFor
+  const privacyOn =
+    connection.providerSpecificData?.privacy === true ||
+    connection.providerSpecificData?.privacy?.enabled === true;
   const proxyDisplayText = boundProxyPool
     ? `Pool: ${boundProxyPool.name}`
     : boundProxyPoolId
@@ -320,6 +324,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
             {secondaryAuthLabel && (
               <Badge variant="default" size="sm">
                 {secondaryAuthLabel}
+              </Badge>
+            )}
+            {privacyOn && (
+              <Badge variant="default" size="sm" title={translate("Privacy redaction on: secrets in the request body are redacted for this upstream")}>
+                🔒
               </Badge>
             )}
             {(connection.provider === "qoder" || connection.provider === "qoder-cn") && (
