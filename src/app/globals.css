@@ -125,7 +125,7 @@
 }
 
 /* ============================================================
-   Neo-Brutalism 主题（第三主题 · 粗野派）
+   Neo-Brutalism 主题（第三主题 · 狂野派）
    奶油纸底 + 硬黑描边 + 无模糊硬投影。
    全部走同一套语义变量，所以任何用 bg-surface / border-border /
    text-text-main / shadow-soft 的组件都会自动换肤，无需逐个改组件。
@@ -175,7 +175,7 @@
   --radius-brand: 6px;
   --radius-brand-lg: 12px;
 
-  /* Shadows — 零模糊硬投影，这是粗野派的灵魂 */
+  /* Shadows — 零模糊硬投影，这是狂野派的灵魂 */
   --shadow-soft: 3px 3px 0 0 #14131a;
   --shadow-warm: 4px 4px 0 0 #ff6b35;
   --shadow-elevated: 4px 4px 0 0 #14131a;
@@ -275,7 +275,7 @@
 
 /* ── 公告 / 捐赠等硬编码 Tailwind 色卡的兜底 ──
    这些组件写的是固定色板（bg-red-500/5 之类），不走语义变量，半透明色卡在
-   奶油纸上发灰、1px 淡边也撑不起粗野派。按等级换成实色贴纸卡 + 硬黑描边；
+   奶油纸上发灰、1px 淡边也撑不起狂野派。按等级换成实色贴纸卡 + 硬黑描边；
    token 级兜底全站生效（19 个文件在用 border-black/10），不是只改公告弹窗。 */
 .brutal [class~="border-black/10"] {
   border-color: #14131a;
