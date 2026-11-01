@@ -3,14 +3,16 @@
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 
-// Three-state cycle: system → light → dark (the store's toggleTheme). "system"
-// tracks the OS day/night so Windows personalization / macOS appearance / the
-// fnOS browser drive the theme with no manual switching; the icon shows the
-// CURRENT mode so the auto state is discoverable.
+// Four-state cycle: system → light → dark → brutal (the store's toggleTheme).
+// "system" tracks the OS day/night so Windows personalization / macOS
+// appearance / the fnOS browser drive the theme with no manual switching;
+// "brutal" is the neo-brutalist skin. The icon shows the CURRENT mode so the
+// auto state is discoverable.
 const MODE_META = {
   system: { icon: "routine", label: "Theme: system", next: "light" },
   light: { icon: "light_mode", label: "Theme: light", next: "dark" },
-  dark: { icon: "dark_mode", label: "Theme: dark", next: "system" },
+  dark: { icon: "dark_mode", label: "Theme: dark", next: "brutal" },
+  brutal: { icon: "palette", label: "Theme: brutal", next: "system" },
 };
 
 export default function ThemeToggle({ className, variant = "default" }) {

@@ -4,6 +4,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { THEME_CONFIG } from "@/shared/constants/config";
 
+// Toggle order. "brutal" sits between dark and system so the cycle stays
+// one-press-per-mode: system → light → dark → brutal → system.
+const THEME_CYCLE = ["system", "light", "dark", "brutal"];
+
 const useThemeStore = create(
   persist(
     (set, get) => ({
@@ -14,14 +18,15 @@ const useThemeStore = create(
         applyTheme(theme);
       },
 
-      // Three-state cycle: system → light → dark → system. "system" follows the
+      // Cycle: system → light → dark → brutal → system. "system" follows the
       // OS preference (Windows personalization / macOS appearance / the fnOS
-      // browser), so a machine that switches day/night on its own keeps the UI
-      // in sync without a manual toggle.
+      // browser), "brutal" is the neo-brutalist skin (cream paper, hard black
+      // outlines, zero-blur shadows) — it is a light-family theme, so it never
+      // stacks with .dark.
       toggleTheme: () => {
         const currentTheme = get().theme;
-        const nextTheme =
-          currentTheme === "system" ? "light" : currentTheme === "light" ? "dark" : "system";
+        const index = THEME_CYCLE.indexOf(currentTheme);
+        const nextTheme = THEME_CYCLE[(index === -1 ? 0 : index + 1) % THEME_CYCLE.length];
         set({ theme: nextTheme });
         applyTheme(nextTheme);
       },
@@ -37,7 +42,9 @@ const useThemeStore = create(
   )
 );
 
-// Apply theme to document
+// Apply theme to document. Every theme is expressed as a mutually exclusive
+// root class so a stale class can never linger when switching (e.g. going
+// dark → brutal must drop .dark, or the dark variables would win).
 function applyTheme(theme) {
   if (typeof window === "undefined") return;
 
@@ -48,12 +55,11 @@ function applyTheme(theme) {
 
   const effectiveTheme = theme === "system" ? systemTheme : theme;
 
-  if (effectiveTheme === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
+  root.classList.toggle("dark", effectiveTheme === "dark");
+  root.classList.toggle("brutal", effectiveTheme === "brutal");
+  // Keeps native widgets (scrollbars, date pickers, select popups) in step
+  // with the active skin instead of following the OS.
+  root.style.colorScheme = effectiveTheme === "dark" ? "dark" : "light";
 }
 
 export default useThemeStore;
-
