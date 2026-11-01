@@ -84,6 +84,37 @@ function computeUnread() {
   return cached.filter((it) => !seen.has(it.id)).length;
 }
 
+const SYNC_KEY = "10r.announcements.syncedAt";
+const SYNC_TTL_MS = 5 * 60 * 1000;
+let syncInFlight = false;
+
+// The header badge must work BEFORE the modal is ever opened: unread count
+// compares against the local cache, and the cache used to be written only when
+// the modal opened — first-time visitors never saw the red dot. Sync the feed
+// quietly on mount (TTL-throttled, both mirrors, silent on failure).
+async function syncAnnouncementsCache() {
+  if (syncInFlight) return;
+  if (Date.now() - Number(readJson(SYNC_KEY, 0)) < SYNC_TTL_MS) return;
+  syncInFlight = true;
+  try {
+    const urls = [GITHUB_CONFIG.announcementsUrl, GITHUB_CONFIG.announcementsUrlFallback].filter(Boolean);
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        writeJson(CACHE_KEY, normalizeFeed(await res.json()));
+        writeJson(SYNC_KEY, Date.now());
+        try {
+          window.dispatchEvent(new Event(ANNOUNCEMENTS_CHANGED_EVENT));
+        } catch { /* non-browser */ }
+        return;
+      } catch { /* try the next mirror; offline → keep the old cache */ }
+    }
+  } finally {
+    syncInFlight = false;
+  }
+}
+
 /** Unread count for the header badge; listens for in-tab updates. */
 export function useUnreadAnnouncements() {
   // Lazy initializer reads localStorage once at mount; after that the count is
@@ -95,6 +126,7 @@ export function useUnreadAnnouncements() {
     const onChanged = () => setCount(computeUnread());
     window.addEventListener(ANNOUNCEMENTS_CHANGED_EVENT, onChanged);
     window.addEventListener("storage", onChanged);
+    syncAnnouncementsCache().catch(() => {});
     return () => {
       window.removeEventListener(ANNOUNCEMENTS_CHANGED_EVENT, onChanged);
       window.removeEventListener("storage", onChanged);
@@ -130,6 +162,7 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
           const feed = normalizeFeed(await res.json());
           if (cancelled) return;
           writeJson(CACHE_KEY, feed);
+          writeJson(SYNC_KEY, Date.now());
           setItems(feed);
           return;
         } catch (err) {

@@ -273,6 +273,60 @@
   background-color: var(--color-surface-2);
 }
 
+/* ── 公告 / 捐赠等硬编码 Tailwind 色卡的兜底 ──
+   这些组件写的是固定色板（bg-red-500/5 之类），不走语义变量，半透明色卡在
+   奶油纸上发灰、1px 淡边也撑不起粗野派。按等级换成实色贴纸卡 + 硬黑描边；
+   token 级兜底全站生效（19 个文件在用 border-black/10），不是只改公告弹窗。 */
+.brutal [class~="border-black/10"] {
+  border-color: #14131a;
+}
+.brutal [class~="border-black/15"] {
+  border-color: rgba(20, 19, 26, 0.55);
+}
+.brutal [class~="border-black/5"] {
+  border-color: rgba(20, 19, 26, 0.4);
+}
+
+/* 公告等级色卡：柔和半透明 → 实色贴纸 */
+.brutal [class~="border-red-500/30"],
+.brutal [class~="bg-red-500/5"] {
+  border-color: #14131a;
+  background-color: #ffdede;
+}
+.brutal [class~="border-amber-500/30"],
+.brutal [class~="bg-amber-500/5"] {
+  border-color: #14131a;
+  background-color: #ffeccd;
+}
+.brutal [class~="border-green-500/40"],
+.brutal [class~="bg-green-500/5"] {
+  border-color: #14131a;
+  background-color: #d9f4e3;
+}
+.brutal [class~="border-blue-500/40"],
+.brutal [class~="bg-blue-500/5"] {
+  border-color: #14131a;
+  background-color: #dfe9ff;
+}
+.brutal [class~="bg-amber-500/10"][class~="text-amber-600"] {
+  background-color: #ffeccd;
+  color: #14131a;
+}
+
+/* Header 捐赠按钮：保留粉色识别度，换贴纸语言（硬描边 + 硬投影 + 黑字） */
+.brutal button[class~="bg-pink-500/10"] {
+  border: 2px solid #14131a;
+  box-shadow: 2px 2px 0 0 #14131a;
+  background-color: #ffd0e0;
+  color: #14131a;
+}
+.brutal button[class~="bg-pink-500/10"]:hover {
+  background-color: #ffb9d4;
+}
+.brutal .material-symbols-outlined[class~="text-pink-500"] {
+  color: #e0356b;
+}
+
 
 
 
