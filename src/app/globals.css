@@ -177,7 +177,7 @@
 
   /* Shadows — 零模糊硬投影，这是狂野派的灵魂 */
   --shadow-soft: 3px 3px 0 0 #14131a;
-  --shadow-warm: 4px 4px 0 0 #ff6b35;
+  --shadow-warm: 3px 3px 0 0 #14131a;
   --shadow-elevated: 4px 4px 0 0 #14131a;
   --shadow-elev: 5px 5px 0 0 #14131a;
   --shadow-focus: 0 0 0 3px #ffd93d;
@@ -329,6 +329,32 @@
 
 /* 捐赠二维码等白底图：贴纸同款硬投影（否则白卡浮在奶油纸上没有层次） */
 .brutal img[class~="bg-white"] {
+  box-shadow: 3px 3px 0 0 #14131a;
+}
+
+/* 捐赠卡片渠道圆形图标：贴纸化（硬黑描边 + 硬黑投影） */
+.brutal div[class*="rounded-full"][style*="background-color"] {
+  border: 2px solid #14131a;
+  box-shadow: 2px 2px 0 0 #14131a;
+}
+
+/* 捐赠卡片「打开」按钮：实色贴纸 + 硬黑描边 + 硬投影 + 悬停交互 */
+.brutal a[style*="background-color"][class*="mt-5"] {
+  border: 2px solid #14131a;
+  box-shadow: 2.5px 2.5px 0 0 #14131a;
+}
+.brutal a[style*="background-color"][class*="mt-5"]:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3.5px 3.5px 0 0 #14131a;
+}
+.brutal a[style*="background-color"][class*="mt-5"]:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 0 #14131a;
+}
+
+/* 侧边栏品牌 logo 块：硬黑描边 + 硬黑投影（彻底消除原先与橙底同色的阴影） */
+.brutal aside a > div:first-child {
+  border: 2px solid #14131a;
   box-shadow: 3px 3px 0 0 #14131a;
 }
 
