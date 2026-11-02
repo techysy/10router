@@ -18,8 +18,10 @@ const PROVIDER_ORDER = [
   ...Object.keys(APIKEY_PROVIDERS),
 ];
 
-// Providers that need no auth — always show in model selector
-const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(id => FREE_PROVIDERS[id].noAuth);
+// Providers that need no auth — always show in model selector (exclude hidden ones)
+const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(
+  (id) => FREE_PROVIDERS[id].noAuth && !FREE_PROVIDERS[id].hidden
+);
 
 // 需要按账号拉取 live 目录的供应商（Cursor 的可选模型随账号订阅浮动；Zed 的
 // 静态 registry 目录是空的、靠 passthrough 透传，由 modelsUrl 实时下发）。静态
@@ -242,6 +244,8 @@ export default function ModelSelectModal({
     sortedProviderIds.forEach((providerId) => {
       const alias = getProviderAlias(providerId);
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
+      // Hidden providers without active connection must not surface in the picker
+      if (providerInfo.hidden && !activeConnectionIds.includes(providerId)) return;
       const isCustomProvider = isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
       const isConnected = connectedIds.has(providerId);
 
