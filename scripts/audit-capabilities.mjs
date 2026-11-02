@@ -129,7 +129,6 @@ export const ALLOWLIST = {
   "trae/work": "aggregator",
   "github/goldeneye-free-auto": "codename",
   "iflow/iflow-rome-30ba3b": "codename",
-  "dots/dots3-note-prev": "codename",
   "morph/morph-dsv4flash": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch-mini": "codename",

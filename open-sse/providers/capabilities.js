@@ -348,6 +348,8 @@ export const MODEL_CAPABILITIES = {
   // DEFAULT_CAPABILITIES 里 tools 默认为 true）。
   "morph-v3-large":             { tools: false, contextWindow: 32000, maxOutput: 32000 }, // morph（第一方）
   "morph-v3-fast":              { tools: false, contextWindow: 16000, maxOutput: 16000 }, // morph（第一方）
+  // Dots (小红书 Dots Studio dots3-note-prev): 512K context, multimodal vision, reasoning
+  "dots3-note-prev":            { vision: true, reasoning: true, contextWindow: 524288, maxOutput: 64000 },
 };
 
 // Case-insensitive index over MODEL_CAPABILITIES for the resolver's step-2b
@@ -793,6 +795,9 @@ export const PROVIDER_CAPABILITIES = {
   "opencode": {
     "deepseek-v4.1-flash-free": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 330000, maxOutput: 128000 },
   },
+  "dots": {
+    "dots3-note-prev": { vision: true, reasoning: true, contextWindow: 524288, maxOutput: 64000 },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
@@ -835,6 +840,10 @@ export const PATTERN_CAPABILITIES = [
   // any future family glob can do the same. A reranker is never a chat model:
   // no tools, tiny window, dispatched by /v1/rerank.
   { pattern: "*rerank*", caps: { tools: false, vision: false, reasoning: false, search: false, contextWindow: 8192, maxOutput: 0 } },
+  // ── Dots (小红书 Dots Studio dots3 系列，512K context，多模态推理) ──
+  { pattern: "*dots3*", caps: { vision: true, reasoning: true, contextWindow: 524288, maxOutput: 64000 } },
+  { pattern: "*dots*", caps: { vision: true, reasoning: true, contextWindow: 524288, maxOutput: 64000 } },
+
   // ── Claude (4.6+ / Sonnet 5.x = adaptive thinking; older/haiku = budget) ──
   { pattern: "*claude*opus-5*",     caps: { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 } },
   // 未知 Sonnet 5.x id（如 5.5）必须落在本行而不是下方泛化的 `*claude*sonnet*`：
