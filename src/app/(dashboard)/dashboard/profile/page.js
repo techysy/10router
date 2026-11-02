@@ -14,6 +14,7 @@ import { isRegionalCurrencyEnabled } from "@/shared/utils/currency";
 import { isCompactUnitsEnabled } from "@/shared/utils/compactNumber";
 import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
+import { MODE_META } from "@/shared/components/ThemeToggle";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -1072,15 +1073,9 @@ export default function ProfilePage() {
                   )}
                 >
                   <span className="material-symbols-outlined text-[18px]">
-                    {option === "light"
-                      ? "light_mode"
-                      : option === "dark"
-                        ? "dark_mode"
-                        : option === "brutal"
-                          ? "palette"
-                          : "contrast"}
+                    {(MODE_META[option] || MODE_META.system).icon}
                   </span>
-                  <span className="capitalize text-xs sm:text-sm">{option}</span>
+                  <span className="text-xs sm:text-sm">{translate((MODE_META[option] || MODE_META.system).label)}</span>
                 </button>
               ))}
             </div>

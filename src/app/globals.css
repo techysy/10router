@@ -390,18 +390,19 @@
   background-color: #ffd0e0;
 }
 
-/* 状态色卡边框统一硬黑（子串匹配覆盖 border-{c}-500/NN 全部透明度变体） */
-.brutal [class*="border-red-5"],
-.brutal [class*="border-green-5"],
-.brutal [class*="border-emerald-5"],
-.brutal [class*="border-yellow-5"],
-.brutal [class*="border-amber-5"],
-.brutal [class*="border-blue-5"],
-.brutal [class*="border-sky-5"],
-.brutal [class*="border-purple-5"],
-.brutal [class*="border-violet-5"],
-.brutal [class*="border-pink-5"],
-.brutal [class*="border-rose-5"] {
+/* 状态色卡边框统一硬黑——尾部 "/" 只中带透明度的变体（border-red-500/30），
+   不误伤实色 border-red-500 和 hover:border-red-500 等交互态。 */
+.brutal [class*="border-red-500/"],
+.brutal [class*="border-green-500/"],
+.brutal [class*="border-emerald-500/"],
+.brutal [class*="border-yellow-500/"],
+.brutal [class*="border-amber-500/"],
+.brutal [class*="border-blue-500/"],
+.brutal [class*="border-sky-500/"],
+.brutal [class*="border-purple-500/"],
+.brutal [class*="border-violet-500/"],
+.brutal [class*="border-pink-500/"],
+.brutal [class*="border-rose-500/"] {
   border-color: #14131a;
 }
 
