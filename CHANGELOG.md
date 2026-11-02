@@ -2,6 +2,23 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.6.6 (2026-11-03)
+
+### ✨ 新增
+
+- **狂野派主题（Neo-Brutalism，#95，感谢 @805889095-eng）**：第三主题上线，切换四态循环（跟随系统 → 浅色 → 深色 → 狂野派）并以 `MODE_META` 单一事实源驱动全部切换面；奶油纸底 + 2.5px 硬黑描边 + 零模糊硬投影；全站实色贴纸化兜底（状态色系 alpha tint 转实色、热力图专属阶梯、公告/捐赠色卡、二维码与捐赠图标按钮硬投影、渐变拍平）；首屏主题闪烁与手机地址栏跟色修复（首帧内联脚本与运行时同步 `meta theme-color`）；i18n 全跟进（zh-CN/zh-TW「主题：狂野派」、Profile 页标签与悬停提示）。
+- **公告同源接口 `/api/announcements`**：服务端静态内置 `announcements.json` 离线兜底 + 后台非阻塞从 GitHub/jsDelivr 静默同步（SWR），前端优先读同源接口——彻底解决国内网络直连 raw.githubusercontent.com 被阻断与 Gitee 镜像 404 导致的「无法加载公告: Failed to fetch」，首访未读红点即时可用；standalone 产物同步携带内置公告。
+- **连接级隐私脱敏开关（#90 三期）**：连接编辑弹窗可直接开关隐私脱敏管道（与引擎 `privacyEnabledFor` 同一真值表），连接列表 🔒 徽章标识生效状态；PUT 路由深合并 `providerSpecificData` 保证部分补丁安全。
+
+### 🐛 修复
+
+- **测试版误报「已是最新版本」**：版本比较升级为完整 SemVer 2.0.0 规范（新增 `src/shared/utils/semver.js`，正式版高于预发布），修复旧比较器遇 `1.6.2-test.45` 等预发布标签时 `Number("2-test")` 产生 NaN 而误判无更新；`/api/version` 与桌面壳 GitHub 兜底路径（`releaseUpdater.isNewerVersion`）同口径。
+- **组合模型选择器混入未配置供应商**：`ModelSelectModal` 的免登供应商收集补 `hidden` 过滤并加「hidden 且无活跃连接一律不进候选池」防守——未安装的 Devin CLI 等本地 CLI 工具不再以其 35 个静态模型常驻组合选择器。
+- **小红书 Dots3（dots3-note-prev）能力补全**：按官方规格声明 512K 上下文 / 最大输出 64000 / 多模态视觉 / 思考推理，不再回落 DEFAULT_CAPABILITIES（200K、图片被剥）；同步从能力审计白名单移除。
+- **流式客户端断开即时中止上游**（吸收上游 #5374/#4914）：移除 500ms 延迟 abort 定时器，客户端断开瞬间同步 `abort()`，杜绝上游空跑浪费 token 与定时器竞态。
+- **Gemini 3.6/3.7/3.8 分档模型 MINIMAL 400 修复**（吸收上游 #5355）：分档 Flash 家族声明 `low/medium/high` 档位集，`reasoning_effort: "none"/"minimal"` 钳位为 `low`，不再触发 Google「Thinking level MINIMAL is not supported」400。
+- **狂野派发版审计修复**：状态边框兜底选择器收紧为透明度变体（不误伤实色 `border-red-500` 与 `hover:border-*` 交互态）；Profile 页主题选项接入 `MODE_META` i18n；捐赠渠道图标/「打开」按钮与侧栏主 logo 补齐硬黑描边投影，`--shadow-warm` 由同色橙改为硬黑消除阴影融化。
+
 ## v1.6.5 (2026-10-29)
 
 ### ✨ 新增

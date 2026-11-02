@@ -1,6 +1,6 @@
 {
   "name": "10router-app",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "description": "10Router web dashboard",
   "private": true,
   "scripts": {
@@ -17,7 +17,8 @@
     "test": "npm --prefix tests test",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
-    "test-version": "node scripts/test-build-version.mjs"
+    "test-version": "node scripts/test-build-version.mjs",
+    "audit:release-notes": "node scripts/audit-release-notes.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

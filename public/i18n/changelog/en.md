@@ -2,6 +2,23 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.6.6 (2026-11-03)
+
+### ✨ New
+
+- **Brutal theme (#95, thanks @805889095-eng)**: a third Neo-Brutalism skin — cream paper, hard black outlines, zero-blur shadows — cycling system/light/dark/brutal. Status colors, heatmap and announcement/donation cards get site-wide solid sticker treatment; fixes first-paint theme flash and mobile address-bar tint.
+- **Announcements load instantly everywhere**: a new same-origin announcements API with a bundled offline fallback and silent background sync — no more "Failed to fetch" on fnOS remote access or Chinese networks; the first-visit unread badge works immediately.
+- **Per-connection privacy toggle (#90)**: flip privacy redaction right in the connection editor; a 🔒 badge marks it on the connection list.
+
+### 🐛 Fixed
+
+- **Prerelease versions wrongly reported "up to date"**: version comparison now follows full SemVer, so `1.6.x-test.N` builds correctly see newer stable releases.
+- **Unconfigured providers leaking into the combo picker**: local tools like Devin CLI no longer clutter the model selector with their static catalogs.
+- **Xiaohongshu Dots3 capabilities**: 512K context + vision + reasoning declared instead of falling back to 200K defaults.
+- **Streams abort instantly on client disconnect**: upstream work stops immediately instead of running on for 500 ms.
+- **Gemini 3.6/3.7/3.8 tiered models 400 fix**: `none/minimal` thinking intents are floored to `low`.
+- **Brutal polish**: state borders no longer clobber solid/hover variants; donation icons and the sidebar logo align with the sticker language.
+
 ## v1.6.5 (2026-10-29)
 
 ### ✨ New
