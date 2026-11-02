@@ -19,13 +19,38 @@
  */
 'use strict';
 
-// x.y.z 逐段数值比较:next > cur 才算新版本。忽略 v 前缀;缺失段按 0,
-// 非数字段(预发布尾巴)parseInt 截断,只影响同版本号的极端场景。
+// x.y.z 逐段数值比较:next > cur 才算新版本。忽略 v 前缀;缺失段按 0。
+// 支持预发布标签（如 1.6.2-test.45）：正式版高于测试版（1.6.2 > 1.6.2-test.45），
+// 且跨版本（1.6.5 > 1.6.2-test.45）正确识别。
 function isNewerVersion(next, cur) {
-    const p = (s) => String(s).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
-    const a = p(next);
-    const b = p(cur);
-    for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+    const parse = (v) => {
+        const [core, ...pre] = String(v || '').replace(/^v/i, '').split('-');
+        return { nums: core.split('.').map((x) => parseInt(x, 10) || 0), pre: pre.join('-') };
+    };
+    const x = parse(next);
+    const y = parse(cur);
+    for (let i = 0; i < 3; i++) {
+        const d = (x.nums[i] || 0) - (y.nums[i] || 0);
+        if (d !== 0) return d > 0;
+    }
+    if (!x.pre && y.pre) return true;
+    if (x.pre && !y.pre) return false;
+    if (!x.pre && !y.pre) return false;
+    const an = x.pre.split('.');
+    const bn = y.pre.split('.');
+    for (let i = 0; i < Math.max(an.length, bn.length); i++) {
+        const ai = an[i];
+        const bi = bn[i];
+        if (ai === undefined) return false;
+        if (bi === undefined) return true;
+        const numA = Number(ai);
+        const numB = Number(bi);
+        if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+            if (numA !== numB) return numA > numB;
+        } else if (ai !== bi) {
+            return ai > bi;
+        }
+    }
     return false;
 }
 

@@ -57,6 +57,13 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(consoleArchiveSource, consoleArchiveDestination, { force: true });
     console.log(`[standalone-assets] Copied consoleArchiveStandalone.mjs to ${consoleArchiveDestination}`);
   }
+
+  const announcementsSource = resolve(projectRoot, "announcements.json");
+  const announcementsDestination = resolve(standaloneDir, "announcements.json");
+  if (existsSync(announcementsSource)) {
+    cpSync(announcementsSource, announcementsDestination, { force: true });
+    console.log(`[standalone-assets] Copied announcements.json to ${announcementsDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {

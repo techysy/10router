@@ -6,6 +6,7 @@ import { UPDATER_CONFIG, GITHUB_CONFIG } from "@/shared/constants/config.js";
 import { getDataDir } from "@/lib/dataDir.js";
 import { getSettings } from "@/lib/localDb";
 import { isAutoUpdateCheckEnabled } from "@/lib/updateCheck";
+import { compareSemver } from "@/shared/utils/semver.js";
 
 // Single source of truth with the updater and the Sidebar's install command —
 // a second copy here silently drifted to the wrong package once already.
@@ -38,15 +39,8 @@ function fetchLatestVersion() {
   });
 }
 
-function compareVersions(a, b) {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if (pa[i] > pb[i]) return 1;
-    if (pa[i] < pb[i]) return -1;
-  }
-  return 0;
-}
+// Compare versions with full SemVer and prerelease support (e.g. 1.6.5 > 1.6.2-test.45, 1.6.2 > 1.6.2-test.45)
+const compareVersions = compareSemver;
 
 // The version marker the CLI writes into the data dir (hooks/postinstall.js on
 // install, cli.js on every launcher start). When it differs from the build that

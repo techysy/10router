@@ -88,17 +88,23 @@ const SYNC_KEY = "10r.announcements.syncedAt";
 const SYNC_TTL_MS = 5 * 60 * 1000;
 let syncInFlight = false;
 
+const FEED_URLS = [
+  "/api/announcements",
+  GITHUB_CONFIG.announcementsUrl,
+  "https://fastly.jsdelivr.net/gh/techysy/10router@main/announcements.json",
+  GITHUB_CONFIG.announcementsUrlFallback,
+].filter(Boolean);
+
 // The header badge must work BEFORE the modal is ever opened: unread count
 // compares against the local cache, and the cache used to be written only when
 // the modal opened — first-time visitors never saw the red dot. Sync the feed
-// quietly on mount (TTL-throttled, both mirrors, silent on failure).
+// quietly on mount (TTL-throttled, same-origin API first, silent on failure).
 async function syncAnnouncementsCache() {
   if (syncInFlight) return;
   if (Date.now() - Number(readJson(SYNC_KEY, 0)) < SYNC_TTL_MS) return;
   syncInFlight = true;
   try {
-    const urls = [GITHUB_CONFIG.announcementsUrl, GITHUB_CONFIG.announcementsUrlFallback].filter(Boolean);
-    for (const url of urls) {
+    for (const url of FEED_URLS) {
       try {
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -154,8 +160,7 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
     setStale(false);
 
     (async () => {
-      const urls = [GITHUB_CONFIG.announcementsUrl, GITHUB_CONFIG.announcementsUrlFallback].filter(Boolean);
-      for (const url of urls) {
+      for (const url of FEED_URLS) {
         try {
           const res = await fetch(url, { cache: "no-store" });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -166,8 +171,8 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
           setItems(feed);
           return;
         } catch (err) {
-          if (url === urls[urls.length - 1]) {
-            // Both mirrors failed — fall back to whatever we last saw.
+          if (url === FEED_URLS[FEED_URLS.length - 1]) {
+            // All candidates failed — fall back to whatever we last saw.
             const cached = normalizeFeed(readJson(CACHE_KEY, null));
             if (cancelled) return;
             if (cached.length) {
