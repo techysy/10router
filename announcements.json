@@ -7,17 +7,17 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-11-02T00:00:00+08:00",
+  "updatedAt": "2026-11-03T00:00:00+08:00",
   "items": [
     {
-      "id": "2026-11-01-v165-release",
-      "date": "2026-11-01",
+      "id": "2026-11-03-v166-release",
+      "date": "2026-11-03",
       "level": "feature",
-      "title": "v1.6.5 发布：Loomy 直登 · 组合禁用 · 隐私脱敏",
-      "body": "兼容节点自定义鉴权头；组合条目一键禁用（402 冷却 30 分钟）；隐私脱敏管道上线（连接级开关，默认关）；桌面托盘后台检查更新。",
-      "titleEn": "v1.6.5: Loomy SMS login · combo toggles · privacy redaction",
-      "bodyEn": "Per-endpoint custom auth headers; one-click combo entry disable (402 cooldown 30 min); privacy redaction pipeline (per-connection, off by default); desktop background update checks.",
-      "link": "https://github.com/techysy/10router/releases/tag/v1.6.5"
+      "title": "v1.6.6 发布：狂野派主题 · 公告离线兜底",
+      "body": "新主题「狂野派」四态循环上线；公告走同源接口国内秒开；测试版更新判定修复；断开连接即时省 token。",
+      "titleEn": "v1.6.6: Brutal theme · offline-safe announcements",
+      "bodyEn": "New Brutal theme in the four-state cycle; announcements now load via a same-origin API; prerelease update detection fixed; streams abort instantly on disconnect.",
+      "link": "https://github.com/techysy/10router/releases/tag/v1.6.6"
     },
     {
       "id": "2026-11-02-brutal-theme",
