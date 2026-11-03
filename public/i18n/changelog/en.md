@@ -2,17 +2,6 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## v1.7.0 (2026-11-03)
-
-### ✨ New
-
-- **LongCat-2.5 GA**: Meituan's LongCat-2.5 is now live — 1M context, 256K max output, image and video input and the thinking switch intact; selectable on both the CN and international endpoints, with 2.5-Preview kept.
-- **Release-notes self-check**: `npm run audit:release-notes` verifies a release body carries the full 📦 install table and the Full Changelog link before it ships.
-
-### 🐛 Fixed
-
-- **Same-named quota packs no longer overwrite each other**: LongCat token packs now list one row per pack (each with its own expiry countdown) instead of collapsing to the last one.
-
 ## v1.6.6 (2026-11-03)
 
 ### ✨ New

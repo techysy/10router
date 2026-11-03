@@ -1,6 +1,6 @@
 {
   "name": "@techysy/10router",
-  "version": "1.7.0",
+  "version": "1.6.6",
   "description": "10Router CLI - Start and manage 10Router server",
   "publishConfig": {
     "access": "public"
