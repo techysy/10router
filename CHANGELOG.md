@@ -2,6 +2,17 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.7.0 (2026-11-03)
+
+### ✨ 新增
+
+- **LongCat-2.5 正式版收录（长猫 / 美团）**：官方 2026-11 正式发布 LongCat-2.5——按《模型参数参考》页声明 1,048,576 上下文、max_tokens 上限 262,144、thinking_budget 上限 262,144，保留多模态输入（image_url + video_url）与思考开关；国内站（longcat）与国际站（longcat-intl）同时收录，2.5-Preview 保留不下线，老配置不失效。能力行按正式版文档放宽（Preview 期口径为 1M / 128K），小写裸 id 同步单列一行防转售商目录大小写回落。定价与同族 Preview 同档（目录价 0.75 / 2.95 / 0.015 每百万 Token）——官方按量付费页当前挂的是「限时折扣价」（0.3 / 1.2 / 0.006），不随促销改价以免成本估算起落；要改价需连同 `tests/unit/pricing-first-party-vs-reseller.test.js` 里钉死的 longcat 断言一起改。
+- **发版说明自动审计**（`scripts/audit-release-notes.mjs`，`npm run audit:release-notes -- <notes.md>` 或 `--tag vX.Y.Z` 直取线上说明）：逐条校验六大骨架——版本标题 / 主题行 / ⚠️ 升级须知 / ✨ 新增 / 🐛 修复 / **📦 安装六大渠道表** / **Full Changelog 比较链接**——缺任一项即退出码 1 并列出缺项。落地自 v1.6.5 说明漏写安装表与比较链接的实测事故；`docs/zh-CN/release-prep/release-checklist.md` 步骤 7 同步加为强检查项。
+
+### 🐛 修复
+
+- **同名资源包互相覆盖，逐包明细只剩 1 条**：外部推送方（CreditDaddy 的 LongCat 资源包）按种类复用同一显示名（「获赠资源包」/「资源包」），只有 push key 区分；而下游处处拿 name 当身份——认领路径用 `Object.fromEntries(rows.map(r => [r.name, r]))` 建 map、按 name 的可见性键、`parseQuotaData` 把 map key 直接当显示名——同名行于是互相覆盖：CD 侧显示「3 个资源包」，10Router 卡面只剩「逐包明细 (1)」（用户 2026-11-03 实测）。快照转行时给重名组编号（「获赠资源包 1/2/3」，与仓库既有「赠送包 N / Bonus Pack N」同族命名一致），独苗行不动名，推送卡与连接卡两条渲染路径同源同结果。
+
 ## v1.6.6 (2026-11-03)
 
 ### ✨ 新增
