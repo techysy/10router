@@ -10,14 +10,14 @@
   "updatedAt": "2026-11-03T00:00:00+08:00",
   "items": [
     {
-      "id": "2026-11-03-v166-release",
+      "id": "2026-11-03-v170-release",
       "date": "2026-11-03",
       "level": "feature",
-      "title": "v1.6.6 发布：狂野派主题 · 公告离线兜底",
-      "body": "新主题「狂野派」四态循环上线；公告走同源接口国内秒开；测试版更新判定修复；断开连接即时省 token。",
-      "titleEn": "v1.6.6: Brutal theme · offline-safe announcements",
-      "bodyEn": "New Brutal theme in the four-state cycle; announcements now load via a same-origin API; prerelease update detection fixed; streams abort instantly on disconnect.",
-      "link": "https://github.com/techysy/10router/releases/tag/v1.6.6"
+      "title": "v1.7.0 发布：LongCat-2.5 正式版 · 资源包明细修复",
+      "body": "LongCat-2.5 正式版收录（1M 上下文 / 256K 输出 / 图片视频输入）；同名资源包不再互相覆盖，逐包明细逐条列出。",
+      "titleEn": "v1.7.0: LongCat-2.5 GA · per-pack quota details fixed",
+      "bodyEn": "LongCat-2.5 GA (1M context, 256K output, image & video input); same-named resource packs no longer overwrite each other — every pack now lists in the per-pack details.",
+      "link": "https://github.com/techysy/10router/releases/tag/v1.7.0"
     },
     {
       "id": "2026-11-02-brutal-theme",
