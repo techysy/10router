@@ -301,6 +301,15 @@ export const MODEL_CAPABILITIES = {
   // 视觉理解文档确认图片（image_url 块）+ 视频（video_url 块）输入；chat 文档
   // 确认 thinking {type:enabled|disabled} 开关与 reasoning_content 响应。
   "LongCat-2.5-Preview":        { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  // LongCat-2.5 正式版（2026-11 GA，第一方）：官方《模型参数参考》页——上下文
+  // 1,048,576(1M)、max_tokens 上限 262,144(256K)、thinking_budget 上限 262,144、
+  // 思考开关 thinking {type:enabled|disabled}；视觉理解文档确认 image_url +
+  // video_url 输入。能力面与 2.5-Preview 同族，但窗口/输出上限按正式版文档放宽
+  // （Preview 那行的 1M/128K 是 Preview 期的限流口径）。
+  "LongCat-2.5":                { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 262144 },
+  // 同上，小写裸 id（与 longcat-2.0 同理由：canonical 查表区分大小写；转售商的
+  // "meituan/longcat-2.5" 走命名空间回退已由上一行覆盖，此行给裸小写 id 兜底）。
+  "longcat-2.5":                { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 262144 },
   // opencode-go 的目录用小写 longcat-2.0，而 canonical 查表区分大小写 → 必须单独一行
   // （同值，来源同上；models.dev 的 opencode-go 条目 1000000/131072 与第一方一致）。
   "longcat-2.0":                { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 }, // 同上，小写 id
@@ -356,7 +365,8 @@ export const MODEL_CAPABILITIES = {
 // fallback (see getCapabilitiesForModel). Exact-cased lookups still win first,
 // so this only recovers rows a reseller's casing would otherwise miss. On a
 // case-collision the first-declared row wins (deterministic; today's only
-// collision — LongCat-2.0 vs longcat-2.0 — carries byte-identical caps).
+// collisions — LongCat-2.0 vs longcat-2.0 and LongCat-2.5 vs longcat-2.5 —
+// carry byte-identical caps).
 const MODEL_CAPABILITIES_CI = (() => {
   const idx = {};
   for (const [key, caps] of Object.entries(MODEL_CAPABILITIES)) {

@@ -478,10 +478,18 @@ export const PROVIDER_PRICING = {
   longcat: {
     "LongCat-2.0": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5-Preview": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+    // LongCat-2.5 正式版（2026-11 GA）＝ 2.5-Preview 的正式化，同价。
+    // 注：官方《按量付费》页当前挂的是「限时折扣价」（¥2 / ¥0.04 / ¥8 每百万
+    // ≈ $0.30 / $0.006 / $1.20，models.dev 的 longcat 条目也是这组数）；本块
+    // 沿用目录价 0.75 / 2.95 / 0.015，与同块两个兄弟行一致——折扣是限时活动，
+    // 不该让成本估算随促销起落。要按折扣价重定价请连同 tests 里那行钉死的
+    // longcat/LongCat-2.0 断言一起改。
+    "LongCat-2.5": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
   },
   "longcat-intl": {
     "LongCat-2.0": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5-Preview": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+    "LongCat-2.5": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
   },
 };
 
