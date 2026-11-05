@@ -88,14 +88,16 @@ cat $BASE/server.new/.next/BUILD_ID
 sudo mv $BASE/server $BASE/server.bak_<旧版本>
 sudo mv $BASE/server.new $BASE/server
 
-# ③ 走 fnOS 生命周期重启（别手动 kill node，会脱离管理）
+# ③ 走 fnOS 生命周期重启（别手动 kill node，会脱离管理）。
+# stop 和 start 两条都要执行 —— stop 之后应用就是停着的，不会自己起来；
+# 漏了 start 服务就停在那里（2026-11-05 实测踩过：只发了 stop，服务挂到人工拉起）。
 sudo /usr/local/bin/appcenter-cli stop 10router
 sudo /usr/local/bin/appcenter-cli start 10router
 ```
 
 **为什么这么排**：预解包/chown 都是慢步骤，放在应用还跑着时做；真正的交换只剩两个 rename。
-`appcenter-cli stop` 之后 **~72 秒 fnOS 守护会自动把应用拉起**（TRIMEVENT 日志可查），stop 挡不住——
-所以必须「先换完文件再重启」，反过来「先停再慢慢换」会撞上自动拉起读到半成品。
+stop 的处理在守护侧耗时可达 ~72 秒（TRIMEVENT 日志可查）——所以必须「先换完文件再重启」，
+反过来「先停再慢慢换」会让窗口里的 start 读到半成品。
 
 ## 3. 验证闭环
 
