@@ -128,8 +128,9 @@ export default {
     { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.69 },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
     { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97, proOnly: true },
-    // 客户端显示「Kimi-K3.1-Pro-Highs…」；完整拼写按 kimi-k2.7-code 的
-    // 「-code 后缀小写直连」惯例推断为 -highspeed。⚠️ 凭据过期未复核。
+    // 完整拼写由客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed，卡面 1.56x/300K）。
+    // ⚠️ 可达性未验证：无 Pro 账号，全部 proOnly 行都只在客户端可见、未经
+    // 现网请求确认（与当年 Claude paidTier 行同一处境）——免费账号请求预期被拒。
     { id: "kimi-k3.1-pro-highspeed", name: "Kimi-K3.1-Pro-Highspeed", rateMultiplier: 1.56, proOnly: true },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
     { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.08 },
