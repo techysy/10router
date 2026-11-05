@@ -14,18 +14,24 @@ function toKey(absPath) {
 }
 
 const r = JSON.parse(readFileSync(resultsPath, "utf8"));
-const inventory = {};
+const statuses = {};
 
 for (const f of r.testResults) {
   const file = toKey(f.name);
   for (const a of f.assertionResults) {
-    inventory[`${file} :: ${a.fullName}`] = a.status;
+    statuses[`${file} :: ${a.fullName}`] = a.status;
   }
   const hasFailedAssertion = (f.assertionResults || []).some((a) => a.status === "failed");
   if (f.status === "failed" && !hasFailedAssertion) {
-    inventory[`${file} :: [suite-level failure]`] = "failed";
+    statuses[`${file} :: [suite-level failure]`] = "failed";
   }
 }
+
+// Sort by key. vitest's report order depends on file discovery and worker
+// scheduling, so the unsorted snapshot rewrote the whole file on every
+// re-baseline: the one commit in this repo that touched it came out as
+// 6500 changed lines for 25 added tests, burying the actual delta.
+const inventory = Object.fromEntries(Object.entries(statuses).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 
 const out = new URL("./known-inventory.json", import.meta.url);
 writeFileSync(out, JSON.stringify(inventory, null, 2) + "\n");

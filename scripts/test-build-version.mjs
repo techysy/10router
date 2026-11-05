@@ -38,7 +38,13 @@ const VERSION_FILES = [
   "fnos-packaging/manifest",
 ];
 
-const ROUND_FILE = join(ROOT, ".test-round.json");
+// Round ledger. Overridable so tests can point at a temp file instead of the
+// developer's real ledger — the gate's own unit test stamps and reverts, and a
+// shared ledger makes its outcome depend on whatever rounds this machine has
+// already burned (and makes it write into the checkout while other workers run).
+const ROUND_FILE = process.env.TEST_BUILD_ROUND_FILE
+  ? process.env.TEST_BUILD_ROUND_FILE
+  : join(ROOT, ".test-round.json");
 
 export function loadTestRounds() {
   try {
