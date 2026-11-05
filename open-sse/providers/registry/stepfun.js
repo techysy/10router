@@ -51,8 +51,13 @@ export default {
     { id: "step-tts-2", name: "Step TTS 2", kind: "tts" },
     { id: "step-tts-mini", name: "Step TTS Mini", kind: "tts" },
     { id: "stepaudio-2.5-asr", name: "StepAudio 2.5 ASR", kind: "stt" },
+    // 音乐生成（官方 docs models/stepaudio-3-music，2026-11-05）：异步任务式
+    // （submit + query 轮询），不走 chat completions —— 见 musicConfig。
+    // `stepaudio-3-music-preview` 是限免期模型名，到期后官方会下线预览版并上新
+    // 正式付费版（届时改 id + 定价）。
+    { id: "stepaudio-3-music-preview", name: "StepAudio 3 Music", kind: "music" },
   ],
-  serviceKinds: ["llm", "imageToText", "tts", "stt"],
+  serviceKinds: ["llm", "imageToText", "tts", "stt", "music"],
   features: {
     usage: true,
     usageApikey: true,
@@ -73,5 +78,19 @@ export default {
     authType: "apikey",
     authHeader: "bearer",
     format: "openai",
+  },
+  // 原生音乐生成 API（docs api-reference/audio/music，2026-11-05）：HTTP 异步
+  // 「提交 + 查询」——/submit 返回 task_id，/query 每 5 秒轮询到 SUCCESS/FAILED
+  // 终态，SUCCESS 带 base64 音频。网关 /v1/audio/music 按 musicConfig.mode 分派：
+  // 这里是原生异步，acemusic 走 chat-completions 模式。caption 必填（曲风描述），
+  // lyrics 可选（不传由服务端自动写词）。
+  musicConfig: {
+    mode: "stepfun-async",
+    submitUrl: "https://api.stepfun.ai/v1/audio/music/submit",
+    queryUrl: "https://api.stepfun.ai/v1/audio/music/query",
+    authType: "apikey",
+    authHeader: "bearer",
+    modelIdUpstream: "stepaudio-3-music-preview",
+    defaultResponseFormat: "mp3",
   },
 };

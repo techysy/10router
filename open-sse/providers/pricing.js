@@ -455,6 +455,9 @@ export const PROVIDER_PRICING = {
     "step-3.7-flash": { input: 0.185, output: 1.11, cached: 0.037, reasoning: 1.11 },
     "step-3.5-flash": { input: 0.1, output: 0.3, cached: 0.02, reasoning: 0.3 },
     "step-3.5-flash-2603": { input: 0.1, output: 0.3, cached: 0.02, reasoning: 0.3 },
+    // StepAudio 3 Music：官方 docs 明示「限时免费」，预览版到期会下线换正式付费版
+    // （届时连同 registry 的模型 id 一起改）。
+    "stepaudio-3-music-preview": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
   "stepfun-cn": {
     "step-5-preview": { input: 1.0, output: 2.7, cached: 0.05, reasoning: 2.7 },
@@ -490,6 +493,11 @@ export const PROVIDER_PRICING = {
     "LongCat-2.0": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5-Preview": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+  },
+  // ACE Music：官方 /v1/models 计价全 0（限时免费，2026-11-05 实测）；一首歌按
+  // 固定 100 completion_tokens 计量。收费后请按官方定价页改这里。
+  acemusic: {
+    "acemusic/acestep-v1.5-turbo": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
 };
 

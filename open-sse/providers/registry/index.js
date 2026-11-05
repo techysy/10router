@@ -166,6 +166,7 @@ import p161 from "./muse-web.js";
 import p162 from "./chatgpt-web.js";
 import p163 from "./nace.js";
 import p164 from "./doubao.js";
+import p165 from "./acemusic.js";
 
 export default [
   p0,
@@ -335,4 +336,5 @@ export default [
   p162,
   p163,
   p164,
+  p165,
 ];

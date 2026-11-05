@@ -220,6 +220,11 @@ export const MODEL_CAPABILITIES = {
   "kimi-k3":           { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
   "k3":                { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
   "kimi-k3.1-pro":     { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+  // StepAudio 3 Music（stepfun 原生 /v1/audio/music 异步任务，docs 2026-11-05）：
+  // 输入 自然语言+歌词+可选参考音频，输出音乐；非 chat 模型，无上下文口径——
+  // audioInput/audioOutput 声明给 UI 徽章，窗口/输出取保守占位（kind:"music" 不进
+  // chat 能力审计的 floor 回放）。
+  "stepaudio-3-music-preview": { audioInput: true, audioOutput: true, contextWindow: 32000, maxOutput: 32000 },
   "kimi-for-coding":   { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
   "kimi-for-coding-highspeed": { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
   "kimi-k2.7-code":    { vision: true, videoInput: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 262144, maxOutput: 65536 },
@@ -411,8 +416,8 @@ const QODER_NAME_ALIASES = {
   "Qwen3.7-Max": "qmodel_latest",
   "Qwen3.7-Plus": "qmodel",
   "Qwen3.8-Flash": "qfmodel",
-  "Kimi-K3": "kmodel_latest",
-  "Kimi-K2.7-Code": "kmodel",
+  "Kimi-K3.1-Pro": "kmodel_latest",
+  "Kimi-K2.8-Preview": "kmodel",
   "GLM-5.3": "gmodel",
   "GLM-5.3-Flash": "gfmodel",
   "DeepSeek-V4-Pro": "dmodel",
@@ -420,10 +425,12 @@ const QODER_NAME_ALIASES = {
   // 旧名 DeepSeek-V4-Flash 不再出现在模型表里，别名一并移除——留着会被
   // audit-capabilities 判成 dead provider row（别名键必须能在 registry 找到对应条目）。
   "DeepSeek-V4.1-Flash 1017": "dfmodel",
-  "MiniMax-M3": "mmodel",
+  "MiniMax-M3.1-Flash": "mmodel",
 };
 const QODER_CN_NAME_ALIASES = {
   ...QODER_NAME_ALIASES,
+  "快速": "fast",
+  "Step-5-Preview": "jmodel",
   "Qwen3.7-Flash": "q37fmodel",
   "GLM-5.2": "gm51model",
 };
@@ -769,9 +776,9 @@ export const PROVIDER_CAPABILITIES = {
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
     "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash
-    "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3
-    "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.7-Code
-    "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3
+    "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro
+    "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
+    "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
     "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Max
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
@@ -780,20 +787,31 @@ export const PROVIDER_CAPABILITIES = {
   "qoder-cn": aliased({
     // 虚拟档：家族随上游路由漂移，给保守超集（与 INTL 侧的 auto/efficient 同形状）。
     "auto":           { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // 虚拟档：家族随上游路由漂移，给保守超集
+    "fast":           { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // 快速：虚拟路由档
     "dmodel":         { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4-Pro
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
     "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash
     "gm51model":      { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 48000 },       // GLM-5.2
-    "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3
-    "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.7-Code
-    "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3
+    "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro
+    "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
+    "jmodel":         { vision: true, reasoning: true, thinkingFormat: "step", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Step-5-Preview
+    "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
     "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Max
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "q37fmodel":      { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Flash
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
   }, { ...QODER_CN_NAME_ALIASES, "Auto": "auto" }),
+  // ACE Music — acemusic.ai 托管的 ACE-Step 音乐生成（/v1/models 模型卡 2026-11-05）：
+  // text+audio 进、audio+text 出；context_length 4096，输出上限未公布（取上下文内
+  // 保守值）。无 vision/reasoning。音频整曲走 message.audio[]/delta.audio[]（OpenAI
+  // audio 方言，整曲单帧 base64）——流式过滤与 combo 判定已把它计为有效内容（见
+  // streamHelpers.hasValuableContent / combo.isZeroContentResponse / sensitiveRetry）。
+  // 键按 baseModel（resolver 剥掉与 provider 同名的 acemusic/ 前缀），显示名走 aliased。
+  "acemusic": aliased({
+    "acestep-v1.5-turbo": { audioInput: true, audioOutput: true, contextWindow: 4096, maxOutput: 4096 }, // ACE-Step
+  }, { "ACE-Step": "acestep-v1.5-turbo" }),
   // Poolside Laguna — OpenAI-compatible, all reasoning-capable (32K max output).
   "poolside": {
     "laguna-s-2.1":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },

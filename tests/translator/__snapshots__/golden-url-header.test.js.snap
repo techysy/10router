@@ -1,5 +1,24 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`GOLDEN buildHeaders (default executor providers) > acemusic → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > agnes-ai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2142,6 +2161,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > zed → headers (api
     "Content-Type": "application/json",
     "content-type": "application/json",
   },
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > acemusic → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.acemusic.ai/v1/chat/completions",
+  "stream": "https://api.acemusic.ai/v1/chat/completions",
 }
 `;
 

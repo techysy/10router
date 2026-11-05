@@ -1442,5 +1442,10 @@
     "baseUrl": "https://chatgpt.com",
     "format": "openai",
     "authType": "cookie"
+  },
+  "acemusic": {
+    "baseUrl": "https://api.acemusic.ai/v1/chat/completions",
+    "validateUrl": "https://api.acemusic.ai/v1/models",
+    "format": "openai"
   }
 }

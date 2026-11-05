@@ -2141,5 +2141,11 @@
   "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。": "qfmodel 更名 DeepSeek-V4.1-Flash 1017，qoder / qoder-cn 国际国内双线限免（倍率 0x）至 10-25。",
   "Privacy redaction (experimental)": "隐私脱敏（实验性）",
   "Redact API keys and secrets in the outbound request body, restore them in the model response. Enable only for untrusted upstreams.": "对出站请求体中的 API 密钥与敏感串做确定性脱敏，模型回显内容自动还原。仅在对上游不信任时开启（默认关）。",
-  "Privacy redaction on: secrets in the request body are redacted for this upstream": "隐私脱敏已开启：该上游的请求体敏感串将被脱敏"
+  "Privacy redaction on: secrets in the request body are redacted for this upstream": "隐私脱敏已开启：该上游的请求体敏感串将被脱敏",
+  "providers": "个提供商",
+  "Added": "已添加",
+  "Web Tools": "网页工具",
+  "opens in a new tab": "在新标签页打开",
+  "Web studio · song + MV · free beta (Gmail login, Discord invite)": "网页端音乐与 MV 创作 · 免费内测（Gmail 登录、Discord 邀请）",
+  "AI music platform for creating, remixing, and sharing songs": "Google 音乐生成创作平台 · 在线试听与混音"
 }

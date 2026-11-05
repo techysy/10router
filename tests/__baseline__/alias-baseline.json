@@ -1,6 +1,7 @@
 {
   "aliasToId": {
     "aai": "assemblyai",
+    "acemusic": "acemusic",
     "af": "api-airforce",
     "ag": "antigravity",
     "agnes-ai": "agnes-ai",
@@ -298,6 +299,7 @@
     "zed": "zed"
   },
   "idToAlias": {
+    "acemusic": "acemusic",
     "agnes-ai": "agnes-ai",
     "agnes-ai-cn": "agnes-ai-cn",
     "alicode": "alicode",
@@ -421,6 +423,7 @@
     "zed": "zd"
   },
   "modelKeys": [
+    "acemusic",
     "af",
     "ag",
     "agnes-ai",

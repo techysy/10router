@@ -42,9 +42,12 @@ export function hasValuableContent(chunk, format) {
   // OpenAI format
   if (format === FORMATS.OPENAI && chunk.choices?.[0]?.delta) {
     const delta = chunk.choices[0].delta;
+    // delta.audio（OpenAI audio 方言，acemusic 整曲单帧 ~600KB）不算的话,
+    // 那一帧会被下面的 continue 整帧吞掉 —— 客户端拿到歌词但拿不到歌(#96 同族静默丢失)。
     return delta.content && delta.content !== "" ||
            delta.reasoning_content && delta.reasoning_content !== "" ||
            delta.tool_calls && delta.tool_calls.length > 0 ||
+           delta.audio && delta.audio.length > 0 ||
            chunk.choices[0].finish_reason ||
            delta.role;
   }
