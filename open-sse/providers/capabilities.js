@@ -747,9 +747,10 @@ export const PROVIDER_CAPABILITIES = {
   // 超集；其余 intl 模型落 canonical / 通配行。
   "codebuddy-intl": {
     "auto": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
-    // Kimi-K3.1-Pro-Highspeed：客户端卡面 300K 窗口（2026-11-05 tooltip）。
-    // proOnly 行未做现网验证（无 Pro 账号），但能力行只影响本地夹取，按卡面写。
-    "kimi-k3.1-pro-highspeed": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 300000, maxOutput: 64000 },
+    // Kimi-K3.1-Pro-Highspeed：客户端档位 300K(默认)/600K/1M（2026-11-05）。
+    // 能力行按上限 1M 声明 —— 300K 只是默认选择，夹取应按模型真实上限。
+    // proOnly 行未做现网验证（无 Pro 账号），但能力行只影响本地夹取。
+    "kimi-k3.1-pro-highspeed": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …);
   // capability lookup matches on the raw id, while clients may also address
