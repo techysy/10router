@@ -289,7 +289,12 @@ npx vitest run --dir tests
 <p>
   <a href="https://github.com/techysy" title="techysy — 主要维护者"><img src="https://github.com/techysy.png?size=80" width="48" height="48" alt="techysy" /></a>
   <a href="https://github.com/shiyangyuda" title="shiyangyuda — 代码优化"><img src="https://github.com/shiyangyuda.png?size=80" width="48" height="48" alt="shiyangyuda" /></a>
-  <a href="https://github.com/monkey2jack" title="monkey2jack — arm64 Docker 支持"><img src="https://github.com/monkey2jack.png?size=80" width="48" height="48" alt="monkey2jack" /></a>
+  <a href="https://github.com/805889095-eng" title="805889095-eng — PR #95 brutal 粗野派主题 (已合入)"><img src="https://github.com/805889095-eng.png?size=80" width="48" height="48" alt="805889095-eng" /></a>
+  <a href="https://github.com/gmplout" title="gmplout — #64/#65/#68 组合与转译缺陷定位 · #90/#91 RFC 提案"><img src="https://github.com/gmplout.png?size=80" width="48" height="48" alt="gmplout" /></a>
+  <a href="https://github.com/gmshokz" title="gmshokz — #87 用量计量三缺陷 · #82 Antigravity 验证盲区 · #89 卡片拖拽排序"><img src="https://github.com/gmshokz.png?size=80" width="48" height="48" alt="gmshokz" /></a>
+  <a href="https://github.com/sabercomo" title="sabercomo — #88 Qoder provider_error 误判成功定位"><img src="https://github.com/sabercomo.png?size=80" width="48" height="48" alt="sabercomo" /></a>
+
+  <a href="https://github.com/monkey2jack" title="monkey2jack — arm64 Docker 支持 · 安全加固 / Antigravity / cline / combo 规格等 4 个 PR 合入"><img src="https://github.com/monkey2jack.png?size=80" width="48" height="48" alt="monkey2jack" /></a>
   <a href="https://github.com/lan5635" title="lan5635 — issue 反馈"><img src="https://github.com/lan5635.png?size=80" width="48" height="48" alt="lan5635" /></a>
   <a href="https://github.com/iMissNan" title="iMissNan — issue 反馈"><img src="https://github.com/iMissNan.png?size=80" width="48" height="48" alt="iMissNan" /></a>
   <a href="https://github.com/JasonXX89" title="JasonXX89 — issue 反馈"><img src="https://github.com/JasonXX89.png?size=80" width="48" height="48" alt="JasonXX89" /></a>
@@ -314,7 +319,7 @@ npx vitest run --dir tests
   <a href="https://github.com/windcloud01" title="windcloud01 — issue 反馈"><img src="https://github.com/windcloud01.png?size=80" width="48" height="48" alt="windcloud01" /></a>
 </p>
 
-<sub>名单由 issue 与 PR 的反馈者及协同项目汇总，头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；若有遗漏请随时提 issue 补充。</sub>
+<sub>名单由 issue 与 PR 的反馈者及协同项目汇总，头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；若有遗漏请随时提 issue 补充。另有进行中 PR：@shadyrispy 的 9 家订阅渠道接入（#79），合入后补录。</sub>
 
 ---
 
