@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
 import Modal from "./Modal";
+import Button from "./Button";
 import ProviderIcon from "./ProviderIcon";
 import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
@@ -526,7 +527,31 @@ export default function ModelSelectModal({
       title={title ?? translate("Select Model")}
       size="md"
       className="p-4!"
-      footer={null}
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <div className="text-xs text-text-muted">
+            {addedModelValues.length > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+                <span>
+                  {translate("Selected only")}: <strong className="text-text-main font-semibold">{addedModelValues.length}</strong>
+                </span>
+              </span>
+            ) : (
+              <span>{translate("No models selected")}</span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              onClose();
+              setSearchQuery("");
+            }}
+          >
+            {!closeOnSelect || addedModelValues.length > 0 ? translate("Done") : translate("Close")}
+          </Button>
+        </div>
+      }
     >
       {/* Info bar */}
       <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-primary/8 border border-primary/20 rounded-lg text-xs text-text-muted">

@@ -37,6 +37,7 @@ export default {
     // publishes none of them (only Auto + the model keys below). Chat still
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
+    { id: "fast", name: "快速" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
     { id: "qmodel_latest", name: "Qwen3.7-Max" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
@@ -45,16 +46,17 @@ export default {
     // button until registered here.
     { id: "q37fmodel", name: "Qwen3.7-Flash" },
     { id: "qfmodel", name: "Qwen3.8-Flash" },
-    { id: "kmodel_latest", name: "Kimi-K3" },
-    { id: "kmodel", name: "Kimi-K2.7-Code" },
-    { id: "gmodel", name: "GLM-5.3" },
-    { id: "gfmodel", name: "GLM-5.3-Flash" },
-    { id: "gm51model", name: "GLM-5.2" },
     { id: "dmodel", name: "DeepSeek-V4-Pro" },
     // 同 qoder：dfmodel = DeepSeek-V4.1-Flash-1017，个人版限免至
     // 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
     { id: "dfmodel", name: "DeepSeek-V4.1-Flash 1017", promoFreeUntil: "2026-10-25T00:00:00+08:00" },
-    { id: "mmodel", name: "MiniMax-M3" },
+    { id: "gmodel", name: "GLM-5.3" },
+    { id: "gfmodel", name: "GLM-5.3-Flash" },
+    { id: "gm51model", name: "GLM-5.2" },
+    { id: "kmodel_latest", name: "Kimi-K3.1-Pro" },
+    { id: "kmodel", name: "Kimi-K2.8-Preview" },
+    { id: "jmodel", name: "Step-5-Preview" },
+    { id: "mmodel", name: "MiniMax-M3.1-Flash" },
   ],
   oauth: {
     openApiBaseUrl: "https://openapi.qoder.com.cn",

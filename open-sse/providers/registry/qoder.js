@@ -38,8 +38,8 @@ export default {
     { id: "qmodel_latest", name: "Qwen3.7-Max" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     { id: "qfmodel", name: "Qwen3.8-Flash" },
-    { id: "kmodel_latest", name: "Kimi-K3" },
-    { id: "kmodel", name: "Kimi-K2.7-Code" },
+    { id: "kmodel_latest", name: "Kimi-K3.1-Pro" },
+    { id: "kmodel", name: "Kimi-K2.8-Preview" },
     { id: "gmodel", name: "GLM-5.3" },
     { id: "gfmodel", name: "GLM-5.3-Flash" },
     { id: "dmodel", name: "DeepSeek-V4-Pro" },
@@ -48,7 +48,7 @@ export default {
     // 限免：个人版 0.0x 至 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
     // 用带时区的 ISO 写死边界——裸日期会被当成 UTC 零点，等于多送 8 小时。
     { id: "dfmodel", name: "DeepSeek-V4.1-Flash 1017", promoFreeUntil: "2026-10-25T00:00:00+08:00" },
-    { id: "mmodel", name: "MiniMax-M3" },
+    { id: "mmodel", name: "MiniMax-M3.1-Flash" },
   ],
   oauth: {
     openApiBaseUrl: "https://openapi.qoder.sh",
