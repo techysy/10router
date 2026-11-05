@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { MODE_META } from "./ThemeToggle";
+import ThemePickerModal from "./ThemePickerModal";
 import ChangelogModal from "./ChangelogModal";
 import { ConfirmModal } from "./Modal";
 import { translate } from "@/i18n/runtime";
@@ -51,10 +52,11 @@ MenuItem.propTypes = {
 export default function HeaderMenu({ onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const { theme, toggleTheme } = useTheme();
-  // MODE_META 覆盖全部四态——三元式兜底会在新增主题时静默掉进 dark 分支
+  const { theme } = useTheme();
+  // MODE_META 覆盖全部主题——三元式兜底会在新增主题时静默掉进 dark 分支
   const themeMeta = MODE_META[theme] || MODE_META.system;
   const menuRef = useRef(null);
 
@@ -104,7 +106,8 @@ export default function HeaderMenu({ onLogout }) {
             <MenuItem
               icon={themeMeta.icon}
               label={translate(themeMeta.label)}
-              onClick={() => { toggleTheme(); close(); }}
+              trailing="chevron_right"
+              onClick={() => { close(); setThemePickerOpen(true); }}
             />
             <MenuItem
               icon="power_settings_new"
@@ -123,6 +126,7 @@ export default function HeaderMenu({ onLogout }) {
       </div>
 
       <ChangelogModal isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
+      <ThemePickerModal isOpen={themePickerOpen} onClose={() => setThemePickerOpen(false)} />
       <ConfirmModal
         isOpen={shutdownOpen}
         onClose={() => setShutdownOpen(false)}

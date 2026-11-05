@@ -12,10 +12,18 @@ import { cn } from "@/shared/utils/cn";
 // theme switcher surface (HeaderMenu reuses it — a new theme is added here
 // once, never per-surface).
 export const MODE_META = {
-  system: { icon: "routine", label: "Theme: system", next: "light" },
-  light: { icon: "light_mode", label: "Theme: light", next: "dark" },
-  dark: { icon: "dark_mode", label: "Theme: dark", next: "brutal" },
-  brutal: { icon: "palette", label: "Theme: brutal", next: "system" },
+  // 主题清单的 UI 元数据。清单本体在 themeStore THEMES（存储合法性）与
+  // ThemePickerModal THEME_GROUPS（分组展示）—— 三处同步改。
+  // icon 用于 HeaderMenu 菜单项（显示当前主题）与弹窗空态。
+  system:      { icon: "routine",    label: "Theme: system" },
+  light:       { icon: "light_mode", label: "Theme: light" },
+  dark:        { icon: "dark_mode",  label: "Theme: dark" },
+  brutal:      { icon: "palette",    label: "Theme: brutal" },
+  gruvbox:     { icon: "forest",     label: "Theme: gruvbox" },
+  nord:        { icon: "ac_unit",    label: "Theme: nord" },
+  dracula:     { icon: "nightlight", label: "Theme: dracula" },
+  "glass-light": { icon: "blur_on",  label: "Theme: glass light" },
+  "glass-dark":  { icon: "blur_on",  label: "Theme: glass dark" },
 };
 
 export default function ThemeToggle({ className, variant = "default" }) {

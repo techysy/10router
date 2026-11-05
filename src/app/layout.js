@@ -45,16 +45,20 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var raw=null;try{raw=localStorage.getItem('theme')}catch(e){}
 var t=null;if(raw){try{var j=JSON.parse(raw);t=(j&&j.state&&j.state.theme)||null}catch(e){t=raw}}
-if(t!=='light'&&t!=='dark'&&t!=='brutal')t='system';
+var KNOWN=['system','light','dark','brutal','gruvbox','nord','dracula','glass-light','glass-dark'];
+if(KNOWN.indexOf(t)<0)t='system';
 var sysDark=!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
-var dark=t==='dark'||(t==='system'&&sysDark);
-var brutal=t==='brutal';
+var LIGHT=['light','brutal','glass-light'],DARKF=['dark','gruvbox','nord','dracula','glass-dark'];
+var e=t==='system'?(sysDark?DARKF[0]:LIGHT[0]):t;
+var isDark=e==='dark'||DARKF.indexOf(e)>=0;
 var r=document.documentElement;
-if(dark)r.classList.add('dark');else r.classList.remove('dark');
-if(brutal)r.classList.add('brutal');else r.classList.remove('brutal');
-r.style.colorScheme=dark?'dark':'light';
+var CLS=['dark','brutal','theme-gruvbox','theme-nord','theme-dracula','theme-glass-light','theme-glass-dark'];
+for(var i=0;i<CLS.length;i++)r.classList.remove(CLS[i]);
+if(e==='dark')r.classList.add('dark');else if(e!=='light')r.classList.add('theme-'+e);
+r.style.colorScheme=isDark?'dark':'light';
+var TC={brutal:'#FFF6E5',gruvbox:'#282828',nord:'#2e3440',dracula:'#282a36','glass-light':'#eef2f8','glass-dark':'#141822'};
 var m=document.querySelector('meta[name="theme-color"]');
-if(m)m.setAttribute('content',brutal?'#FFF6E5':dark?'#0a0a0a':'#FDFAF6');
+if(m)m.setAttribute('content',TC[e]||(isDark?'#0a0a0a':'#FDFAF6'));
 }catch(e){}})();`,
           }}
         />

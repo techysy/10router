@@ -15,6 +15,7 @@ import { isCompactUnitsEnabled } from "@/shared/utils/compactNumber";
 import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
 import { MODE_META } from "@/shared/components/ThemeToggle";
+import ThemePickerModal from "@/shared/components/ThemePickerModal";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [regional, setRegional] = useState(true);
   const [compactUnits, setCompactUnits] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   // Turning the login check off is a one-click way to publish every provider and
   // credential to anyone who can route to this port (issue #9, item 4), so it
@@ -1059,25 +1061,22 @@ export default function ProfilePage() {
                 <p className="text-sm text-text-muted">Running on your machine</p>
               </div>
             </div>
-            <div className="inline-flex p-1 rounded-lg bg-black/5 dark:bg-white/5 w-full sm:w-auto">
-              {["light", "dark", "brutal", "system"].map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTheme(option)}
-                  className={cn(
-                    "flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all flex-1 sm:flex-initial",
-                    theme === option
-                      ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-                      : "text-text-muted hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {(MODE_META[option] || MODE_META.system).icon}
+            <div className="w-full sm:w-auto">
+              {/* 主题多了（8 + system），行内循环按钮放不下也点不过来 —— 与
+                  HeaderMenu 共用 ThemePickerModal，分区里只留一个当前主题的入口。 */}
+              <button
+                type="button"
+                onClick={() => setThemePickerOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-brand-500/50 hover:bg-surface-2 transition-all text-sm w-full sm:w-auto justify-between sm:justify-start"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-text-muted">
+                    {(MODE_META[theme] || MODE_META.system).icon}
                   </span>
-                  <span className="text-xs sm:text-sm">{translate((MODE_META[option] || MODE_META.system).label)}</span>
-                </button>
-              ))}
+                  <span className="font-medium">{translate((MODE_META[theme] || MODE_META.system).label)}</span>
+                </span>
+                <span className="material-symbols-outlined text-[18px] text-text-muted">palette</span>
+              </button>
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-4 border-t border-border">
@@ -2064,6 +2063,8 @@ export default function ProfilePage() {
           setLocale(next);
         }}
       />
+
+      <ThemePickerModal isOpen={themePickerOpen} onClose={() => setThemePickerOpen(false)} />
       <ConfirmModal
         isOpen={loginOffConfirmOpen}
         onClose={() => setLoginOffConfirmOpen(false)}

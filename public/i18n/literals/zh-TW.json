@@ -973,5 +973,13 @@
   "AI music platform for creating, remixing, and sharing songs": "Google 音樂生成創作平台 · 線上試聽與混音",
   "Selected only": "僅選定",
   "No models selected": "未選擇模型",
-  "Music": "音樂"
+  "Music": "音樂",
+  "Follow system": "跟隨系統",
+  "Brutal": "狂野派",
+  "Light themes": "淺色系",
+  "Dark themes": "深色系",
+  "Glass · 毛玻璃": "毛玻璃",
+  "Glass Light": "毛玻璃 · 淺",
+  "Glass Dark": "毛玻璃 · 深",
+  "Pick a theme. Follow system uses the OS day/night preference.": "選擇一個主題；「跟隨系統」按作業系統的晝夜偏好自動切換。"
 }
