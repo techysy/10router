@@ -163,6 +163,9 @@ export function createSSEStream(options = {}) {
   // 停止读取，提升等于没做。现在 finish 帧一到就先发它，[DONE]/flush 只兜底
   // 「上游根本没发 finish 帧」的情况；promoteReasoningDone 保证全流至多一次。
   let promoteReasoningDone = false;
+  // Assigned lazily on first use; see the note where it is read. Kept at stream
+  // scope so every synthesized frame in this stream shares one id.
+  let streamFallbackId = null;
   const promoteReasoningIfNeeded = (controller) => {
     if (promoteReasoningDone) return;
     if (accumulatedContent.trim().length === 0 && !hasToolCallsSeen && accumulatedThinking.trim().length > 0) {
@@ -178,8 +181,13 @@ export function createSSEStream(options = {}) {
         const promotedId = translateLane
           ? (state?.messageId ? `chatcmpl-${state.messageId}` : null)
           : lastChunkMetadata?.id;
+        // Fallback id is computed ONCE per stream. `Date.now()` inline would
+        // hand this frame a different id than the rest of the stream whenever
+        // the promote happens to straddle a millisecond boundary — and a
+        // synthesized id is exactly what clients merge on.
+        streamFallbackId ??= `chatcmpl-${Date.now().toString(36)}`;
         const promotedChunk = {
-          id: promotedId || `chatcmpl-${Date.now()}`,
+          id: promotedId || streamFallbackId,
           object: "chat.completion.chunk",
           created: Math.floor(Date.now() / 1000),
           model: (translateLane ? state?.model : lastChunkMetadata?.model) || model || "model",

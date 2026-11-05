@@ -204,9 +204,12 @@ describe("Issue #96: promotion must not swallow the combo fallback", () => {
 
   it("passthrough promotes BEFORE finish_reason, so strict clients still read it", async () => {
     const stream = createSSEStream({ mode: "passthrough", model: "m", provider: "p" });
+    // Real upstream ids are >= 8 chars (fixInvalidId rewrites shorter ones to a
+    // fresh timestamp, which would make this assertion test the rewrite instead
+    // of the promotion's id handling).
     const out = await drain(feed([
-      'data: {"id":"up-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{"reasoning_content":"think"}}]}\n\n',
-      'data: {"id":"up-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+      'data: {"id":"chatcmpl-upstream-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{"reasoning_content":"think"}}]}\n\n',
+      'data: {"id":"chatcmpl-upstream-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
       'data: [DONE]\n\n',
     ]).pipeThrough(stream));
 
