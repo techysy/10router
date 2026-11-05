@@ -36,10 +36,19 @@ describe("isZeroContentResponse", () => {
     })).toBe(false);
   });
 
-  it("does not flag responses with reasoning_content", () => {
+  it("flags reasoning-only responses with empty content as zero content for combo fallback (issue #96)", () => {
+    // When a model produces reasoning but ends with an empty content and no tool_calls,
+    // clients like Hermes Agent reject it as empty. Combos should fall back to the next model.
     expect(isZeroContentResponse({
       choices: [{
         message: { content: "", reasoning_content: "thinking..." },
+        finish_reason: "stop"
+      }]
+    })).toBe(true);
+    // But if there is content alongside reasoning, it is not zero content
+    expect(isZeroContentResponse({
+      choices: [{
+        message: { content: "Here is the answer", reasoning_content: "thinking..." },
         finish_reason: "stop"
       }]
     })).toBe(false);
@@ -125,5 +134,45 @@ describe("handleComboChat 200 zero content fallback", () => {
     expect(result.ok).toBe(true);
     const body = await result.json();
     expect(body.choices[0].message.content).toBe("");
+  });
+
+  it("falls back to next model when HTTP 200 JSON is reasoning-only with empty content (issue #96)", async () => {
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const handleSingleModel = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: { content: "", reasoning_content: "I am thinking through GLM-5.3..." },
+          finish_reason: "stop"
+        }]
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: { content: "Final answer from DeepSeek-Flash" },
+          finish_reason: "stop"
+        }]
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }));
+
+    const result = await handleComboChat({
+      body: { messages: [] },
+      models: ["river/zai-org/GLM-5.3-Flash", "river/deepseek-ai/DeepSeek-V4.1-Flash"],
+      handleSingleModel,
+      log,
+      autoSwitch: false,
+    });
+
+    expect(handleSingleModel).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+    const body = await result.json();
+    expect(body.choices[0].message.content).toBe("Final answer from DeepSeek-Flash");
+    expect(log.warn).toHaveBeenCalledWith(
+      "COMBO",
+      expect.stringContaining("returned HTTP 200 with zero usable content, falling back to next model")
+    );
   });
 });

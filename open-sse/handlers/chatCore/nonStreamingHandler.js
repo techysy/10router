@@ -188,11 +188,27 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
   };
 }
 
+export function normalizeReasoningOnlyChoice(responseBody) {
+  if (responseBody?.choices) {
+    for (const choice of responseBody.choices) {
+      const msg = choice?.message;
+      if (!msg) continue;
+      const hasContent = typeof msg.content === "string" ? msg.content.trim().length > 0 : Boolean(msg.content);
+      const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+      const reasoning = typeof msg.reasoning_content === "string" ? msg.reasoning_content : (typeof msg.reasoning === "string" ? msg.reasoning : "");
+      if (!hasContent && !hasToolCalls && reasoning.trim().length > 0) {
+        msg.content = reasoning;
+      }
+    }
+  }
+  return responseBody;
+}
+
 /**
  * Translate non-streaming response body from provider format → OpenAI format.
  */
 export function translateNonStreamingResponse(responseBody, targetFormat, sourceFormat, customToolNames = null, toolNameMap = null) {
-  if (targetFormat === sourceFormat) return responseBody;
+  if (targetFormat === sourceFormat) return normalizeReasoningOnlyChoice(responseBody);
   // Provider responded in OpenAI Chat Completions shape but the client speaks
   // Responses API — convert so tool_calls/text surface as Responses `output`.
   if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES) {
@@ -336,10 +352,10 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 
   // Ollama
   if (targetFormat === FORMATS.OLLAMA) {
-    return ollamaBodyToOpenAI(responseBody);
+    return normalizeReasoningOnlyChoice(ollamaBodyToOpenAI(responseBody));
   }
 
-  return responseBody;
+  return normalizeReasoningOnlyChoice(responseBody);
 }
 
 /**
@@ -451,6 +467,23 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     for (const choice of translatedResponse.choices) {
       if (choice?.message?.reasoning_content && choice.message.content) {
         delete choice.message.reasoning_content;
+      }
+    }
+  }
+
+  // Issue #96: 兜底防御 —— 如果整个响应中 content 为空且没有任何 tool_calls，但存在非空的 reasoning_content：
+  // 这属于上游推理中断/未输出正文（Reasoning-only response）。
+  // 很多客户端（如 Hermes Agent 等）将 content 为空判为空回复并丢弃整轮结果。
+  // 在此将 reasoning_content 的内容安全填充至 content，使客户端获得完整回答，同时保留 reasoning_content 供高级客户端消费。
+  if (translatedResponse?.choices) {
+    for (const choice of translatedResponse.choices) {
+      const msg = choice?.message;
+      if (!msg) continue;
+      const hasContent = typeof msg.content === "string" ? msg.content.trim().length > 0 : Boolean(msg.content);
+      const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+      const reasoning = typeof msg.reasoning_content === "string" ? msg.reasoning_content : (typeof msg.reasoning === "string" ? msg.reasoning : "");
+      if (!hasContent && !hasToolCalls && reasoning.trim().length > 0) {
+        msg.content = reasoning;
       }
     }
   }

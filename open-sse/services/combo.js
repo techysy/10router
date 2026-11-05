@@ -320,11 +320,22 @@ export function isZeroContentResponse(data) {
     const hasContent = typeof content === "string" ? content.trim().length > 0 : (Array.isArray(content) && content.length > 0);
     const hasToolCalls = (Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0) || Boolean(msg?.function_call);
     const hasReasoning = typeof msg?.reasoning_content === "string" ? msg.reasoning_content.trim().length > 0 : false;
+    // OpenAI audio 方言（acemusic 整曲 base64）：一首只有音频没有歌词文本的歌是
+    // 完整可用的回答，绝不能被当成空响应顺延掉。
+    const hasAudio = Array.isArray(msg?.audio) && msg.audio.length > 0;
 
     const finish = choice.finish_reason;
     const isNormalFinish = finish === "stop" || finish === "length" || finish === "tool_calls" || finish === "function_call";
 
-    if (!hasContent && !hasToolCalls && !hasReasoning && (!isNormalFinish || finish === "in_progress" || finish === "incomplete")) {
+    if (!hasContent && !hasToolCalls && !hasReasoning && !hasAudio && (!isNormalFinish || finish === "in_progress" || finish === "incomplete")) {
+      return true;
+    }
+
+    // Issue #96: 上游只返回了 reasoning_content，但 content 为空且无任何 tool_calls（Reasoning-only response）。
+    // 大多数客户端（如 Hermes Agent 等）将 content 为空判为空回复，导致整轮丢弃并重试失败。
+    // 在 combo 存在备用模型时，必须将这种“正文中断/空正文”视为该成员的软失败，自动顺延到下一模型。
+    // 带音频的响应不受此条影响——那是完整的音乐回答。
+    if (!hasContent && !hasToolCalls && !hasAudio && hasReasoning) {
       return true;
     }
   }

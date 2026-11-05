@@ -175,9 +175,20 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     }
   }
 
-  const message = { role: "assistant", content: contentParts.join("") || (toolCallMap.size > 0 ? null : "") };
-  if (reasoningParts.length > 0) message.reasoning_content = reasoningParts.join("");
-  if (toolCallMap.size > 0) {
+  const accumulatedContent = contentParts.join("");
+  const accumulatedReasoning = reasoningParts.join("");
+  const hasToolCalls = toolCallMap.size > 0;
+  // Issue #96: 兜底防御 —— 如果整个响应中 content 为空且无工具调用，但有推理思考内容，将推理内容提升为正文
+  let finalContent = accumulatedContent;
+  if (!finalContent && !hasToolCalls && accumulatedReasoning.trim().length > 0) {
+    finalContent = accumulatedReasoning;
+  } else if (!finalContent && hasToolCalls) {
+    finalContent = null;
+  }
+
+  const message = { role: "assistant", content: finalContent };
+  if (accumulatedReasoning.length > 0) message.reasoning_content = accumulatedReasoning;
+  if (hasToolCalls) {
     message.tool_calls = [...toolCallMap.entries()].sort((a, b) => a[0] - b[0]).map(([, tc]) => tc);
   }
 

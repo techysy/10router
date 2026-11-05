@@ -71,6 +71,8 @@ export function createSSEStream(options = {}) {
   let totalContentLength = 0;
   let accumulatedContent = "";
   let accumulatedThinking = "";
+  let hasToolCallsSeen = false;
+  let lastChunkMetadata = null;
   let ttftAt = null;
   let streamCompleted = false;
   // Set when flush() has to manufacture a terminator the upstream never sent.
@@ -129,6 +131,36 @@ export function createSSEStream(options = {}) {
       reqLogger?.appendConvertedChunk?.(output);
       controller.enqueue(sharedEncoder.encode(output));
       sseEmittedCount++;
+    }
+  };
+
+  // Issue #96: 兜底防御 —— 如果整个流结束时，accumulatedContent 依然为空，
+  // 且没有任何工具调用（!hasToolCallsSeen），但是产生了非空的推理内容（accumulatedThinking）：
+  // 这属于上游推理中断/未输出正文（Reasoning-only response）。
+  // 很多客户端（如 Hermes Agent）将无 content 视为空回复并整轮丢弃。
+  // 在发送 [DONE] 之前，下发一个将思考内容作为正文输出的 delta 块，防止客户端判空暴毙。
+  const promoteReasoningIfNeeded = (controller) => {
+    if (accumulatedContent.trim().length === 0 && !hasToolCallsSeen && accumulatedThinking.trim().length > 0) {
+      if (mode === STREAM_MODE.PASSTHROUGH || sourceFormat === FORMATS.OPENAI) {
+        const promotedChunk = {
+          id: lastChunkMetadata?.id || `chatcmpl-${Date.now()}`,
+          object: "chat.completion.chunk",
+          created: Math.floor(Date.now() / 1000),
+          model: lastChunkMetadata?.model || model || "model",
+          choices: [
+            {
+              index: 0,
+              delta: { content: accumulatedThinking },
+              finish_reason: null,
+            },
+          ],
+        };
+        const promotedOutput = `data: ${JSON.stringify(promotedChunk)}\n\n`;
+        reqLogger?.appendConvertedChunk?.(promotedOutput);
+        controller.enqueue(sharedEncoder.encode(promotedOutput));
+        accumulatedContent = accumulatedThinking;
+        totalContentLength += accumulatedThinking.length;
+      }
     }
   };
 
@@ -214,6 +246,7 @@ export function createSSEStream(options = {}) {
           let injectedUsage = false;
 
           if (trimmed === "data: [DONE]" || trimmed === "data:[DONE]") {
+            promoteReasoningIfNeeded(controller);
             output = "data: [DONE]\n\n";
             streamDoneSent = true;
             reqLogger?.appendConvertedChunk?.(output);
@@ -295,6 +328,15 @@ export function createSSEStream(options = {}) {
               const delta = parsed.choices?.[0]?.delta;
               const content = delta?.content;
               const reasoning = delta?.reasoning_content;
+              if (delta?.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
+                hasToolCallsSeen = true;
+              }
+              if (parsed.id || parsed.model) {
+                lastChunkMetadata = {
+                  id: parsed.id || lastChunkMetadata?.id,
+                  model: parsed.model || lastChunkMetadata?.model || model,
+                };
+              }
               if (content && typeof content === "string") {
                 totalContentLength += content.length;
                 accumulatedContent += content;
@@ -554,6 +596,7 @@ export function createSSEStream(options = {}) {
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
           if (!streamDoneSent && !isGeminiFamily) {
+            promoteReasoningIfNeeded(controller);
             // We are the ones inventing the terminator, so the upstream never
             // finished. Say so — see the note on `endedWithoutTerminal`. Gemini
             // family is exempt: it has no [DONE] sentinel, so `!streamDoneSent`
@@ -630,6 +673,7 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
+        promoteReasoningIfNeeded(controller);
         finishStream();
       } catch (error) {
         // Never swallow a flush failure: if we bail before finishStream the
