@@ -148,6 +148,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
   const first = chunks[0];
   const contentParts = [];
   const reasoningParts = [];
+  const audioParts = []; // OpenAI audio dialect (acemusic ships the whole song in ONE frame)
   const toolCallMap = new Map(); // index -> { id, type, function: { name, arguments } }
   let finishReason = "stop";
   let usage = null;
@@ -157,6 +158,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     const delta = choice?.delta || {};
     if (typeof delta.content === "string" && delta.content.length > 0) contentParts.push(delta.content);
     if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) reasoningParts.push(delta.reasoning_content);
+    if (Array.isArray(delta.audio)) audioParts.push(...delta.audio);
     if (choice?.finish_reason) finishReason = choice.finish_reason;
     if (chunk?.usage && typeof chunk.usage === "object") usage = chunk.usage;
 
@@ -188,6 +190,11 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
 
   const message = { role: "assistant", content: finalContent };
   if (accumulatedReasoning.length > 0) message.reasoning_content = accumulatedReasoning;
+  // Without this, a provider that forces streaming while the client asked for
+  // JSON (acemusic is exactly such a case) loses the entire song: the audio
+  // frame is neither content nor tool_calls, so the aggregated body came back
+  // as a 200 with `content: ""`.
+  if (audioParts.length > 0) message.audio = audioParts;
   if (hasToolCalls) {
     message.tool_calls = [...toolCallMap.entries()].sort((a, b) => a[0] - b[0]).map(([, tc]) => tc);
   }

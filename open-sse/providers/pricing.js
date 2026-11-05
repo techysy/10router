@@ -496,7 +496,14 @@ export const PROVIDER_PRICING = {
   },
   // ACE Music：官方 /v1/models 计价全 0（限时免费，2026-11-05 实测）；一首歌按
   // 固定 100 completion_tokens 计量。收费后请按官方定价页改这里。
+  //
+  // 两个键都要有：上游 id 带 `acemusic/` 命名空间，registry 里存的是裸 id，用量
+  // 行按哪一侧落库取决于客户端怎么寻址（`acemusic/acestep-v1.5-turbo` 与
+  // `acemusic/acemusic/acestep-v1.5-turbo` 解析出的 model 字符串不同）。只登记
+  // namespace 形态时裸 id 查不到行，calculateCost 会静默返回 0 —— 现在全 0 看不出
+  // 差别，收费后就是悄悄漏账。
   acemusic: {
+    "acestep-v1.5-turbo": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
     "acemusic/acestep-v1.5-turbo": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
 };

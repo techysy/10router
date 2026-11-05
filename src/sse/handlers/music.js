@@ -1,6 +1,7 @@
-import { extractApiKey, isValidApiKey, checkApiKeyDailyLimit, getProviderCredentials, markAccountUnavailable } from "../services/auth.js";
+import { extractApiKey, isValidApiKey, checkApiKeyDailyLimit, checkApiKeyModelAccess, getProviderCredentials, markAccountUnavailable } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
+import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { proxyAwareFetch } from "open-sse/utils/proxyFetch.js";
 import { errorResponse } from "open-sse/utils/error.js";
@@ -93,6 +94,26 @@ export function extractStepfunMusicResponse(queryJson, musicConfig) {
   };
 }
 
+// Pure: is `modelId` a music-kind model of `provider`?
+// The endpoint must not become a second chat endpoint for arbitrary models.
+//
+// The id may arrive bare, provider-prefixed, or double-prefixed —
+// `acemusic/acestep-v1.5-turbo` is the documented form, and
+// `acemusic/acemusic/acestep-v1.5-turbo` is what a client that naively
+// prefixes an already-namespaced id sends. The pipeline resolves both to the
+// same upstream model, so the guard must accept both or the endpoint and the
+// pipeline disagree about an id the pipeline itself would have served.
+export function isMusicModel(provider, modelId) {
+  if (!provider || !modelId) return false;
+  // Registry ids are bare; a caller may prefix the provider (once) or the
+  // upstream namespace as well, so compare on the final segment — the same
+  // normalisation getCapabilitiesForModel/getPricingForModel already use.
+  const bare = String(modelId).split("/").pop();
+  return getModelsByProviderId(provider).some(
+    (m) => getModelKind(m) === "music" && m.id === bare,
+  );
+}
+
 function musicConfigFor(provider) {
   const entry = REGISTRY.find((p) => p.id === provider);
   const cfg = entry?.musicConfig;
@@ -120,15 +141,34 @@ export async function handleMusic(request) {
   const limitResponse = await checkApiKeyDailyLimit(apiKey, { request, model: body.model });
   if (limitResponse) return limitResponse;
 
+  // Same per-key model allowlist the chat endpoint enforces. Music rides the
+  // chat pipeline for acemusic and can park an 8-minute async task on StepFun,
+  // so an allowlisted key must not be able to reach arbitrary music models.
+  const accessResponse = await checkApiKeyModelAccess(apiKey, body.model);
+  if (accessResponse) return accessResponse;
+
   if (!body.model) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   if (!body.prompt) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: prompt");
 
+  // The example card's "Connection" picker sends this header for every media
+  // kind; honour it here too, or the picker silently does nothing on music.
+  const preferredConnectionId = request.headers.get("x-connection-id") || null;
+
   const modelInfo = await getModelInfo(body.model);
   if (!modelInfo?.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, `Unknown model: ${body.model}`);
+
+  // Reject anything that is not a music model. Without this the chat-native
+  // branch below happily runs ANY chat model through /v1/audio/music — the
+  // endpoint would answer a Claude request and then fail to find audio, and a
+  // music-only surface would quietly become a second chat endpoint.
+  if (!isMusicModel(modelInfo.provider, modelInfo.model)) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, `Not a music model: ${body.model}`);
+  }
+
   const musicConfig = musicConfigFor(modelInfo.provider);
 
   if (musicConfig?.mode === "stepfun-async") {
-    return handleNativeAsyncMusic(body, modelInfo, musicConfig, url);
+    return handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId);
   }
 
   // Chat-native path (acemusic): ride the chat pipeline with the caller's
@@ -167,14 +207,14 @@ export async function handleMusic(request) {
 }
 
 // StepFun native async: credential loop → submit → bounded 5s poll → reshape.
-async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url) {
+async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId = null) {
   const { provider, model } = modelInfo;
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
 
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const msg = lastError || credentials.lastError || "Unavailable";
@@ -192,6 +232,15 @@ async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url) {
       return Response.json(result.body, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
+    // A business-level failure (lyrics tripped the censor, the task timed out,
+    // the song came back empty) says nothing about the credential. Cooling the
+    // account down for it would lock a healthy connection out of every later
+    // request for the whole cooldown window — and the next prompt would very
+    // likely have succeeded. Hand it straight back instead.
+    if (result.accountFault === false) {
+      return errorResponse(result.status, result.error);
+    }
+
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
     if (shouldFallback) {
       excludeConnectionIds.add(credentials.connectionId);
@@ -201,6 +250,18 @@ async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url) {
     }
     return errorResponse(result.status, result.error);
   }
+}
+
+/**
+ * Should an HTTP failure from the StepFun music endpoints cool this account down?
+ *
+ * 4xx describes the request (caption/lyrics rejected, task id unknown) — the
+ * credential is fine and the next prompt will likely succeed, so locking it is
+ * pure self-harm. 5xx and transport errors stay account-scoped: those are what
+ * `markAccountUnavailable` exists for.
+ */
+export function isAccountFaultStatus(status) {
+  return !(status >= 400 && status < 500);
 }
 
 async function runStepfunTask(body, credentials, musicConfig) {
@@ -228,7 +289,9 @@ async function runStepfunTask(body, credentials, musicConfig) {
     const submitJson = await submitRes.json().catch(() => null);
     if (!submitRes.ok || !submitJson?.task_id) {
       const msg = submitJson?.error?.message || `HTTP ${submitRes.status}`;
-      return { success: false, status: submitRes.status, error: `Music submit failed: ${msg}` };
+      // 4xx here is about the request body (caption/lyrics rejected), not the
+      // account — see isAccountFaultStatus.
+      return { success: false, status: submitRes.status, error: `Music submit failed: ${msg}`, accountFault: isAccountFaultStatus(submitRes.status) };
     }
     taskId = submitJson.task_id;
   } catch (e) {
@@ -248,7 +311,10 @@ async function runStepfunTask(body, credentials, musicConfig) {
       );
       queryJson = await queryRes.json().catch(() => null);
       if (!queryRes.ok) {
-        return { success: false, status: queryRes.status, error: `Music query failed: ${queryJson?.error?.message || `HTTP ${queryRes.status}`}` };
+        // A 404 here is the upstream forgetting a task id we were handed — a
+        // channel problem, not this account's quota.
+        const reason = queryJson?.error?.message || `HTTP ${queryRes.status}`;
+        return { success: false, status: queryRes.status, error: `Music query failed: ${reason}`, accountFault: isAccountFaultStatus(queryRes.status) };
       }
     } catch (e) {
       return { success: false, status: HTTP_STATUS.BAD_GATEWAY, error: `Music query failed: ${e.message}` };
@@ -257,9 +323,16 @@ async function runStepfunTask(body, credentials, musicConfig) {
     if (queryJson.status === "PENDING" || queryJson.status === "RUNNING") continue;
 
     const extracted = extractStepfunMusicResponse(queryJson, musicConfig);
-    if (extracted.error) return { success: false, status: HTTP_STATUS.BAD_GATEWAY, error: extracted.error };
+    // `status: "FAILED"` is the task's own verdict (censor block, bad lyrics,
+    // generation error) — the credential was accepted and the request was
+    // billed. Same for a SUCCESS payload with no audio. Neither is the
+    // account's fault, so neither may cool it down.
+    if (extracted.error) {
+      return { success: false, status: HTTP_STATUS.BAD_GATEWAY, error: extracted.error, accountFault: false };
+    }
     return { success: true, body: { data: extracted.data, content: extracted.content, model: extracted.model } };
   }
 
-  return { success: false, status: HTTP_STATUS.GATEWAY_TIMEOUT, error: `Music task timed out after ${Math.round(STEP_POLL_BUDGET_MS / 60000)} min (task_id ${taskId})` };
+  // The task ran out of OUR polling budget, not the account's quota.
+  return { success: false, status: HTTP_STATUS.GATEWAY_TIMEOUT, error: `Music task timed out after ${Math.round(STEP_POLL_BUDGET_MS / 60000)} min (task_id ${taskId})`, accountFault: false };
 }

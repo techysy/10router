@@ -363,8 +363,19 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     );
   }
 
+  // `x-connection-id` pins the request to one account. The media example cards
+  // (image/video/music) already send it, and callers that reach chat through a
+  // media endpoint (music → acemusic) need it honoured here too. Only a first
+  // pick: excluded connections still fall through the normal rotation.
+  const preferredConnectionId = excludeConnectionIds.size === 0
+    ? (request?.headers?.get("x-connection-id") || null)
+    : null;
+
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { requestedModel: requestedModel || model });
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, {
+      requestedModel: requestedModel || model,
+      preferredConnectionId,
+    });
 
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {

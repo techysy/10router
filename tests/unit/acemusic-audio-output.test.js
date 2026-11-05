@@ -11,7 +11,8 @@ import { hasValuableContent } from "../../open-sse/utils/streamHelpers.js";
 import { isZeroContentResponse } from "../../open-sse/services/combo.js";
 import { inspectNonStream, createStreamScanner } from "../../open-sse/services/sensitiveRetry.js";
 import { getPricingForModel } from "../../open-sse/providers/pricing.js";
-import { extractMusicResponse, buildStepfunSubmitBody, extractStepfunMusicResponse } from "../../src/sse/handlers/music.js";
+import { extractMusicResponse, buildStepfunSubmitBody, extractStepfunMusicResponse, isAccountFaultStatus, isMusicModel } from "../../src/sse/handlers/music.js";
+import { parseSSEToOpenAIResponse } from "../../open-sse/handlers/chatCore/sseToJsonHandler.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 
 const enc = new TextEncoder();
@@ -197,6 +198,19 @@ describe("audio frame is never dropped or misclassified", () => {
     })).toBe(false);
   });
 
+  it("inspectNonStream treats a promoted reasoning-only body as retryable", () => {
+    // The pipeline promotes reasoning into content before the empty-retry gate
+    // looks at it; without seeing through that, a reasoning-only member would
+    // be reported healthy and retryOnEmpty would never fall through.
+    expect(inspectNonStream({
+      choices: [{ message: { content: "thinking only", reasoning_content: "thinking only" }, finish_reason: "stop" }],
+    }).retryable).toBe(true);
+    // A real answer that also has reasoning stays healthy.
+    expect(inspectNonStream({
+      choices: [{ message: { content: "real answer", reasoning_content: "some thought" }, finish_reason: "stop" }],
+    }).retryable).toBe(false);
+  });
+
   it("inspectNonStream keeps an audio answer non-retryable", () => {
     const r = inspectNonStream({
       choices: [{ message: { content: "", audio: [{ audio_url: { url: "data:…" } }] }, finish_reason: "stop" }],
@@ -208,5 +222,55 @@ describe("audio frame is never dropped or misclassified", () => {
     const s = createStreamScanner();
     expect(s.push(enc.encode(`data: ${JSON.stringify(AUDIO_FRAME)}\n\n`)).kind).toBe("commit");
     expect(s.push(enc.encode("data: whatever\n\n")).kind).toBe("passthrough");
+  });
+
+  it("SSE→JSON aggregation keeps the song (provider forces streaming, client wants JSON)", () => {
+    // A provider-forced-streaming acemusic call used to come back as a 200 with
+    // content:"" — the audio frame is neither content nor tool_calls.
+    const raw = [
+      `data: ${JSON.stringify(AUDIO_FRAME)}\n\n`,
+      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ].join("");
+    const parsed = parseSSEToOpenAIResponse(raw, "acemusic/acestep-v1.5-turbo");
+    expect(parsed.choices[0].message.audio).toEqual(AUDIO_FRAME.choices[0].delta.audio);
+  });
+});
+
+describe("/v1/audio/music only accepts music models", () => {
+  it("accepts the registered music ids, rejects chat models", () => {
+    // Without this guard the chat-native branch ran ANY model through
+    // /v1/audio/music — a music-only surface silently doubling as chat.
+    expect(isMusicModel("acemusic", "acestep-v1.5-turbo")).toBe(true);
+    expect(isMusicModel("acemusic", "acemusic/acestep-v1.5-turbo")).toBe(true);
+    expect(isMusicModel("acemusic", "acemusic/acemusic/acestep-v1.5-turbo")).toBe(true);
+    expect(isMusicModel("stepfun", "stepaudio-3-music-preview")).toBe(true);
+    // chat / tts models on the same providers are not music models
+    expect(isMusicModel("stepfun", "step-5-preview")).toBe(false);
+    expect(isMusicModel("stepfun", "stepaudio-3-tts")).toBe(false);
+    expect(isMusicModel("acemusic", "some-chat-model")).toBe(false);
+  });
+});
+
+describe("StepFun task failures must not cool the account down", () => {
+  it("business failures are not account faults", () => {
+    // The task's own FAILED verdict (censor, bad lyrics) and OUR poll timeout
+    // both reach the caller as errors without ever locking the connection.
+    const failed = extractStepfunMusicResponse({ status: "FAILED", error: { stage: "censor", message: "blocked" } }, STEP_MUSIC_CONFIG);
+    expect(failed.error).toMatch(/censor/);
+    expect(isAccountFaultStatus(400)).toBe(false);
+    expect(isAccountFaultStatus(404)).toBe(false);
+    expect(isAccountFaultStatus(502)).toBe(true);
+    expect(isAccountFaultStatus(503)).toBe(true);
+    expect(isAccountFaultStatus(504)).toBe(true);
+  });
+});
+
+describe("pricing must resolve under both ids the usage row can carry", () => {
+  it("bare registry id and namespaced upstream id both hit the zero rate", () => {
+    // Missing the bare key silently books $0 "because there is no pricing row" —
+    // indistinguishable today, a leak the moment the upstream starts charging.
+    expect(getPricingForModel("acemusic", "acestep-v1.5-turbo")).not.toBeNull();
+    expect(getPricingForModel("acemusic", "acemusic/acestep-v1.5-turbo")).not.toBeNull();
   });
 });
