@@ -2,9 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { useTheme } from "@/shared/hooks/useTheme";
-import { MODE_META } from "./ThemeToggle";
-import ThemePickerModal from "./ThemePickerModal";
 import ChangelogModal from "./ChangelogModal";
 import { ConfirmModal } from "./Modal";
 import { translate } from "@/i18n/runtime";
@@ -52,12 +49,8 @@ MenuItem.propTypes = {
 export default function HeaderMenu({ onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
-  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const { theme } = useTheme();
-  // MODE_META 覆盖全部主题——三元式兜底会在新增主题时静默掉进 dark 分支
-  const themeMeta = MODE_META[theme] || MODE_META.system;
   const menuRef = useRef(null);
 
   const handleShutdown = async () => {
@@ -97,18 +90,14 @@ export default function HeaderMenu({ onLogout }) {
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 top-full mt-2 w-60 bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
+          <div className="absolute right-0 top-full mt-2 w-60 bg-surface theme-card border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
             <MenuItem
               icon="history"
               label={translate("Change Log")}
               onClick={() => { close(); setChangelogOpen(true); }}
             />
-            <MenuItem
-              icon={themeMeta.icon}
-              label={translate(themeMeta.label)}
-              trailing="chevron_right"
-              onClick={() => { close(); setThemePickerOpen(true); }}
-            />
+            {/* 主题切换不在这里：入口统一到左侧相邻的主题按钮（ThemeToggle，
+                面板锚定按钮弹出），居中弹窗版已废弃。 */}
             <MenuItem
               icon="power_settings_new"
               label={translate("Shutdown")}
@@ -126,7 +115,6 @@ export default function HeaderMenu({ onLogout }) {
       </div>
 
       <ChangelogModal isOpen={changelogOpen} onClose={() => setChangelogOpen(false)} />
-      <ThemePickerModal isOpen={themePickerOpen} onClose={() => setThemePickerOpen(false)} />
       <ConfirmModal
         isOpen={shutdownOpen}
         onClose={() => setShutdownOpen(false)}

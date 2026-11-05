@@ -569,21 +569,29 @@
 }
 
 /* ============================================================
-   Glass 浅 / 深 — iOS 毛玻璃。两层结构：
-   1. token 层：surface 全部半透明，border 用白描边（浅）/淡白（深），
+   Glass 浅 / 深 — iOS 毛玻璃。三层结构：
+   1. 根类挂在 <html>：实色页面底直接铺在 html 上；--color-bg 改为半透明
+      薄纱，body 与全站 bg-bg 容器因此透光 —— 此前 bg-bg 全不透明，把
+      场景层光斑盖死，毛玻璃看起来和默认浅色一模一样。
+   2. token 层：surface 全部半透明，border 用白描边（浅）/淡白（深），
       blur 由组件侧 backdrop-filter 承担（这里只给配方 --glass-blur）。
-   2. 场景层（.theme-glass-* body）：固定彩色光斑渐变做页面底，内容滚动
+   3. 场景层（.theme-glass-* body）：固定彩色光斑渐变做页面底，内容滚动
       时从磨砂面板下穿过 —— 这是 iOS 质感的核心，纯色底没有东西可透。
-   用户明确「效果全力做，不裁剪换性能」；低端设备由 ThemePickerModal
-   的能力提示兜底。
+   暗玻璃同时挂 .dark（dark: 变体层），组件覆盖层统一在文件尾部 ——
+   必须晚于 .dark 的同特异度规则才能取胜。
+   用户明确「效果全力做，不裁剪换性能」；低端设备由 ThemePicker 兜底提示。
    ============================================================ */
 .theme-glass-light {
-  --color-bg: #eef2f8;
+  background-color: #eef2f8;
+
+  --color-bg: rgba(238, 242, 248, 0.55);
   --color-bg-alt: #e7edf5;
-  --color-surface: rgba(255, 255, 255, 0.55);
-  --color-surface-2: rgba(255, 255, 255, 0.42);
-  --color-surface-3: rgba(255, 255, 255, 0.3);
-  --color-sidebar: rgba(255, 255, 255, 0.45);
+  /* surface 透明度必须压低：0.5+ 的白叠在近白底上视觉等于实色，
+     毛玻璃「透出背景」就不成立了（实测 0.55 时卡片看起来不透明）。 */
+  --color-surface: rgba(255, 255, 255, 0.38);
+  --color-surface-2: rgba(255, 255, 255, 0.3);
+  --color-surface-3: rgba(255, 255, 255, 0.22);
+  --color-sidebar: rgba(255, 255, 255, 0.38);
 
   --color-border: rgba(255, 255, 255, 0.6);
   --color-border-subtle: rgba(255, 255, 255, 0.35);
@@ -593,17 +601,19 @@
   --color-text-muted: rgba(60, 60, 67, 0.62);
   --color-text-subtle: rgba(60, 60, 67, 0.4);
 
-  --glass-blur: 18px;
+  --glass-blur: 10px;
   color-scheme: light;
 }
 
 .theme-glass-dark {
-  --color-bg: #141822;
+  background-color: #141822;
+
+  --color-bg: rgba(20, 24, 34, 0.6);
   --color-bg-alt: #10141c;
-  --color-surface: rgba(30, 32, 40, 0.52);
-  --color-surface-2: rgba(38, 41, 52, 0.48);
-  --color-surface-3: rgba(48, 52, 66, 0.45);
-  --color-sidebar: rgba(22, 25, 34, 0.5);
+  --color-surface: rgba(30, 32, 40, 0.42);
+  --color-surface-2: rgba(38, 41, 52, 0.36);
+  --color-surface-3: rgba(48, 52, 66, 0.3);
+  --color-sidebar: rgba(22, 25, 34, 0.42);
 
   --color-border: rgba(255, 255, 255, 0.14);
   --color-border-subtle: rgba(255, 255, 255, 0.08);
@@ -613,55 +623,27 @@
   --color-text-muted: rgba(235, 235, 245, 0.62);
   --color-text-subtle: rgba(235, 235, 245, 0.4);
 
-  --glass-blur: 18px;
+  --glass-blur: 10px;
   color-scheme: dark;
 }
 
 /* Glass 场景层：页面底色的彩色光斑。fixed 底 + 半透明面板，内容滚动时
    透出光斑色相变化 —— 纯色底下毛玻璃只是变灰，这层是 Glass 成立的前提。
+   光斑给足饱和度：卡片 surface 只有 ~0.4 的α，光斑太淡则透过去仍近白。
    品牌色系不重定义，直接继承浅/深默认，珊瑚橙在玻璃上同样成立。 */
 .theme-glass-light body,
 .theme-glass-dark body {
   background-attachment: fixed;
   background-image:
-    radial-gradient(circle at 18% 20%, rgba(255, 177, 153, 0.5) 0%, transparent 42%),
-    radial-gradient(circle at 82% 15%, rgba(168, 200, 255, 0.5) 0%, transparent 45%),
-    radial-gradient(circle at 62% 85%, rgba(185, 245, 208, 0.45) 0%, transparent 45%);
+    radial-gradient(circle at 18% 20%, rgba(255, 192, 172, 0.42) 0%, transparent 46%),
+    radial-gradient(circle at 82% 15%, rgba(172, 202, 246, 0.4) 0%, transparent 48%),
+    radial-gradient(circle at 62% 85%, rgba(184, 232, 206, 0.36) 0%, transparent 48%);
 }
 .theme-glass-dark body {
   background-image:
-    radial-gradient(circle at 20% 22%, rgba(122, 74, 126, 0.4) 0%, transparent 45%),
-    radial-gradient(circle at 80% 14%, rgba(46, 88, 142, 0.42) 0%, transparent 48%),
-    radial-gradient(circle at 60% 88%, rgba(38, 96, 74, 0.38) 0%, transparent 45%);
-}
-
-/* 侧栏（.bg-vibrancy 是现成挂点）与卡片（.theme-card，Card 组件统一打点）
-   吃真毛玻璃。blur 统一走 --glass-blur，将来调手感只改一处。saturate(1.6)
-   是 iOS 的「鲜艳度」秘方 —— 磨砂会把底色洗灰，提饱和补回来。
-   性能口径：backdrop-filter 只落在侧栏与首层卡片这两个小面积面板上，
-   不进长列表项（列表滚动时逐项重采样是毛玻璃唯一真正的性能坑）。 */
-.theme-glass-light .bg-vibrancy,
-.theme-glass-dark .bg-vibrancy,
-.theme-glass-light .theme-card,
-.theme-glass-dark .theme-card {
-  -webkit-backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.6);
-  backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.6);
-}
-
-.theme-glass-light .theme-card,
-.theme-glass-dark .theme-card {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
-}
-.theme-glass-dark .theme-card {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-}
-
-/* 浅玻璃上 border-black/10 系列的边几乎消失，统一收敛到主题描边 */
-.theme-glass-light [class~="border-black/10"],
-.theme-glass-light [class~="border-black/5"] {
-  border-color: rgba(255, 255, 255, 0.6);
+    radial-gradient(circle at 20% 22%, rgba(132, 78, 138, 0.5) 0%, transparent 48%),
+    radial-gradient(circle at 80% 14%, rgba(48, 95, 155, 0.52) 0%, transparent 50%),
+    radial-gradient(circle at 60% 88%, rgba(38, 108, 82, 0.46) 0%, transparent 48%);
 }
 
 /* ============================================================
@@ -848,6 +830,12 @@ input, textarea {
 /* Hero gradient (compat) */
 .bg-hero-gradient {
   background: linear-gradient(180deg, var(--color-bg-alt) 0%, var(--color-bg) 100%);
+}
+
+/* 品牌图标块固定色：珊瑚橙渐变不随主题 brand 变（主题把 --color-brand-*
+   重定义成各自的招牌色，但品牌识别图标保持默认橙）。 */
+.brand-mark {
+  background-image: linear-gradient(135deg, #E56A4A 0%, #a64027 100%);
 }
 
 /* macOS Vibrancy */
@@ -1147,4 +1135,61 @@ button:disabled,
   border: none;
   border-top: 1px solid var(--color-border);
   margin: 1.5rem 0;
+}
+
+/* ============================================================
+   Glass 组件覆盖层 —— 必须位于文件尾部。Glass 暗色同时挂 .dark，
+   .dark .bg-vibrancy（实色底）与 .dark 的滚动条/选区等规则都排在它
+   前面，这里靠「同特异度后者胜」改回半透明玻璃配方。
+   ============================================================ */
+
+/* 侧栏（.bg-vibrancy 现成挂点）、卡片（.theme-card，Card 组件统一打点）
+   与主题弹出层吃真毛玻璃。blur 统一走 --glass-blur，将来调手感只改一处。
+   saturate(1.6) 是 iOS 的「鲜艳度」秘方 —— 磨砂会把底色洗灰，提饱和补回来。
+   性能口径：backdrop-filter 只落在这几个小面积面板上，不进长列表项
+   （列表滚动时逐项重采样是毛玻璃唯一真正的性能坑）。 */
+.theme-glass-light .bg-vibrancy,
+.theme-glass-dark .bg-vibrancy,
+.theme-glass-light .theme-card,
+.theme-glass-dark .theme-card,
+.theme-glass-light .theme-picker-panel,
+.theme-glass-dark .theme-picker-panel {
+  -webkit-backdrop-filter: blur(var(--glass-blur, 10px)) saturate(1.6);
+  backdrop-filter: blur(var(--glass-blur, 10px)) saturate(1.6);
+}
+
+/* 侧栏底色回归半透明 sidebar token —— 否则吃的是 .dark .bg-vibrancy 的实色 */
+.theme-glass-light .bg-vibrancy,
+.theme-glass-dark .bg-vibrancy {
+  background: var(--color-sidebar);
+}
+
+.theme-glass-light .theme-card,
+.theme-glass-dark .theme-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
+}
+.theme-glass-dark .theme-card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.theme-glass-light .theme-picker-panel,
+.theme-glass-dark .theme-picker-panel {
+  background: var(--color-surface);
+}
+
+/* 浅玻璃上 border-black/10 系列的边几乎消失，统一收敛到主题描边 */
+.theme-glass-light [class~="border-black/10"],
+.theme-glass-light [class~="border-black/5"] {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* 玻璃下把 landing 网格提亮一档：磨砂卡片的高斯模糊要有结构化的东西
+   可透（网格线）才「看得见模糊」——默认 0.08/0.04 的浓度透过玻璃等于零。 */
+.theme-glass-light .landing-grid {
+  opacity: 0.16;
+}
+.theme-glass-dark .landing-grid {
+  opacity: 0.12;
 }

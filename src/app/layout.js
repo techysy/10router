@@ -40,21 +40,24 @@ export default function RootLayout({ children }) {
             first paint. Without this every page (login included) rendered in
             whatever the last hard-toggled state was, and dark-on-daylight was
             stuck until a toggle existed. Storage shape = zustand persist
-            ({"state":{theme}}); falls back to raw values and "system". */}
+            ({"state":{theme,systemFamily}}); falls back to raw values and
+            "system". */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var raw=null;try{raw=localStorage.getItem('theme')}catch(e){}
-var t=null;if(raw){try{var j=JSON.parse(raw);t=(j&&j.state&&j.state.theme)||null}catch(e){t=raw}}
+var t=null,f='classic';if(raw){try{var j=JSON.parse(raw);t=(j&&j.state&&j.state.theme)||null;f=(j&&j.state&&j.state.systemFamily)||'classic'}catch(e){t=raw}}
 var KNOWN=['system','light','dark','brutal','gruvbox','nord','dracula','glass-light','glass-dark'];
 if(KNOWN.indexOf(t)<0)t='system';
 var sysDark=!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
-var LIGHT=['light','brutal','glass-light'],DARKF=['dark','gruvbox','nord','dracula','glass-dark'];
-var e=t==='system'?(sysDark?DARKF[0]:LIGHT[0]):t;
-var isDark=e==='dark'||DARKF.indexOf(e)>=0;
+var P=f==='glass'?{l:'glass-light',d:'glass-dark'}:{l:'light',d:'dark'};
+var DARKF=['dark','gruvbox','nord','dracula','glass-dark'];
+var e=t==='system'?(sysDark?P.d:P.l):t;
+var isDark=DARKF.indexOf(e)>=0;
 var r=document.documentElement;
 var CLS=['dark','brutal','theme-gruvbox','theme-nord','theme-dracula','theme-glass-light','theme-glass-dark'];
 for(var i=0;i<CLS.length;i++)r.classList.remove(CLS[i]);
-if(e==='dark')r.classList.add('dark');else if(e!=='light')r.classList.add('theme-'+e);
+if(isDark)r.classList.add('dark');
+if(e==='brutal')r.classList.add('brutal');else if(e!=='light'&&e!=='dark')r.classList.add('theme-'+e);
 r.style.colorScheme=isDark?'dark':'light';
 var TC={brutal:'#FFF6E5',gruvbox:'#282828',nord:'#2e3440',dracula:'#282a36','glass-light':'#eef2f8','glass-dark':'#141822'};
 var m=document.querySelector('meta[name="theme-color"]');

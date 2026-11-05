@@ -2152,13 +2152,12 @@
   "Light": "浅色",
   "Dark": "深色",
   "Brutal": "狂野派",
-  "Light themes": "浅色系",
-  "Dark themes": "深色系",
-  "Glass · 毛玻璃": "毛玻璃",
+  "Classic": "经典",
+  "Stylized": "风格化",
+  "Glass": "毛玻璃",
   "Gruvbox": "Gruvbox",
   "Nord": "Nord",
   "Dracula": "Dracula",
   "Glass Light": "毛玻璃 · 浅",
-  "Glass Dark": "毛玻璃 · 深",
-  "Pick a theme. Follow system uses the OS day/night preference.": "选择一个主题；「跟随系统」按操作系统的昼夜偏好自动切换。"
+  "Glass Dark": "毛玻璃 · 深"
 }

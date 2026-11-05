@@ -1,20 +1,16 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { translate } from "@/i18n/runtime";
 import { cn } from "@/shared/utils/cn";
+import ThemePickerPanel from "./ThemePicker";
 
-// Four-state cycle: system → light → dark → brutal (the store's toggleTheme).
-// "system" tracks the OS day/night so Windows personalization / macOS
-// appearance / the fnOS browser drive the theme with no manual switching;
-// "brutal" is the neo-brutalist skin. The icon shows the CURRENT mode so the
-// auto state is discoverable. Exported as the single source of truth for every
-// theme switcher surface (HeaderMenu reuses it — a new theme is added here
-// once, never per-surface).
+// 顶栏/登录页的主题入口：按钮不再循环切换（主题多了循环不可用），点开
+// 锚定在本按钮下沿的主题面板（右上角交互区，见 ThemePicker.js）。
+// MODE_META 是全部主题的 UI 元数据单一来源 —— 新增主题在这里加一次，
+// 设置页的主题行共用。
 export const MODE_META = {
-  // 主题清单的 UI 元数据。清单本体在 themeStore THEMES（存储合法性）与
-  // ThemePickerModal THEME_GROUPS（分组展示）—— 三处同步改。
-  // icon 用于 HeaderMenu 菜单项（显示当前主题）与弹窗空态。
   system:      { icon: "routine",    label: "Theme: system" },
   light:       { icon: "light_mode", label: "Theme: light" },
   dark:        { icon: "dark_mode",  label: "Theme: dark" },
@@ -27,13 +23,16 @@ export const MODE_META = {
 };
 
 export default function ThemeToggle({ className, variant = "default" }) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
   const mode = MODE_META[theme] || MODE_META.system;
 
   const variants = {
     default: cn(
       "flex items-center justify-center size-10 rounded-full",
       "text-text-muted hover:text-text-main",
+      open && "bg-surface-2 text-text-main",
       "hover:bg-surface-2 transition-colors"
     ),
     card: cn(
@@ -47,21 +46,32 @@ export default function ThemeToggle({ className, variant = "default" }) {
   };
 
   return (
-    <button
-      onClick={toggleTheme}
-      className={cn(variants[variant], className)}
-      aria-label={translate(mode.label)}
-      title={translate(mode.label)}
-      data-theme-mode={theme}
-    >
-      <span
-        className={cn(
-          "material-symbols-outlined text-[22px]",
-          variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
-        )}
+    <div className={cn("relative", className)} data-theme-picker-root>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(variants[variant])}
+        aria-label={translate(mode.label)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={translate(mode.label)}
+        data-theme-mode={theme}
       >
-        {mode.icon}
-      </span>
-    </button>
+        <span
+          className={cn(
+            "material-symbols-outlined text-[22px]",
+            variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
+          )}
+        >
+          {mode.icon}
+        </span>
+      </button>
+      <ThemePickerPanel open={open} onClose={() => setOpen(false)} anchorRef={btnRef} />
+    </div>
   );
 }
+
+ThemeToggle.propTypes = {
+  className: (props, propName) => (props[propName] === undefined || typeof props[propName] === "string" ? null : new Error("className must be a string")),
+  variant: (props, propName) => (["default", "card"].includes(props[propName]) ? null : new Error("variant must be default|card")),
+};
