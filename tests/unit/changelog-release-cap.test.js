@@ -147,7 +147,11 @@ describe("served changelog files", () => {
     // existed, strict equality resumed. Removed for the v1.5.0 cycle; re-add
     // a lead constant only when the next release intentionally previews its
     // changelog before tagging.)
-    const PRE_RELEASE_LEAD = "1.6.5";
+    //
+    // v1.7.0: the notes for music generation / #96 / LongCat-2.5 were written
+    // ahead of the release commit so the user-facing log is not empty while the
+    // changes sit on main. Self-retires the moment v1.7.0 is tagged.
+    const PRE_RELEASE_LEAD = "1.7.0";
     let newestTag = null;
     try {
       newestTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
