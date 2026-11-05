@@ -317,9 +317,26 @@ export function isZeroContentResponse(data) {
 
     const msg = choice.message || choice.delta;
     const content = msg?.content;
-    const hasContent = typeof content === "string" ? content.trim().length > 0 : (Array.isArray(content) && content.length > 0);
+    let hasContent = typeof content === "string" ? content.trim().length > 0 : (Array.isArray(content) && content.length > 0);
     const hasToolCalls = (Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0) || Boolean(msg?.function_call);
-    const hasReasoning = typeof msg?.reasoning_content === "string" ? msg.reasoning_content.trim().length > 0 : false;
+    // Both spellings count here — `reasoning_content` (DeepSeek-style) and
+    // `reasoning` (OpenRouter/xAI) — because normalizeReasoningOnlyChoice, the
+    // step whose result we are unwinding below, promotes from both.
+    const reasoningText =
+      typeof msg?.reasoning_content === "string" ? msg.reasoning_content
+        : typeof msg?.reasoning === "string" ? msg.reasoning
+          : "";
+    const hasReasoning = reasoningText.trim().length > 0;
+
+    // Issue #96: the non-streaming pipeline promotes a reasoning-only answer into
+    // `content` before a combo ever sees it (handleNonStreamingResponse →
+    // normalizeReasoningOnlyChoice), so plain `content !== ""` would report every
+    // promoted member as healthy and the fallback below could never fire. Undo
+    // that promotion for the purpose of this judgement: an answer whose content
+    // is nothing but the reasoning echoed back is still reasoning-only.
+    if (hasContent && hasReasoning && typeof content === "string" && content.trim() === reasoningText.trim()) {
+      hasContent = false;
+    }
     // OpenAI audio 方言（acemusic 整曲 base64）：一首只有音频没有歌词文本的歌是
     // 完整可用的回答，绝不能被当成空响应顺延掉。
     const hasAudio = Array.isArray(msg?.audio) && msg.audio.length > 0;

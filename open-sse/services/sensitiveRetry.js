@@ -245,7 +245,18 @@ export function inspectNonStream(json) {
       (typeof msg.reasoning === "string" && msg.reasoning !== "");
     const toolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
     const audio = Array.isArray(msg.audio) && msg.audio.length > 0;
-    const empty = !content && !reasoning && !toolCalls && !audio;
+    // Issue #96: a reasoning-only answer arrives here having already been promoted
+    // into `content` by the non-streaming pipeline, so the plain `!content` test
+    // reports it as healthy and the empty-retry gate never fires. Recognise the
+    // echo (content is exactly the reasoning, nothing else) and call it empty —
+    // same rule as isZeroContentResponse in combo.js. Everything else keeps its
+    // existing semantics, including a reasoning-only body that was NOT promoted.
+    const promoted =
+      !!content &&
+      !!reasoning &&
+      typeof msg.content === "string" &&
+      msg.content.trim() === String(msg.reasoning_content ?? msg.reasoning).trim();
+    const empty = !toolCalls && !audio && (promoted || (!content && !reasoning));
     const filtered = isFilterFinishReason(choice.finish_reason);
     return { retryable: empty, empty, filtered };
   }

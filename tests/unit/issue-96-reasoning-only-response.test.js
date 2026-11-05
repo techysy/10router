@@ -157,3 +157,92 @@ describe("Issue #96: reasoning-only response handling", () => {
     expect(translated.choices[0].message.reasoning_content).toBe("Deep thinking breakdown...");
   });
 });
+
+// The promotion above runs inside the chat pipeline, BEFORE a combo inspects the
+// member response. These cases pin the consequence: the combo fallback this very
+// issue asks for must still fire, and the synthetic stream frame must land in a
+// place a strict client will actually read.
+describe("Issue #96: promotion must not swallow the combo fallback", () => {
+  const reasoningOnly = {
+    choices: [{ index: 0, message: { role: "assistant", content: "", reasoning_content: "thinking only" }, finish_reason: "stop" }],
+  };
+
+  it("isZeroContentResponse sees through a promoted reasoning-only body", () => {
+    const promoted = translateNonStreamingResponse(structuredClone(reasoningOnly), "openai", "openai");
+    // content is no longer empty — but it is only the reasoning echoed back.
+    expect(promoted.choices[0].message.content).toBe("thinking only");
+    expect(isZeroContentResponse(promoted)).toBe(true);
+  });
+
+  it("isZeroContentResponse keeps a genuine answer healthy", () => {
+    expect(isZeroContentResponse({
+      choices: [{ index: 0, message: { content: "real answer", reasoning_content: "different thought" }, finish_reason: "stop" }],
+    })).toBe(false);
+  });
+
+  it("handleComboChat reaches the next model when the first was promoted reasoning-only", async () => {
+    const promotedFirst = translateNonStreamingResponse(structuredClone(reasoningOnly), "openai", "openai");
+    const handleSingleModel = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(promotedFirst), {
+        status: 200, headers: { "content-type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ index: 0, message: { content: "answer from fallback" }, finish_reason: "stop" }],
+      }), { status: 200, headers: { "content-type": "application/json" } }));
+
+    const result = await handleComboChat({
+      body: { messages: [{ role: "user", content: "hi" }] },
+      models: ["p/first", "p/second"],
+      handleSingleModel,
+      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      autoSwitch: false,
+    });
+
+    expect(handleSingleModel).toHaveBeenCalledTimes(2);
+    expect((await result.json()).choices[0].message.content).toBe("answer from fallback");
+  });
+
+  it("passthrough promotes BEFORE finish_reason, so strict clients still read it", async () => {
+    const stream = createSSEStream({ mode: "passthrough", model: "m", provider: "p" });
+    const out = await drain(feed([
+      'data: {"id":"up-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{"reasoning_content":"think"}}]}\n\n',
+      'data: {"id":"up-1","object":"chat.completion.chunk","model":"up-m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+      'data: [DONE]\n\n',
+    ]).pipeThrough(stream));
+
+    const frames = out.split("\n").filter((l) => l.startsWith("data:") && !l.includes("[DONE]"))
+      .map((l) => JSON.parse(l.slice(5)));
+    const finishAt = frames.findIndex((f) => f.choices?.[0]?.finish_reason);
+    const promotedAt = frames.findIndex((f) => typeof f.choices?.[0]?.delta?.content === "string" && f.choices[0].delta.content);
+    expect(promotedAt).toBeGreaterThanOrEqual(0);
+    expect(promotedAt).toBeLessThan(finishAt);
+    // Same message id as the rest of the stream — a fresh id would look like a
+    // second completion to clients that merge by id.
+    expect(frames[promotedAt].id).toBe(frames[0].id);
+  });
+
+  it("a tool-call turn is never given a synthetic text frame (translate lane)", async () => {
+    const stream = createSSEStream({
+      mode: "translate", targetFormat: "claude", sourceFormat: "openai", model: "m", provider: "p",
+    });
+    const out = await drain(feed([
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_9","model":"claude-x","usage":{"input_tokens":10}}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"I should call search"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"search","input":{}}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{}"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":1}\n\n',
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":50}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ]).pipeThrough(stream));
+
+    const contents = out.split("\n").filter((l) => l.startsWith("data:"))
+      .map((l) => { try { return JSON.parse(l.slice(5)); } catch { return null; } })
+      .filter(Boolean)
+      .map((f) => f.choices?.[0]?.delta?.content)
+      .filter((c) => typeof c === "string" && c);
+    expect(contents).toEqual([]);
+    expect(out).toContain("tool_calls");
+  });
+});

@@ -134,19 +134,55 @@ export function createSSEStream(options = {}) {
     }
   };
 
+  /**
+   * Is this still-untranslated chunk the upstream's terminal frame?
+   *
+   * The translate lane sees the PROVIDER dialect, so there is no single
+   * `finish_reason` to test. Each family announces completion differently:
+   *   - OpenAI / Responses-ish: choices[0].finish_reason
+   *   - Claude: message_delta carrying stop_reason (message_stop has no delta)
+   *   - Gemini / Antigravity: candidates[0].finishReason
+   * Ollama keeps its terminal in `done`, which the [DONE] branch above handles.
+   */
+  const isUpstreamTerminalChunk = (chunk, upstreamFormat) => {
+    if (!chunk || chunk.error) return false;
+    if (Array.isArray(chunk.choices) && chunk.choices[0]?.finish_reason) return true;
+    if (upstreamFormat === FORMATS.CLAUDE && chunk.type === "message_delta" && chunk.delta?.stop_reason) return true;
+    if (Array.isArray(chunk.candidates) && chunk.candidates[0]?.finishReason) return true;
+    return false;
+  };
+
   // Issue #96: 兜底防御 —— 如果整个流结束时，accumulatedContent 依然为空，
   // 且没有任何工具调用（!hasToolCallsSeen），但是产生了非空的推理内容（accumulatedThinking）：
   // 这属于上游推理中断/未输出正文（Reasoning-only response）。
   // 很多客户端（如 Hermes Agent）将无 content 视为空回复并整轮丢弃。
-  // 在发送 [DONE] 之前，下发一个将思考内容作为正文输出的 delta 块，防止客户端判空暴毙。
+  //
+  // 时序：这一帧必须发在 finish_reason 那一帧**之前**。曾在 [DONE]/flush 处补发，
+  // 结果流变成 `… finish_reason:"stop" → delta.content → [DONE]` —— finish 之后再
+  // 认正文违反 OpenAI 流式约定，OpenAI 官方 SDK 的累积器与若干严格解析器会直接
+  // 停止读取，提升等于没做。现在 finish 帧一到就先发它，[DONE]/flush 只兜底
+  // 「上游根本没发 finish 帧」的情况；promoteReasoningDone 保证全流至多一次。
+  let promoteReasoningDone = false;
   const promoteReasoningIfNeeded = (controller) => {
+    if (promoteReasoningDone) return;
     if (accumulatedContent.trim().length === 0 && !hasToolCallsSeen && accumulatedThinking.trim().length > 0) {
+      // 只有 OpenAI 格式的客户端能消费这一帧：翻译模式下面向 Claude/Gemini 的
+      // 流有自己的 thinking 块，硬塞一个 OpenAI chunk 会把两种协议混在一条流里。
       if (mode === STREAM_MODE.PASSTHROUGH || sourceFormat === FORMATS.OPENAI) {
+        promoteReasoningDone = true;
+        // id/model 必须跟着同一轮里的其它帧走：换一个 id，按 id 归并的客户端
+        // 会把这帧当成另一条消息。直通模式照抄上游 chunk 的 id/model；翻译模式
+        // 下每一帧都是翻译器现造的（claude→openai 是 `chatcmpl-${state.messageId}`），
+        // 照抄上游 id 反而会成为流里唯一的异类。
+        const translateLane = mode === STREAM_MODE.TRANSLATE;
+        const promotedId = translateLane
+          ? (state?.messageId ? `chatcmpl-${state.messageId}` : null)
+          : lastChunkMetadata?.id;
         const promotedChunk = {
-          id: lastChunkMetadata?.id || `chatcmpl-${Date.now()}`,
+          id: promotedId || `chatcmpl-${Date.now()}`,
           object: "chat.completion.chunk",
           created: Math.floor(Date.now() / 1000),
-          model: lastChunkMetadata?.model || model || "model",
+          model: (translateLane ? state?.model : lastChunkMetadata?.model) || model || "model",
           choices: [
             {
               index: 0,
@@ -161,6 +197,9 @@ export function createSSEStream(options = {}) {
         accumulatedContent = accumulatedThinking;
         totalContentLength += accumulatedThinking.length;
       }
+    } else if (accumulatedContent.trim().length > 0 || hasToolCallsSeen) {
+      // 正文或工具调用已经出现 —— 这条流不再是 reasoning-only，不必再判定。
+      promoteReasoningDone = true;
     }
   };
 
@@ -352,6 +391,9 @@ export function createSSEStream(options = {}) {
               }
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              // Issue #96: 提升帧必须在 finish 帧之前落地（见 promoteReasoningIfNeeded
+              // 的时序说明）。这里先把累计的推理当作正文发出去，再转发 finish。
+              if (isFinishChunk) promoteReasoningIfNeeded(controller);
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -446,6 +488,25 @@ export function createSSEStream(options = {}) {
           continue;
         }
 
+        // Issue #96: tool-call detection must cover EVERY upstream dialect, not just
+        // OpenAI deltas. In translate mode the stream carries the *provider* format
+        // (Claude content_block_start / Gemini functionCall), so an OpenAI-shaped
+        // check alone leaves hasToolCallsSeen false and a tool turn then gets a
+        // synthetic text frame appended — the tool result is polluted with prose.
+        if (!hasToolCallsSeen) {
+          if (parsed.type === "content_block_start" && parsed.content_block?.type === "tool_use") {
+            hasToolCallsSeen = true;
+          } else if (parsed.type === "content_block_delta" && parsed.delta?.type === "input_json_delta") {
+            hasToolCallsSeen = true;
+          } else if (Array.isArray(parsed.choices?.[0]?.delta?.tool_calls)
+            && parsed.choices[0].delta.tool_calls.length > 0) {
+            hasToolCallsSeen = true;
+          } else if (Array.isArray(parsed.candidates?.[0]?.content?.parts)
+            && parsed.candidates[0].content.parts.some((p) => p?.functionCall || p?.function_call)) {
+            hasToolCallsSeen = true;
+          }
+        }
+
         // Claude format - content
         if (parsed.delta?.text) {
           totalContentLength += parsed.delta.text.length;
@@ -503,6 +564,12 @@ export function createSSEStream(options = {}) {
         }
 
         currentOpenAIResponsesEvent = null;
+
+        // Issue #96 (translate lane): the same promote-before-finish ordering as the
+        // passthrough lane above — the terminal frame is about to be translated and
+        // forwarded, so the synthetic content delta has to land first. Detected per
+        // provider dialect, because `parsed` here is still in the UPSTREAM format.
+        if (isUpstreamTerminalChunk(parsed, targetFormat)) promoteReasoningIfNeeded(controller);
 
         // Translate: targetFormat -> openai -> sourceFormat
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
