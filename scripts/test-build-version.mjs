@@ -38,6 +38,22 @@ const VERSION_FILES = [
   "fnos-packaging/manifest",
 ];
 
+const ROUND_FILE = join(ROOT, ".test-round.json");
+
+export function loadTestRounds() {
+  try {
+    return JSON.parse(readFileSync(ROUND_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export function saveTestRounds(rounds) {
+  try {
+    writeFileSync(ROUND_FILE, JSON.stringify(rounds, null, 2) + "\n");
+  } catch {}
+}
+
 function git(args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
 }
@@ -159,12 +175,46 @@ function main() {
     process.exit(0);
   }
 
-  const target = arg;
   const force = process.argv.includes("--force");
+  let target = arg;
+
+  // Auto N+1 bumping: `node scripts/test-build-version.mjs --next [coreVersion]`
+  if (arg === "--next" || arg === "-n") {
+    const released = lastRelease();
+    let core = process.argv[3] && !process.argv[3].startsWith("-") ? process.argv[3] : "";
+    if (!core) {
+      const base = released || readVersion("package.json");
+      const [maj, min, pat] = base.split("-")[0].split(".").map(Number);
+      core = `${maj}.${min}.${pat + 1}`;
+    }
+    const rounds = loadTestRounds();
+    const nextRound = (rounds[core] || 0) + 1;
+    target = `${core}-test.${nextRound}`;
+  }
+
   if (!/^\d+\.\d+\.\d+-test\.\d+$/.test(target) && !force) {
     console.error(`refusing to stamp "${target}" — test builds must look like X.Y.Z-test.N (use --force to override)`);
     process.exit(1);
   }
+
+  // Strictly enforce N+1: prevent stamping an already used or decremented test.N round
+  const roundMatch = target.match(/^(\d+\.\d+\.\d+)-test\.(\d+)$/);
+  if (roundMatch && !force) {
+    const core = roundMatch[1];
+    const requestedRound = parseInt(roundMatch[2], 10);
+    const rounds = loadTestRounds();
+    const highestRound = rounds[core] || 0;
+    if (requestedRound <= highestRound) {
+      console.error(
+        `❌ Refusing to stamp "${target}" — round test.${requestedRound} was ALREADY used for ${core}!\n` +
+          `   Highest recorded round: ${core}-test.${highestRound}\n` +
+          `   Test builds must strictly increment N+1 to prevent payload ambiguity.\n` +
+          `   Next valid version: ${core}-test.${highestRound + 1} (or use node scripts/test-build-version.mjs --next ${core}, or --force to override).`,
+      );
+      process.exit(1);
+    }
+  }
+
   const released = lastRelease();
   if (released && compareSemver(target, released) <= 0) {
     console.error(
@@ -184,6 +234,15 @@ function main() {
   }
   // Keep fnOS in lockstep with npm/desktop; the same script the fpk build runs.
   execFileSync(process.execPath, [join(ROOT, "scripts", "sync-manifest-version.mjs")], { cwd: ROOT });
+
+  // Update highest recorded test round
+  if (roundMatch) {
+    const core = roundMatch[1];
+    const requestedRound = parseInt(roundMatch[2], 10);
+    const rounds = loadTestRounds();
+    rounds[core] = Math.max(rounds[core] || 0, requestedRound);
+    saveTestRounds(rounds);
+  }
 
   console.log(`stamped ${current} -> ${target} (${VERSION_FILES.length} files, uncommitted)`);
   console.log(VERSION_FILES.map((f) => `${f}=${readVersion(f)}`).join("  "));
