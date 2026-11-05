@@ -46,10 +46,14 @@ describe("buildModelsList — combo context reaches the agent", () => {
   });
 
   it("emits the snake_case context names the agent reads, alongside the nested block", async () => {
+    // kimi-k2.6 已随 2026-11-05 目录换代从 CN 下架。成员改用仍在目录的
+    // kimi-k2.8-preview(256K/32K) 与 glm-5.3-flash(1M/32K)：contextWindow 取
+    // min → 256K，maxOutput 取 max → 32K（聚合是 max，成员必须都 ≤32K 才能保
+    // 持原断言形状——旧成员 k2.6 的 CN 行当年恰好也是 32000）。
     mocks.getCombos.mockResolvedValue([
       {
         name: "kimi-preview",
-        models: ["codebuddy-cn/kimi-k2.8-preview", "codebuddy-cn/kimi-k2.6"],
+        models: ["codebuddy-cn/kimi-k2.8-preview", "codebuddy-cn/glm-5.3-flash"],
       },
     ]);
 

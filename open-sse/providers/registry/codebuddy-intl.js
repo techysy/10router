@@ -115,23 +115,24 @@ export default {
     { id: "hy4-preview", name: "Hy4", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Nov 4-15 每日赠送免费额度，订阅用户更高额度" },
     { id: "hy3", name: "Hy3", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Jul 6–Nov 15 每日赠送免费额度，订阅用户更高额度" },
     { id: "deepseek-v4.1-flash", name: "Deepseek-V4.1-Flash", rateMultiplier: 0.11 },
-    // 「Pro Only」= 模型仅向 Pro 订阅开放，免费账号请求会被拒。
-    { id: "gpt-6-astra", name: "GPT-6-Astra", rateMultiplier: 6.67, proOnly: true },
-    { id: "gpt-6.1-sol", name: "GPT-6.1-Sol", rateMultiplier: 1.33, proOnly: true },
-    { id: "gpt-6-sol", name: "GPT-6-Sol", rateMultiplier: 1.33, proOnly: true },
-    { id: "gpt-6-luna", name: "GPT-6-Luna", rateMultiplier: 0.07, proOnly: true },
-    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol", rateMultiplier: 3.47, proOnly: true },
-    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra", rateMultiplier: 1.39, proOnly: true },
-    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna", rateMultiplier: 0.14, proOnly: true },
-    { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.90, proOnly: true },
-    { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash", rateMultiplier: 0.95, proOnly: true },
+    // 「Pro Only」= 模型仅向 Pro 订阅开放，免费账号请求会被拒。这就是旧
+    // paidTier（订阅锁）的后继语义 —— ModelRow 的锁徽章消费的是 paidTier
+    // 字段，所以两处同真：proOnly 是客户端徽章的事实来源，paidTier 是渲染。
+    // ⚠️ 可达性未经现网验证（无 Pro 账号），标记表达的是客户端公布的档位门槛。
+    { id: "gpt-6-astra", name: "GPT-6-Astra", rateMultiplier: 6.67, proOnly: true, paidTier: true },
+    { id: "gpt-6.1-sol", name: "GPT-6.1-Sol", rateMultiplier: 1.33, proOnly: true, paidTier: true },
+    { id: "gpt-6-sol", name: "GPT-6-Sol", rateMultiplier: 1.33, proOnly: true, paidTier: true },
+    { id: "gpt-6-luna", name: "GPT-6-Luna", rateMultiplier: 0.07, proOnly: true, paidTier: true },
+    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol", rateMultiplier: 3.47, proOnly: true, paidTier: true },
+    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra", rateMultiplier: 1.39, proOnly: true, paidTier: true },
+    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna", rateMultiplier: 0.14, proOnly: true, paidTier: true },
+    { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.90, proOnly: true, paidTier: true },
+    { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash", rateMultiplier: 0.95, proOnly: true, paidTier: true },
     { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.69 },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
-    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97, proOnly: true },
-    // 完整拼写由客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed，卡面 1.56x/300K）。
-    // ⚠️ 可达性未验证：无 Pro 账号，全部 proOnly 行都只在客户端可见、未经
-    // 现网请求确认（与当年 Claude paidTier 行同一处境）——免费账号请求预期被拒。
-    { id: "kimi-k3.1-pro-highspeed", name: "Kimi-K3.1-Pro-Highspeed", rateMultiplier: 1.56, proOnly: true },
+    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97, proOnly: true, paidTier: true },
+    // 完整拼写由客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed，卡面 1.56x）。
+    { id: "kimi-k3.1-pro-highspeed", name: "Kimi-K3.1-Pro-Highspeed", rateMultiplier: 1.56, proOnly: true, paidTier: true },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
     { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.08 },
   ],
