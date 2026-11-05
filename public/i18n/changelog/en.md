@@ -2,6 +2,26 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.7.0 (unreleased)
+
+### ✨ New
+
+- **Media providers → Music**: a new Music category in the sidebar that generates full songs.
+  - **ACE Music**: hosted ACE-Step — a song in tens of seconds, returned as a playable, downloadable MP3.
+  - **StepFun StepAudio 3 Music** (free for a limited time): the official async API. A one-line description gets lyrics written for you; multi-line text is sung as-is.
+  - The example card has a built-in player and download button, so you can switch model, connection and prompt and try it on the spot.
+- **Qoder catalog sync**: Kimi-K3.1-Pro, Kimi-K2.8-Preview, MiniMax-M3.1-Flash; the CN site also gains Step-5-Preview and the "Fast" tier.
+- **Model selector footer**: shows how many models are selected plus a Done button, so multi-select no longer reopens the dialog on every click.
+- **LongCat-2.5 GA**: LongCat (Meituan) LongCat-2.5 — 1M context, 256K max output, image and video input, thinking toggle as before. Available on both the CN and international sites; 2.5-Preview stays online.
+- **Release-notes audit script**: `npm run audit:release-notes` checks before publishing that the notes include the 📦 Install channel table and the Full Changelog compare link, and fails loudly when either is missing.
+
+### 🐛 Fixed
+
+- **Reasoning-only answers were discarded as empty (#96)**: some upstreams end a turn with thinking content and no body text, which clients like Hermes Agent treat as an empty reply and drop. Combos now fall through to the next model; a single model promotes the thinking into the body instead — emitted before the finish marker, so clients actually read it.
+- **Tool calls polluted with a synthetic text frame**: Claude / Gemini tool turns got extra text appended after translation; fixed.
+- **Same-named resource packs overwriting each other**: with several packs (LongCat and others), the per-pack breakdown now lists them as "Bonus Pack 1/2/3" with individual expiry countdowns instead of only the last one.
+- **Music generation accounts and permissions**: a content-filter rejection or task timeout no longer cools down the whole account; `/v1/audio/music` only accepts music models; per-key model allowlists apply here too; the connection picked in the example card is actually honoured.
+
 ## v1.6.6 (2026-11-03)
 
 ### ✨ New

@@ -7,17 +7,27 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-11-03T00:00:00+08:00",
+  "updatedAt": "2026-11-05T00:00:00+08:00",
   "items": [
     {
-      "id": "2026-11-03-v166-release",
-      "date": "2026-11-03",
+      "id": "2026-11-05-music-generation",
+      "date": "2026-11-05",
       "level": "feature",
-      "title": "v1.6.6 发布：狂野派主题 · 公告离线兜底",
-      "body": "新主题「狂野派」四态循环上线；公告走同源接口国内秒开；测试版更新判定修复；断开连接即时省 token。",
-      "titleEn": "v1.6.6: Brutal theme · offline-safe announcements",
-      "bodyEn": "New Brutal theme in the four-state cycle; announcements now load via a same-origin API; prerelease update detection fixed; streams abort instantly on disconnect.",
-      "link": "https://github.com/techysy/10router/releases/tag/v1.6.6"
+      "title": "媒体提供商 → 音乐：直接生成整首歌",
+      "body": "侧栏新增「音乐」分类。ACE Music 托管版 ACE-Step 出整曲 MP3，StepFun StepAudio 3 Music 限时免费——一行描述自动写词，多行文字直接当歌词唱。示例卡内建播放器与下载按钮，模型、连接、Prompt 现场切换直接试。",
+      "titleEn": "Media providers → Music: generate full songs",
+      "bodyEn": "A new Music category in the sidebar. ACE Music (hosted ACE-Step) returns a full MP3; StepFun StepAudio 3 Music is free for a limited time — one line of description gets lyrics written for you, multi-line text is sung as-is. The example card has a built-in player and download button.",
+      "link": "https://github.com/techysy/10router/releases/tag/v1.7.0"
+    },
+    {
+      "id": "2026-11-05-v170-release",
+      "date": "2026-11-05",
+      "level": "feature",
+      "title": "v1.7.0 发布：音乐生成 · LongCat-2.5 正式版",
+      "body": "音乐分类上线（ACE Music / StepFun）；LongCat-2.5 正式版收录，1M 上下文、256K 输出；Qoder 目录同步；修复只有思考没有正文的回答被当成空回复丢弃（#96）与同名资源包互相覆盖。",
+      "titleEn": "v1.7.0: Music generation · LongCat-2.5 GA",
+      "bodyEn": "Music category ships (ACE Music / StepFun); LongCat-2.5 GA with 1M context and 256K output; Qoder catalog sync; fixes reasoning-only answers being dropped as empty (#96) and same-named resource packs overwriting each other.",
+      "link": "https://github.com/techysy/10router/releases/tag/v1.7.0"
     },
     {
       "id": "2026-11-02-brutal-theme",
@@ -91,15 +101,6 @@
       "body": "Gemini 4 Argon 三线接入（1M 上下文）；Codex 新增 GPT-6.1 Sol（Responses Lite 协议）。",
       "titleEn": "Gemini 4 Argon & GPT-6.1 Sol onboarded",
       "bodyEn": "Gemini 4 Argon across three lanes (1M context); Codex adds GPT-6.1 Sol over Responses Lite."
-    },
-    {
-      "id": "2026-10-20-community",
-      "date": "2026-10-20",
-      "level": "info",
-      "title": "社区与捐赠",
-      "body": "飞书 / Discord / Telegram / GitHub；捐赠：Sponsors / 爱发电 / 支付宝 / 微信。",
-      "titleEn": "Community & donations",
-      "bodyEn": "Feishu / Discord / Telegram / GitHub; donations: Sponsors / AiFaDian / Alipay / WeChat."
     }
   ]
 }

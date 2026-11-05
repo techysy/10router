@@ -2,6 +2,38 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.7.0 (未发布)
+
+### ✨ 新增
+
+- **媒体提供商 → 音乐（全新分类）**：侧栏媒体提供商新增「音乐」入口，与图像/语音/视频同列。收录两类形态：
+  - **ACE Music（acemusic.ai）** — 托管版 ACE-Step，走标准 OpenAI Chat Completions，整曲以 base64 MP3 放在 `message.audio[]` / `delta.audio[]`（OpenAI audio 方言，整曲单帧 ~600KB）。上游 id 自带 `acemusic/` 命名空间，registry 存裸 id + `upstreamModelId` 映射，客户端只看到一层前缀。
+  - **StepFun StepAudio 3 Music（stepaudio-3-music-preview，限免）** — 官方原生 `/v1/audio/music` 异步任务（submit 拿 task_id → 每 5s 轮询到 SUCCESS/FAILED），由 `musicConfig.mode: "stepfun-async"` 分派；`caption` 必填、`lyrics` 可选，多行 prompt 自动识别为歌词。
+- **`POST /v1/audio/music` 统一音乐端点**：两条上游形态归一为 `{ data: [{ url, format }], content, model }`，`url` 是可直接播放/下载的 `data:audio/*`。示例卡内置播放器与下载按钮；JSON 视图对 `data:` URI 与 `b64_json` 一视同仁地掩码（此前 3MB base64 直接把响应框卡死）。
+- **音乐模型在每一层「算不算有效内容」的判定里都被认可**：`hasValuableContent`（流式逐帧过滤）、`isZeroContentResponse`（combo 是否顺延）、`inspectNonStream` / `createStreamScanner`（空响应重试门禁）、`parseSSEToOpenAIResponse`（上游强制流式转 JSON）——任何一处漏判，整首歌都会被静默丢弃。
+- **Qoder 模型目录同步**：Kimi-K3.1-Pro / Kimi-K2.8-Preview / MiniMax-M3.1-Flash / Step-5-Preview（CN 侧 `jmodel`）/ CN「快速」档（`fast`）；能力表与显示名同步。
+- **模型选择弹窗底部栏**：显示已选数量与「完成」按钮，支持多选场景下不逐次关窗（`closeOnSelect: false`）。
+- **LongCat-2.5 正式版收录（长猫 / 美团）**：官方 2026-11 正式发布——按《模型参数参考》页声明 1,048,576 上下文、max_tokens 上限 262,144、thinking_budget 上限 262,144，保留多模态输入（image_url + video_url）与思考开关；国内站（longcat）与国际站（longcat-intl）同时收录，2.5-Preview 保留不下线，老配置不失效。能力行按正式版文档放宽（Preview 期口径为 1M / 128K），小写裸 id 同步单列一行防转售商目录大小写回落。定价与同族 Preview 同档（目录价 0.75 / 2.95 / 0.015 每百万 Token）——官方按量付费页当前挂的是「限时折扣价」（0.3 / 1.2 / 0.006），不随促销改价以免成本估算起落；要改价需连同 `tests/unit/pricing-first-party-vs-reseller.test.js` 里钉死的 longcat 断言一起改。
+- **发版说明自动审计**（`scripts/audit-release-notes.mjs`，`npm run audit:release-notes -- <notes.md>` 或 `--tag vX.Y.Z` 直取线上说明）：逐条校验六大骨架——版本标题 / 主题行 / ⚠️ 升级须知 / ✨ 新增 / 🐛 修复 / **📦 安装六大渠道表** / **Full Changelog 比较链接**——缺任一项即退出码 1 并列出缺项。落地自 v1.6.5 说明漏写安装表与比较链接的实测事故；`docs/zh-CN/release-prep/release-checklist.md` 步骤 7 同步加为强检查项。
+
+### 🐛 修复
+
+- **同名资源包互相覆盖，逐包明细只剩 1 条**：外部推送方（CreditDaddy 的 LongCat 资源包）按种类复用同一显示名（「获赠资源包」/「资源包」），只有 push key 区分；而下游处处拿 name 当身份——认领路径用 `Object.fromEntries(rows.map(r => [r.name, r]))` 建 map、按 name 的可见性键、`parseQuotaData` 把 map key 直接当显示名——同名行于是互相覆盖：CD 侧显示「3 个资源包」，10Router 卡面只剩「逐包明细 (1)」（用户 2026-11-03 实测）。快照转行时给重名组编号（「获赠资源包 1/2/3」，与仓库既有「赠送包 N / Bonus Pack N」同族命名一致），独苗行不动名，推送卡与连接卡两条渲染路径同源同结果。
+- **推理-only 响应被客户端整轮丢弃（#96）**：上游只返回 `reasoning_content`、`content` 为空且无工具调用时，Hermes Agent 等客户端判为空回复并丢弃整轮。现在组合成员会把这种响应视为软失败并顺延到下一模型；单模型场景把思考内容提升为正文兜底。
+  - 提升必须在 `finish_reason` **之前**下发：原先补发在 `[DONE]`/flush 处，流变成 `finish:stop → delta.content → [DONE]`，违反 OpenAI 流式约定，官方 SDK 的累积器会停止读取，提升等于没做。
+  - 组合判定要能看穿这次提升：`handleNonStreamingResponse` 在 combo 看到响应之前就已把 reasoning 写进 content，只看 `content !== ""` 会让备用模型永远不被调用（实测 `handleComboChat` 一次即返回那段思考文本）。现按「content 与 reasoning 完全一致」识别回显。
+  - 翻译链路补认工具调用（Claude `content_block_start(tool_use)` / `input_json_delta`、Gemini `functionCall`）：此前只认 OpenAI delta，工具轮会被追加一段合成正文污染工具结果。
+- **音乐端点三处安全与静默丢失**：
+  - StepFun 审核拦截 / 轮询超时 / 空音频此前统一映射 502/504，会把健康账号冷却 30 秒；改为业务失败直接返回，只有 5xx 才走账号冷却。
+  - `/v1/audio/music` 在缺 `musicConfig` 时落入 chat 分支，等于把音乐端点变成第二个 chat 端点（传任意聊天模型会真的执行）。新增 `isMusicModel` 守卫，容忍裸 id / 单前缀 / 双前缀。
+  - acemusic 计价只登记了命名空间形态，裸 id 查不到行时 `calculateCost` 静默返回 0；两个键都补齐。同时补上 `checkApiKeyModelAccess`（与 chat 端点同一份 per-key 白名单）与 `x-connection-id` 连接固定。
+
+### 🧪 测试与工程
+
+- **测试构建版本严格 N+1 门禁**：`scripts/test-build-version.mjs` 持久化轮次账本，拒绝重复或倒退使用已烧掉的 `test.N`；新增 `--next` 自动严格递增。
+- 该门禁自身的测试改为只读隔离（`TEST_BUILD_ROUND_FILE` 指向临时账本）：原先读被 gitignore 的真实账本，在干净 checkout/CI 上必然失败，且在 `--force` 路径下改写并回退仓库四个版本文件，与并行 worker 互相踩。
+- `snapshot-inventory.mjs` 输出按键排序：此前按 vitest 报告顺序落盘（取决于文件发现与 worker 调度），每次重基线都重写整个文件——上一版 6500 行变更实际只对应 25 个新增测试。
+
 ## v1.6.6 (2026-11-03)
 
 ### ✨ 新增
