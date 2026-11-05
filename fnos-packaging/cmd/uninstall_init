@@ -24,4 +24,10 @@ fi
 if [ -f "${DATA_DIR}/10router.pid" ]; then
     kill "$(cat "${DATA_DIR}/10router.pid")" 2>/dev/null || true
 fi
+# 管理面板（issue #97）：主应用 stop 刻意不杀它（持有定时更新调度器，
+# 且更新编排自身会调用 cmd/main restart），应用卸载时在这里清理。
+if [ -f "${DATA_DIR}/panel.pid" ]; then
+    kill "$(cat "${DATA_DIR}/panel.pid")" 2>/dev/null || true
+    rm -f "${DATA_DIR}/panel.pid"
+fi
 exit 0

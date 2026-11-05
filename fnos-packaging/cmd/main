@@ -52,6 +52,12 @@ HOSTNAME="0.0.0.0"
 LOG="${DATA_DIR}/10router.log"
 PID_FILE="${DATA_DIR}/10router.pid"
 
+# 管理面板（issue #97）：独立进程，主应用 stop/restart 不影响它 ——
+# 定时自动更新的调度器跑在这里。默认只听 127.0.0.1:20128。
+PANEL_PORT="${PANEL_PORT:-20128}"
+PANEL_PID_FILE="${DATA_DIR}/panel.pid"
+PANEL_LOG="${DATA_DIR}/panel.log"
+
 start() {
     mkdir -p "${DATA_DIR}"
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
@@ -100,12 +106,30 @@ start() {
     for i in $(seq 1 60); do
         if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
             echo "started (pid $(cat "${PID_FILE}"))"
+            APP_DIR="${APP_DIR}" DATA_DIR="${DATA_DIR}" SRC_DIR="${SRC_DIR}" NODE_BIN="${NODE_BIN}" MAIN_PORT="${PORT}" \
+                PANEL_PORT="${PANEL_PORT}" start_panel
             return 0
         fi
         sleep 1
     done
     echo "started, but health check timed out (check ${LOG})"
     return 0
+}
+
+start_panel() {
+    # 主应用健康后再拉起面板；面板挂了不影响主应用，主应用重启也不打断面板调度。
+    if [ -f "${PANEL_PID_FILE}" ] && kill -0 "$(cat "${PANEL_PID_FILE}")" 2>/dev/null; then
+        return 0
+    fi
+    # 面板是 fpk cmd/ 的一部分，不随 server 产物热覆盖而变化 —— 用本脚本目录里的副本。
+    ( umask 077; nohup "${NODE_BIN}" "${APP_DIR}/cmd/dashboard.js" >> "${PANEL_LOG}" 2>&1 & echo $! > "${PANEL_PID_FILE}" )
+}
+
+stop_panel() {
+    if [ -f "${PANEL_PID_FILE}" ]; then
+        kill "$(cat "${PANEL_PID_FILE}")" 2>/dev/null || true
+        rm -f "${PANEL_PID_FILE}"
+    fi
 }
 
 stop() {
@@ -115,6 +139,9 @@ stop() {
     fi
     # 兜底：杀掉残留的 next-server 进程（仅限本应用目录）
     pkill -f "${SRC_DIR}/custom-server.js" 2>/dev/null || true
+    # 注意：这里刻意不杀管理面板（panel.pid）——面板持有定时自动更新的调度器，
+    # 且更新流程自身会调用 `cmd/main restart`；若 restart 连带杀面板，编排
+    # （含失败回滚）会在半途死亡。面板随应用卸载时才清理（见 cmd/uninstall_init）。
     echo "stopped"
 }
 
