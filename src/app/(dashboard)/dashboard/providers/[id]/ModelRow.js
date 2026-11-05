@@ -383,9 +383,17 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                     ? `${translate("Night-free window")} (23:00–08:00) — ${translate("rides the free quota")}`
                     : promoFree
                     ? translate("Credit multiplier") + `: ${rateMultiplier}x — ` + translate("promo free until") + ` ${formatPromoEnd(model.promoFreeUntil)}`
+                      // `promoFreeNote` 承载客户端卡片上的额度口径（例如「每日赠送免费额度」
+                      // ——限免不是无限量，用完后仍按原价计费）。没有这段文字时，用户只看到
+                      // free，会以为整段时间随便用。
+                      + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
                     : displayMultiplier === 0
                     ? translate("Credit multiplier") + ": 0x — " + translate("rides the free quota")
                     : translate("Credit multiplier") + `: ${displayMultiplier}x`
+                      // `discountNote` 承载「夜间折扣/错峰使用」这类**立减型**折扣的
+                      // 时段规则。它们不是免费窗口（nightFree 徽章会亮 free 夸大），
+                      // 所以只作悬停说明，徽章仍显示原价倍率。
+                      + (model.discountNote ? ` — ${model.discountNote}` : "")
                 }
               >
                 <Badge
@@ -495,6 +503,10 @@ ModelRow.propTypes = {
     paidTier: PropTypes.bool,
     // Tagged "订阅优先" on the credit page: queued ahead for subscribers.
     subPriority: PropTypes.bool,
+    // 限时免费的额度口径说明（客户端原文），随 tooltip 展示。
+    promoFreeNote: PropTypes.string,
+    // 「夜间折扣/错峰使用」这类立减型折扣的时段规则（客户端原文）。
+    discountNote: PropTypes.string,
     // Server-published off-peak window (Qoder catalog `promotion`).
     promotion: PropTypes.object,
     nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),

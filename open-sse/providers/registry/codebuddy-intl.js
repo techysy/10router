@@ -28,10 +28,16 @@ export default {
     // CodeBuddy intl speaks the same unified OpenAI reasoning_effort shape as CN.
     thinkingFormat: "openai",
     headers: {
-      "User-Agent": "IDE/2.108.1 CodeBuddy/2.108.1",
+      // 2026-11-05 对齐官方 CLI 2.180.0（与 CN 侧同一份包）：版本信息改走
+      // X-IDE-Version / X-Client-Version / X-Product-Version 独立头，旧 UA
+      // 过渡期双发（同 CN 侧注释）。
+      "User-Agent": "IDE/2.180.0 CodeBuddy/2.180.0",
       "X-Product": "SaaS",
       "X-IDE-Type": "IDE",
       "X-IDE-Name": "IDE",
+      "X-IDE-Version": "2.180.0",
+      "X-Client-Version": "2.180.0",
+      "X-Product-Version": "2.180.0",
       "x-requested-with": "XMLHttpRequest",
       "x-codebuddy-request": "1",
     },
@@ -94,100 +100,56 @@ export default {
   // very same id has answered 200 — an upstream availability flap, not a catalog
   // error. Only 11102 ("model service info not found") means the id is wrong.
   // Error-code reference: docs/zh-CN/codebuddy-cn-error-codes.md.
+  // 2026-11-05（第三版）：用户从 WorkBuddy 国际版客户端取得**带徽章**的完整
+  // 清单，取代同日早先那版无徽章的网页版截图。与前两版的关键差异：
+  //   · GPT-6 家族回归且首次公布倍率（6.1-Sol 1.33 / 6-Sol 1.33 / 6-Luna 0.07，
+  //     Astra 仍是实测 6.67）；5.5 / 5.4 / 5.3-Codex / Gemini-3.5-Flash / GLM-5.2 /
+  //     Kimi-K2.6 消失；GLM-5.3 与 CN 同步降到 0.69；glm-5.3-flash 0.08 回归；
+  //     新增 Kimi-K3.1-Pro(0.97) 与 -Highspeed(1.56，id 拼写按命名惯例推断，
+  //     ⚠️ 待凭据恢复后现网复核)、MiniMax-M3.1-Flash(0.08)、DeepSeek-V4.1-Flash(0.11)。
+  //   · 徽章三类：Free now（Hy4 11月4-15 / Hy3 7月6-11月15，每日赠送免费额度，
+  //     订阅用户更高额度）、Pro Only（模型仅向 Pro 用户开放）、无徽章（人人可用）。
   models: [
-    { id: "hy4-preview", name: "Hy4-Preview", rateMultiplier: 0 },
-    { id: "hy3", name: "Hy3", rateMultiplier: 0 },
-    // The GPT-6 ids this gateway answers (live-probed 2026-09-30): astra plus
-    // the 6.0 sol/luna pair below. Still 11102: bare gpt-6, gpt-6.0,
-    // gpt-6-astra-review|-thinking|-mini|-pro|-high|-codex, gpt-6.1-astra,
-    // gpt-6.1-sol, gpt-6.1-luna, gpt-6.5-astra and gpt-5.6-astra.
-    //
-    // Its multiplier is the measured 6.67. v1.1.0 shipped 17.35, which was an
-    // ESTIMATE: no CodeBuddy credit figure for this id was reachable in the
-    // repo, in ~/.codebuddy, or on codebuddy.ai (the pricing page is an app
-    // shell with no data), so it was derived by ratio from the OpenCode Go
-    // price table, where Astra sits at exactly 5x Sol on all four columns
-    // (input / output / cache-read / cache-write) and in both the <=272K and
-    // >272K tiers, and Sol carries a published 3.47 right below (3.47 x 5 =
-    // 17.35). The real credit system does not follow that ratio, so the
-    // estimate is dead — and so is the method: do not infer a multiplier for
-    // this provider from an external price table again (see the gpt-5.4 /
-    // gpt-5.5 rows of open-sse/providers/pricing.js, which share one price but
-    // differ 2x in credits).
-    { id: "gpt-6-astra", name: "GPT 6.0 Astra", rateMultiplier: 6.67 },
-    // gpt-6-sol / gpt-6-luna answered 200 on the 2026-09-30 probe (the OpenAI
-    // 6.0 rollout reached this gateway). Both are intl-only — CN answers
-    // 11102 — so the shared-credit-system rule has no CN row to inherit from,
-    // and rule (3) forbids deriving one from the 5.6 rates: they ship with NO
-    // rateMultiplier until the credit page publishes a real number.
-    { id: "gpt-6-luna", name: "GPT-6-Luna" },
-    { id: "gpt-6-sol", name: "GPT-6-Sol" },
-    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol", rateMultiplier: 3.47 },
-    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra", rateMultiplier: 1.39 },
-    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna", rateMultiplier: 0.14 },
-    { id: "gpt-5.5", name: "GPT-5.5", rateMultiplier: 3.31 },
-    { id: "gpt-5.4", name: "GPT-5.4", rateMultiplier: 1.65 },
-    { id: "gpt-5.3-codex", name: "GPT-5.3-Codex", rateMultiplier: 1.25 },
-    // 2026-10-08 现网探测：gpt-6.1-sol / gemini-3.8-flash / grok-4.7 / space-bunny
-    // 均返回 200，而 gemini-3.6-flash 与 gemini-3.5-flash-lite 回 11102——Gemini
-    // 线从 3.5 直接跳到 3.8。倍率待 CodeBuddy 积分页核对，先按同族留空。
-    { id: "gpt-6.1-sol", name: "GPT-6.1-Sol" },
-    // ── Claude 线（2026-10-09 积分页,user-provided）──
-    //
-    // ⚠️ 与本文件 rule (1) 的关系,务必读完再动这些行:
-    // 截图上这一整组带锁图标(付费档),且旁边的上线弹窗写着"待上线"——**这些 id
-    // 在本机的免费账号上全部回 11102**,包括最直译的 claude-opus-5.5。同一批探测
-    // 里 claude-opus-4.6 / claude-sonnet-4.6 / gpt-6-astra / gpt-6-sol / gpt-6.1-sol
-    // 都回 200,判定器本身正常。
-    //
-    // 因此最可能的原因是**账号档位**:截图来自付费账号,本机号看不到这批服务条目。
-    // 这与积分页按档位过滤是同一回事(见文件头 (2))。按用户判断先收录,并用 11102
-    // 复核过——若哪天某个 id 在**付费**账号上也回 11102,那时才是目录错误,可以下架。
-    //
-    // id 形式已按本文件既有惯例写成小写点号(claude-opus-5.5 而非 UI 的
-    // Claude-Opus-5.5),这是全表唯一验证过能被网关接受的写法。
-    { id: "claude-opus-5.5", name: "Claude-Opus-5.5", rateMultiplier: 2.17, paidTier: true },
-    { id: "claude-sonnet-5.5", name: "Claude-Sonnet-5.5", rateMultiplier: 1.33, paidTier: true },
-    { id: "claude-opus-5", name: "Claude-Opus-5", rateMultiplier: 3.33, paidTier: true },
-    { id: "claude-sonnet-5", name: "Claude-Sonnet-5", rateMultiplier: 1.33, paidTier: true },
-    { id: "claude-opus-4.8", name: "Claude-Opus-4.8", rateMultiplier: 3.33, paidTier: true },
-    { id: "claude-opus-4.7", name: "Claude-Opus-4.7", rateMultiplier: 3.33, paidTier: true },
-    // 4.6 是本组唯一在免费账号上探到 200 的(id 与倍率都来自积分页/探测,两处一致)
-    { id: "claude-opus-4.6", name: "Claude-Opus-4.6", rateMultiplier: 3.33, paidTier: true },
-    // 1.33 是**按 Sonnet 5 的积分对齐**的(用户决定),不是积分页原值——该行在
-    // 2026-10-09 的页面上没显示倍率。同族 Sonnet-5 / Sonnet-5.5 都是 1.33,与
-    // Opus 线的 3.33 对比明显是按型号分档,故同档对齐可用;但这终究是推断,
-    // 页面一旦给出真实数字以页面为准(改这一行即可)。
-    { id: "claude-sonnet-4.6", name: "Claude-Sonnet-4.6", rateMultiplier: 1.33, paidTier: true },
-    { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash" },
-    { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.9 },
-    { id: "space-bunny", name: "Space-Bunny", rateMultiplier: 0.08 },
-    { id: "gemini-3.5-flash", name: "Gemini-3.5-Flash", rateMultiplier: 0.99 },
-    { id: "glm-5v-turbo", name: "GLM-5v-Turbo", rateMultiplier: 0.71 },
-    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.79 },
-    // 11102 through 2026-09; the 2026-09-30 probe saw it answer 200. The
-    // multiplier is the CN credit page value — one credit system, parity test.
-    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.06 },
-    { id: "glm-5.2", name: "GLM-5.2", rateMultiplier: 0.79 },
-    { id: "glm-5.1", name: "GLM-5.1", rateMultiplier: 0.79 },
-    { id: "minimax-m3", name: "MiniMax-M3", rateMultiplier: 0.25 },
+    { id: "auto", name: "自动", rateMultiplier: 0.15 },
+    // 「Free now」= 限时免费窗口（每日赠送额度，非无限量）。
+    { id: "hy4-preview", name: "Hy4", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Nov 4-15 每日赠送免费额度，订阅用户更高额度" },
+    { id: "hy3", name: "Hy3", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Jul 6–Nov 15 每日赠送免费额度，订阅用户更高额度" },
+    { id: "deepseek-v4.1-flash", name: "Deepseek-V4.1-Flash", rateMultiplier: 0.11 },
+    // 「Pro Only」= 模型仅向 Pro 订阅开放，免费账号请求会被拒。
+    { id: "gpt-6-astra", name: "GPT-6-Astra", rateMultiplier: 6.67, proOnly: true },
+    { id: "gpt-6.1-sol", name: "GPT-6.1-Sol", rateMultiplier: 1.33, proOnly: true },
+    { id: "gpt-6-sol", name: "GPT-6-Sol", rateMultiplier: 1.33, proOnly: true },
+    { id: "gpt-6-luna", name: "GPT-6-Luna", rateMultiplier: 0.07, proOnly: true },
+    { id: "gpt-5.6-sol", name: "GPT-5.6-Sol", rateMultiplier: 3.47, proOnly: true },
+    { id: "gpt-5.6-terra", name: "GPT-5.6-Terra", rateMultiplier: 1.39, proOnly: true },
+    { id: "gpt-5.6-luna", name: "GPT-5.6-Luna", rateMultiplier: 0.14, proOnly: true },
+    { id: "grok-4.7", name: "Grok-4.7", rateMultiplier: 1.90, proOnly: true },
+    { id: "gemini-3.8-flash", name: "Gemini-3.8-Flash", rateMultiplier: 0.95, proOnly: true },
+    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.69 },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
+    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97, proOnly: true },
+    // 客户端显示「Kimi-K3.1-Pro-Highs…」；完整拼写按 kimi-k2.7-code 的
+    // 「-code 后缀小写直连」惯例推断为 -highspeed。⚠️ 凭据过期未复核。
+    { id: "kimi-k3.1-pro-highspeed", name: "Kimi-K3.1-Pro-Highspeed", rateMultiplier: 1.56, proOnly: true },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
-    // 0.57 取自 CN 积分页(两线一套积分系统,intl 页无此条目)。
-    { id: "kimi-k2.7", name: "Kimi-K2.7-Code", rateMultiplier: 0.57 },
-    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview", rateMultiplier: 0.77, subPriority: true },
-    { id: "kimi-k2.6", name: "Kimi-K2.6", rateMultiplier: 0.52 },
-    // Promo: free through Oct 31 (WorkBuddy Intl official update on 2026-10-17:
-    // "WorkBuddy Intl is updated to the latest too, and it's free through Oct 31").
-    // The standard rateMultiplier is 0.11 (matches CN credit page), but promoFreeUntil
-    // marks it free (0.00x) until Nov 1 UTC, after which it smoothly reverts.
-    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.11, promoFreeUntil: "2026-11-01" },
+    { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.08 },
+  ],
+  // 预设档（自动/快速/均衡/优选）不是模型 id —— 11102 across 20 spellings，
+  // 聊天应用发送前自行解析；倍率随档位浮动（本版 Auto 已从 0.79 变 0.15），
+  // 不建目录行。
+  presets: [
+    { id: "auto", label: "自动", rateMultiplier: 0.15 },
+    { id: "fast", label: "快速", rateMultiplier: 0.34 },
+    { id: "balanced", label: "均衡", rateMultiplier: 0.59 },
+    { id: "primary", label: "优选", rateMultiplier: 3.31 },
   ],
   oauth: {
     baseUrl: "https://www.codebuddy.ai",
     stateUrl: "https://www.codebuddy.ai/v2/plugin/auth/state",
     tokenUrl: "https://www.codebuddy.ai/v2/plugin/auth/token",
     refreshUrl: "https://www.codebuddy.ai/v2/plugin/auth/token/refresh",
-    userAgent: "IDE/2.63.2 CodeBuddy/2.63.2",
+    // OAuth 轮询的 UA 与 transport 同步升到 2.180.0。
+    userAgent: "IDE/2.180.0 CodeBuddy/2.180.0",
     platform: "ide",
     pollInterval: 5000,
   },

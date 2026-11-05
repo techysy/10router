@@ -664,17 +664,22 @@ export const PROVIDER_CAPABILITIES = {
   // reasoning.canDisableThinking flag — see the note in the codebuddy-cn block
   // below; it is NOT the inverse of onlyReasoning.
   "codebuddy-cn": {
+    // 2026-11-05：客户端目录换代，以下条目随 registry 一并移除
+    // （glm-5v-turbo / glm-5.3-flashx / glm-5.1 / minimax-m3 / kimi-k2.7 / kimi-k2.6）。
+    // 聊天端点对其中几个仍答 200，但客户端已不发布 —— 目录以客户端为准。
+    "auto":               { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
     "glm-5.2":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
-    "glm-5.1":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 48000 },
-    // maxOutput 64000 per both the plugin-baked fallback and the live server
-    // table (the old 38000 had no source and truncated output).
-    "glm-5v-turbo":       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 },
-    "minimax-m3":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 512000, maxOutput: 128000 },
-    "kimi-k2.7":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
-    // K2.8 预览版：models.dev 尚无条目，形态暂取 k2.7 同档（256000/32000 同 hy3、
-    // glm-5.3-flashx 的既有做法），等 CN 网关 product-config 的 maxOutputTokens 回来校准。
+    // K2.8 预览版：models.dev 尚无条目，形态暂取 k2.7 同档（256000/32000），
+    // 等 CN 网关 product-config 的 maxOutputTokens 回来校准。
     "kimi-k2.8-preview":  { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
-    "kimi-k2.6":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
+    // K3.1-Pro：2026-11-05 现网探测 200（kimi-k3.1-pro；kimi-k3-1-pro 为 11102）。
+    // 形态取同族 kimi-k3 档（1M / 32000），待 product-config 校准。
+    "kimi-k3.1-pro":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
+    // MiniMax-M3.1-Flash：现网探测 200。窗口沿用 M3 的 512K / 128K。
+    "minimax-m3.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 512000, maxOutput: 128000 },
+    // Xiaomi MiMo-V2.6-Pro：现网探测 200（注意 id 不带 xiaomi- 前缀）。
+    // 与第一方 mimo-v2.6-pro 同参数：1M 窗口 / 128K 输出。
+    "mimo-v2.6-pro":      { vision: true, audioInput: true, videoInput: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
     // Per-model values mirror the server's product-config payload (fetched
     // from copilot.tencent.com; the `models[]` entries carry
     // maxInputTokens/maxOutputTokens/supportsImages). contextWindow =
@@ -686,16 +691,15 @@ export const PROVIDER_CAPABILITIES = {
     // and glm-5.3-flash are onlyReasoning:true BUT canDisableThinking:true, so
     // their thinking is switchable; the hy* models are forced always-on.
     "hy3":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 192000, maxOutput: 64000 },
-    "hy4-preview":        { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    // Hy4 正式版（客户端 2026-11-05 新上，红色 new 标签）。预览版 hy4-preview
+    // 仍可用但不再是注册表项。
+    "hy4":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
     // Space-Bunny（官方应用 2026-10-02 上架）：原生多模态输入 → vision:true；
     // 思考"极致"档与 Hy 系同族（强制常开，canDisable:false 待服务端
     // product-config 回来后校准）；1M 输入，输出上限暂取 Hy 同档 64000。
     "space-bunny":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
     "glm-5.3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
     "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
-    // x 变体同基础版形态；32000 是暂取（同 hy3「输出上限暂取同档」的既有做法）——
-    // CN 网关的 product-config 需要鉴权取不到，等它回来再校准。
-    "glm-5.3-flashx":     { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
     "kimi-k3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
     // DeepSeek-V4-Pro：纯文本（模型卡 text→text；models.dev 124 条命中一致报
     // attach:false，火山方舟第一方 deepseek-v4-pro-ga-260813 亦然）。1M 输入 /
@@ -737,16 +741,12 @@ export const PROVIDER_CAPABILITIES = {
   // 路径，CN 与 intl 两边都是 404。
   // 网关侧的路由 id `auto` 也刻意不给行：它五个 prompt 全落在 glm-5.2，但落点
   // 会变，没有稳定的能力声明可写（详见 registry/codebuddy-intl.js 的说明）。
+  //
+  // 2026-11-05 目录换代后本块重建：space-bunny / kimi-k2.8-preview 已随客户端
+  // 清单下架。`auto` 本版成为真实模型行（自动 0.15x），与 CN 侧 auto 同参保守
+  // 超集；其余 intl 模型落 canonical / 通配行。
   "codebuddy-intl": {
-    "space-bunny": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
-    // kimi-k2.8-preview 是**两线同款**(同 id、同 0.77x、一套积分系统),故与 CN
-    // 侧同值,不落进 *kimi*k2* 的 262144/262144——那个 pattern 的 maxOutput 等于
-    // contextWindow,是泛化的 K2 时代值,对 2.8 预览版同样没依据,而 maxOutput 是
-    // 真夹子:多报就会让超限的 max_tokens 直接穿过去被上游拒。
-    // 与「不镜像国内能力表」不冲突:那条针对的是**只在单边存在**的模型,这里是
-    // 同一款模型,理应同参。两侧数值都是 k2.7 同档占位(见 CN 注释),待
-    // product-config 的 maxOutputTokens 回来一并校准。
-    "kimi-k2.8-preview": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 32000 },
+    "auto": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …);
   // capability lookup matches on the raw id, while clients may also address
