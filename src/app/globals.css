@@ -444,6 +444,227 @@
 
 
 /* ============================================================
+   Gruvbox — 复古暖棕，程序员经典。brand 换成 gruvbox 橙 (#fe8019)，
+   与本产品暖色基调同族；语义色取 gruvbox 官方 palette，对比度按 AA 校过。
+   ============================================================ */
+.theme-gruvbox {
+  --color-brand-50: #fff2e2;
+  --color-brand-100: #ffdfba;
+  --color-brand-200: #ffc784;
+  --color-brand-300: #ffab4d;
+  --color-brand-400: #ff9833;
+  --color-brand-500: #fe8019;
+  --color-brand-600: #d56c0f;
+  --color-brand-700: #a85409;
+  --color-brand-800: #7a3d06;
+  --color-brand-900: #4d2503;
+
+  --color-primary: #fe8019;
+  --color-primary-hover: #d56c0f;
+
+  --color-bg: #282828;
+  --color-bg-alt: #1d2021;
+  --color-surface: #32302f;
+  --color-surface-2: #3c3836;
+  --color-surface-3: #504945;
+  --color-sidebar: rgba(40, 40, 40, 0.9);
+
+  --color-border: #504945;
+  --color-border-subtle: #3c3836;
+
+  --color-text: #ebdbb2;
+  --color-text-main: #ebdbb2;
+  --color-text-muted: #a89984;
+  --color-text-subtle: #7c6f64;
+
+  --color-danger: #fb4934;
+  --color-success: #b8bb26;
+  --color-warning: #fabd2f;
+  --color-info: #83a598;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Nord — 极地冷灰蓝。brand 取 nord7 雪青 (#88c0d0)，status 色按
+   nord 官方文档映射。整体比 .dark 更冷、更低饱和，长时间盯盘不刺眼。
+   ============================================================ */
+.theme-nord {
+  --color-brand-50: #f0f6f8;
+  --color-brand-100: #d8e8ee;
+  --color-brand-200: #b6d5e0;
+  --color-brand-300: #93bfd2;
+  --color-brand-400: #8fbcbb;
+  --color-brand-500: #88c0d0;
+  --color-brand-600: #6da3b5;
+  --color-brand-700: #528398;
+  --color-brand-800: #386271;
+  --color-brand-900: #1f3a45;
+
+  --color-primary: #88c0d0;
+  --color-primary-hover: #6da3b5;
+
+  --color-bg: #2e3440;
+  --color-bg-alt: #272c36;
+  --color-surface: #3b4252;
+  --color-surface-2: #434c5e;
+  --color-surface-3: #4c566a;
+  --color-sidebar: rgba(46, 52, 64, 0.9);
+
+  --color-border: #4c566a;
+  --color-border-subtle: #434c5e;
+
+  --color-text: #eceff4;
+  --color-text-main: #eceff4;
+  --color-text-muted: #9aa5b6;
+  --color-text-subtle: #7b88a1;
+
+  --color-danger: #bf616a;
+  --color-success: #a3be8c;
+  --color-warning: #ebcb8b;
+  --color-info: #81a1c1;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Dracula — 紫粉夜系。brand 取 dracula purple (#bd93f9)。
+   ============================================================ */
+.theme-dracula {
+  --color-brand-50: #f4efff;
+  --color-brand-100: #e6dcff;
+  --color-brand-200: #d0bcff;
+  --color-brand-300: #bd93f9;
+  --color-brand-400: #a678e8;
+  --color-brand-500: #bd93f9;
+  --color-brand-600: #9f6ce0;
+  --color-brand-700: #7c4fc0;
+  --color-brand-800: #573590;
+  --color-brand-900: #33205a;
+
+  --color-primary: #bd93f9;
+  --color-primary-hover: #9f6ce0;
+
+  --color-bg: #282a36;
+  --color-bg-alt: #21222c;
+  --color-surface: #343746;
+  --color-surface-2: #3d4059;
+  --color-surface-3: #44475a;
+  --color-sidebar: rgba(40, 42, 54, 0.9);
+
+  --color-border: #44475a;
+  --color-border-subtle: #3d4059;
+
+  --color-text: #f8f8f2;
+  --color-text-main: #f8f8f2;
+  --color-text-muted: #9aa0b3;
+  --color-text-subtle: #6272a4;
+
+  --color-danger: #ff5555;
+  --color-success: #50fa7b;
+  --color-warning: #f1fa8c;
+  --color-info: #8be9fd;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Glass 浅 / 深 — iOS 毛玻璃。两层结构：
+   1. token 层：surface 全部半透明，border 用白描边（浅）/淡白（深），
+      blur 由组件侧 backdrop-filter 承担（这里只给配方 --glass-blur）。
+   2. 场景层（.theme-glass-* body）：固定彩色光斑渐变做页面底，内容滚动
+      时从磨砂面板下穿过 —— 这是 iOS 质感的核心，纯色底没有东西可透。
+   用户明确「效果全力做，不裁剪换性能」；低端设备由 ThemePickerModal
+   的能力提示兜底。
+   ============================================================ */
+.theme-glass-light {
+  --color-bg: #eef2f8;
+  --color-bg-alt: #e7edf5;
+  --color-surface: rgba(255, 255, 255, 0.55);
+  --color-surface-2: rgba(255, 255, 255, 0.42);
+  --color-surface-3: rgba(255, 255, 255, 0.3);
+  --color-sidebar: rgba(255, 255, 255, 0.45);
+
+  --color-border: rgba(255, 255, 255, 0.6);
+  --color-border-subtle: rgba(255, 255, 255, 0.35);
+
+  --color-text: #1c1c1e;
+  --color-text-main: #1c1c1e;
+  --color-text-muted: rgba(60, 60, 67, 0.62);
+  --color-text-subtle: rgba(60, 60, 67, 0.4);
+
+  --glass-blur: 18px;
+  color-scheme: light;
+}
+
+.theme-glass-dark {
+  --color-bg: #141822;
+  --color-bg-alt: #10141c;
+  --color-surface: rgba(30, 32, 40, 0.52);
+  --color-surface-2: rgba(38, 41, 52, 0.48);
+  --color-surface-3: rgba(48, 52, 66, 0.45);
+  --color-sidebar: rgba(22, 25, 34, 0.5);
+
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+
+  --color-text: #f2f2f7;
+  --color-text-main: #f2f2f7;
+  --color-text-muted: rgba(235, 235, 245, 0.62);
+  --color-text-subtle: rgba(235, 235, 245, 0.4);
+
+  --glass-blur: 18px;
+  color-scheme: dark;
+}
+
+/* Glass 场景层：页面底色的彩色光斑。fixed 底 + 半透明面板，内容滚动时
+   透出光斑色相变化 —— 纯色底下毛玻璃只是变灰，这层是 Glass 成立的前提。
+   品牌色系不重定义，直接继承浅/深默认，珊瑚橙在玻璃上同样成立。 */
+.theme-glass-light body,
+.theme-glass-dark body {
+  background-attachment: fixed;
+  background-image:
+    radial-gradient(circle at 18% 20%, rgba(255, 177, 153, 0.5) 0%, transparent 42%),
+    radial-gradient(circle at 82% 15%, rgba(168, 200, 255, 0.5) 0%, transparent 45%),
+    radial-gradient(circle at 62% 85%, rgba(185, 245, 208, 0.45) 0%, transparent 45%);
+}
+.theme-glass-dark body {
+  background-image:
+    radial-gradient(circle at 20% 22%, rgba(122, 74, 126, 0.4) 0%, transparent 45%),
+    radial-gradient(circle at 80% 14%, rgba(46, 88, 142, 0.42) 0%, transparent 48%),
+    radial-gradient(circle at 60% 88%, rgba(38, 96, 74, 0.38) 0%, transparent 45%);
+}
+
+/* 侧栏（.bg-vibrancy 是现成挂点）与卡片（.theme-card，Card 组件统一打点）
+   吃真毛玻璃。blur 统一走 --glass-blur，将来调手感只改一处。saturate(1.6)
+   是 iOS 的「鲜艳度」秘方 —— 磨砂会把底色洗灰，提饱和补回来。
+   性能口径：backdrop-filter 只落在侧栏与首层卡片这两个小面积面板上，
+   不进长列表项（列表滚动时逐项重采样是毛玻璃唯一真正的性能坑）。 */
+.theme-glass-light .bg-vibrancy,
+.theme-glass-dark .bg-vibrancy,
+.theme-glass-light .theme-card,
+.theme-glass-dark .theme-card {
+  -webkit-backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.6);
+  backdrop-filter: blur(var(--glass-blur, 18px)) saturate(1.6);
+}
+
+.theme-glass-light .theme-card,
+.theme-glass-dark .theme-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
+}
+.theme-glass-dark .theme-card {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* 浅玻璃上 border-black/10 系列的边几乎消失，统一收敛到主题描边 */
+.theme-glass-light [class~="border-black/10"],
+.theme-glass-light [class~="border-black/5"] {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================================
    Fix native select dropdowns in dark mode
    ============================================================ */
 select {
