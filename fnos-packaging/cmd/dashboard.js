@@ -93,7 +93,9 @@ function loadSettings() {
 function saveSettings(settings) {
   fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
   const tmp = SETTINGS_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2));
+  // 0600：settings.proxy.url 可含账密（http://user:pass@host:port），对齐
+  // initial-password 的落盘纪律（cmd/main 同款 umask 077 语义）。
+  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, SETTINGS_FILE);
 }
 
