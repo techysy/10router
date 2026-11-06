@@ -22,11 +22,20 @@ export const MODE_META = {
   "glass-dark":  { icon: "blur_on",  label: "Theme: glass dark" },
 };
 
+// 按钮文字解析：跟随系统时显示「当前生效的具体主题」（毛玻璃 · 浅/深），不
+// 重复「跟随系统」——图标（routine）已经表明在跟随，文字该补充的是跟到了谁。
+// 非 system 直接用各自的主题 label。
+export function resolveThemeMeta(theme, systemFamily, isDark) {
+  if (theme !== "system") return MODE_META[theme] || MODE_META.system;
+  const key = systemFamily === "glass" ? (isDark ? "glass-dark" : "glass-light") : (isDark ? "dark" : "light");
+  return { ...MODE_META[key], icon: MODE_META.system.icon };
+}
+
 export default function ThemeToggle({ className, variant = "default" }) {
-  const { theme } = useTheme();
+  const { theme, systemFamily, isDark } = useTheme();
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
-  const mode = MODE_META[theme] || MODE_META.system;
+  const mode = resolveThemeMeta(theme, systemFamily, isDark);
 
   const variants = {
     default: cn(

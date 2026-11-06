@@ -14,7 +14,7 @@ import { isRegionalCurrencyEnabled } from "@/shared/utils/currency";
 import { isCompactUnitsEnabled } from "@/shared/utils/compactNumber";
 import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
-import { MODE_META } from "@/shared/components/ThemeToggle";
+import { MODE_META, resolveThemeMeta } from "@/shared/components/ThemeToggle";
 import ThemePickerPanel from "@/shared/components/ThemePicker";
 
 function getLocaleFromCookie() {
@@ -27,7 +27,7 @@ function getLocaleFromCookie() {
 }
 
 export default function ProfilePage() {
-  const { theme, setTheme, isDark } = useTheme();
+  const { theme, setTheme, isDark, systemFamily } = useTheme();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
   const [regional, setRegional] = useState(true);
   const [compactUnits, setCompactUnits] = useState(true);
@@ -1075,9 +1075,9 @@ export default function ProfilePage() {
               >
                 <span className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px] text-text-muted">
-                    {(MODE_META[theme] || MODE_META.system).icon}
+                    {resolveThemeMeta(theme, systemFamily, isDark).icon}
                   </span>
-                  <span className="font-medium">{translate((MODE_META[theme] || MODE_META.system).label)}</span>
+                  <span className="font-medium">{translate(resolveThemeMeta(theme, systemFamily, isDark).label)}</span>
                 </span>
                 <span className="material-symbols-outlined text-[18px] text-text-muted">palette</span>
               </button>
