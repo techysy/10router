@@ -2012,6 +2012,7 @@
   "{name}: {count} packs, remaining {remaining} of {total}": "{name}：{count} 个包，剩余 {remaining} / {total}",
   "Per-pack details": "逐包明细",
   "{count} resource packs": "{count} 个资源包（可用）",
+  "{count} resource packs (depleted)": "{count} 个资源包已耗尽",
   "expires on {date}": "于 {date} 到期",
   "includes {names}": "包含 {names}",
   "Profiles": "方案",

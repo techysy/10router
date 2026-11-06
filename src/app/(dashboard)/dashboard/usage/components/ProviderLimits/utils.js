@@ -582,6 +582,10 @@ export function parseQuotaData(provider, data) {
                 resetAt: quota.resetAt || null,
                 remainingPercentage: quota.remainingPercentage,
                 recurring: quota.recurring === true,
+                // 上游不回 recurring，但这些也是滚动窗口（resetAt 到点回血）——
+                // QuotaPackBar 的耗尽 meta 行据此显示「已耗尽 + 重置倒计时」
+                // 而不是让卡片以裸 0/1,000 收尾（#小黑屋/烧穿报告）。
+                recycles: quota.resetAt ? true : undefined,
                 percentScale: true,
               });
             });
@@ -595,6 +599,7 @@ export function parseQuotaData(provider, data) {
                 resetAt: quota.resetAt || null,
                 remainingPercentage: quota.remainingPercentage,
                 recurring: quota.recurring === true,
+                recycles: quota.resetAt ? true : undefined,
                 percentScale: true,
               });
             });

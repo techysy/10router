@@ -831,6 +831,7 @@
   "{name}: {count} packs, remaining {remaining} of {total}": "{name}：{count} 個包，剩餘 {remaining} / {total}",
   "Per-pack details": "逐包明細",
   "{count} resource packs": "{count} 個資源包（可用）",
+  "{count} resource packs (depleted)": "{count} 個資源包已耗盡",
   "expires on {date}": "於 {date} 到期",
   "includes {names}": "包含 {names}",
   "Profiles": "方案",

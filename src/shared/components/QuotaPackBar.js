@@ -600,7 +600,32 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
             </div>
           );
         }
-        if (live.length === 0) return null;
+        // 全部耗尽但包会回收（antigravity 的窗口配额：烧完后在 resetAt 回血）
+        // —— meta 行照常给出「已耗尽 + 何时重置」，否则卡片以裸「0 / 1,000」
+        // 空条收尾，读起来像数据异常（2026-11-06 用户报告）。一次性烧断的包
+        // （recycles !== true）维持原状：静默，由聚合行自己说话。
+        if (live.length === 0) {
+          const recycling = barPacks
+            .filter((p) => p.recycles === true && p.resetAt)
+            .sort((a, b) => String(a.resetAt).localeCompare(String(b.resetAt)))[0] || null;
+          if (!recycling) return null;
+          return (
+            <div className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
+              <span className="text-text-muted">
+                {translate("{count} resource packs (depleted)").replace("{count}", String(barPacks.length))}
+              </span>
+              <span className="inline-flex min-w-0 items-center gap-3 truncate text-text-muted">
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  <CreditIcon className="size-[11px] shrink-0" />
+                  0
+                </span>
+                <span className="shrink-0">
+                  {dateWord(true, recycling.resetAt)}
+                </span>
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
             <span className="text-text-muted">
