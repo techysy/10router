@@ -131,8 +131,21 @@ export default function ThemePickerPanel({ open, onClose, anchorRef }) {
       const anchor = anchorRef?.current;
       if (!panel || !anchor) return;
       const r = anchor.getBoundingClientRect();
-      panel.style.top = `${Math.min(r.bottom + 8, window.innerHeight - 80)}px`;
-      panel.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+      // 移动端适配：小屏（<640px）改为底部弹层（bottom sheet）——顶部锚定
+      // 空间不够，面板完整高度必然超视口。桌面保持锚定右上。
+      if (window.innerWidth < 640) {
+        panel.style.top = "";
+        panel.style.right = "";
+        panel.style.left = "8px";
+        panel.style.bottom = "8px";
+        panel.style.width = "calc(100vw - 16px)";
+      } else {
+        panel.style.top = `${Math.min(r.bottom + 8, window.innerHeight - 80)}px`;
+        panel.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+        panel.style.left = "";
+        panel.style.bottom = "";
+        panel.style.width = "";
+      }
     };
     place();
     window.addEventListener("resize", place);
@@ -166,12 +179,12 @@ export default function ThemePickerPanel({ open, onClose, anchorRef }) {
       ref={panelRef}
       role="dialog"
       aria-label={translate("Theme")}
-      className="theme-picker-panel fixed top-0 right-0 z-50 w-[min(92vw,340px)] rounded-xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)] slide-in-top overflow-hidden"
+      className="theme-picker-panel fixed top-0 right-0 z-50 w-[min(92vw,340px)] max-h-[92dvh] rounded-xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)] slide-in-top overflow-hidden flex flex-col"
     >
-      <div className="px-4 pt-3 pb-2.5 border-b border-border-subtle">
+      <div className="px-4 pt-3 pb-2.5 border-b border-border-subtle shrink-0">
         <p className="text-sm font-semibold text-text-main">{translate("Theme")}</p>
       </div>
-      <div className="p-3 max-h-[min(64vh,520px)] overflow-y-auto custom-scrollbar">
+      <div className="p-3 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         {THEME_GROUPS.map((group) => (
           <div key={group.key} className="mb-3 last:mb-0">
             <div className="flex items-center justify-between mb-1.5">
