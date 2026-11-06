@@ -615,6 +615,7 @@
   "Last 7 days": "最近 7 天",
   "Last 7 days (≥50 real requests)": "最近 7 天（≥50 次真實有效請求）",
   "Individual quota reached. Resets at {time} (in {duration}).": "該帳號額度已用完，將於 {time} 重置（約 {duration} 後）；可升級訂閱提升限額。",
+  "This account has been disabled by the provider for violating its Terms of Service. Submit an appeal on the provider's console to restore it.": "該帳號因違反服務條款已被上游封禁，需在上游控制台提交申訴才可能恢復；請勿將其繼續用於路由。",
   "Individual quota reached for model {model}. Resets at {time} (in {duration}).": "模型 {model} 的額度已用完，將於 {time} 重置（約 {duration} 後）；該帳號的其它模型仍可正常使用。",
   "Subscription quota used up. Please wait for the quota reset.": "該帳號額度已用完，請等待重置。",
   "This account must complete real-name verification before StepFun will serve it. Complete it at {url}, then retry.": "該帳號需先完成實名（人臉）核驗，StepFun 才會放行呼叫：前往 {url} 完成核驗後重試。",

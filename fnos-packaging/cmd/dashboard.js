@@ -14,7 +14,7 @@
 //   重启后健康检查不过自动回滚到 backup；
 // - 目标版本一律服务端从 npm 解析，绝不信请求体（与 #9 的 updater 同纪律）。
 //
-// 面板默认只监听 127.0.0.1:20128；设 PANEL_TOKEN 后所有 /api/* 要求
+// 面板默认只监听 127.0.0.1:20126；设 PANEL_TOKEN 后所有 /api/* 要求
 // x-panel-token 头（UI 会提示输入一次）。
 
 const http = require("http");
@@ -36,7 +36,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), ".10router");
 const SRC_DIR = process.env.SRC_DIR
   || (fs.existsSync(path.join(APP_DIR, "server")) ? path.join(APP_DIR, "server") : path.join(APP_DIR, "target", "server"));
 const MAIN_CMD = process.env.MAIN_CMD || path.join(__dirname, "main");
-const PANEL_PORT = Number(process.env.PANEL_PORT || 20128);
+const PANEL_PORT = Number(process.env.PANEL_PORT || 20126);
 const PANEL_HOST = process.env.PANEL_HOST || "127.0.0.1";
 const PANEL_TOKEN = process.env.PANEL_TOKEN || "";
 const MAIN_PORT = Number(process.env.MAIN_PORT || process.env.PORT || 20127);

@@ -38,6 +38,15 @@ const SUBSCRIPTION_TEMPLATE_KEY = "Subscription quota used up. Please wait for t
 // MiMo: "code":"subscription_quota_exhausted","biz_code":30011 (HTTP 403).
 // Deliberately NARROW: Google's 429 payload also carries a `QUOTA_EXHAUSTED`
 // reason, so a looser pattern would steal that case and drop its reset clock.
+
+// 账号封禁（ToS violation）—— 2026-11-06 反重力三账号全灭的实测形态：
+// "This service has been disabled in this account for violation of Terms of
+// Service. Please submit an appeal to continue using this product."（HTTP 403）。
+// 与额度烧穿（429，有时钟、会回血）是两种命运：封禁不会重置，措辞必须引导
+// 申诉而不是「等重置」。锚定 "disabled"+"violation of Terms" 双特征 ——
+// 单独 "disabled" 太宽（会吃掉普通的 feature-disabled 文案）。
+const TOS_BAN_RE = /disabled .*(violation|Terms of Service)|violation of Terms of Service/i;
+const TOS_BAN_TEMPLATE_KEY = "This account has been disabled by the provider for violating its Terms of Service. Submit an appeal on the provider's console to restore it.";
 // The Chinese phrases cover deployments that only send a message.
 const SUBSCRIPTION_QUOTA_RE = /subscription_quota_exhausted|本周用量已满|本周额度已用完/i;
 
@@ -149,6 +158,13 @@ export function translateQuotaError(errorText) {
   // Google owns the countdown, this one only owns "wait for the reset".
   if (SUBSCRIPTION_QUOTA_RE.test(errorText)) {
     return translate(SUBSCRIPTION_TEMPLATE_KEY);
+  }
+
+  // 账号封禁（ToS violation）—— 放在额度分支之前：封禁 payload 不带 reset
+  // 字段，但万一未来上游把两类文案混在同一段错误里，封禁必须赢（引导申诉，
+  // 不能渲染成「等待重置」误导用户干等一个不会来的恢复）。
+  if (TOS_BAN_RE.test(errorText)) {
+    return translate(TOS_BAN_TEMPLATE_KEY);
   }
 
   // Real-name (实名) gate: a configuration state with no countdown, so give the
