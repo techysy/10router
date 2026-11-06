@@ -62,6 +62,10 @@ start() {
     mkdir -p "${DATA_DIR}"
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
         echo "already running (pid $(cat "${PID_FILE}"))"
+        # 主应用已在跑 ≠ 面板已在跑：热替换 cmd/ 层后调用 start 的场景里，
+        # 这个早退曾是面板永远拉不起来的原因（2026-11-06 真机踩坑）。补一次
+        # 面板ensure（幂等，面板已活时内部直接 return）再退出。
+        ensure_panel
         return 0
     fi
     # 清理 SQLite WAL/SHM 残留（旧版/跨用户安装后属主可能错误，导致 node:sqlite 无法打开）
@@ -106,8 +110,7 @@ start() {
     for i in $(seq 1 60); do
         if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
             echo "started (pid $(cat "${PID_FILE}"))"
-            APP_DIR="${APP_DIR}" DATA_DIR="${DATA_DIR}" SRC_DIR="${SRC_DIR}" NODE_BIN="${NODE_BIN}" MAIN_PORT="${PORT}" \
-                PANEL_PORT="${PANEL_PORT}" start_panel
+            ensure_panel
             return 0
         fi
         sleep 1
@@ -116,12 +119,14 @@ start() {
     return 0
 }
 
-start_panel() {
+ensure_panel() {
     # 主应用健康后再拉起面板；面板挂了不影响主应用，主应用重启也不打断面板调度。
+    # 幂等：面板已活直接返回 —— start 的「already running」早退与正常启动分支都走这里。
     if [ -f "${PANEL_PID_FILE}" ] && kill -0 "$(cat "${PANEL_PID_FILE}")" 2>/dev/null; then
         return 0
     fi
     # 面板是 fpk cmd/ 的一部分，不随 server 产物热覆盖而变化 —— 用本脚本目录里的副本。
+    # dashboard.js 需要的 env（APP_DIR/DATA_DIR/SRC_DIR/MAIN_PORT）脚本顶部已赋值，直接继承。
     ( umask 077; nohup "${NODE_BIN}" "${APP_DIR}/cmd/dashboard.js" >> "${PANEL_LOG}" 2>&1 & echo $! > "${PANEL_PID_FILE}" )
 }
 
