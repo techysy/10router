@@ -201,6 +201,7 @@
   "Round Robin": "輪詢",
   "Earliest Pack Expiry": "到期包優先消耗",
   "Daily Grant First": "每日贈送積分優先",
+  "Daily Grant First Hint": "演算法：優先使用每個帳號當日未過期的每日贈送積分（剩餘多者優先），某帳號當日額度耗盡才輪到永久積分（按餘額升序，先燒零頭）；帳號粘滯不硬切，切換只發生在額度耗盡或配額快照變化時。",
   "Manual Priority (#1 → #2)": "手動優先級 (#1 → #2)",
   "Cycle through accounts to distribute load": "循環循環帳戶以分配負載",
   "Sticky Limit": "粘性限制",

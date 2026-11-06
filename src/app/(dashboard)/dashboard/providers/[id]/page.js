@@ -2314,6 +2314,11 @@ export default function ProviderDetailPage() {
                           selectClassName="!py-1 !text-xs w-48"
                         />
                       </div>
+                      {balanceStrategy === "daily-grant" && (
+                        <div className="w-full text-xs text-text-muted">
+                          {translate("Daily Grant First Hint")}
+                        </div>
+                      )}
                       {balanceStrategy === "round-robin" && (
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs text-text-muted">{translate("Sticky:")}</span>

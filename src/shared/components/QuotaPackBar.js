@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
 import { translateQuotaName } from "@/shared/utils/quotaName";
@@ -135,7 +136,8 @@ function remainingOf(p) {
  * 大数 = 永久剩余 + 每日剩余（今天能花的总额）；段式轨道按两槽剩余占比
  * 分段（永久实心、每日亮绿），两槽明细行沿用 QuotaRow 既有形态。
  */
-function renderDualSlot(permanent, daily, className) {
+function DualSlotCard({ permanent, daily, className }) {
+  const [expanded, setExpanded] = useState(false);
   const permRemaining = remainingOf(permanent);
   const dailyRemaining = remainingOf(daily);
   const permTotal = Number(permanent.total || 0);
@@ -147,8 +149,8 @@ function renderDualSlot(permanent, daily, className) {
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
-      {/* 大数总额 + 双槽小字 */}
-      <div className="flex items-end justify-between gap-3">
+      {/* 大数总额 + 双槽小字（点行切换明细展开） */}
+      <div className="flex cursor-pointer items-end justify-between gap-3" onClick={() => setExpanded((v) => !v)}>
         <span className="flex items-end gap-1.5 tabular-nums">
           <CreditIcon className="size-[12px] shrink-0 self-center text-primary" />
           <b className="text-[14px] font-bold leading-none text-text">{fmt(totalRemaining)}</b>
@@ -176,9 +178,13 @@ function renderDualSlot(permanent, daily, className) {
           <span className="block h-full w-full" />
         )}
       </MeterTrack>
-      {/* 两槽明细行（沿用 QuotaRow 双行形态） */}
-      <QuotaRow row={permanent} />
-      <QuotaRow row={daily} />
+      {/* 两槽明细行：默认收起（总额+双槽小字已表达全部信息），点总额行切换展开 */}
+      {expanded && (
+        <>
+          <QuotaRow row={permanent} />
+          <QuotaRow row={daily} />
+        </>
+      )}
     </div>
   );
 }
@@ -399,7 +405,7 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   // ——通用池会把 stored-value 与 recurring 拆成两张互不相干的形状。
   const dualSlot = findDualSlotPair(withNums);
   if (dualSlot) {
-    return renderDualSlot(dualSlot.permanent, dualSlot.daily, className);
+    return <DualSlotCard permanent={dualSlot.permanent} daily={dualSlot.daily} className={className} />;
   }
 
   // Cycle rows split two ways (see classifyCycleRows): MONTHLY rows are resource
