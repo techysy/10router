@@ -876,73 +876,130 @@ function renderUi() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>10Router · fnOS 管理面板</title>
 <style>
-  :root { --bg:#0f1115; --card:#1a1d23; --line:#2a2e37; --txt:#e8eaf0; --mut:#8b93a5; --ok:#3fb27f; --warn:#d9a038; --bad:#e06c5f; --brand:#E56A4A; }
+  /* 日夜双主题：:root 亮色，html[data-theme=dark] 覆盖。跟随系统由内联脚本
+     在绘制前解析（prefers-color-scheme），手动选择持久化 localStorage 覆盖。 */
+  :root { --bg:#f6f4f0; --card:#ffffff; --line:#e4e2dd; --txt:#1c1c1e; --mut:#7a7f8a; --soft:#f0eee9; --ok:#1e9e63; --warn:#c07f14; --bad:#cf4436; --brand:#E56A4A; }
+  html[data-theme="dark"] { --bg:#0f1115; --card:#1a1d23; --line:#2a2e37; --txt:#e8eaf0; --mut:#8b93a5; --soft:#12141a; --ok:#3fb27f; --warn:#d9a038; --bad:#e06c5f; }
   * { box-sizing:border-box; }
   body { margin:0; padding:24px; background:var(--bg); color:var(--txt); font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
   h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:15px; margin:0 0 12px; }
   .mut { color:var(--mut); font-size:12px; }
+  .top { max-width:880px; margin:0 auto; display:flex; align-items:center; gap:10px; }
+  .top .spacer { flex:1; }
+  #themeBtn { background:var(--card); border:1px solid var(--line); color:var(--txt); width:34px; height:34px; padding:0; font-size:16px; }
+  .tabs { display:flex; gap:4px; max-width:880px; margin:14px auto 0; border-bottom:1px solid var(--line); }
+  .tabs button { background:transparent; color:var(--mut); border:0; border-radius:8px 8px 0 0; padding:8px 16px; font-size:13px; border-bottom:2px solid transparent; }
+  .tabs button.on { color:var(--brand); border-bottom-color:var(--brand); font-weight:600; }
   .grid { display:grid; gap:16px; max-width:880px; margin:16px auto; }
+  .tabpane { display:none; } .tabpane.on { display:block; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
   .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .pill { padding:2px 10px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
   .ok { color:var(--ok); border-color:var(--ok); } .bad { color:var(--bad); border-color:var(--bad); } .warn { color:var(--warn); border-color:var(--warn); }
   button { background:var(--brand); color:#fff; border:0; border-radius:8px; padding:7px 14px; cursor:pointer; font-size:13px; }
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+  button.ghost:hover { border-color:var(--brand); color:var(--brand); }
   button:disabled { opacity:.5; cursor:not-allowed; }
-  input, select { background:#12141a; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:7px 10px; font-size:13px; }
-  pre { background:#12141a; border:1px solid var(--line); border-radius:8px; padding:10px; max-height:320px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all; }
+  input, select { background:var(--soft); border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:7px 10px; font-size:13px; }
+  pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:10px; max-height:320px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all; }
   .spacer { flex:1; }
   label.switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
 </style></head><body>
-<h1>10Router · fnOS 管理面板</h1>
-<div class="mut">独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。</div>
+<script>
+/* 首帧主题解析（防闪烁）：localStorage 手动选择 > 系统偏好。 */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("panelTheme"); } catch (e) {}
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
+<div class="top">
+  <div>
+    <h1>10Router · fnOS 管理面板</h1>
+    <div class="mut">独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。</div>
+  </div>
+  <span class="spacer"></span>
+  <button id="themeBtn" onclick="toggleTheme()" title="切换日/夜主题">🌙</button>
+</div>
+<div class="tabs" id="tabs">
+  <button data-tab="overview" class="on" onclick="switchTab('overview')">总览</button>
+  <button data-tab="update" onclick="switchTab('update')">更新</button>
+  <button data-tab="ops" onclick="switchTab('ops')">运维</button>
+  <button data-tab="settings" onclick="switchTab('settings')">设置</button>
+</div>
 <div class="grid">
 
-<div class="card"><h2>主应用状态</h2>
-  <div class="row" id="mainStatus"><span class="mut">加载中…</span></div>
+<div class="tabpane on" id="pane-overview">
+  <div class="card"><h2>主应用状态</h2>
+    <div class="row" id="mainStatus"><span class="mut">加载中…</span></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h2>版本与更新</h2>
+    <div class="row" id="versionRow"><span class="mut">加载中…</span></div>
+    <div class="row" style="margin-top:10px">
+      <span class="mut" id="updateMsg"></span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span>启用</span></label>
+      <input type="time" id="autoTime" onchange="saveAuto()">
+      <span class="mut" id="autoHint"></span>
+    </div>
+    <div class="mut" style="margin-top:8px">每日到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
+  </div>
 </div>
 
-<div class="card"><h2>版本与更新</h2>
-  <div class="row" id="versionRow"><span class="mut">加载中…</span></div>
-  <div class="row" style="margin-top:12px">
-    <button class="ghost" onclick="checkUpdate()">检查更新</button>
-    <button id="btnUpdate" onclick="runUpdate()">一键更新到 latest</button>
-    <span class="mut" id="updateMsg"></span>
+<div class="tabpane" id="pane-update">
+  <div class="card"><h2>快速更新</h2>
+    <div class="row">
+      <button class="ghost" onclick="checkUpdate()">检查更新</button>
+      <button id="btnUpdate" onclick="runUpdate()">一键更新到 latest</button>
+      <span class="mut" id="updateMsgInline"></span>
+    </div>
   </div>
-  <div class="row" style="margin-top:10px">
-    <input type="file" id="fileInput">
-    <button class="ghost" onclick="uploadInstall()">上传安装</button>
-    <span class="mut">离线通道：本机浏览器上传 tgz → 魔数校验 → 安装</span>
+  <div class="card" style="margin-top:16px"><h2>上传安装（离线通道）</h2>
+    <div class="row">
+      <input type="file" id="fileInput">
+      <button class="ghost" onclick="uploadInstall()">上传安装</button>
+    </div>
+    <div class="mut" style="margin-top:8px">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
+  </div>
+  <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"> <span>启用</span></label>
+      <input type="time" id="autoTime2" onchange="saveAuto()">
+      <span class="mut" id="autoHint2"></span>
+    </div>
   </div>
 </div>
 
-<div class="card"><h2>定时自动更新</h2>
-  <div class="row">
-    <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span>启用</span></label>
-    <input type="time" id="autoTime" onchange="saveAuto()">
-    <span class="mut" id="autoHint"></span>
+<div class="tabpane" id="pane-ops">
+  <div class="card"><h2>服务操作</h2>
+    <div class="row">
+      <button class="ghost" onclick="restartMain()">重启主应用</button>
+      <button class="ghost" onclick="checkSudo()">sudo 白名单检测</button>
+    </div>
   </div>
-  <div class="mut" style="margin-top:8px">每日到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
+  <div class="card" style="margin-top:16px"><h2>主应用日志</h2>
+    <div class="row">
+      <input id="logFilter" placeholder="日志关键字过滤" style="flex:1">
+      <button class="ghost" onclick="loadLogs()">刷新</button>
+    </div>
+    <pre id="logBox" style="margin-top:10px">—</pre>
+  </div>
 </div>
 
-<div class="card"><h2>服务运维</h2>
-  <div class="row">
-    <button class="ghost" onclick="restartMain()">重启主应用</button>
-    <button class="ghost" onclick="checkSudo()">sudo 白名单检测</button>
+<div class="tabpane" id="pane-settings">
+  <div class="card"><h2>出站代理（面板自身）</h2>
+    <div class="row">
+      <input id="proxyUrl" placeholder="http://user:pass@host:port（留空直连）" style="flex:1">
+      <button class="ghost" onclick="saveProxy()">保存</button>
+    </div>
+    <div class="mut" style="margin-top:8px">仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。</div>
   </div>
-  <div class="row" style="margin-top:10px">
-    <input id="logFilter" placeholder="日志关键字过滤" style="flex:1">
-    <button class="ghost" onclick="loadLogs()">刷新日志</button>
-  </div>
-  <pre id="logBox" style="margin-top:10px">—</pre>
-</div>
-
-<div class="card"><h2>出站代理</h2>
-  <div class="row">
-    <input id="proxyUrl" placeholder="http://user:pass@host:port（留空直连）" style="flex:1">
-    <button class="ghost" onclick="saveProxy()">保存</button>
-  </div>
-  <div class="mut" style="margin-top:8px">仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。</div>
 </div>
 
 </div>
@@ -953,8 +1010,30 @@ const headers = token ? { "x-panel-token": token } : {};
 async function jget(u) { const r = await fetch(u, { headers }); if (r.status === 401) { const t = prompt("面板令牌 (PANEL_TOKEN)"); if (t) { localStorage.setItem("panelToken", t); location.reload(); } throw new Error("unauthorized"); } return r.json(); }
 async function jpost(u, body) { const r = await fetch(u, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body || {}) }); return r.json(); }
 
+/* ── 主题 ── */
+function curTheme() { return document.documentElement.getAttribute("data-theme"); }
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙";
+}
+function toggleTheme() {
+  const next = curTheme() === "dark" ? "light" : "dark";
+  try { localStorage.setItem("panelTheme", next); } catch (e) {}
+  applyTheme(next);
+}
+applyTheme(curTheme());
+
+/* ── tabs ── */
+function switchTab(name) {
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.id === "pane-" + name));
+  try { localStorage.setItem("panelTab", name); } catch (e) {}
+}
+try { const saved = localStorage.getItem("panelTab"); if (saved) switchTab(saved); } catch (e) {}
+
 function pill(ok, on, off) { return '<span class="pill ' + (ok ? "ok" : "bad") + '">' + (ok ? on : off) + "</span>"; }
 function fmtUptime(s) { if (s == null) return ""; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + "天" : "") + (h ? h + "小时" : "") + m + "分"; }
+function updateMsgEverywhere(text) { $("updateMsg").textContent = text; $("updateMsgInline").textContent = text; }
 
 async function refresh() {
   try {
@@ -969,16 +1048,18 @@ async function refresh() {
       (s.update.updateAvailable ? '<span class="pill warn">可更新</span>' : '<span class="pill ok">已是最新</span>') +
       (s.update.inFlight ? ' <span class="pill warn">更新进行中: ' + s.update.inFlight.stage + "</span>" : "");
     if (s.update.inFlight) $("btnUpdate").disabled = true; else $("btnUpdate").disabled = false;
-    if (s.update.last && s.update.last.at) $("updateMsg").textContent = "上次: " + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message;
-    $("autoEnabled").checked = !!s.autoUpdate.enabled;
-    $("autoTime").value = s.autoUpdate.time || "04:30";
-    $("autoHint").textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? ("下次: " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
+    if (s.update.last && s.update.last.at) updateMsgEverywhere("上次: " + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message);
+    for (const [en, et, eh] of [["autoEnabled", "autoTime", "autoHint"], ["autoEnabled2", "autoTime2", "autoHint2"]]) {
+      $(en).checked = !!s.autoUpdate.enabled;
+      $(et).value = s.autoUpdate.time || "04:30";
+      $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? ("下次: " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
+    }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
     if (s.update.inFlight) setTimeout(refresh, 3000);
   } catch (e) { $("mainStatus").innerHTML = '<span class="mut">' + e.message + "</span>"; }
 }
-async function checkUpdate() { $("updateMsg").textContent = "检查中…"; const r = await jget("/api/update/check"); $("updateMsg").textContent = r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新")); refresh(); }
-async function runUpdate() { $("btnUpdate").disabled = true; $("updateMsg").textContent = "已触发，进行中…"; await jpost("/api/update/run"); refresh(); }
+async function checkUpdate() { updateMsgEverywhere("检查中…"); const r = await jget("/api/update/check"); updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新"))); refresh(); }
+async function runUpdate() { $("btnUpdate").disabled = true; updateMsgEverywhere("已触发，进行中…"); await jpost("/api/update/run"); refresh(); }
 async function uploadInstall() {
   const f = $("fileInput").files[0]; if (!f) { alert("先选择 tgz 文件"); return; }
   const r = await fetch("/api/update/upload", { method: "PUT", headers: { "content-type": "application/octet-stream", ...headers }, body: f });
@@ -986,14 +1067,14 @@ async function uploadInstall() {
   if (!r.ok) { alert("上传失败: " + (j.error || r.status)); return; }
   if (!confirm("已通过魔数校验（" + j.kind + "，" + Math.round(j.size / 1048576) + "MB）。安装并重启主应用？")) return;
   await jpost("/api/install", { file: j.file });
-  $("updateMsg").textContent = "安装进行中…"; refresh();
+  updateMsgEverywhere("安装进行中…"); refresh();
 }
 async function saveAuto() { await jpost("/api/settings", { autoUpdate: { enabled: $("autoEnabled").checked, time: $("autoTime").value || "04:30" } }); refresh(); }
-async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); $("updateMsg").textContent = "代理已保存"; }
-async function restartMain() { if (!confirm("重启主应用？")) return; $("updateMsg").textContent = "重启中…"; await jpost("/api/main/restart"); refresh(); }
+async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); updateMsgEverywhere("代理已保存"); }
+async function restartMain() { if (!confirm("重启主应用？")) return; updateMsgEverywhere("重启中…"); await jpost("/api/main/restart"); refresh(); }
 async function checkSudo() { const r = await jget("/api/sudo"); alert(r.authorized ? ("NOPASSWD 命令 " + r.commands.length + " 条:\\n" + r.commands.join("\\n")) : ("未检测到免密授权:\\n" + r.hint)); }
 async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/logs?lines=400" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
-loadLogs(); refresh(); setInterval(refresh, 15000);
+loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;
 }
 
