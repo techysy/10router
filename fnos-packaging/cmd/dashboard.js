@@ -947,7 +947,7 @@ function renderUi() {
   .seg button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 12px; border-radius:7px; cursor:pointer; transition:background .15s ease, color .15s ease; }
   .seg button.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.08); }
   html[data-theme="dark"] .seg button.on { background:rgba(255,255,255,.1); }
-  .seg.seg-sm button { padding:3px 10px; font-size:11px; }
+  .seg.seg-sm button { padding:3px 8px; font-size:11px; }
   /* time 输入：毛玻璃卡语言（soft 底、圆角、无边框突兀感） */
   input[type="time"] { background:var(--soft); border:1px solid var(--line); color:var(--txt); border-radius:9px; padding:6px 12px; font-size:13px; font-weight:600; }
   input[type="time"]::-webkit-calendar-picker-indicator { filter:var(--picker-filter, none); cursor:pointer; }
@@ -1060,8 +1060,8 @@ function renderUi() {
         <button type="button" data-v="0" data-i18n="wd0" onclick="setWeekday('autoWeekday',0)">周日</button>
       </span></span>
       <input type="time" id="autoTime" onchange="saveAuto()">
-      <span class="mut" id="autoHint"></span>
     </div>
+    <div class="row" style="margin-top:6px"><span class="mut" id="autoHint"></span></div>
     <div class="mut" style="margin-top:8px"></div>
     <div class="mut" style="margin-top:8px" data-i18n="autoHint">到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
   </div>
@@ -1100,8 +1100,8 @@ function renderUi() {
         <button type="button" data-v="0" data-i18n="wd0" onclick="setWeekday('autoWeekday2',0)">周日</button>
       </span></span>
       <input type="time" id="autoTime2" onchange="saveAuto()">
-      <span class="mut" id="autoHint2"></span>
     </div>
+    <div class="row" style="margin-top:6px"><span class="mut" id="autoHint2"></span></div>
   </div>
 </div>
 
