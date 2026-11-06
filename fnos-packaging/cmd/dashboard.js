@@ -358,9 +358,13 @@ function restartMainDetached() {
 // 状态机：null = 空闲；否则 { stage, trigger, from, to, startedAt, message }
 let currentUpdate = null;
 
+// stage/message 拆两层：stage 是英文枚举（UI 端 t("stage_" + stage) 翻译）；
+// message 参数带 {key, args} 语义对，UI 端按当前语言渲染。plog 仍记中文供
+// NAS 日志 grep（运维场景中文可读优先）。
 function setStage(stage, message) {
-  currentUpdate = { ...currentUpdate, stage, message: message || currentUpdate?.message || "" };
-  plog("update", `${stage}: ${message || ""}`, { trigger: currentUpdate?.trigger, from: currentUpdate?.from, to: currentUpdate?.to });
+  currentUpdate = { ...currentUpdate, stage, msg: message || currentUpdate?.msg || null };
+  const human = message && message.args ? `${message.args.join(" ")}` : (typeof message === "string" ? message : "");
+  plog("update", `${stage}: ${human}`, { trigger: currentUpdate?.trigger, from: currentUpdate?.from, to: currentUpdate?.to });
 }
 
 function shell(cmd, args, timeoutMs = 300000) {
@@ -378,7 +382,7 @@ async function downloadTarball(targetVersion, proxy) {
   const dest = path.join(STAGING_DIR, `${NPM_PACKAGE.replace("@", "").replace("/", "-")}-${targetVersion}.tgz`);
   const aria2 = await aria2cAvailable();
   if (aria2) {
-    setStage("downloading", `aria2c 分段下载 ${targetVersion}`);
+    setStage("downloading", { key: "dlAria", args: [targetVersion] });
     try {
       await downloadViaAria2(urlStr, dest, proxy || "");
       return dest;
@@ -387,7 +391,7 @@ async function downloadTarball(targetVersion, proxy) {
       fs.rmSync(dest, { force: true });
     }
   }
-  setStage("downloading", "node 原生下载");
+  setStage("downloading", { key: "dlNode" });
   try {
     await downloadViaNode(urlStr, dest, proxy);
   } catch (e) {
@@ -406,7 +410,7 @@ async function extractTarball(tgzPath) {
   if (!kind) throw new Error("archive magic check failed (not gzip/zip)");
   const extractDir = path.join(STAGING_DIR, `extract-${Date.now()}`);
   fs.mkdirSync(extractDir, { recursive: true });
-  setStage("extracting", `解包（${kind}）`);
+  setStage("extracting", { key: "extracting", args: [kind] });
   if (kind === "gzip") {
     // --force-local：禁用「路径含冒号 = 远程主机」的 GNU tar 歧义。
     // Linux 上无副作用（POSIX 路径无盘符），开发机（Windows 盘符）可测。
@@ -485,12 +489,12 @@ async function performUpdate({ trigger }) {
   currentUpdate = { stage: "starting", trigger, from: readLocalVersion(), to: null, startedAt: Date.now(), message: "" };
   let backupDir = null;
   try {
-    setStage("checking", "解析 npm latest");
+    setStage("checking", { key: "checking" });
     const target = await fetchLatestVersion(proxy);
     currentUpdate.to = target;
     const local = readLocalVersion();
     if (local && lib.compareSemver(target, local) <= 0) {
-      const message = `已是最新（${local}）`;
+      const message = { key: "upToDateWith", args: [local || ""] };
       setStage("done", message);
       finishUpdate(true, message);
       return { ok: true, updated: false, message };
@@ -506,14 +510,14 @@ async function performUpdate({ trigger }) {
     if (payloadVersion && payloadVersion !== target) {
       plog("update", `payload version ${payloadVersion} differs from registry ${target}; trusting payload`);
     }
-    setStage("swapping", "热覆盖 server 产物");
+    setStage("swapping", { key: "swapping" });
     backupDir = await swapServerDir(payload, target);
     fs.rmSync(extractDir, { recursive: true, force: true });
 
-    setStage("restarting", "重启主应用");
+    setStage("restarting", { key: "restarting" });
     restartMainDetached();
 
-    setStage("health-check", "等待健康检查");
+    setStage("health-check", { key: "healthCheck" });
     const healthy = await healthWait();
     const versionInfo = healthy ? await mainVersion() : null;
     const landed = versionInfo && versionInfo.currentVersion === target;
@@ -521,8 +525,8 @@ async function performUpdate({ trigger }) {
       throw new Error(`health check failed after update (healthy=${healthy}, currentVersion=${versionInfo?.currentVersion ?? "n/a"}, expected ${target})`);
     }
 
-    setStage("done", `已更新到 ${target}`);
-    finishUpdate(true, `已更新 ${local || "?"} → ${target}`);
+    setStage("done", { key: "updatedTo", args: [local || "?", target] });
+    finishUpdate(true, { key: "updatedTo", args: [local || "?", target] });
     return { ok: true, updated: true, from: local, to: target };
   } catch (e) {
     plog("update", `FAILED: ${e.message}`);
@@ -541,7 +545,7 @@ function finishUpdate(ok, message) {
     ok,
     from: currentUpdate?.from || "",
     to: currentUpdate?.to || "",
-    message,
+    message,           // {key, args} 语义对 —— UI 端按当前语言渲染
   };
   saveSettings(settings);
   currentUpdate = null;
@@ -856,12 +860,12 @@ async function installFromArchive(archivePath, trigger) {
     const { extractDir, payload, payloadVersion } = await extractTarball(archivePath);
     if (!payloadVersion) throw new Error("payload has no version");
     currentUpdate.to = payloadVersion;
-    setStage("swapping", `热覆盖 server 产物（${payloadVersion}）`);
+    setStage("swapping", { key: "swapping", args: [payloadVersion] });
     backupDir = await swapServerDir(payload, null);
     fs.rmSync(extractDir, { recursive: true, force: true });
-    setStage("restarting", "重启主应用");
+    setStage("restarting", { key: "restarting" });
     restartMainDetached();
-    setStage("health-check", "等待健康检查");
+    setStage("health-check", { key: "healthCheck" });
     const healthy = await healthWait();
     // 与 performUpdate 同一核验：健康之外还要确认「跑起来的版本 = 产物版本」，
     // 否则升级后残留旧进程（构建不一致）也会被误判成功。
@@ -869,8 +873,8 @@ async function installFromArchive(archivePath, trigger) {
     if (!healthy || versionInfo?.currentVersion !== payloadVersion) {
       throw new Error(`version verify failed after install (healthy=${healthy}, currentVersion=${versionInfo?.currentVersion ?? "n/a"}, expected ${payloadVersion})`);
     }
-    setStage("done", `已安装 ${payloadVersion}`);
-    finishUpdate(true, `已安装 ${local || "?"} → ${payloadVersion}`);
+    setStage("done", { key: "installedTo", args: [payloadVersion] });
+    finishUpdate(true, { key: "installedTo", args: [local || "?", payloadVersion] });
     return { ok: true, to: payloadVersion };
   } catch (e) {
     plog("update", `install FAILED: ${e.message}`);
@@ -1140,6 +1144,13 @@ const I18N = {
     authSteps: "1. SSH 登录 NAS（管理员账号）\\n2. 复制下方命令执行\\n3. 点「重新检测」",
     copy: "复制", recheck: "重新检测",
     saved: "定时更新已保存", proxySaved: "出站代理已保存", copied: "已复制到剪贴板",
+    stage_starting: "准备中", stage_checking: "检查 npm latest", stage_downloading: "下载中",
+    stage_extracting: "解包", stage_swapping: "热覆盖 server 产物", stage_restarting: "重启主应用",
+    stage_health: "健康检查", stage_done: "完成", stage_failed: "失败",
+    dlAria: "aria2c 分段下载 {0}", dlNode: "Node 原生下载",
+    extracting: "解包（{0}）", swapping: "热覆盖 server 产物{1}",
+    restarting: "重启主应用", healthCheck: "等待健康检查",
+    upToDateWith: "已是最新（{0}）", updatedTo: "已更新 {0} → {1}", installedTo: "已安装 {0} → {1}",
     restartSent: "重启指令已发送…", pickFirst: "先选择 tgz 文件", uploading: "上传中… 正在写入 NAS",
     installSent: "安装指令已下发，约 20 秒后刷新观察", checking: "检查中…",
     confirmRestartT: "确认重启", confirmRestartM: "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。",
@@ -1174,6 +1185,13 @@ const I18N = {
     authSteps: "1. SSH into the NAS (admin)\\n2. Run the command below\\n3. Click Re-check",
     copy: "Copy", recheck: "Re-check",
     saved: "Auto-update saved", proxySaved: "Proxy saved", copied: "Copied to clipboard",
+    stage_starting: "Preparing", stage_checking: "Checking npm latest", stage_downloading: "Downloading",
+    stage_extracting: "Extracting", stage_swapping: "Overlaying server build", stage_restarting: "Restarting main app",
+    stage_health: "Health check", stage_done: "Done", stage_failed: "Failed",
+    dlAria: "aria2c segmented download {0}", dlNode: "Node native download",
+    extracting: "Extracting ({0})", swapping: "Overlaying server build{1}",
+    restarting: "Restarting main app", healthCheck: "Waiting for health check",
+    upToDateWith: "Already latest ({0})", updatedTo: "Updated {0} → {1}", installedTo: "Installed {0} → {1}",
     restartSent: "Restart command sent…", pickFirst: "Pick a tgz file first", uploading: "Uploading… writing to NAS",
     installSent: "Install dispatched — refresh in ~20s", checking: "Checking…",
     confirmRestartT: "Confirm restart", confirmRestartM: "Restarts the main app via the app lifecycle (appcenter-cli stop+start); back within ~1 min. Falls back to internal restart when unauthorized.",
@@ -1288,6 +1306,20 @@ try { const saved = localStorage.getItem("panelTab"); if (saved) switchTab(saved
 function pill(ok, on, off) { return '<span class="pill ' + (ok ? "ok" : "bad") + '">' + (ok ? on : off) + "</span>"; }
 function fmtUptime(s) { if (s == null) return ""; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + t("day") : "") + (h ? h + t("hour") : "") + m + t("min"); }
 function updateMsgEverywhere(text) { $("updateMsg").textContent = text; $("updateMsgInline").textContent = text; }
+// {key, args} 语义对 → 当前语言文案；纯字符串原样返回（含服务端错误文本）
+function tMsg(m) {
+  if (!m) return "";
+  if (typeof m === "string") return m;
+  let s = t(m.key);
+  (m.args || []).forEach((a, i) => { s = s.split("{" + i + "}").join(a); });
+  return s;
+}
+// 更新卡片 inFlight 行：stage 枚举翻译 + msg 翻译
+function inFlightText(u) { return t("stage_" + u.stage) + (u.msg ? " · " + tMsg(u.msg) : ""); }
+// lastUpdate 行：ok → tMsg(message)；fail → 原始错误串
+function lastUpdateText(lu) {
+  return t("last") + new Date(lu.at).toLocaleString() + " " + (lu.ok ? "✓" : "✗") + " " + tMsg(lu.message);
+}
 
 async function refresh() {
   try {
@@ -1300,9 +1332,9 @@ async function refresh() {
     $("versionRow").innerHTML =
       t("local") + " <b>" + (s.update.localVersion || "?") + "</b> · latest <b>" + (s.update.latestVersion || "—") + "</b> " +
       (s.update.updateAvailable ? '<span class="pill warn">' + t("updatable") + "</span>" : '<span class="pill ok">' + t("upToDate") + "</span>") +
-      (s.update.inFlight ? ' <span class="pill warn">' + t("inFlight") + s.update.inFlight.stage + "</span>" : "");
+      (s.update.inFlight ? ' <span class="pill warn">' + inFlightText(s.update.inFlight) + "</span>" : "");
     if (s.update.inFlight) $("btnUpdate").disabled = true; else $("btnUpdate").disabled = false;
-    if (s.update.last && s.update.last.at) updateMsgEverywhere(t("last") + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message);
+    if (s.update.last && s.update.last.at) updateMsgEverywhere(lastUpdateText(s.update.last));
     for (const [en, ef, ew, eww, et, eh] of [
       ["autoEnabled", "autoFreq", "autoWeekday", "autoWeekdayWrap", "autoTime", "autoHint"],
       ["autoEnabled2", "autoFreq2", "autoWeekday2", "autoWeekdayWrap2", "autoTime2", "autoHint2"],
