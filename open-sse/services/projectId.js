@@ -174,6 +174,15 @@ async function fetchProjectId(accessToken, signal, provider) {
     const projectId = extractProjectId(data);
     if (projectId) return projectId;
 
+    // #98: 个人/免费/促销档（standard-tier、Jio 等捆绑 Pro）的 antigravity 账号
+    // 在 loadCodeAssist 里没有 cloudaicompanionProject，而 onboardUser 对这类
+    // 消费级账号永远返回 done:true 且无 project_id（Google 只会分共享项目）——
+    // 每轮 token 刷新（~30 分钟）都会重放一次无效开户调用，被 Google 视为
+    // 自动化滥用特征（Term #3 封禁的真实诱因之一，报告者实测）。这些账号的
+    // 正确项目就是官方消费级共享哨兵：fetchAvailableModels /
+    // retrieveUserQuotaSummary / 聊天链路的 project 字段用它全部正常工作。
+    if (provider === "antigravity") return "aicode-consumers";
+
     // Determine the tier to use for onboarding
     let tierID = "legacy-tier";
     if (Array.isArray(data.allowedTiers)) {
@@ -205,7 +214,10 @@ async function onboardUser(accessToken, tierID, externalSignal, endpoints, provi
     const headers = provider === "antigravity" ? ANTIGRAVITY_LOAD_CODE_ASSIST_HEADERS : LOAD_CODE_ASSIST_HEADERS;
     // Aggressive retry loops read as account abuse to Google — keep attempts
     // low and pace them out with jitter. Env-tunable for long-lived installs.
-    const MAX_ATTEMPTS = Number(process.env.ONBOARD_MAX_ATTEMPTS) || 2;
+    // `??` not `||`：设 0 要能真正关闭开户（#98），|| 会把 0 兜回 2。
+    const MAX_ATTEMPTS = Number.isFinite(Number(process.env.ONBOARD_MAX_ATTEMPTS))
+        ? Number(process.env.ONBOARD_MAX_ATTEMPTS)
+        : 2;
     const BASE_RETRY_DELAY_MS = Number(process.env.ONBOARD_RETRY_DELAY_MS) || 12_000;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

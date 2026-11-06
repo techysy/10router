@@ -132,7 +132,9 @@ function _refreshProjectId(provider, connectionId, accessToken) {
   // Evict the stale cached entry so getProjectIdForConnection does a real fetch
   invalidateProjectId(connectionId);
 
-  getProjectIdForConnection(connectionId, accessToken)
+  // #98: provider 必须传——projectId.js 依赖它选正确的 headers/endpoints 与
+  // 消费级账号的共享项目短路分支；漏传会按默认 gemini-cli 走错端点。
+  getProjectIdForConnection(connectionId, accessToken, provider)
     .then((projectId) => {
       if (!projectId) return;
       updateProviderCredentials(connectionId, { projectId }).catch((err) => {

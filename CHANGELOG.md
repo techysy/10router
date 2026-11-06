@@ -26,6 +26,7 @@
 ### 🐛 修复
 
 - **同名资源包互相覆盖，逐包明细只剩 1 条**：外部推送方（CreditDaddy 的 LongCat 资源包）按种类复用同一显示名（「获赠资源包」/「资源包」），只有 push key 区分；而下游处处拿 name 当身份——认领路径用 `Object.fromEntries(rows.map(r => [r.name, r]))` 建 map、按 name 的可见性键、`parseQuotaData` 把 map key 直接当显示名——同名行于是互相覆盖：CD 侧显示「3 个资源包」，10Router 卡面只剩「逐包明细 (1)」（用户 2026-11-03 实测）。快照转行时给重名组编号（「获赠资源包 1/2/3」，与仓库既有「赠送包 N / Bonus Pack N」同族命名一致），独苗行不动名，推送卡与连接卡两条渲染路径同源同结果。
+- **个人/免费档 antigravity 账号陷入开户死循环（#98）**：`loadCodeAssist` 未返回项目时无条件 fallthrough 到 `onboardUser`，而消费级账号（standard-tier / Jio 等捆绑 Pro）在 Google 侧只会被分到共享项目——`onboardUser` 固定 `done:true` 且无 project_id，每轮 token 刷新（~30 分钟）重放无效开户调用，单号一天 48~96 次，是 Google 风控（Term #3 封禁）的可叠加自动化特征。三处修复：antigravity 无项目时直接返回官方消费级共享哨兵 `aicode-consumers`（报告者实测配额/聊天链路全部正常），跳过开户；`tokenRefresh` 补传 `provider`（旧调用漏参导致短路分支永不触发，按 gemini-cli 走错端点）；`ONBOARD_MAX_ATTEMPTS=0` 可真正关闭开户重试（原 `|| 2` 把 0 兜回 2）。
 - **推理-only 响应被客户端整轮丢弃（#96）**：上游只返回 `reasoning_content`、`content` 为空且无工具调用时，Hermes Agent 等客户端判为空回复并丢弃整轮。现在组合成员会把这种响应视为软失败并顺延到下一模型；单模型场景把思考内容提升为正文兜底。
   - 提升必须在 `finish_reason` **之前**下发：原先补发在 `[DONE]`/flush 处，流变成 `finish:stop → delta.content → [DONE]`，违反 OpenAI 流式约定，官方 SDK 的累积器会停止读取，提升等于没做。
   - 组合判定要能看穿这次提升：`handleNonStreamingResponse` 在 combo 看到响应之前就已把 reasoning 写进 content，只看 `content !== ""` 会让备用模型永远不被调用（实测 `handleComboChat` 一次即返回那段思考文本）。现按「content 与 reasoning 完全一致」识别回显。
