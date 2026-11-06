@@ -10,6 +10,7 @@ import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 import { markConnectionNeedsReauth, NEEDS_REAUTH_MESSAGE } from "@/sse/services/tokenRefresh.js";
 import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { createUsageResultCache } from "@/lib/usageResultCache";
 import { USAGE_APIKEY_PROVIDERS, USAGE_COOKIE_PROVIDERS } from "@/shared/constants/providers";
 
 // Detect auth-expired messages returned by usage providers instead of throwing
@@ -165,8 +166,25 @@ export async function GET(request, { params }) {
  * persist earliest package expiry). Shared by GET /api/usage/[connectionId] and the
  * aggregated GET /api/usage/quotas. Returns { status, body } — body is exactly what
  * the per-connection endpoint has always returned.
+ *
+ * Wrapped in the shared result cache (same posture as the aggregated route:
+ * 5-min fresh TTL for quota results, 30-s cool-down for errors, force respects
+ * a 30-s minimum interval, concurrent calls for one connection coalesce) —
+ * upstream consoles are rate-sensitive and every dashboard tab polls this
+ * endpoint on its own timer; without the cache each tab was a direct upstream
+ * caller.
  */
 export async function computeConnectionUsage(connection, { force = false } = {}) {
+  return usageResultCache.run(
+    connection.id,
+    () => computeConnectionUsageUncached(connection, { force }),
+    { force },
+  );
+}
+
+const usageResultCache = createUsageResultCache();
+
+async function computeConnectionUsageUncached(connection, { force = false } = {}) {
   try {
     // Allow OAuth connections, plus whitelisted apikey providers (glm/minimax/kiro/...)
     // Kiro's headless api-key flow persists authType "api_key" (underscore) while

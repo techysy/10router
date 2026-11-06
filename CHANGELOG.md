@@ -42,6 +42,7 @@
 
 ### 🧪 测试与工程
 
+- **上游配额/用量调用的防突发收紧**：`/api/usage/[connectionId]` 此前每次调用都直打供应商 console——每个仪表盘标签页各跑各的 5 分钟定时器，开两个标签就是双倍上游调用。现包上与聚合路由 `/api/usage/quotas` 同款的服务端缓存（配额结果 5 分钟新鲜、错误 30 秒冷却、force 尊重 30 秒最小间隔、同连接并发合并为一次上游调用；`src/lib/usageResultCache.js`，消费方拿到的 body 为深拷贝）。背景配额刷新（auth.js，expire-first 调度）不再同一 tick 全量并发，按队列位置错峰——首个立即、其后每连接 1.5s / 敏感集（antigravity / gemini-cli）12s + jitter，与 backgroundTokenRefresh 共用同一 `SENSITIVE_PROVIDERS` 与 `BG_REFRESH_*` 旋钮。
 - **测试构建版本严格 N+1 门禁**：`scripts/test-build-version.mjs` 持久化轮次账本，拒绝重复或倒退使用已烧掉的 `test.N`；新增 `--next` 自动严格递增。
 - **fpk 热替换两道门禁**：`scripts/fpk-deploy-gate.mjs`（构建侧预检：体积 / 条目数 / node_modules 实体文件数 / 绝对符号链接投毒 / 版本号必须 `-test.N` / BUILD_ID / 按 commit 标记，全部从 tar 包内提取验证，不过闸不许上传）+ `scripts/fpk-hot-replace.sh`（NAS 侧解包复检 → 原子交换 → stop/start 同会话 → health 轮询 90s + /login、/dashboard 冒烟，失败自动 stop+回滚+start）。落地自 2026-11-07 两次 symlink node_modules 毒包致 NAS 死服事故；用法与红线见 `docs/zh-CN/fnos-hot-replace-deploy.md` §7。
 - 该门禁自身的测试改为只读隔离（`TEST_BUILD_ROUND_FILE` 指向临时账本）：原先读被 gitignore 的真实账本，在干净 checkout/CI 上必然失败，且在 `--force` 路径下改写并回退仓库四个版本文件，与并行 worker 互相踩。

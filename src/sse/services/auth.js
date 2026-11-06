@@ -10,6 +10,7 @@ import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota, getAntigravityModelFamily } from "./antigravityQuota.js";
 import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
+import { SENSITIVE_PROVIDERS } from "./backgroundTokenRefresh.js";
 import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -116,6 +117,29 @@ function mostRecentUsedCarrier(ring, exclude) {
 }
 
 /**
+ * Start delay for one background quota refresh, by queue position. The first
+ * scheduled connection fires immediately; each subsequent one is pushed out so
+ * a whole-stale fleet does not land on the provider consoles simultaneously —
+ * same anti-burst policy as the background token refresh (12 s + jitter for
+ * the Google-sensitive set, 1.5 s + 200 ms otherwise, same env knobs so
+ * operators tune once). Pure and exported for tests.
+ *
+ * @param {string} provider
+ * @param {number} scheduledIndex 0-based position among the connections this
+ *   trigger is actually scheduling (skipped ones don't count)
+ * @returns {number} milliseconds to wait before the upstream call
+ */
+export function quotaRefreshDelayMs(provider, scheduledIndex) {
+  if (!Number.isInteger(scheduledIndex) || scheduledIndex <= 0) return 0;
+  const baseSensitiveDelay = Number(process.env.BG_REFRESH_GOOGLE_DELAY_MS) || 12_000;
+  const baseNormalDelay = Number(process.env.BG_REFRESH_DELAY_MS) || 1_500;
+  const isSensitive = SENSITIVE_PROVIDERS.has(provider);
+  const base = isSensitive ? baseSensitiveDelay : baseNormalDelay;
+  const jitter = isSensitive ? Math.floor(Math.random() * 4000) : 200;
+  return scheduledIndex * base + jitter;
+}
+
+/**
  * Background quota refresh for the earliest-expiry strategy.
  *
  * Callers skip this entirely while a channel-level breaker is active: the breaker
@@ -123,10 +147,17 @@ function mostRecentUsedCarrier(ring, exclude) {
  * any extra upstream call — even to the billing endpoint — works against letting
  * it clear, and the resulting timestamps would be unusable anyway. The breaker is
  * cleared by a successful chat request, so refresh resumes on its own.
+ *
+ * Connections are staggered (quotaRefreshDelayMs) rather than all fired at once:
+ * every one of these lands on a provider's usage/console endpoint, and a fleet
+ * where everything went stale at once used to mean N simultaneous upstream
+ * calls per 5-minute window. The in-flight guard is taken at scheduling time,
+ * so a queued (not yet fired) connection still cannot be double-scheduled.
  */
 function triggerBackgroundQuotaRefresh(connections) {
   const STALE_MS = 5 * 60 * 1000; // 5 minutes stale threshold aligns with dashboard auto-refresh
   const now = Date.now();
+  let scheduledIndex = 0;
 
   for (const conn of connections) {
     if (!conn.id || _quotaRefreshInFlight.has(conn.id)) continue;
@@ -134,7 +165,9 @@ function triggerBackgroundQuotaRefresh(connections) {
     if (now - checkedAt < STALE_MS) continue;
 
     _quotaRefreshInFlight.add(conn.id);
-    (async () => {
+    const delay = quotaRefreshDelayMs(conn.provider, scheduledIndex);
+    scheduledIndex += 1;
+    const run = async () => {
       try {
         const proxyConfig = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
         const proxyOptions = {
@@ -208,7 +241,9 @@ function triggerBackgroundQuotaRefresh(connections) {
       } finally {
         _quotaRefreshInFlight.delete(conn.id);
       }
-    })();
+    };
+    if (delay > 0) setTimeout(run, delay);
+    else void run();
   }
 }
 

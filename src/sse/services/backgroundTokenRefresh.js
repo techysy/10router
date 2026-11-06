@@ -11,7 +11,9 @@ export const BACKGROUND_REFRESH_LEAD_MS = 30 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 10 * 1000;
 // Google Cloud flags bursty token endpoint traffic as anti-abuse; stagger refreshes.
-const SENSITIVE_PROVIDERS = new Set(["antigravity", "gemini-cli"]);
+// Exported for the background quota refresh (auth.js) so both background
+// upstream callers share one definition of "pacing-sensitive provider".
+export const SENSITIVE_PROVIDERS = new Set(["antigravity", "gemini-cli"]);
 
 let started = false;
 let intervalHandle = null;
