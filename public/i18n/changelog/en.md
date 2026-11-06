@@ -15,6 +15,9 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Model selector footer**: shows how many models are selected plus a Done button, so multi-select no longer reopens the dialog on every click.
 - **LongCat-2.5 GA**: LongCat (Meituan) LongCat-2.5 — 1M context, 256K max output, image and video input, thinking toggle as before. Available on both the CN and international sites; 2.5-Preview stays online.
 - **Release-notes audit script**: `npm run audit:release-notes` checks before publishing that the notes include the 📦 Install channel table and the Full Changelog compare link, and fails loudly when either is missing.
+- **Theme picker + four new themes**: the theme button in the header now opens a picker anchored at the top-right — switch instantly with live mini previews. New: Gruvbox, Nord, Dracula, and Glass light/dark (iOS-style frosted sidebar and cards, with colorful page blobs showing through). Groups are Classic / Glass / Stylized; "Follow system" now lives inside Classic and Glass as a per-group toggle; the sidebar brand icon stays coral orange.
+- **fnOS management panel**: the fpk ships a standalone management panel (bound to the NAS loopback by default, exposed per deployment via the fnOS gateway): one-click quick update (multi-thread segmented download + resume, automatic rollback to the previous build on failure), browser upload install for offline NASes, a daily auto-update schedule you can set, plus service ops — main-app status, log filtering, restart.
+
 
 ### 🐛 Fixed
 

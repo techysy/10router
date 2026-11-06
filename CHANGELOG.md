@@ -21,6 +21,7 @@
 - **模型选择弹窗底部栏**：显示已选数量与「完成」按钮，支持多选场景下不逐次关窗（`closeOnSelect: false`）。
 - **LongCat-2.5 正式版收录（长猫 / 美团）**：官方 2026-11 正式发布——按《模型参数参考》页声明 1,048,576 上下文、max_tokens 上限 262,144、thinking_budget 上限 262,144，保留多模态输入（image_url + video_url）与思考开关；国内站（longcat）与国际站（longcat-intl）同时收录，2.5-Preview 保留不下线，老配置不失效。能力行按正式版文档放宽（Preview 期口径为 1M / 128K），小写裸 id 同步单列一行防转售商目录大小写回落。定价与同族 Preview 同档（目录价 0.75 / 2.95 / 0.015 每百万 Token）——官方按量付费页当前挂的是「限时折扣价」（0.3 / 1.2 / 0.006），不随促销改价以免成本估算起落；要改价需连同 `tests/unit/pricing-first-party-vs-reseller.test.js` 里钉死的 longcat 断言一起改。
 - **发版说明自动审计**（`scripts/audit-release-notes.mjs`，`npm run audit:release-notes -- <notes.md>` 或 `--tag vX.Y.Z` 直取线上说明）：逐条校验六大骨架——版本标题 / 主题行 / ⚠️ 升级须知 / ✨ 新增 / 🐛 修复 / **📦 安装六大渠道表** / **Full Changelog 比较链接**——缺任一项即退出码 1 并列出缺项。落地自 v1.6.5 说明漏写安装表与比较链接的实测事故；`docs/zh-CN/release-prep/release-checklist.md` 步骤 7 同步加为强检查项。
+- **主题选择弹窗 + 四套新主题（Gruvbox / Nord / Dracula / Glass 浅深）**：顶栏主题按钮改为右上角锚定弹出面板，分组「经典（浅/深）→ 毛玻璃（深/浅）→ 风格化」，组内迷你预览即点即所见；「跟随系统」改为经典/毛玻璃两组的组内开关（store 新增 `systemFamily` 决定 system 的深浅映射，与首帧脚本两处同步；玻璃组卡片深在前，深浅映射用显式 pair 不按数组下标推）。Glass 三层结构：html 实底 + 半透明 `--color-bg` 薄纱 + 场景彩色光斑，侧栏/卡片/弹窗真磨砂（`--glass-blur` 10px，玻璃下网格提亮保「看得见模糊」），浅玻璃光斑降饱和。暗色系主题（gruvbox/nord/dracula/glass-dark）同挂 `.dark`（dark: 变体层）+ `.theme-*`（token 层，token 块排 `.dark` 之后取胜）；brutal 保持裸类 `.brutal`。锚定面板 portal 到 body——否则被后续 Card 的 backdrop-filter stacking context 整体压住。侧栏品牌图标固定珊瑚橙（`.brand-mark`）。修复首版引入的四处问题：暗色主题侧栏 vibrancy 白底浅字不可读、brutal 类名不匹配整套装不上、Glass 因 `bg-bg` 全不透明与默认浅色无异、设置页面板层级。
 
 ### 🐛 修复
 
