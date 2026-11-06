@@ -3,11 +3,16 @@ set -euo pipefail
 
 APP_NAME="${TRIM_APPNAME:-10router}"
 APP_DIR="${TRIM_APPDEST:-/var/apps/${APP_NAME}}"
+# 显式导出：面板进程（ensure_panel 的 nohup node）依赖这些变量；经
+# `sudo bash cmd/main start` 手动调用时 sudo 的 env 清洗会吞掉普通赋值，
+# 面板就落到 fallback 路径（DATA_DIR=~/.10router）读错 pid 文件——2026-11-06
+# 真机实测「面板 running:false」的根源。export 后任何调用方式都成立。
+export APP_NAME APP_DIR
 # 数据目录: 优先 TRIM_PKGVAR (fnOS 注入). 兜底: 从 fnOS home 软链 (/volX/@apphome/<app>) 推导卷,
 # 或从 APP_DIR 推导; 不写死具体卷. (某些 fnOS 部署 APP_DIR=/var/apps/<app> 且无 TRIM_PKGVAR)
 APP_VOL=""
 if [ -n "${TRIM_PKGVAR:-}" ]; then
-    DATA_DIR="${TRIM_PKGVAR}"
+    export DATA_DIR="${TRIM_PKGVAR}"
 else
     if [ -L "${APP_DIR}/home" ]; then
         APP_HOME="$(readlink -f "${APP_DIR}/home")"
@@ -17,9 +22,9 @@ else
         APP_VOL="$(printf '%s' "${APP_DIR}" | sed -n 's#^\(/vol[^/]*\)/.*#\1#p')"
     fi
     if [ -n "${APP_VOL}" ]; then
-        DATA_DIR="${APP_VOL}/@appdata/${APP_NAME}"
+        export DATA_DIR="${APP_VOL}/@appdata/${APP_NAME}"
     else
-        DATA_DIR="${APP_DIR}/var"
+        export DATA_DIR="${APP_DIR}/var"
     fi
 fi
 
@@ -27,9 +32,9 @@ fi
 #   fnOS 传 TRIM_APPDEST=/vol4/@appcenter/10router → server 直接在 ${APP_DIR}/server
 #   旧版/部分版本 TRIM_APPDEST=/var/apps/10router    → server 在 ${APP_DIR}/target/server
 if [ -d "${APP_DIR}/server" ]; then
-    SRC_DIR="${APP_DIR}/server"
+export SRC_DIR="${APP_DIR}/server"
 elif [ -d "${APP_DIR}/target/server" ]; then
-    SRC_DIR="${APP_DIR}/target/server"
+export SRC_DIR="${APP_DIR}/target/server"
 else
     echo "ERROR: server dir not found (tried ${APP_DIR}/server and ${APP_DIR}/target/server)" >&2
     exit 1
@@ -42,19 +47,20 @@ for cand in "/var/apps/nodejs_v24/target/bin/node" "${APP_VOL}/@appcenter/nodejs
   [ -x "$cand" ] && NODE_BIN="$cand" && break
 done
 [ -n "$NODE_BIN" ] || NODE_BIN="$(command -v node || echo /usr/bin/node)"
+export NODE_BIN
 if [ ! -x "$NODE_BIN" ]; then
   echo "ERROR: Node.js runtime not found. Please install the 'nodejs_v24' app from the fnOS App Center." >&2
   exit 1
 fi
 
-PORT="${TRIM_SERVICE_PORT:-20127}"
+export PORT="${TRIM_SERVICE_PORT:-20127}"
 HOSTNAME="0.0.0.0"
 LOG="${DATA_DIR}/10router.log"
 PID_FILE="${DATA_DIR}/10router.pid"
 
 # 管理面板（issue #97）：独立进程，主应用 stop/restart 不影响它 ——
 # 定时自动更新的调度器跑在这里。默认只听 127.0.0.1:20125。
-PANEL_PORT="${PANEL_PORT:-20125}"
+export PANEL_PORT="${PANEL_PORT:-20125}"
 PANEL_PID_FILE="${DATA_DIR}/panel.pid"
 PANEL_LOG="${DATA_DIR}/panel.log"
 

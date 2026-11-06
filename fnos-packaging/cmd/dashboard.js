@@ -322,6 +322,25 @@ function runMainCmd(action) {
 //      状态机一致）；sudoers 未放行时回退 cmd/main restart。
 //   2) 面板的 HTTP 响应立即返回「已触发」，不等重启完成——前端靠轮询
 //      /api/status 观察恢复。
+// 生命周期授权检测：`sudo -n appcenter-cli true` 探测 sudoers 是否放行。
+// 结果缓存 10 分钟（每次重启按钮都探测会拖慢响应）。null = 未探测。
+let lifecycleAuthCache = { value: null, at: 0 };
+
+async function lifecycleAuthorized() {
+  if (lifecycleAuthCache.value !== null && Date.now() - lifecycleAuthCache.at < 10 * 60 * 1000) {
+    return lifecycleAuthCache.value;
+  }
+  const ok = await new Promise((resolve) => {
+    execFile("sudo", ["-n", "/usr/local/bin/appcenter-cli", "check", APP_NAME], { timeout: 20000 }, (err, stdout, stderr) => {
+      if (err) plog("ops", `lifecycle probe failed: ${String(err.code || err.message).slice(0, 80)} ${(stderr || "").slice(0, 60)}`);
+      resolve(!err);
+    });
+  });
+  lifecycleAuthCache = { value: ok, at: Date.now() };
+  if (!ok) plog("ops", "lifecycle NOT authorized (sudoers); restart will fall back to internal mode");
+  return ok;
+}
+
 function restartMainDetached() {
   const log = fs.openSync(path.join(DATA_DIR, "panel.log"), "a");
   const script =
@@ -331,6 +350,8 @@ function restartMainDetached() {
   const child = spawn("bash", ["-c", script, "10r-restart", MAIN_CMD], { detached: true, stdio: ["ignore", log, log] });
   child.unref();
   plog("ops", "main restart triggered (detached)");
+  // 授权态在重启动作后失效——下次重新探测（sudoers 可能刚被管理员改过）
+  lifecycleAuthCache = { value: null, at: 0 };
 }
 
 // ── 更新流水线 ──
@@ -696,6 +717,7 @@ async function buildStatus() {
     },
     autoUpdate: { ...settings.autoUpdate, state: settings.scheduleState, nextRunMs: lib.nextDailyRunMs(settings.autoUpdate?.time, Date.now()) },
     proxy: settings.proxy,
+    lifecycle: { authorized: await lifecycleAuthorized() },
     paths: { srcDir: SRC_DIR, dataDir: DATA_DIR, staging: STAGING_DIR },
   };
 }
@@ -1004,6 +1026,7 @@ function renderUi() {
       <button class="ghost" onclick="restartMain()">重启主应用</button>
       <button class="ghost" onclick="checkSudo()">sudo 白名单检测</button>
     </div>
+    <div class="mut" id="lifecycleHint" style="margin-top:8px"></div>
   </div>
   <div class="card" style="margin-top:16px"><h2>主应用日志</h2>
     <div class="row">
@@ -1083,6 +1106,9 @@ async function refresh() {
       $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? ("下次: " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
     }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
+    $("lifecycleHint").innerHTML = s.lifecycle && s.lifecycle.authorized
+      ? '<span class="pill ok">重启走应用生命周期（appcenter-cli）</span>'
+      : '<span class="pill warn">sudoers 未放行 appcenter-cli —— 重启将回退内部模式（kill+nohup），建议放行后使用</span>';
     if (s.update.inFlight) setTimeout(refresh, 3000);
   } catch (e) { $("mainStatus").innerHTML = '<span class="mut">' + e.message + "</span>"; }
 }
