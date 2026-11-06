@@ -908,7 +908,7 @@ function renderUi() {
   .top .spacer { flex:1; }
   #themeBtn { background:var(--card); border:1px solid var(--line); color:var(--txt); width:34px; height:34px; padding:0; font-size:16px; }
   /* 胶囊分段控件（dsh 同款 seg-ctl）：浅灰槽 + 激活项浮起白底 */
-  .tabs { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); max-width:880px; margin:14px auto 0; }
+  .tabs { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); margin:14px 0 0; }
   .tabs button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 14px; border-radius:7px; cursor:pointer; }
   .tabs button.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.08); }
   html[data-theme="dark"] .tabs button.on { background:rgba(255,255,255,.1); }
@@ -944,9 +944,9 @@ function renderUi() {
     <div class="mut">独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。</div>
   </div>
   <span class="spacer"></span>
-  <button id="themeBtn" onclick="toggleTheme()" title="切换日/夜主题">🌙</button>
+  <button id="themeBtn" onclick="toggleTheme()" title="切换日/夜主题" aria-label="切换日/夜主题"><svg id="themeIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
 </div>
-<div style="text-align:center"><div class="tabs" id="tabs" style="display:inline-flex">
+<div style="max-width:880px;margin:0 auto"><div class="tabs" id="tabs">
   <button data-tab="overview" class="on" onclick="switchTab('overview')">总览</button>
   <button data-tab="update" onclick="switchTab('update')">更新</button>
   <button data-tab="ops" onclick="switchTab('ops')">运维</button>
@@ -1034,9 +1034,15 @@ async function jpost(u, body) { const r = await fetch(u, { method: "POST", heade
 
 /* ── 主题 ── */
 function curTheme() { return document.documentElement.getAttribute("data-theme"); }
+const THEME_ICON_PATHS = {
+  // 月亮（暗色态显示，点击回亮色）：crescent
+  dark: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
+  // 太阳（亮色态显示，点击回暗色）：circle + 8 rays
+  light: '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>',
+};
 function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
-  $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙";
+  $("themeIcon").innerHTML = THEME_ICON_PATHS[t] || THEME_ICON_PATHS.light;
 }
 function toggleTheme() {
   const next = curTheme() === "dark" ? "light" : "dark";
