@@ -32,8 +32,8 @@ export const THEME_GROUPS = [
     follow: true,
     pair: { light: "glass-light", dark: "glass-dark" },
     themes: [
-      { id: "glass-dark", name: "Glass Dark" },
       { id: "glass-light", name: "Glass Light" },
+      { id: "glass-dark", name: "Glass Dark" },
     ],
   },
   {
