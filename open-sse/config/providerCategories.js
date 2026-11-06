@@ -45,6 +45,7 @@ const ROLLING_SUBSCRIPTION_PROVIDERS = new Set([
 ]);
 
 const PURE_BALANCE_PROVIDERS = new Set([
+  "loomy",
   "deepseek",
   "stepfun",
   "stepfun-cn",
