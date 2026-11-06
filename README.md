@@ -286,13 +286,11 @@ npx vitest run --dir tests
 
 ### 贡献者致谢
 
-**多次反馈 / 代码合入的官方贡献者：**
-
 <p>
   <a href="https://github.com/techysy" title="techysy — 主要维护者"><img src="https://github.com/techysy.png?size=80" width="48" height="48" alt="techysy" /></a>
   <a href="https://github.com/shiyangyuda" title="shiyangyuda — 代码优化"><img src="https://github.com/shiyangyuda.png?size=80" width="48" height="48" alt="shiyangyuda" /></a>
   <a href="https://github.com/fenixggg" title="fenixggg — 累计 8 个 issue 反馈（豆包搜索提案 / token 轮换 / provider 校验等）"><img src="https://github.com/fenixggg.png?size=80" width="48" height="48" alt="fenixggg" /></a>
-  <a href="https://github.com/monkey2jack" title="monkey2jack — 4 个 PR 合入（安全加固 / Antigravity / cline live models / combo 规格字段）+ issue 反馈"><img src="https://github.com/monkey2jack.png?size=80" width="48" height="48" alt="monkey2jack" /></a>
+  <a href="https://github.com/monkey2jack" title="monkey2jack — 4 个 PR 合入（安全加固 / Antigravity / cline / combo 规格字段）+ issue 反馈"><img src="https://github.com/monkey2jack.png?size=80" width="48" height="48" alt="monkey2jack" /></a>
   <a href="https://github.com/gmplout" title="gmplout — 累计 6 个 issue（组合压缩 / 超大载荷降级 / tool_result 图片 / 隐私脱敏与组合开关 RFC）"><img src="https://github.com/gmplout.png?size=80" width="48" height="48" alt="gmplout" /></a>
   <a href="https://github.com/TIANXT97" title="TIANXT97 — 累计 5 个 issue（GLM 通道 content 空 / 代理死锁 / River AI 校验等）"><img src="https://github.com/TIANXT97.png?size=80" width="48" height="48" alt="TIANXT97" /></a>
   <a href="https://github.com/lan5635" title="lan5635 — 累计 4 个 issue 反馈"><img src="https://github.com/lan5635.png?size=80" width="48" height="48" alt="lan5635" /></a>
@@ -300,28 +298,26 @@ npx vitest run --dir tests
   <a href="https://github.com/IOPQWE51" title="IOPQWE51 — 2 个 PR + issue 反馈（CodeBuddy CN 相关）"><img src="https://github.com/IOPQWE51.png?size=80" width="48" height="48" alt="IOPQWE51" /></a>
   <a href="https://github.com/paynetsang" title="paynetsang — 累计 2 个 issue 反馈"><img src="https://github.com/paynetsang.png?size=80" width="48" height="48" alt="paynetsang" /></a>
   <a href="https://github.com/Osinglehh" title="Osinglehh — 累计 2 个 issue 反馈"><img src="https://github.com/Osinglehh.png?size=80" width="48" height="48" alt="Osinglehh" /></a>
+  <a href="https://github.com/805889095-eng" title="805889095-eng — PR #95 brutal 粗野派主题（已合入）"><img src="https://github.com/805889095-eng.png?size=80" width="48" height="48" alt="805889095-eng" /></a>
+  <a href="https://github.com/shadyrispy" title="shadyrispy — PR #79 九家订阅渠道接入（进行中）"><img src="https://github.com/shadyrispy.png?size=80" width="48" height="48" alt="shadyrispy" /></a>
+  <a href="https://github.com/sabercomo" title="sabercomo — #88 Qoder provider_error 误判成功定位"><img src="https://github.com/sabercomo.png?size=80" width="48" height="48" alt="sabercomo" /></a>
+  <a href="https://github.com/itispip" title="itispip — #85 Docker 开机启动失败反馈"><img src="https://github.com/itispip.png?size=80" width="48" height="48" alt="itispip" /></a>
+  <a href="https://github.com/ZIRAN456" title="ZIRAN456 — PR #66 translator 保留 tool name"><img src="https://github.com/ZIRAN456.png?size=80" width="48" height="48" alt="ZIRAN456" /></a>
+  <a href="https://github.com/FavoriteYet" title="FavoriteYet — PR #11 codebuddy-cn 模型与视觉适配"><img src="https://github.com/FavoriteYet.png?size=80" width="48" height="48" alt="FavoriteYet" /></a>
+  <a href="https://github.com/rua-aaa" title="rua-aaa — issue 反馈"><img src="https://github.com/rua-aaa.png?size=80" width="48" height="48" alt="rua-aaa" /></a>
+  <a href="https://github.com/ThedoRap" title="ThedoRap — issue 反馈"><img src="https://github.com/ThedoRap.png?size=80" width="48" height="48" alt="ThedoRap" /></a>
+  <a href="https://github.com/nansheng365" title="nansheng365 — issue 反馈"><img src="https://github.com/nansheng365.png?size=80" width="48" height="48" alt="nansheng365" /></a>
+  <a href="https://github.com/windcloud01" title="windcloud01 — issue 反馈"><img src="https://github.com/windcloud01.png?size=80" width="48" height="48" alt="windcloud01" /></a>
+  <a href="https://github.com/JasonXX89" title="JasonXX89 — issue 反馈"><img src="https://github.com/JasonXX89.png?size=80" width="48" height="48" alt="JasonXX89" /></a>
+  <a href="https://github.com/weltyang1216" title="weltyang1216 — issue 反馈"><img src="https://github.com/weltyang1216.png?size=80" width="48" height="48" alt="weltyang1216" /></a>
+  <a href="https://github.com/RyuuzakiLu2023" title="RyuuzakiLu2023 — 安全审计反馈"><img src="https://github.com/RyuuzakiLu2023.png?size=80" width="48" height="48" alt="RyuuzakiLu2023" /></a>
+  <a href="https://github.com/alchohol" title="alchohol — issue 反馈"><img src="https://github.com/alchohol.png?size=80" width="48" height="48" alt="alchohol" /></a>
+  <a href="https://github.com/iMissNan" title="iMissNan — issue 反馈"><img src="https://github.com/iMissNan.png?size=80" width="48" height="48" alt="iMissNan" /></a>
   <a href="https://github.com/techysy/CreditDaddy" title="CreditDaddy — 积分领取与额度/用量协同"><img src="https://raw.githubusercontent.com/techysy/CreditDaddy/main/desktop/icon.png" width="48" height="48" alt="CreditDaddy" /></a>
 </p>
 
-**单次反馈（issue / PR）：**
+<sub>名单由 issue 与 PR 的反馈者及协同项目汇总，头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；PR 合入者另见 GitHub Contributors 统计；若有遗漏请随时提 issue 补充。</sub>
 
-- [805889095-eng](https://github.com/805889095-eng) — PR #95 brutal 粗野派主题（已合入）
-- [shadyrispy](https://github.com/shadyrispy) — PR #79 九家订阅渠道接入（进行中）
-- [sabercomo](https://github.com/sabercomo) — #88 Qoder provider_error 误判成功
-- [itispip](https://github.com/itispip) — #85 Docker 开机启动失败
-- [ZIRAN456](https://github.com/ZIRAN456) — PR #66 translator 保留 tool name
-- [FavoriteYet](https://github.com/FavoriteYet) — PR #11 codebuddy-cn 模型与视觉适配
-- [rua-aaa](https://github.com/rua-aaa) — #33
-- [ThedoRap](https://github.com/ThedoRap) — #32
-- [nansheng365](https://github.com/nansheng365) — #27
-- [windcloud01](https://github.com/windcloud01) — #25
-- [JasonXX89](https://github.com/JasonXX89) — #19
-- [weltyang1216](https://github.com/weltyang1216) — #18
-- [RyuuzakiLu2023](https://github.com/RyuuzakiLu2023) — #9 安全审计反馈
-- [alchohol](https://github.com/alchohol) — #7
-- [iMissNan](https://github.com/iMissNan) — #4
-
-<sub>多次反馈/代码合入进致谢墙，单次反馈列入名单；头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；若有遗漏请随时提 issue 补充。</sub>
 
 
 ---
