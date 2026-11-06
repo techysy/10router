@@ -1510,16 +1510,30 @@ export default function ProviderLimits() {
                           >
                             {isInactive ? "disabled" : (connState === "needs-reauth" ? translate("Needs re-auth") : connState === "partial" ? "partial" : connState || "unknown")}
                           </span>
-                          {(conn.provider === "qoder" || conn.provider === "qoder-cn") && (
+                          {(conn.provider === "qoder" ||
+                            conn.provider === "qoder-cn" ||
+                            conn.provider === "codebuddy-cn" ||
+                            conn.provider === "codebuddy-intl" ||
+                            conn.provider === "loomy") && (
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                conn.providerSpecificData?.creditDaddyWebSession
+                                conn.providerSpecificData?.creditDaddyWebSession || conn.providerSpecificData?.creditDaddySync
                                   ? "bg-primary/10 text-primary"
                                   : "bg-surface-2 text-text-muted"
                               }`}
-                              title={conn.providerSpecificData?.creditDaddyWebSession ? translate("Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)") : translate("Native Qoder authorization")}
+                              title={
+                                conn.providerSpecificData?.creditDaddyWebSession
+                                  ? translate("Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)")
+                                  : conn.providerSpecificData?.creditDaddySync
+                                    ? translate("Synced from CreditDaddy (issue feedback goes to CreditDaddy)")
+                                    : translate(conn.provider === "qoder" || conn.provider === "qoder-cn"
+                                        ? "Native Qoder authorization"
+                                        : conn.provider === "loomy"
+                                          ? "Native Loomy authorization"
+                                          : "Native CodeBuddy authorization")
+                              }
                             >
-                              {conn.providerSpecificData?.creditDaddyWebSession ? "CD Sync" : "Native"}
+                              {(conn.providerSpecificData?.creditDaddyWebSession || conn.providerSpecificData?.creditDaddySync) ? "CD Sync" : "Native"}
                             </span>
                           )}
                           {conn.providerSpecificData?.profileArn && (

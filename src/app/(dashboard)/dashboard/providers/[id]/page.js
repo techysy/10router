@@ -435,7 +435,12 @@ export default function ProviderDetailPage() {
   // Generic OAuth transfer: every provider whose registry declares an oauth
   // auth mode (not just codebuddy). When CN check-in is on it hides the
   // buttons in favor of the check-in block — surface a reminder then.
-  const oauthTransferOn = isOAuth && providerInfo?.authModes?.includes("oauth") && oauthTransferEnabled;
+  // apikey 型 provider（loomy 等免费档）同样给导入导出：transfer 管线是
+  // provider 无关的（buildExportAccounts/importAccounts 对 apiKey 行与 OAuth
+  // 行同一套加密封装 + 去重合并），此前只认 oauth authMode 把这类卡排除在
+  // 跨机迁移/CD 同步之外（用户实测 loomy 无导入导出按钮）。
+  const supportsTransfer = providerInfo?.authModes?.includes("oauth") || providerInfo?.authModes?.includes("apikey");
+  const oauthTransferOn = (isOAuth || supportsApiKeyAuth) && supportsTransfer && oauthTransferEnabled;
   // Experimental auto daily check-in / compensation — mutually exclusive display vs import/export.
   const codeBuddyCheckinOn = isCodeBuddy && (codeBuddyCheckinEnabled || codeBuddyCompensationEnabled);
   // Manual claim / check-in button (Qoder credits, MiniMax Code daily sign-in).

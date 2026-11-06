@@ -2168,5 +2168,9 @@
   "Nord": "Nord",
   "Dracula": "Dracula",
   "Glass Light": "毛玻璃 · 浅",
-  "Glass Dark": "毛玻璃 · 深"
+  "Glass Dark": "毛玻璃 · 深",
+  "Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)": "经 CreditDaddy 网页会话同步（问题反馈给 CreditDaddy）",
+  "Synced from CreditDaddy (issue feedback goes to CreditDaddy)": "由 CreditDaddy 同步（问题反馈给 CreditDaddy）",
+  "Native Loomy authorization": "Loomy 原生授权",
+  "Native CodeBuddy authorization": "CodeBuddy 原生授权"
 }
