@@ -948,6 +948,30 @@ function renderUi() {
   pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:10px; max-height:320px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all; }
   .spacer { flex:1; }
   label.switch { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+  /* toast（dsh 同款右上角浮层） */
+  #toasts { position:fixed; top:16px; right:16px; z-index:1000; display:flex; flex-direction:column; gap:8px; }
+  .toast { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--brand); border-radius:8px; padding:9px 14px; font-size:13px; box-shadow:0 4px 16px rgba(0,0,0,.15); max-width:340px; animation:tIn .18s ease; }
+  .toast.ok { border-left-color:var(--ok); } .toast.warn { border-left-color:var(--warn); } .toast.bad { border-left-color:var(--bad); }
+  @keyframes tIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  /* modal（confirm/prompt 的本地替代） */
+  #modalMask { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:900; display:none; align-items:center; justify-content:center; }
+  #modalMask.on { display:flex; }
+  .modal { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; width:min(92vw,380px); box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal h3 { margin:0 0 8px; font-size:14px; }
+  .modal p { margin:0 0 14px; font-size:13px; color:var(--txt); white-space:pre-wrap; word-break:break-all; }
+  .modal input { width:100%; margin-bottom:14px; }
+  .modal .row { justify-content:flex-end; gap:8px; }
+  /* 授权卡片（dsh sudo-card 同款语义） */
+  .auth-card { border:1px solid var(--warn); background:color-mix(in srgb, var(--warn) 7%, var(--card)); border-radius:10px; padding:12px 14px; margin-top:10px; }
+  .auth-card.ok { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 7%, var(--card)); }
+  .auth-card .steps { font-size:12px; color:var(--mut); white-space:pre-wrap; margin:6px 0; }
+  .auth-cmd { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:12px/1.5 ui-monospace,monospace; word-break:break-all; display:flex; gap:8px; align-items:flex-start; }
+  .auth-cmd code { flex:1; white-space:pre-wrap; word-break:break-all; }
+  .auth-cmd button { padding:2px 8px; font-size:11px; flex-shrink:0; }
+  /* 文件选择：原生 input 隐藏，样式化胶囊按钮承接 */
+  .file-pill { position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:6px; }
+  .file-pill input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .file-name { font-size:12px; color:var(--mut); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style></head><body>
 <script>
 /* 首帧主题解析（防闪烁）：localStorage 手动选择 > 系统偏好。 */
@@ -960,6 +984,8 @@ function renderUi() {
   document.documentElement.setAttribute("data-theme", t);
 })();
 </script>
+<div id="toasts"></div>
+<div id="modalMask"><div class="modal"><h3 id="modalTitle"></h3><p id="modalMsg"></p><input id="modalInput" style="display:none"><div class="row"><button class="ghost" id="modalCancel">取消</button><button id="modalOk">确定</button></div></div></div>
 <div class="top">
   <div>
     <h1>10Router · fnOS 管理面板</h1>
@@ -1006,7 +1032,8 @@ function renderUi() {
   </div>
   <div class="card" style="margin-top:16px"><h2>上传安装（离线通道）</h2>
     <div class="row">
-      <input type="file" id="fileInput">
+      <span class="file-pill ghost">选择 tgz<input type="file" id="fileInput" accept=".tgz,.gz" onchange="onFilePick()"></span>
+      <span class="file-name" id="fileName">未选择文件</span>
       <button class="ghost" onclick="uploadInstall()">上传安装</button>
     </div>
     <div class="mut" style="margin-top:8px">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
@@ -1024,9 +1051,8 @@ function renderUi() {
   <div class="card"><h2>服务操作</h2>
     <div class="row">
       <button class="ghost" onclick="restartMain()">重启主应用</button>
-      <button class="ghost" onclick="checkSudo()">sudo 白名单检测</button>
     </div>
-    <div class="mut" id="lifecycleHint" style="margin-top:8px"></div>
+    <div id="authBox" style="margin-top:10px"></div>
   </div>
   <div class="card" style="margin-top:16px"><h2>主应用日志</h2>
     <div class="row">
@@ -1052,8 +1078,58 @@ function renderUi() {
 const $ = (id) => document.getElementById(id);
 const token = localStorage.getItem("panelToken") || "";
 const headers = token ? { "x-panel-token": token } : {};
-async function jget(u) { const r = await fetch(u, { headers }); if (r.status === 401) { const t = prompt("面板令牌 (PANEL_TOKEN)"); if (t) { localStorage.setItem("panelToken", t); location.reload(); } throw new Error("unauthorized"); } return r.json(); }
+async function jget(u) {
+  const r = await fetch(u, { headers });
+  if (r.status === 401) {
+    const t = await localModal({ title: "需要面板令牌", msg: "服务端设置了 PANEL_TOKEN，输入后本机记住。", input: "" });
+    if (t) { localStorage.setItem("panelToken", t); location.reload(); }
+    throw new Error("unauthorized");
+  }
+  return r.json();
+}
 async function jpost(u, body) { const r = await fetch(u, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body || {}) }); return r.json(); }
+
+/* ── toast / modal / 授权卡片 ── */
+function toast(msg, kind) {
+  const box = document.createElement("div");
+  box.className = "toast " + (kind || "");
+  box.textContent = msg;
+  $("toasts").appendChild(box);
+  setTimeout(() => box.remove(), kind === "bad" ? 6000 : 3200);
+}
+let modalState = null;
+function localModal({ title, msg, input = null, okText = "确定", danger = false }) {
+  return new Promise((resolve) => {
+    modalState = { resolve };
+    $("modalTitle").textContent = title;
+    $("modalMsg").textContent = msg || "";
+    $("modalMsg").style.display = msg ? "" : "none";
+    $("modalInput").style.display = input === null ? "none" : "";
+    $("modalInput").value = input === null ? "" : input;
+    $("modalOk").textContent = okText;
+    $("modalOk").style.background = danger ? "var(--bad)" : "var(--brand)";
+    $("modalMask").classList.add("on");
+    if (input !== null) { $("modalInput").focus(); $("modalInput").select(); }
+  });
+}
+function modalDone(val) {
+  if (!modalState) return;
+  $("modalMask").classList.remove("on");
+  const r = modalState.resolve; modalState = null;
+  r(val);
+}
+$("modalOk").onclick = () => modalDone($("modalInput").style.display === "none" ? true : $("modalInput").value);
+$("modalCancel").onclick = () => modalDone(null);
+$("modalMask").onclick = (e) => { if (e.target.id === "modalMask") modalDone(null); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modalState) modalDone(null); });
+function localAlert(msg, kind) { toast(msg, kind || ""); }
+function localConfirm(title, msg, danger) { return localModal({ title, msg, okText: "确定", danger: !!danger }); }
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+  if (btn) { const old = btn.textContent; btn.textContent = "已复制"; setTimeout(() => (btn.textContent = old), 1500); }
+  toast("已复制到剪贴板", "ok");
+}
 
 /* ── 主题 ── */
 function curTheme() { return document.documentElement.getAttribute("data-theme"); }
@@ -1106,27 +1182,60 @@ async function refresh() {
       $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? ("下次: " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
     }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
-    $("lifecycleHint").innerHTML = s.lifecycle && s.lifecycle.authorized
-      ? '<span class="pill ok">重启走应用生命周期（appcenter-cli）</span>'
-      : '<span class="pill warn">sudoers 未放行 appcenter-cli —— 重启将回退内部模式（kill+nohup），建议放行后使用</span>';
+    renderAuth(s.lifecycle || { authorized: false });
     if (s.update.inFlight) setTimeout(refresh, 3000);
   } catch (e) { $("mainStatus").innerHTML = '<span class="mut">' + e.message + "</span>"; }
 }
 async function checkUpdate() { updateMsgEverywhere("检查中…"); const r = await jget("/api/update/check"); updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新"))); refresh(); }
 async function runUpdate() { $("btnUpdate").disabled = true; updateMsgEverywhere("已触发，进行中…"); await jpost("/api/update/run"); refresh(); }
+function onFilePick() {
+  const f = $("fileInput").files[0];
+  $("fileName").textContent = f ? f.name + "（" + Math.round(f.size / 1048576) + "MB）" : "未选择文件";
+}
+const GRANT_CMD = "echo '10router ALL=(root) NOPASSWD: /usr/local/bin/appcenter-cli' | sudo tee /etc/sudoers.d/10router-lifecycle\\nsudo chmod 440 /etc/sudoers.d/10router-lifecycle";
+function renderAuth(lc) {
+  const box = $("authBox");
+  if (lc.authorized) {
+    box.innerHTML = '<div class="auth-card ok"><div class="row"><span class="pill ok">已授权</span><span class="mut">重启走应用生命周期（appcenter-cli stop+start，状态机一致）</span><span class="spacer"></span><button class="ghost" onclick="recheckAuth()">重新检测</button></div></div>';
+    return;
+  }
+  box.innerHTML = '<div class="auth-card">'
+    + '<div class="row"><span class="pill warn">未授权</span><span class="mut">重启将回退内部模式（kill+nohup），应用中心状态可能短暂不同步。放行一次即永久生效：</span></div>'
+    + '<div class="steps">1. SSH 登录 NAS（管理员账号）\\n2. 复制下方命令执行\\n3. 点「重新检测」</div>'
+    + '<div class="auth-cmd"><code>' + GRANT_CMD.replace(/\\n/g, "<br>") + '</code><button class="ghost" onclick="copyText(GRANT_CMD, this)">复制</button></div>'
+    + '<div class="row" style="margin-top:8px"><button class="ghost" onclick="recheckAuth()">重新检测</button></div>'
+    + '</div>';
+}
+async function recheckAuth() {
+  toast("重新检测中…");
+  try { await jget("/api/auth/recheck"); } catch {}
+  toast("检测完成", "ok");
+  refresh();
+}
 async function uploadInstall() {
-  const f = $("fileInput").files[0]; if (!f) { alert("先选择 tgz 文件"); return; }
+  const f = $("fileInput").files[0];
+  if (!f) { toast("先选择 tgz 文件", "warn"); return; }
+  toast("上传中… 正在写入 NAS");
   const r = await fetch("/api/update/upload", { method: "PUT", headers: { "content-type": "application/octet-stream", ...headers }, body: f });
   const j = await r.json();
-  if (!r.ok) { alert("上传失败: " + (j.error || r.status)); return; }
-  if (!confirm("已通过魔数校验（" + j.kind + "，" + Math.round(j.size / 1048576) + "MB）。安装并重启主应用？")) return;
+  if (!r.ok) { toast("上传失败: " + (j.error || r.status), "bad"); return; }
+  const ok = await localConfirm("确认安装", "已通过魔数校验（" + j.kind + "，" + Math.round(j.size / 1048576) + "MB）。安装并重启主应用？", true);
+  if (!ok) return;
   await jpost("/api/install", { file: j.file });
-  updateMsgEverywhere("安装进行中…"); refresh();
+  updateMsgEverywhere("安装进行中…");
+  toast("安装指令已下发，约 20 秒后刷新观察", "ok");
+  refresh();
 }
-async function saveAuto() { await jpost("/api/settings", { autoUpdate: { enabled: $("autoEnabled").checked, time: $("autoTime").value || "04:30" } }); refresh(); }
-async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); updateMsgEverywhere("代理已保存"); }
-async function restartMain() { if (!confirm("重启主应用？")) return; updateMsgEverywhere("重启中…"); await jpost("/api/main/restart"); refresh(); }
-async function checkSudo() { const r = await jget("/api/sudo"); alert(r.authorized ? ("NOPASSWD 命令 " + r.commands.length + " 条:\\n" + r.commands.join("\\n")) : ("未检测到免密授权:\\n" + r.hint)); }
+async function saveAuto() { await jpost("/api/settings", { autoUpdate: { enabled: $("autoEnabled").checked, time: $("autoTime").value || "04:30" } }); toast("定时更新已保存", "ok"); refresh(); }
+async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast("出站代理已保存", "ok"); }
+async function restartMain() {
+  const ok = await localConfirm("确认重启", "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。", true);
+  if (!ok) return;
+  updateMsgEverywhere("重启指令已发送…");
+  toast("重启指令已发送…");
+  await jpost("/api/main/restart");
+  refresh();
+}
 async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/logs?lines=400" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
 loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;
