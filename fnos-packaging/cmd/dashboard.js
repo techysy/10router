@@ -976,6 +976,14 @@ function renderUi() {
   .auth-cmd code { flex:1; white-space:pre-wrap; word-break:break-all; }
   .auth-cmd button { padding:2px 8px; font-size:11px; flex-shrink:0; }
   /* 文件选择：原生 input 隐藏，样式化胶囊按钮承接 */
+  /* 胶囊开关（主应用 Toggle 同款语义）：轨道 44x24，白球 20，选中 brand 填充 */
+  .switch { position:relative; display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+  .switch input { position:absolute; opacity:0; width:0; height:0; }
+  .switch .track { width:44px; height:24px; border-radius:999px; background:var(--soft); border:1px solid var(--line); transition:background .2s ease, border-color .2s ease; position:relative; flex-shrink:0; }
+  .switch .thumb { position:absolute; top:1px; left:1px; width:20px; height:20px; border-radius:999px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s ease; }
+  .switch input:checked + .track { background:var(--brand); border-color:var(--brand); }
+  .switch input:checked + .track .thumb { transform:translateX(20px); }
+  .switch input:focus-visible + .track { outline:2px solid var(--brand); outline-offset:2px; }
   .file-pill { position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:6px; }
   .file-pill input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
   .file-name { font-size:12px; color:var(--mut); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1023,14 +1031,14 @@ function renderUi() {
   </div>
   <div class="card" style="margin-top:16px"><h2 data-i18n="autoCard"></h2>
     <div class="row">
-      <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span data-i18n="autoEnable">启用</span></label>
+      <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
       <select id="autoFreq" onchange="saveAuto()" title="更新频率">
         <option value="daily" data-i18n="freqDaily">每天</option>
         <option value="weekly" data-i18n="freqWeekly">每周</option>
       </select>
       <span id="autoWeekdayWrap" style="display:none"><select id="autoWeekday" onchange="saveAuto()" title="周几检查">
-        <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
-        <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option>
+        <option value="1" data-i18n="wd1">周一</option><option value="2" data-i18n="wd2">周二</option><option value="3" data-i18n="wd3">周三</option>
+        <option value="4" data-i18n="wd4">周四</option><option value="5" data-i18n="wd5">周五</option><option value="6" data-i18n="wd6">周六</option><option value="0" data-i18n="wd0">周日</option>
       </select></span>
       <input type="time" id="autoTime" onchange="saveAuto()">
       <span class="mut" id="autoHint"></span>
@@ -1058,14 +1066,14 @@ function renderUi() {
   </div>
   <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
     <div class="row">
-      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"> <span data-i18n="autoEnable">启用</span></label>
+      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
       <select id="autoFreq2" onchange="saveAuto()" title="更新频率">
         <option value="daily" data-i18n="freqDaily">每天</option>
         <option value="weekly" data-i18n="freqWeekly">每周</option>
       </select>
       <span id="autoWeekdayWrap2" style="display:none"><select id="autoWeekday2" onchange="saveAuto()" title="周几检查">
-        <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
-        <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option>
+        <option value="1" data-i18n="wd1">周一</option><option value="2" data-i18n="wd2">周二</option><option value="3" data-i18n="wd3">周三</option>
+        <option value="4" data-i18n="wd4">周四</option><option value="5" data-i18n="wd5">周五</option><option value="6" data-i18n="wd6">周六</option><option value="0" data-i18n="wd0">周日</option>
       </select></span>
       <input type="time" id="autoTime2" onchange="saveAuto()">
       <span class="mut" id="autoHint2"></span>
@@ -1118,6 +1126,7 @@ const I18N = {
     autoEnable: "启用", freqDaily: "每天", freqWeekly: "每周",
     weekdayNames: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
     next: "下次: ", every: "每天", everyWeek: "每周",
+    wd0: "周日", wd1: "周一", wd2: "周二", wd3: "周三", wd4: "周四", wd5: "周五", wd6: "周六",
     autoHint: "到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。",
     quickUpdate: "快速更新", checkUpdate: "检查更新", btnUpdate: "一键更新到 latest",
     uploadCard: "上传安装（离线通道）", pickFile: "选择 tgz", noFile: "未选择文件",
@@ -1150,7 +1159,8 @@ const I18N = {
     inFlight: "Update in progress: ", last: "Last: ",
     autoEnable: "Enable", freqDaily: "Daily", freqWeekly: "Weekly",
     weekdayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    next: "Next: ", every: "Daily", everyWeek: "Weekly",
+    next: "Next: ", every: "Daily", everyWeek: "Weekly ",
+    wd0: "Sun", wd1: "Mon", wd2: "Tue", wd3: "Wed", wd4: "Thu", wd5: "Fri", wd6: "Sat",
     autoHint: "Checks npm latest at the scheduled time → queues the update → health check. Retries every 2h on failure (max 3/day), rolls back to the previous build if startup fails.",
     quickUpdate: "Quick update", checkUpdate: "Check update", btnUpdate: "Update to latest",
     uploadCard: "Upload install (offline)", pickFile: "Pick tgz", noFile: "No file selected",
@@ -1370,7 +1380,7 @@ async function restartMain() {
   refresh();
 }
 async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/logs?lines=400" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
-loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
+applyLang(); loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;
 }
 
