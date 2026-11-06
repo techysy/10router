@@ -36,6 +36,7 @@
   - StepFun 审核拦截 / 轮询超时 / 空音频此前统一映射 502/504，会把健康账号冷却 30 秒；改为业务失败直接返回，只有 5xx 才走账号冷却。
   - `/v1/audio/music` 在缺 `musicConfig` 时落入 chat 分支，等于把音乐端点变成第二个 chat 端点（传任意聊天模型会真的执行）。新增 `isMusicModel` 守卫，容忍裸 id / 单前缀 / 双前缀。
   - acemusic 计价只登记了命名空间形态，裸 id 查不到行时 `calculateCost` 静默返回 0；两个键都补齐。同时补上 `checkApiKeyModelAccess`（与 chat 端点同一份 per-key 白名单）与 `x-connection-id` 连接固定。
+- **免密面板（requireLogin=false）的 OAuth 传输被 guard 拦死，局域网导出与 CD 远程通道全 401**：`/api/oauth/transfer/*` 在 ALWAYS_PROTECTED 名单里只认 JWT / CLI token，而免密部署的浏览器按设计没有 JWT，回环例外又只覆盖本机请求——NAS 局域网打开仪表盘点「导出 OAuth 账号」直接报「会话已过期」（2026-11-07 实测），CreditDaddy 从 Windows 远程走传输通道同理被挡。现按 import-usage 同款「自带凭据即放行到 route 自验」模式：POST 携带 `x-10r-password` 头的交给路由（export 内部 bcrypt 重验面板密码、import 由传输口令的 GCM 封印把关），空头不算凭据仍 401；跨站页无法伪造自定义头（preflight 不放行），猜错密码过不了 bcrypt——`/api/auth/verify-password` 在免密模式下本就是远程可达的同级口，未新增暴露类。
 
 ### 🧪 测试与工程
 

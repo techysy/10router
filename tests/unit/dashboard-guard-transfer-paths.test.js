@@ -97,6 +97,21 @@ describe("audit: guard behavior for new sensitive paths (requireLogin=false)", (
     }
   });
 
+  it("transfer export/import with an explicit dashboard password header passes the guard from anywhere (route re-auths it)", async () => {
+    // Remote operator on a requireLogin=false NAS has no JWT by design; the
+    // password header is the credential and the route's verifyDashboardPassword
+    // is the real check. Mirrors the import-usage self-authenticating pattern.
+    for (const p of ["/api/oauth/transfer/export", "/api/oauth/transfer/import"]) {
+      expect(await proxy(req(p, "10.0.0.5", { "x-10r-password": "pw" }))).toBe(mocks.nextResponse);
+      // legacy alias counts
+      expect(await proxy(req(p, "10.0.0.5", { "x-9r-password": "pw" }))).toBe(mocks.nextResponse);
+      // an empty header value is NOT a credential
+      expect((await proxy(req(p, "10.0.0.5", { "x-10r-password": "" }))).status).toBe(401);
+      // wrong method never passes
+      expect((await proxy({ ...req(p, "10.0.0.5", { "x-10r-password": "pw" }), method: "GET" })).status).toBe(401);
+    }
+  });
+
   it("usage/quotas: GET with a valid virtual key passes from anywhere; no/invalid key stays 401", async () => {
     mocks.getSettings.mockResolvedValue({ requireLogin: true });
     mocks.validateApiKey.mockImplementation(async (k) => k === "sk-good");

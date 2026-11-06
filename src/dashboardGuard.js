@@ -78,8 +78,9 @@ const ALWAYS_PROTECTED = [
   // OAuth credentials transfer: export dumps live tokens (encrypted by a
   // user passphrase AFTER the guard), import writes them. Even with
   // requireLogin=false these must demand credentials (export re-checks the
-  // dashboard password inside). Exception: same-machine import AND export,
-  // see the transfer branch in proxy() — the route keeps its own re-auth.
+  // dashboard password inside). Exceptions, both passing to the route's own
+  // re-auth: same-machine requests, and requests carrying the dashboard
+  // password header — see the transfer branches in proxy().
   "/api/oauth/transfer/",
 ];
 
@@ -366,6 +367,25 @@ export async function proxy(request) {
     (pathname === "/api/oauth/transfer/import" || pathname === "/api/oauth/transfer/export") &&
     isLocalRequest(request) &&
     (await isAuthenticated(request))
+  ) {
+    return NextResponse.next();
+  }
+
+  // Same two paths carrying an explicit dashboard password header: the guard's
+  // cookie/CLI-token checks cannot see a header credential, but the ROUTE is
+  // the real authorization — export re-authenticates the password
+  // (verifyDashboardPassword), import is sealed by the transfer passphrase's
+  // GCM tag. requireLogin=false deployments (LAN/NAS) have no JWT by design,
+  // and their remote operator's transfer dialog — plus CreditDaddy's remote
+  // channel — otherwise dies at this guard with 401 before the route's own
+  // re-auth ever runs. Same self-authenticating pattern as the import-usage
+  // branch above; cross-site pages cannot forge the custom header without a
+  // preflight this guard never grants, and a guessed password still fails the
+  // route's bcrypt check. No header → ALWAYS_PROTECTED as before.
+  if (
+    request.method === "POST" &&
+    (pathname === "/api/oauth/transfer/import" || pathname === "/api/oauth/transfer/export") &&
+    readDashboardPassword(request)
   ) {
     return NextResponse.next();
   }
