@@ -420,6 +420,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
     const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
     const earliestExpiryFirst = providerOverride.earliestExpiryFirst === true;
+    // #Loomy-daily-first: burn each account's daily gift (use-it-or-lose-it)
+    // before touching permanent points. Rank: highest daily-grant remaining
+    // first; drained-daily accounts fall to the tail ordered by permanent
+    // balance ascending. Schedulable on any provider whose usage exposes the
+    // daily/permanent pair (Loomy today). 声明必须在 433 行的背景刷新门之前
+    // ——const TDZ 曾把它炸成 ReferenceError（CI regression 8+7 抓到）。
+    const dailyGrantFirst = providerOverride.dailyGrantFirst === true;
 
     // Trigger non-blocking background quota checks if earliest-expiry is active and any account is missing/stale.
     // Skipped during an active channel breaker: the channel is being rejected wholesale (e.g. 11128),
@@ -487,13 +494,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     let orderedConnections = poolConnections;
     const quotaCategory = getProviderQuotaCategory(providerId);
-    // #Loomy-daily-first: burn each account's daily gift (use-it-or-lose-it)
-    // before touching permanent points. Rank: highest daily-grant remaining
-    // first; accounts whose daily grant is drained fall to the tail ordered by
-    // permanent balance ascending (burn the odd change first); priority as the
-    // final tie-breaker. Schedulable on any provider whose usage exposes the
-    // daily/permanent pair (Loomy today).
-    const dailyGrantFirst = providerOverride.dailyGrantFirst === true;
+    // 排序键语义见 dailyGrantFirst 声明处（ earliestExpiryFirst 旁）。
     const isPackAssetProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PACK_ASSET;
     const isPureBalanceProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PURE_BALANCE;
     const balanceStrategy = providerOverride.balanceStrategy || null;
