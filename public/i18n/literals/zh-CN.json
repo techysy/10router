@@ -1775,6 +1775,7 @@
   "Purchased Credits": "加量额度",
   "Earliest Expiry First": "到期优先调度",
   "Earliest Pack Expiry": "到期包优先消耗",
+  "Daily Grant First": "每日赠送积分优先",
   "Prioritize burning resource packs that are nearest to permanent expiration": "优先榨干即将自然过期的资源包（过期作废），避免点数浪费",
   "Subscription Relay": "订阅循环接力 (Relay)",
   "Relay between accounts and hand off to next carrier when window reaches 5% red zone": "单号集中服务，短窗降至 5% 红区时平滑接力至下一号，保证多号交替循环回血",

@@ -5,7 +5,7 @@ import { MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "open-sse/conf
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
-import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
+import { extractConnectionBalance, extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
 import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota, getAntigravityModelFamily } from "./antigravityQuota.js";
@@ -172,6 +172,13 @@ function triggerBackgroundQuotaRefresh(connections) {
         const parsedBalance = extractConnectionBalance(usage);
         const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
 
+        // #Loomy-daily-first: persist the daily-grant / permanent split so the
+        // dailyGrantFirst scheduler can rank accounts without a live usage call.
+        const grantPair = extractDailyGrantAndPermanent(usage);
+        const grantPatch = grantPair
+          ? { dailyGrantRemaining: grantPair.dailyRemaining, dailyGrantTotal: grantPair.dailyTotal, permanentBalance: grantPair.permanent }
+          : {};
+
         await updateProviderConnection(conn.id, {
           earliestPackageExpiry: expiryInfo?.expiry || null,
           earliestPackageName: expiryInfo?.name || null,
@@ -194,6 +201,7 @@ function triggerBackgroundQuotaRefresh(connections) {
           quotaCheckedAt: new Date().toISOString(),
           ...famPatch,
           ...balancePatch,
+          ...grantPatch,
         });
       } catch {
         // Non-blocking, ignore background errors
@@ -476,6 +484,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     let orderedConnections = poolConnections;
     const quotaCategory = getProviderQuotaCategory(providerId);
+    // #Loomy-daily-first: burn each account's daily gift (use-it-or-lose-it)
+    // before touching permanent points. Rank: highest daily-grant remaining
+    // first; accounts whose daily grant is drained fall to the tail ordered by
+    // permanent balance ascending (burn the odd change first); priority as the
+    // final tie-breaker. Schedulable on any provider whose usage exposes the
+    // daily/permanent pair (Loomy today).
+    const dailyGrantFirst = providerOverride.dailyGrantFirst === true;
     const isPackAssetProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PACK_ASSET;
     const isPureBalanceProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PURE_BALANCE;
     const balanceStrategy = providerOverride.balanceStrategy || null;
@@ -515,6 +530,26 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         if (balA !== null && balB !== null && balA !== balB) {
           return balanceStrategy === "lowest-first" ? balA - balB : balB - balA;
         }
+        return (a.priority || 999) - (b.priority || 999);
+      });
+    } else if (dailyGrantFirst && poolConnections.length > 1) {
+      // Daily grant first (Loomy): use-it-or-lose-it 5000/day burns before any
+      // permanent point. Accounts with a live daily remaining rank by it
+      // descending; drained-daily accounts tail by permanent ascending.
+      // Accounts without the daily/permanent pair keep manual priority order
+      // between the two groups.
+      orderedConnections = [...poolConnections].sort((a, b) => {
+        const da = typeof a.dailyGrantRemaining === "number" ? a.dailyGrantRemaining : null;
+        const db = typeof b.dailyGrantRemaining === "number" ? b.dailyGrantRemaining : null;
+        const hasA = da !== null && da > 0;
+        const hasB = db !== null && db > 0;
+        // Group 1: live daily grant (descending — biggest gift first)
+        if (hasA && hasB && da !== db) return db - da;
+        if (hasA !== hasB) return hasA ? -1 : 1;
+        // Group 2: drained daily (or unknown) — permanent ascending (odd change first)
+        const pa = typeof a.permanentBalance === "number" ? a.permanentBalance : null;
+        const pb = typeof b.permanentBalance === "number" ? b.permanentBalance : null;
+        if (pa !== null && pb !== null && pa !== pb) return pa - pb;
         return (a.priority || 999) - (b.priority || 999);
       });
     }

@@ -114,6 +114,7 @@ export default function ProviderDetailPage() {
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
   const [balanceStrategy, setBalanceStrategy] = useState("priority");
+  const [dailyGrantFirst, setDailyGrantFirst] = useState(false);
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
@@ -664,6 +665,7 @@ export default function ProviderDetailPage() {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
+      setDailyGrantFirst(override.dailyGrantFirst === true);
       setOauthTransferEnabled(settingsData.codeBuddyOAuthImport === true);
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
@@ -734,6 +736,7 @@ export default function ProviderDetailPage() {
     stickyLimit,
     earliestExpiry = earliestExpiryFirst,
     balStrategy = balanceStrategy,
+    grantFirst = dailyGrantFirst,
   ) => {
     try {
       const settingsRes = await fetch("/api/settings", { cache: "no-store" });
@@ -761,6 +764,12 @@ export default function ProviderDetailPage() {
         override.balanceStrategy = balStrategy;
       } else {
         delete override.balanceStrategy;
+      }
+
+      if (grantFirst) {
+        override.dailyGrantFirst = true;
+      } else {
+        delete override.dailyGrantFirst;
       }
 
       const updated = { ...current };
@@ -793,24 +802,38 @@ export default function ProviderDetailPage() {
       saveProviderStrategy("round-robin", providerStickyLimit || "1", false, balanceStrategy);
     } else if (value === "earliest") {
       setEarliestExpiryFirst(true);
+      setDailyGrantFirst(false);
       setProviderStrategy(null);
-      saveProviderStrategy(null, providerStickyLimit, true, balanceStrategy);
+      saveProviderStrategy(null, providerStickyLimit, true, balanceStrategy, false);
+    } else if (value === "daily-grant") {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(true);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy, true);
     } else {
       setEarliestExpiryFirst(false);
+      setDailyGrantFirst(false);
       setProviderStrategy(null);
-      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy);
+      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy, false);
     }
   };
 
   const handleBalanceStrategyChange = (value) => {
     setBalanceStrategy(value);
-    if (value === "round-robin") {
+    if (value === "daily-grant") {
+      // Daily Grant First（Loomy）：与 balanceStrategy 互斥——走独立的排序分支
+      setDailyGrantFirst(true);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, "priority", true);
+    } else if (value === "round-robin") {
+      setDailyGrantFirst(false);
       setProviderStrategy("round-robin");
       if (!providerStickyLimit) setProviderStickyLimit("1");
-      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value);
+      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value, false);
     } else {
+      setDailyGrantFirst(false);
       setProviderStrategy(null);
-      saveProviderStrategy(null, providerStickyLimit, false, value);
+      saveProviderStrategy(null, providerStickyLimit, false, value, false);
     }
   };
 
@@ -2197,7 +2220,7 @@ export default function ProviderDetailPage() {
 
                 // 1. Pack Asset Providers (CodeBuddy, Qoder)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
-                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
+                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2209,6 +2232,7 @@ export default function ProviderDetailPage() {
                           onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                           options={[
                             { value: "earliest", label: translate("Earliest Pack Expiry") },
+                            { value: "daily-grant", label: translate("Daily Grant First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                           ]}
@@ -2234,7 +2258,7 @@ export default function ProviderDetailPage() {
 
                 // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
-                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
+                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2285,6 +2309,7 @@ export default function ProviderDetailPage() {
                             { value: "lowest-first", label: translate("Lowest Balance First") },
                             { value: "highest-first", label: translate("Highest Balance First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "daily-grant", label: translate("Daily Grant First") },
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
                         />
@@ -2316,7 +2341,7 @@ export default function ProviderDetailPage() {
                 }
 
                 // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
-                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
+                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
                 return (
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -2328,6 +2353,7 @@ export default function ProviderDetailPage() {
                         onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                         options={[
                           { value: "earliest", label: translate("Earliest Expiry First") },
+                          { value: "daily-grant", label: translate("Daily Grant First") },
                           { value: "round-robin", label: translate("Round Robin (Balanced)") },
                           { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                         ]}

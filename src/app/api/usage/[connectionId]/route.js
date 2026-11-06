@@ -3,6 +3,7 @@ import "open-sse/index.js";
 
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { getUsageForProvider } from "open-sse/services/usage.js";
+import { extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
@@ -282,6 +283,16 @@ export async function computeConnectionUsage(connection, { force = false } = {})
           const extBalance = extractConnectionBalance(usage);
           if (typeof extBalance === "number") {
             await updateProviderConnection(connection.id, { quotaBalance: extBalance });
+          }
+          // #Loomy-daily-first: persist the daily/permanent split for the
+          // scheduler and the dashboard's dual-slot card.
+          const grantPair = extractDailyGrantAndPermanent(usage);
+          if (grantPair) {
+            await updateProviderConnection(connection.id, {
+              dailyGrantRemaining: grantPair.dailyRemaining,
+              dailyGrantTotal: grantPair.dailyTotal,
+              permanentBalance: grantPair.permanent,
+            });
           }
         } catch { /* ignore */ }
       } else if (PUSH_ONLY_USAGE_PROVIDERS.has(connection.provider) && usage && usage.message) {

@@ -14,6 +14,7 @@ import {
   isResettingRow,
   groupRowsByFamily,
   isStoredValueRow,
+  findDualSlotPair,
   joinsPackPool,
   meterTone,
   splitFamilyWindow,
@@ -121,6 +122,67 @@ function remainingOf(p) {
  *   14.95（CNY）                            余额
  *   [==================== 100%]
  */
+/**
+ * #Loomy dual-slot card —— 「永久积分 + 每日赠送积分」配对专用形态：
+ *
+ *   [✦] 20,560                        永久 16,560 · 每日 4,000/5,000
+ *   [======== 永久槽 ========][=== 每日槽 ===]
+ *   永久积分                              16,560
+ *   [==================== 100%]
+ *   每日赠送积分                          4,000 / 5,000
+ *   [====== 80% ======]
+ *
+ * 大数 = 永久剩余 + 每日剩余（今天能花的总额）；段式轨道按两槽剩余占比
+ * 分段（永久实心、每日亮绿），两槽明细行沿用 QuotaRow 既有形态。
+ */
+function renderDualSlot(permanent, daily, className) {
+  const permRemaining = remainingOf(permanent);
+  const dailyRemaining = remainingOf(daily);
+  const permTotal = Number(permanent.total || 0);
+  const dailyTotal = Number(daily.total || 0);
+  const totalRemaining = permRemaining + dailyRemaining;
+  const permShare = totalRemaining > 0 ? permRemaining / totalRemaining : 1;
+  const dailyPct = dailyTotal > 0 ? (dailyRemaining / dailyTotal) * 100 : 0;
+  const dailyCritical = dailyPct > 0 && dailyPct < CRITICAL_PCT;
+
+  return (
+    <div className={cn("min-w-0 space-y-2", className)}>
+      {/* 大数总额 + 双槽小字 */}
+      <div className="flex items-end justify-between gap-3">
+        <span className="flex items-end gap-1.5 tabular-nums">
+          <CreditIcon className="size-[12px] shrink-0 self-center text-primary" />
+          <b className="text-[14px] font-bold leading-none text-text">{fmt(totalRemaining)}</b>
+        </span>
+        <span className="inline-flex shrink-0 items-baseline gap-3 text-[11px] leading-none tabular-nums text-text-muted">
+          <span>永久 {fmt(permRemaining)}</span>
+          <span className={dailyCritical ? "text-[color:var(--bad)]" : ""}>
+            每日 {fmt(dailyRemaining)}/{fmt(dailyTotal)}
+          </span>
+        </span>
+      </div>
+      {/* 双槽段式轨道：永久槽 + 每日槽（剩余占比分段） */}
+      <MeterTrack
+        className="flex gap-[2px]"
+        role="img"
+        aria-label={`永久 ${fmt(permRemaining)}，每日 ${fmt(dailyRemaining)}/${fmt(dailyTotal)}`}
+      >
+        {permRemaining > 0 && (
+          <span className="block h-full" style={{ flex: `${permShare.toFixed(4)} 1 0`, background: POOL_GREEN }} />
+        )}
+        {dailyRemaining > 0 && (
+          <span className="block h-full" style={{ flex: `${(1 - permShare).toFixed(4)} 1 0`, background: dailyCritical ? meterSolid(0) : POOL_GREEN, opacity: 0.75 }} />
+        )}
+        {permRemaining === 0 && dailyRemaining === 0 && (
+          <span className="block h-full w-full" />
+        )}
+      </MeterTrack>
+      {/* 两槽明细行（沿用 QuotaRow 双行形态） */}
+      <QuotaRow row={permanent} />
+      <QuotaRow row={daily} />
+    </div>
+  );
+}
+
 function QuotaRow({ row, label = null, inset = false }) {
   const total = Number((row.totalNum ?? row.total) || 0);
   const remaining = Number.isFinite(row.remainingNum)
@@ -331,6 +393,14 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
     const totalNum = Number(p.total || 0);
     return { ...p, totalNum, remainingNum: remainingOf(p) };
   });
+
+  // #Loomy dual-slot：永久积分（储值）+ 每日赠送（滚动）同时在场 → 总额大数
+  // 在外、内部双槽（永久槽 / 每日槽）双条。命中即短路返回，不走通用池逻辑
+  // ——通用池会把 stored-value 与 recurring 拆成两张互不相干的形状。
+  const dualSlot = findDualSlotPair(withNums);
+  if (dualSlot) {
+    return renderDualSlot(dualSlot.permanent, dualSlot.daily, className);
+  }
 
   // Cycle rows split two ways (see classifyCycleRows): MONTHLY rows are resource
   // packs that expire at month end (codebuddy / qoder), so they belong in the
