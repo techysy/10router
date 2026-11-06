@@ -934,7 +934,8 @@ function renderUi() {
   .mut { color:var(--mut); font-size:12px; }
   .top { max-width:880px; margin:0 auto; display:flex; align-items:center; gap:10px; }
   .top .spacer { flex:1; }
-  #themeBtn { background:var(--card); border:1px solid var(--line); color:var(--txt); width:34px; height:34px; padding:0; font-size:16px; }
+  #themeBtn, #langBtn, #ghBtn { background:var(--card); border:1px solid var(--line); color:var(--txt); width:34px; height:34px; padding:0; font-size:16px; display:inline-flex; align-items:center; justify-content:center; }
+  #langBtn { font-size:12px; font-weight:700; }
   /* 胶囊分段控件（dsh 同款 seg-ctl）：浅灰槽 + 激活项浮起白底 */
   .tabs { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); margin:14px 0 0; }
   .tabs button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 14px; border-radius:7px; cursor:pointer; }
@@ -994,10 +995,12 @@ function renderUi() {
 <div id="modalMask"><div class="modal"><h3 id="modalTitle"></h3><p id="modalMsg"></p><input id="modalInput" style="display:none"><div class="row"><button class="ghost" id="modalCancel">取消</button><button id="modalOk">确定</button></div></div></div>
 <div class="top">
   <div>
-    <h1>10Router · fnOS 管理面板</h1>
-    <div class="mut">独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。</div>
+    <h1 id="h1Title">10Router · fnOS 管理面板</h1>
+    <div class="mut" id="subTitle">独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。</div>
   </div>
   <span class="spacer"></span>
+  <button id="ghBtn" onclick="window.open('https://github.com/techysy/10router', '_blank')" title="GitHub" aria-label="GitHub"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.75 2.69 1.25 3.34.95.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 2.87-.39c.97 0 1.95.13 2.87.39 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.04.77 2.1 0 1.52-.01 2.74-.01 3.11 0 .3.2.66.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg></button>
+  <button id="langBtn" onclick="toggleLang()" title="Language">EN</button>
   <button id="themeBtn" onclick="toggleTheme()" title="切换日/夜主题" aria-label="切换日/夜主题"><svg id="themeIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg></button>
 </div>
 <div style="max-width:880px;margin:0 auto"><div class="tabs" id="tabs">
@@ -1009,21 +1012,21 @@ function renderUi() {
 <div class="grid">
 
 <div class="tabpane on" id="pane-overview">
-  <div class="card"><h2>主应用状态</h2>
-    <div class="row" id="mainStatus"><span class="mut">加载中…</span></div>
+  <div class="card"><h2 data-i18n="mainStatus"></h2>
+    <div class="row" id="mainStatus"><span class="mut" data-i18n="loading">加载中…</span></div>
   </div>
-  <div class="card" style="margin-top:16px"><h2>版本与更新</h2>
-    <div class="row" id="versionRow"><span class="mut">加载中…</span></div>
+  <div class="card" style="margin-top:16px"><h2 data-i18n="versionCard"></h2>
+    <div class="row" id="versionRow"><span class="mut" data-i18n="loading">加载中…</span></div>
     <div class="row" style="margin-top:10px">
       <span class="mut" id="updateMsg"></span>
     </div>
   </div>
-  <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
+  <div class="card" style="margin-top:16px"><h2 data-i18n="autoCard"></h2>
     <div class="row">
-      <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span>启用</span></label>
+      <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span data-i18n="autoEnable">启用</span></label>
       <select id="autoFreq" onchange="saveAuto()" title="更新频率">
-        <option value="daily">每天</option>
-        <option value="weekly">每周</option>
+        <option value="daily" data-i18n="freqDaily">每天</option>
+        <option value="weekly" data-i18n="freqWeekly">每周</option>
       </select>
       <span id="autoWeekdayWrap" style="display:none"><select id="autoWeekday" onchange="saveAuto()" title="周几检查">
         <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
@@ -1032,32 +1035,33 @@ function renderUi() {
       <input type="time" id="autoTime" onchange="saveAuto()">
       <span class="mut" id="autoHint"></span>
     </div>
-    <div class="mut" style="margin-top:8px">到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
+    <div class="mut" style="margin-top:8px"></div>
+    <div class="mut" style="margin-top:8px" data-i18n="autoHint">到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
   </div>
 </div>
 
 <div class="tabpane" id="pane-update">
-  <div class="card"><h2>快速更新</h2>
+  <div class="card"><h2 data-i18n="quickUpdate"></h2>
     <div class="row">
-      <button class="ghost" onclick="checkUpdate()">检查更新</button>
-      <button id="btnUpdate" onclick="runUpdate()">一键更新到 latest</button>
+      <button class="ghost" onclick="checkUpdate()" data-i18n="checkUpdate">检查更新</button>
+      <button id="btnUpdate" onclick="runUpdate()" data-i18n="btnUpdate">一键更新到 latest</button>
       <span class="mut" id="updateMsgInline"></span>
     </div>
   </div>
-  <div class="card" style="margin-top:16px"><h2>上传安装（离线通道）</h2>
+  <div class="card" style="margin-top:16px"><h2 data-i18n="uploadCard"></h2>
     <div class="row">
-      <span class="file-pill ghost">选择 tgz<input type="file" id="fileInput" accept=".tgz,.gz" onchange="onFilePick()"></span>
-      <span class="file-name" id="fileName">未选择文件</span>
-      <button class="ghost" onclick="uploadInstall()">上传安装</button>
+      <span class="file-pill ghost"><span data-i18n="pickFile">选择 tgz</span><input type="file" id="fileInput" accept=".tgz,.gz" onchange="onFilePick()"></span>
+      <span class="file-name" id="fileName" data-i18n-default="noFile">未选择文件</span>
+      <button class="ghost" onclick="uploadInstall()" data-i18n="uploadBtn">上传安装</button>
     </div>
-    <div class="mut" style="margin-top:8px">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
+    <div class="mut" style="margin-top:8px" data-i18n="uploadHint">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
   </div>
   <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
     <div class="row">
-      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"> <span>启用</span></label>
+      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"> <span data-i18n="autoEnable">启用</span></label>
       <select id="autoFreq2" onchange="saveAuto()" title="更新频率">
-        <option value="daily">每天</option>
-        <option value="weekly">每周</option>
+        <option value="daily" data-i18n="freqDaily">每天</option>
+        <option value="weekly" data-i18n="freqWeekly">每周</option>
       </select>
       <span id="autoWeekdayWrap2" style="display:none"><select id="autoWeekday2" onchange="saveAuto()" title="周几检查">
         <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
@@ -1070,40 +1074,130 @@ function renderUi() {
 </div>
 
 <div class="tabpane" id="pane-ops">
-  <div class="card"><h2>服务操作</h2>
+  <div class="card"><h2 data-i18n="opsCard"></h2>
     <div class="row">
-      <button class="ghost" onclick="restartMain()">重启主应用</button>
+      <button class="ghost" onclick="restartMain()" data-i18n="restartBtn">重启主应用</button>
     </div>
     <div id="authBox" style="margin-top:10px"></div>
   </div>
-  <div class="card" style="margin-top:16px"><h2>主应用日志</h2>
+  <div class="card" style="margin-top:16px"><h2 data-i18n="logsCard"></h2>
     <div class="row">
-      <input id="logFilter" placeholder="日志关键字过滤" style="flex:1">
-      <button class="ghost" onclick="loadLogs()">刷新</button>
+      <input id="logFilter" data-i18n-ph="logPh" placeholder="日志关键字过滤" style="flex:1">
+      <button class="ghost" onclick="loadLogs()" data-i18n="refresh">刷新</button>
     </div>
     <pre id="logBox" style="margin-top:10px">—</pre>
   </div>
 </div>
 
 <div class="tabpane" id="pane-settings">
-  <div class="card"><h2>出站代理（面板自身）</h2>
+  <div class="card"><h2 data-i18n="proxyCard"></h2>
     <div class="row">
-      <input id="proxyUrl" placeholder="http://user:pass@host:port（留空直连）" style="flex:1">
-      <button class="ghost" onclick="saveProxy()">保存</button>
+      <input id="proxyUrl" data-i18n-ph="proxyPh" placeholder="http://user:pass@host:port（留空直连）" style="flex:1">
+      <button class="ghost" onclick="saveProxy()" data-i18n="save">保存</button>
     </div>
-    <div class="mut" style="margin-top:8px">仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。</div>
+    <div class="mut" style="margin-top:8px" data-i18n="proxyHint">仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。</div>
   </div>
 </div>
 
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
+/* ── i18n：zh / en 双语，localStorage 持久化；t() 取串，缺 key 回落 zh ── */
+const I18N = {
+  zh: {
+    title: "10Router · fnOS 管理面板",
+    subtitle: "独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。",
+    tabOverview: "总览", tabUpdate: "更新", tabOps: "运维", tabSettings: "设置",
+    themeTitle: "切换日/夜主题", ghTitle: "GitHub",
+    mainStatus: "主应用状态", versionCard: "版本与更新", autoCard: "定时自动更新",
+    loading: "加载中…", running: "运行中 pid", stopped: "已停止",
+    healthy: "健康检查通过", unhealthy: "健康检查失败", stale: "构建不一致（需重启）",
+    ver: "版本", uptime: "已运行", day: "天", hour: "小时", min: "分",
+    local: "本地", latest: "latest", upToDate: "已是最新", updatable: "可更新",
+    inFlight: "更新进行中: ", last: "上次: ",
+    autoEnable: "启用", freqDaily: "每天", freqWeekly: "每周",
+    weekdayNames: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+    next: "下次: ", every: "每天", everyWeek: "每周",
+    autoHint: "到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。",
+    quickUpdate: "快速更新", checkUpdate: "检查更新", btnUpdate: "一键更新到 latest",
+    uploadCard: "上传安装（离线通道）", pickFile: "选择 tgz", noFile: "未选择文件",
+    uploadBtn: "上传安装", uploadHint: "NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。",
+    opsCard: "服务操作", restartBtn: "重启主应用",
+    logsCard: "主应用日志", logPh: "日志关键字过滤", refresh: "刷新",
+    proxyCard: "出站代理（面板自身）", proxyPh: "http://user:pass@host:port（留空直连）", save: "保存",
+    proxyHint: "仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。",
+    authOk: "已授权", authOkDesc: "重启走应用生命周期（appcenter-cli stop+start，状态机一致）",
+    authNo: "未授权", authNoDesc: "重启将回退内部模式（kill+nohup），应用中心状态可能短暂不同步。放行一次即永久生效：",
+    authSteps: "1. SSH 登录 NAS（管理员账号）\\n2. 复制下方命令执行\\n3. 点「重新检测」",
+    copy: "复制", recheck: "重新检测",
+    saved: "定时更新已保存", proxySaved: "出站代理已保存", copied: "已复制到剪贴板",
+    restartSent: "重启指令已发送…", pickFirst: "先选择 tgz 文件", uploading: "上传中… 正在写入 NAS",
+    installSent: "安装指令已下发，约 20 秒后刷新观察", checking: "检查中…",
+    confirmRestartT: "确认重启", confirmRestartM: "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。",
+    tokenT: "需要面板令牌", tokenM: "服务端设置了 PANEL_TOKEN，输入后本机记住。",
+    langBtn: "EN",
+  },
+  en: {
+    title: "10Router · fnOS Panel",
+    subtitle: "Runs independently of the main app; failed updates roll back automatically. Loopback-only by default.",
+    tabOverview: "Overview", tabUpdate: "Update", tabOps: "Ops", tabSettings: "Settings",
+    themeTitle: "Toggle light/dark theme", ghTitle: "GitHub",
+    mainStatus: "Main app status", versionCard: "Version & update", autoCard: "Scheduled auto-update",
+    loading: "Loading…", running: "Running pid", stopped: "Stopped",
+    healthy: "Health check OK", unhealthy: "Health check failed", stale: "Build mismatch (restart needed)",
+    ver: "ver", uptime: "up ", day: "d", hour: "h", min: "m",
+    local: "Local", latest: "latest", upToDate: "Up to date", updatable: "Update available",
+    inFlight: "Update in progress: ", last: "Last: ",
+    autoEnable: "Enable", freqDaily: "Daily", freqWeekly: "Weekly",
+    weekdayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    next: "Next: ", every: "Daily", everyWeek: "Weekly",
+    autoHint: "Checks npm latest at the scheduled time → queues the update → health check. Retries every 2h on failure (max 3/day), rolls back to the previous build if startup fails.",
+    quickUpdate: "Quick update", checkUpdate: "Check update", btnUpdate: "Update to latest",
+    uploadCard: "Upload install (offline)", pickFile: "Pick tgz", noFile: "No file selected",
+    uploadBtn: "Upload & install", uploadHint: "When the NAS cannot reach the internet: upload the tgz from your browser → magic check → install & restart.",
+    opsCard: "Service ops", restartBtn: "Restart main app",
+    logsCard: "Main app logs", logPh: "Filter logs by keyword", refresh: "Refresh",
+    proxyCard: "Outbound proxy (panel only)", proxyPh: "http://user:pass@host:port (empty = direct)", save: "Save",
+    proxyHint: "Applies only to the panel's own downloads / version checks (TLS handshake done after CONNECT); the main app's proxy is configured in the main dashboard's Settings page.",
+    authOk: "Authorized", authOkDesc: "Restarts go through the app lifecycle (appcenter-cli stop+start, state machine stays in sync)",
+    authNo: "Not authorized", authNoDesc: "Restart falls back to internal mode (kill+nohup); App Center state may briefly desync. Grant once — it persists:",
+    authSteps: "1. SSH into the NAS (admin)\\n2. Run the command below\\n3. Click Re-check",
+    copy: "Copy", recheck: "Re-check",
+    saved: "Auto-update saved", proxySaved: "Proxy saved", copied: "Copied to clipboard",
+    restartSent: "Restart command sent…", pickFirst: "Pick a tgz file first", uploading: "Uploading… writing to NAS",
+    installSent: "Install dispatched — refresh in ~20s", checking: "Checking…",
+    confirmRestartT: "Confirm restart", confirmRestartM: "Restarts the main app via the app lifecycle (appcenter-cli stop+start); back within ~1 min. Falls back to internal restart when unauthorized.",
+    tokenT: "Panel token required", tokenM: "The server has PANEL_TOKEN set; enter it once and it stays on this device.",
+    langBtn: "中",
+  },
+};
+let LANG = (() => { try { const v = localStorage.getItem("panelLang"); if (v === "en" || v === "zh") return v; } catch {} return (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en"; })();
+function t(key) { const d = I18N[LANG] || I18N.zh; const v = d[key] !== undefined ? d[key] : I18N.zh[key]; return v === undefined ? key : v; }
+function toggleLang() {
+  LANG = LANG === "zh" ? "en" : "zh";
+  try { localStorage.setItem("panelLang", LANG); } catch {}
+  applyLang();
+}
+function applyLang() {
+  document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
+  document.title = t("title");
+  $("h1Title").textContent = t("title");
+  $("subTitle").textContent = t("subtitle");
+  $("themeBtn").title = t("themeTitle"); $("themeBtn").setAttribute("aria-label", t("themeTitle"));
+  $("ghBtn").title = t("ghTitle"); $("ghBtn").setAttribute("aria-label", t("ghTitle"));
+  $("langBtn").textContent = t("langBtn");
+  document.querySelectorAll(".tabs button").forEach((b) => { b.textContent = t("tab" + b.dataset.tab[0].toUpperCase() + b.dataset.tab.slice(1)); });
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
+  applyTheme(curTheme());
+  loadLogs();
+}
 const token = localStorage.getItem("panelToken") || "";
 const headers = token ? { "x-panel-token": token } : {};
 async function jget(u) {
   const r = await fetch(u, { headers });
   if (r.status === 401) {
-    const t = await localModal({ title: "需要面板令牌", msg: "服务端设置了 PANEL_TOKEN，输入后本机记住。", input: "" });
+    const t = await localModal({ title: t("tokenT"), msg: t("tokenM"), input: "" });
     if (t) { localStorage.setItem("panelToken", t); location.reload(); }
     throw new Error("unauthorized");
   }
@@ -1171,6 +1265,7 @@ function toggleTheme() {
   applyTheme(next);
 }
 applyTheme(curTheme());
+applyLang();
 
 /* ── tabs ── */
 function switchTab(name) {
@@ -1181,23 +1276,23 @@ function switchTab(name) {
 try { const saved = localStorage.getItem("panelTab"); if (saved) switchTab(saved); } catch (e) {}
 
 function pill(ok, on, off) { return '<span class="pill ' + (ok ? "ok" : "bad") + '">' + (ok ? on : off) + "</span>"; }
-function fmtUptime(s) { if (s == null) return ""; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + "天" : "") + (h ? h + "小时" : "") + m + "分"; }
+function fmtUptime(s) { if (s == null) return ""; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + t("day") : "") + (h ? h + t("hour") : "") + m + t("min"); }
 function updateMsgEverywhere(text) { $("updateMsg").textContent = text; $("updateMsgInline").textContent = text; }
 
 async function refresh() {
   try {
     const s = await jget("/api/status");
     $("mainStatus").innerHTML =
-      pill(s.main.running, "运行中 pid " + s.main.pid, "已停止") + " " +
-      pill(s.main.healthy, "健康检查通过", "健康检查失败") +
-      (s.main.staleBuild ? ' <span class="pill warn">构建不一致（需重启）</span>' : "") +
-      '<span class="mut spacer"></span><span class="mut">版本 ' + (s.main.version || "?") + (s.main.uptimeSeconds != null ? " · 已运行 " + fmtUptime(s.main.uptimeSeconds) : "") + "</span>";
+      pill(s.main.running, t("running") + " " + s.main.pid, t("stopped")) + " " +
+      pill(s.main.healthy, t("healthy"), t("unhealthy")) +
+      (s.main.staleBuild ? ' <span class="pill warn">' + t("stale") + "</span>" : "") +
+      '<span class="mut spacer"></span><span class="mut">' + t("ver") + ' ' + (s.main.version || "?") + (s.main.uptimeSeconds != null ? " · " + t("uptime") + fmtUptime(s.main.uptimeSeconds) : "") + "</span>";
     $("versionRow").innerHTML =
-      "本地 <b>" + (s.update.localVersion || "?") + "</b> · latest <b>" + (s.update.latestVersion || "未拉取") + "</b> " +
-      (s.update.updateAvailable ? '<span class="pill warn">可更新</span>' : '<span class="pill ok">已是最新</span>') +
-      (s.update.inFlight ? ' <span class="pill warn">更新进行中: ' + s.update.inFlight.stage + "</span>" : "");
+      t("local") + " <b>" + (s.update.localVersion || "?") + "</b> · latest <b>" + (s.update.latestVersion || "—") + "</b> " +
+      (s.update.updateAvailable ? '<span class="pill warn">' + t("updatable") + "</span>" : '<span class="pill ok">' + t("upToDate") + "</span>") +
+      (s.update.inFlight ? ' <span class="pill warn">' + t("inFlight") + s.update.inFlight.stage + "</span>" : "");
     if (s.update.inFlight) $("btnUpdate").disabled = true; else $("btnUpdate").disabled = false;
-    if (s.update.last && s.update.last.at) updateMsgEverywhere("上次: " + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message);
+    if (s.update.last && s.update.last.at) updateMsgEverywhere(t("last") + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message);
     for (const [en, ef, ew, eww, et, eh] of [
       ["autoEnabled", "autoFreq", "autoWeekday", "autoWeekdayWrap", "autoTime", "autoHint"],
       ["autoEnabled2", "autoFreq2", "autoWeekday2", "autoWeekdayWrap2", "autoTime2", "autoHint2"],
@@ -1207,8 +1302,8 @@ async function refresh() {
       $(ew).value = String(s.autoUpdate.weekday ?? 3);
       $(eww).style.display = ($(ef).value === "weekly") ? "" : "none";
       $(et).value = s.autoUpdate.time || "04:30";
-      const NEXT_WORD = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-      const freqWord = $(ef).value === "weekly" ? ("每周" + (NEXT_WORD[$(ew).value] || "")) : "每天";
+      const NEXT_WORD = t("weekdayNames");
+      const freqWord = $(ef).value === "weekly" ? (t("everyWeek") + (NEXT_WORD[$(ew).value] || "")) : t("every");
       $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? (freqWord + " " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
     }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
@@ -1216,44 +1311,44 @@ async function refresh() {
     if (s.update.inFlight) setTimeout(refresh, 3000);
   } catch (e) { $("mainStatus").innerHTML = '<span class="mut">' + e.message + "</span>"; }
 }
-async function checkUpdate() { updateMsgEverywhere("检查中…"); const r = await jget("/api/update/check"); updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新"))); refresh(); }
+async function checkUpdate() { updateMsgEverywhere(t("checking")); const r = await jget("/api/update/check"); updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新"))); refresh(); }
 async function runUpdate() { $("btnUpdate").disabled = true; updateMsgEverywhere("已触发，进行中…"); await jpost("/api/update/run"); refresh(); }
 function onFilePick() {
   const f = $("fileInput").files[0];
-  $("fileName").textContent = f ? f.name + "（" + Math.round(f.size / 1048576) + "MB）" : "未选择文件";
+  $("fileName").textContent = f ? f.name + " (" + Math.round(f.size / 1048576) + "MB)" : t("noFile");
 }
 const GRANT_CMD = "echo '10router ALL=(root) NOPASSWD: /usr/local/bin/appcenter-cli' | sudo tee /etc/sudoers.d/10router-lifecycle\\nsudo chmod 440 /etc/sudoers.d/10router-lifecycle";
 function renderAuth(lc) {
   const box = $("authBox");
   if (lc.authorized) {
-    box.innerHTML = '<div class="auth-card ok"><div class="row"><span class="pill ok">已授权</span><span class="mut">重启走应用生命周期（appcenter-cli stop+start，状态机一致）</span><span class="spacer"></span><button class="ghost" onclick="recheckAuth()">重新检测</button></div></div>';
+    box.innerHTML = '<div class="auth-card ok"><div class="row"><span class="pill ok">' + t("authOk") + '</span><span class="mut">' + t("authOkDesc") + '</span><span class="spacer"></span><button class="ghost" onclick="recheckAuth()">' + t("recheck") + '</button></div></div>';
     return;
   }
   box.innerHTML = '<div class="auth-card">'
-    + '<div class="row"><span class="pill warn">未授权</span><span class="mut">重启将回退内部模式（kill+nohup），应用中心状态可能短暂不同步。放行一次即永久生效：</span></div>'
-    + '<div class="steps">1. SSH 登录 NAS（管理员账号）\\n2. 复制下方命令执行\\n3. 点「重新检测」</div>'
-    + '<div class="auth-cmd"><code>' + GRANT_CMD.replace(/\\n/g, "<br>") + '</code><button class="ghost" onclick="copyText(GRANT_CMD, this)">复制</button></div>'
-    + '<div class="row" style="margin-top:8px"><button class="ghost" onclick="recheckAuth()">重新检测</button></div>'
+    + '<div class="row"><span class="pill warn">' + t("authNo") + '</span><span class="mut">' + t("authNoDesc") + '</span></div>'
+    + '<div class="steps">' + t("authSteps").replace(/\\n/g, "<br>") + '</div>'
+    + '<div class="auth-cmd"><code>' + GRANT_CMD.replace(/\\n/g, "<br>") + '</code><button class="ghost" onclick="copyText(GRANT_CMD, this)">' + t("copy") + '</button></div>'
+    + '<div class="row" style="margin-top:8px"><button class="ghost" onclick="recheckAuth()">' + t("recheck") + '</button></div>'
     + '</div>';
 }
 async function recheckAuth() {
-  toast("重新检测中…");
+  toast(t("recheck") + "…");
   try { await jget("/api/auth/recheck"); } catch {}
-  toast("检测完成", "ok");
+  toast(t("upToDate"), "ok");
   refresh();
 }
 async function uploadInstall() {
   const f = $("fileInput").files[0];
-  if (!f) { toast("先选择 tgz 文件", "warn"); return; }
-  toast("上传中… 正在写入 NAS");
+  if (!f) { toast(t("pickFirst"), "warn"); return; }
+  toast(t("uploading"));
   const r = await fetch("/api/update/upload", { method: "PUT", headers: { "content-type": "application/octet-stream", ...headers }, body: f });
   const j = await r.json();
-  if (!r.ok) { toast("上传失败: " + (j.error || r.status), "bad"); return; }
-  const ok = await localConfirm("确认安装", "已通过魔数校验（" + j.kind + "，" + Math.round(j.size / 1048576) + "MB）。安装并重启主应用？", true);
+  if (!r.ok) { toast(t("uploading").slice(0,0) || "Upload failed: " + (j.error || r.status), "bad"); return; }
+  const ok = await localConfirm(t("uploadBtn"), "OK (" + j.kind + ", " + Math.round(j.size / 1048576) + "MB) → " + t("uploadHint"), true);
   if (!ok) return;
   await jpost("/api/install", { file: j.file });
   updateMsgEverywhere("安装进行中…");
-  toast("安装指令已下发，约 20 秒后刷新观察", "ok");
+  toast(t("installSent"), "ok");
   refresh();
 }
 async function saveAuto() {
@@ -1263,14 +1358,14 @@ async function saveAuto() {
     time: $("autoTime").value || "04:30",
     weekday: Number($("autoWeekday").value),
   } });
-  toast("定时更新已保存", "ok"); refresh();
+  toast(t("saved"), "ok"); refresh();
 }
-async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast("出站代理已保存", "ok"); }
+async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast(t("proxySaved"), "ok"); }
 async function restartMain() {
-  const ok = await localConfirm("确认重启", "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。", true);
+  const ok = await localConfirm(t("confirmRestartT"), t("confirmRestartM"), true);
   if (!ok) return;
-  updateMsgEverywhere("重启指令已发送…");
-  toast("重启指令已发送…");
+  updateMsgEverywhere(t("restartSent"));
+  toast(t("restartSent"));
   await jpost("/api/main/restart");
   refresh();
 }
