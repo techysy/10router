@@ -14,9 +14,9 @@
         "type": "text",
         "field": "target_port",
         "label": "目标端口",
-        "placeholder": "20126",
-        "initValue": "20126",
-        "desc": "10Router 管理面板端口号（纯数字，默认 20126）。不要带冒号。"
+        "placeholder": "20125",
+        "initValue": "20125",
+        "desc": "10Router 管理面板端口号（纯数字，默认 20125）。不要带冒号。"
       },
       {
         "type": "tips",

@@ -32,7 +32,7 @@ fi
 
 CMD_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROXY_PY="${CMD_DIR}/proxy.py"
-LISTEN_PORT="${TRIM_SERVICE_PORT:-28003}"
+LISTEN_PORT="${TRIM_SERVICE_PORT:-20130}"
 GATEWAY_PREFIX="/app/${APP_NAME}"
 SOCK_PATH="${TRIM_APPDEST_SOCK:-/var/apps/${APP_NAME}/target/app.sock}"
 
@@ -60,7 +60,7 @@ mkdir -p "$(dirname "${SOCK_PATH}")" 2>/dev/null || true
 
 read_target() {
     local ip port
-    ip="127.0.0.1"; port="20126"
+    ip="127.0.0.1"; port="20125"
     if [ -f "${CONF}" ]; then
         local v
         v="$(grep -E '^TARGET_IP=' "${CONF}" | head -1 | cut -d= -f2- | tr -d '[:space:]')"
@@ -158,9 +158,9 @@ start() {
 
     mkdir -p "${DATA_DIR}" 2>/dev/null || true
     if [ ! -f "${CONF}" ]; then
-        printf 'TARGET_IP=127.0.0.1\nTARGET_PORT=20126\n' > "${CONF}" 2>/dev/null || true
+        printf 'TARGET_IP=127.0.0.1\nTARGET_PORT=20125\n' > "${CONF}" 2>/dev/null || true
         chmod 600 "${CONF}" 2>/dev/null || true
-        echo "created default dashboard.conf (127.0.0.1:20126)"
+        echo "created default dashboard.conf (127.0.0.1:20125)"
     fi
 
     read -r t_ip t_port < <(read_target)

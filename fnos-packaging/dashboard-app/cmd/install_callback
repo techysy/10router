@@ -16,7 +16,7 @@ ip="${wizard_target_ip:-}"
 port="${wizard_target_port:-}"
 
 if [ -n "${ip}" ]; then
-    [ -z "${port}" ] && port="20126"
+    [ -z "${port}" ] && port="20125"
     printf 'TARGET_IP=%s
 TARGET_PORT=%s
 ' "${ip}" "${port}" > "${CONF}" 2>/dev/null
@@ -27,11 +27,11 @@ elif [ -f "${CONF}" ]; then
     echo "[$(date '+%F %T')] wizard_target_ip empty, keep existing dashboard.conf" >> "${LOG}"
 else
     printf 'TARGET_IP=127.0.0.1
-TARGET_PORT=20126
+TARGET_PORT=20125
 ' > "${CONF}" 2>/dev/null
     chmod 600 "${CONF}" 2>/dev/null
     chown "${APP_NAME}:${APP_NAME}" "${CONF}" 2>/dev/null || true
-    echo "[$(date '+%F %T')] saved default dashboard.conf: 127.0.0.1:20126" >> "${LOG}"
+    echo "[$(date '+%F %T')] saved default dashboard.conf: 127.0.0.1:20125" >> "${LOG}"
 fi
 
 echo "[$(date '+%F %T')] install_callback done" >> "${LOG}"

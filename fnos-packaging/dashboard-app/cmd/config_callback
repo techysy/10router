@@ -13,7 +13,7 @@ mkdir -p "${DATA_DIR}" 2>/dev/null
 echo "[$(date '+%F %T')] config_callback start target_ip='${target_ip:-}' target_port='${target_port:-}'" >> "${LOG}"
 
 if [ -n "${target_ip:-}" ]; then
-    port="${target_port:-20126}"
+    port="${target_port:-20125}"
     printf 'TARGET_IP=%s
 TARGET_PORT=%s
 ' "${target_ip}" "${port}" > "${CONF}" 2>/dev/null

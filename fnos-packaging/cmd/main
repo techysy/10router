@@ -53,8 +53,8 @@ LOG="${DATA_DIR}/10router.log"
 PID_FILE="${DATA_DIR}/10router.pid"
 
 # 管理面板（issue #97）：独立进程，主应用 stop/restart 不影响它 ——
-# 定时自动更新的调度器跑在这里。默认只听 127.0.0.1:20126。
-PANEL_PORT="${PANEL_PORT:-20126}"
+# 定时自动更新的调度器跑在这里。默认只听 127.0.0.1:20125。
+PANEL_PORT="${PANEL_PORT:-20125}"
 PANEL_PID_FILE="${DATA_DIR}/panel.pid"
 PANEL_LOG="${DATA_DIR}/panel.log"
 

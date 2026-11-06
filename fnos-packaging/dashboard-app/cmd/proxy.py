@@ -3,12 +3,12 @@
 
 双向监听:
   1. fnOS 统一网关 Unix domain socket (${TRIM_APPDEST}/target/app.sock)
-  2. 本地 TCP 端口 (默认 28003)
+  2. 本地 TCP 端口 (默认 20130)
 
-将请求转发至目标 10Router 管理面板 (默认 127.0.0.1:20126).
+将请求转发至目标 10Router 管理面板 (默认 127.0.0.1:20125).
 对于经过统一网关 /app/10router-dashboard 的请求:
   1. 剥除请求路径中的 GATEWAY_PREFIX 前缀 (/app/10router-dashboard)
-  2. 重写 Host 头为目标地址 (127.0.0.1:20126), 顺利通过管理面板的本地信任围栏
+  2. 重写 Host 头为目标地址 (127.0.0.1:20125), 顺利通过管理面板的本地信任围栏
   3. 当响应为 HTML 时, 重写内部的绝对 API 与资源引用, 补齐网关前缀
 """
 import http.client
@@ -20,7 +20,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "28003"))
+LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "20130"))
 GATEWAY_PREFIX = os.environ.get("GATEWAY_PREFIX", "/app/10router-dashboard")
 
 
@@ -57,7 +57,7 @@ _CONF_FILE = os.path.join(CONF_DIR, "dashboard.conf")
 
 
 def _load_target():
-    ip, port = "127.0.0.1", 20126
+    ip, port = "127.0.0.1", 20125
     try:
         if os.path.isfile(_CONF_FILE):
             with open(_CONF_FILE, encoding="utf-8") as f:

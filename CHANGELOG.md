@@ -6,7 +6,7 @@
 
 ### ✨ 新增
 
-- **fnOS 管理面板（#97，fpk 专属）**：`fnos-packaging` 新增独立管理进程 `cmd/dashboard.js`（Node stdlib 零依赖，默认仅监听 `127.0.0.1:20126`，可选 `PANEL_TOKEN` 鉴权），与主应用同生命周期但 restart 不中断——定时自动更新的调度器跑在这里。能力：npm latest 快速更新（aria2c 16 线程分段 + 断点续传，缺失回退 Node 原生；HTTP CONNECT 后显式 `tls.connect` 握手；60s 停滞看门狗）、tgz/zip 双魔数校验、浏览器上传离线安装、同卷三步热覆盖 + 健康检查/版本核验失败自动回滚上一版、每日 HH:mm 定时自动更新（错窗补跑一次、失败 2h 重试当日上限 3 次）、日志关键字过滤、`sudo -l` 折行解析。`cmd/main` 负责拉起；`uninstall_init` 卸载清理、`upgrade_callback` 升级后换新版面板。目标版本一律服务端从 npm 解析，绝不信请求体（延续 #9 纪律）。纯函数逻辑（semver/魔数/调度/sudo 解析）抽在 `cmd/dashboard-lib.js`，20 条 vitest 用例钉死。
+- **fnOS 管理面板（#97，fpk 专属）**：`fnos-packaging` 新增独立管理进程 `cmd/dashboard.js`（Node stdlib 零依赖，默认仅监听 `127.0.0.1:20125`，可选 `PANEL_TOKEN` 鉴权），与主应用同生命周期但 restart 不中断——定时自动更新的调度器跑在这里。能力：npm latest 快速更新（aria2c 16 线程分段 + 断点续传，缺失回退 Node 原生；HTTP CONNECT 后显式 `tls.connect` 握手；60s 停滞看门狗）、tgz/zip 双魔数校验、浏览器上传离线安装、同卷三步热覆盖 + 健康检查/版本核验失败自动回滚上一版、每日 HH:mm 定时自动更新（错窗补跑一次、失败 2h 重试当日上限 3 次）、日志关键字过滤、`sudo -l` 折行解析。`cmd/main` 负责拉起；`uninstall_init` 卸载清理、`upgrade_callback` 升级后换新版面板。目标版本一律服务端从 npm 解析，绝不信请求体（延续 #9 纪律）。纯函数逻辑（semver/魔数/调度/sudo 解析）抽在 `cmd/dashboard-lib.js`，20 条 vitest 用例钉死。
 - **媒体提供商 → 音乐（全新分类）**：侧栏媒体提供商新增「音乐」入口，与图像/语音/视频同列。收录两类形态：
   - **ACE Music（acemusic.ai）** — 托管版 ACE-Step，走标准 OpenAI Chat Completions，整曲以 base64 MP3 放在 `message.audio[]` / `delta.audio[]`（OpenAI audio 方言，整曲单帧 ~600KB）。上游 id 自带 `acemusic/` 命名空间，registry 存裸 id + `upstreamModelId` 映射，客户端只看到一层前缀。
   - **StepFun StepAudio 3 Music（stepaudio-3-music-preview，限免）** — 官方原生 `/v1/audio/music` 异步任务（submit 拿 task_id → 每 5s 轮询到 SUCCESS/FAILED），由 `musicConfig.mode: "stepfun-async"` 分派；`caption` 必填、`lyrics` 可选，多行 prompt 自动识别为歌词。
