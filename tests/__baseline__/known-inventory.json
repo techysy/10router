@@ -5082,7 +5082,6 @@
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/SegmentedControl.js has no re-export shadowed by a local read": "passed",
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/Select.js has no re-export shadowed by a local read": "passed",
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/Sidebar.js has no re-export shadowed by a local read": "passed",
-  "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/ThemePickerModal.js has no re-export shadowed by a local read": "passed",
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/ThemeProvider.js has no re-export shadowed by a local read": "passed",
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/ThemeToggle.js has no re-export shadowed by a local read": "passed",
   "tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports shared/components/Toggle.js has no re-export shadowed by a local read": "passed",
