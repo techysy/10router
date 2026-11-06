@@ -106,6 +106,64 @@ function nextDailyRunMs(timeHHmm, nowMs) {
   return slot + 24 * 60 * 60 * 1000;
 }
 
+// ── 每周档（#97 定时更新扩展）──
+// sched = { freq: "daily" | "weekly", time: "HH:mm", weekday: 0..6 }。
+// 0=周日 … 6=周六（与 Date.getDay 一致）。weekday 仅 weekly 档消费；
+// 非法（越界/非数字）一律按「永不触发」处理，不静默回落到 daily——
+// 配置错了就该显式坏掉，而不是变成每天跑。
+
+function normalizeSchedule(sched) {
+  const s = sched && typeof sched === "object" ? sched : {};
+  const freq = s.freq === "weekly" ? "weekly" : "daily";
+  const time = parseHHmm(s.time) ? s.time : "04:30";
+  let weekday = null;
+  if (freq === "weekly") {
+    const n = Number(s.weekday);
+    weekday = Number.isInteger(n) && n >= 0 && n <= 6 ? n : null;
+  }
+  return { freq, time, weekday };
+}
+
+function scheduleSlotMs(sched, nowMs) {
+  const s = normalizeSchedule(sched);
+  const slot = dailySlotMs(s.time, nowMs);
+  if (s.freq === "daily") return { slot, due: null, valid: true };
+  if (s.weekday === null) return { slot, due: false, valid: false };
+  // 今天的槽点是否属于目标周几
+  const due = new Date(nowMs).getDay() === s.weekday;
+  return { slot, due, valid: true };
+}
+
+// 每周档的触发判定：今天 == weekday && 槽点已过 && 今天没跑过。
+// 复用 daily 的日期键去重——上周同 weekday 不影响本周判定。
+function shouldRunSchedule(sched, nowMs, lastRunAtMs) {
+  const s = normalizeSchedule(sched);
+  if (!parseHHmm(s.time)) return false;
+  const { slot, due, valid } = scheduleSlotMs(sched, nowMs);
+  // due === null 是 daily（无周几概念，只看日期键）；false 才是 weekly 的「今天不是目标日」
+  if (!valid || due === false) return false;
+  if (nowMs < slot) return false;
+  const today = dateKey(nowMs);
+  const last = typeof lastRunAtMs === "number" && lastRunAtMs > 0 ? dateKey(lastRunAtMs) : null;
+  return last !== today;
+}
+
+// 下次触达时间：daily = 明天槽点；weekly = 未来 7 天内第一个匹配 weekday
+// 且在未来的槽点（今天匹配但已过 → 下周同天）。
+function nextScheduleRunMs(sched, nowMs) {
+  const s = normalizeSchedule(sched);
+  if (s.freq === "daily") return nextDailyRunMs(s.time, nowMs);
+  if (s.weekday === null) return null;
+  for (let add = 0; add < 8; add++) {
+    const d = new Date(nowMs + add * 24 * 60 * 60 * 1000);
+    d.setHours(parseHHmm(s.time).h, parseHHmm(s.time).m, 0, 0);
+    if (d.getDay() !== s.weekday) continue;
+    const t = d.getTime();
+    if (t > nowMs) return t;
+  }
+  return null;
+}
+
 // ── sudo -l 折行解析 ──
 // sudo -l 的长命令列表会折行，续行以反斜杠结尾且下一行行首带缩进；
 // 必须先合并延续行再逐行匹配，否则白名单对不齐。
@@ -207,6 +265,9 @@ module.exports = {
   dailySlotMs,
   shouldRunDailySchedule,
   nextDailyRunMs,
+  normalizeSchedule,
+  shouldRunSchedule,
+  nextScheduleRunMs,
   mergeSudoFoldedLines,
   parseSudoList,
   buildAria2Args,

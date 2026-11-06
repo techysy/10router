@@ -68,7 +68,7 @@ function plog(stage, message, extra) {
 
 // ── 设置持久化（panel/settings.json；主进程的配置走 SQLite，面板独立）──
 const DEFAULT_SETTINGS = {
-  autoUpdate: { enabled: false, time: "04:30" },
+  autoUpdate: { enabled: false, freq: "daily", time: "04:30", weekday: 3 },
   proxy: { url: "" },
   scheduleState: { lastRunAtMs: 0, attemptsDateKey: "", attempts: 0, nextRetryAtMs: 0 },
   lastUpdate: { at: 0, trigger: "", ok: true, from: "", to: "", message: "" },
@@ -553,7 +553,7 @@ let schedulerTimer = null;
 async function schedulerTick() {
   let settings;
   try { settings = loadSettings(); } catch { return; }
-  const { enabled, time } = settings.autoUpdate || {};
+  const { enabled } = settings.autoUpdate || {};
   if (!enabled) return;
   const now = Date.now();
   const today = lib.dateKey(now);
@@ -562,7 +562,7 @@ async function schedulerTick() {
   // 当日重试配额用尽则不再触发
   if (state.attemptsDateKey === today && state.attempts >= MAX_ATTEMPTS_PER_DAY) return;
 
-  const scheduledDue = lib.shouldRunDailySchedule(time, now, state.lastRunAtMs);
+  const scheduledDue = lib.shouldRunSchedule(settings.autoUpdate || {}, now, state.lastRunAtMs);
   // 同日重试：nextRetryAtMs 到点 + 配额未用尽（lastRunAtMs 已是今天，
   // scheduledDue 必为 false，重试只走这条路径 —— 不能再叠加日期判断）。
   const retryDue = Boolean(state.nextRetryAtMs) && state.nextRetryAtMs <= now
@@ -715,7 +715,7 @@ async function buildStatus() {
       inFlight: currentUpdate,
       last: settings.lastUpdate,
     },
-    autoUpdate: { ...settings.autoUpdate, state: settings.scheduleState, nextRunMs: lib.nextDailyRunMs(settings.autoUpdate?.time, Date.now()) },
+    autoUpdate: { ...settings.autoUpdate, state: settings.scheduleState, nextRunMs: lib.nextScheduleRunMs(settings.autoUpdate || {}, Date.now()) },
     proxy: settings.proxy,
     lifecycle: { authorized: await lifecycleAuthorized() },
     paths: { srcDir: SRC_DIR, dataDir: DATA_DIR, staging: STAGING_DIR },
@@ -819,7 +819,13 @@ const server = http.createServer(async (req, res) => {
       if (body.autoUpdate) {
         const t = lib.parseHHmm(body.autoUpdate.time);
         if (!t) { sendJson(res, 400, { error: "time must be HH:mm" }); return; }
-        settings.autoUpdate = { enabled: Boolean(body.autoUpdate.enabled), time: `${String(t.h).padStart(2, "0")}:${String(t.m).padStart(2, "0")}` };
+        const norm = lib.normalizeSchedule(body.autoUpdate);
+        settings.autoUpdate = {
+          enabled: Boolean(body.autoUpdate.enabled),
+          freq: norm.freq,
+          time: `${String(t.h).padStart(2, "0")}:${String(t.m).padStart(2, "0")}`,
+          weekday: norm.weekday === null ? 3 : norm.weekday,
+        };
       }
       if (body.proxy && typeof body.proxy.url === "string") {
         settings.proxy = { url: body.proxy.url.trim() };
@@ -1015,10 +1021,18 @@ function renderUi() {
   <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
     <div class="row">
       <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"> <span>启用</span></label>
+      <select id="autoFreq" onchange="saveAuto()" title="更新频率">
+        <option value="daily">每天</option>
+        <option value="weekly">每周</option>
+      </select>
+      <span id="autoWeekdayWrap" style="display:none"><select id="autoWeekday" onchange="saveAuto()" title="周几检查">
+        <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
+        <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option>
+      </select></span>
       <input type="time" id="autoTime" onchange="saveAuto()">
       <span class="mut" id="autoHint"></span>
     </div>
-    <div class="mut" style="margin-top:8px">每日到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
+    <div class="mut" style="margin-top:8px">到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
   </div>
 </div>
 
@@ -1041,6 +1055,14 @@ function renderUi() {
   <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
     <div class="row">
       <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"> <span>启用</span></label>
+      <select id="autoFreq2" onchange="saveAuto()" title="更新频率">
+        <option value="daily">每天</option>
+        <option value="weekly">每周</option>
+      </select>
+      <span id="autoWeekdayWrap2" style="display:none"><select id="autoWeekday2" onchange="saveAuto()" title="周几检查">
+        <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
+        <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option>
+      </select></span>
       <input type="time" id="autoTime2" onchange="saveAuto()">
       <span class="mut" id="autoHint2"></span>
     </div>
@@ -1176,10 +1198,18 @@ async function refresh() {
       (s.update.inFlight ? ' <span class="pill warn">更新进行中: ' + s.update.inFlight.stage + "</span>" : "");
     if (s.update.inFlight) $("btnUpdate").disabled = true; else $("btnUpdate").disabled = false;
     if (s.update.last && s.update.last.at) updateMsgEverywhere("上次: " + new Date(s.update.last.at).toLocaleString() + " " + (s.update.last.ok ? "✓" : "✗") + " " + s.update.last.message);
-    for (const [en, et, eh] of [["autoEnabled", "autoTime", "autoHint"], ["autoEnabled2", "autoTime2", "autoHint2"]]) {
+    for (const [en, ef, ew, eww, et, eh] of [
+      ["autoEnabled", "autoFreq", "autoWeekday", "autoWeekdayWrap", "autoTime", "autoHint"],
+      ["autoEnabled2", "autoFreq2", "autoWeekday2", "autoWeekdayWrap2", "autoTime2", "autoHint2"],
+    ]) {
       $(en).checked = !!s.autoUpdate.enabled;
+      $(ef).value = s.autoUpdate.freq || "daily";
+      $(ew).value = String(s.autoUpdate.weekday ?? 3);
+      $(eww).style.display = ($(ef).value === "weekly") ? "" : "none";
       $(et).value = s.autoUpdate.time || "04:30";
-      $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? ("下次: " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
+      const NEXT_WORD = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+      const freqWord = $(ef).value === "weekly" ? ("每周" + (NEXT_WORD[$(ew).value] || "")) : "每天";
+      $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? (freqWord + " " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
     }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
     renderAuth(s.lifecycle || { authorized: false });
@@ -1226,7 +1256,15 @@ async function uploadInstall() {
   toast("安装指令已下发，约 20 秒后刷新观察", "ok");
   refresh();
 }
-async function saveAuto() { await jpost("/api/settings", { autoUpdate: { enabled: $("autoEnabled").checked, time: $("autoTime").value || "04:30" } }); toast("定时更新已保存", "ok"); refresh(); }
+async function saveAuto() {
+  await jpost("/api/settings", { autoUpdate: {
+    enabled: $("autoEnabled").checked,
+    freq: $("autoFreq").value,
+    time: $("autoTime").value || "04:30",
+    weekday: Number($("autoWeekday").value),
+  } });
+  toast("定时更新已保存", "ok"); refresh();
+}
 async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast("出站代理已保存", "ok"); }
 async function restartMain() {
   const ok = await localConfirm("确认重启", "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。", true);
