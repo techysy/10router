@@ -313,6 +313,26 @@ function runMainCmd(action) {
   });
 }
 
+// 重启主应用（用户点面板「重启」按钮的路径，2026-11-06 真机翻车后重写）：
+// 旧实现同步跑 `cmd/main restart`——它内部走 appcenter-cli stop/start + 前台
+// 60s 健康检查，在 fnOS 托管的应用上会把应用中心的状态机搅乱（status 卡
+// "start"），窗口期内应用打不开；HTTP 请求还挂在 120s timeout 上。
+// 新实现（dsh 同款，见 DeepSeek-Harness-fnos cmd/dashboard.js restartDsh）：
+//   1) detached 子进程里 `sudo -n appcenter-cli stop+start`（生命周期正道，
+//      状态机一致）；sudoers 未放行时回退 cmd/main restart。
+//   2) 面板的 HTTP 响应立即返回「已触发」，不等重启完成——前端靠轮询
+//      /api/status 观察恢复。
+function restartMainDetached() {
+  const log = fs.openSync(path.join(DATA_DIR, "panel.log"), "a");
+  const script =
+    "AC=/usr/local/bin/appcenter-cli; " +
+    'if sudo -n "$AC" stop 10router && sudo -n "$AC" start 10router; then echo "appcenter lifecycle ok"; ' +
+    'else echo "appcenter not authorized, fallback to cmd/main restart"; bash "$1" restart; fi';
+  const child = spawn("bash", ["-c", script, "10r-restart", MAIN_CMD], { detached: true, stdio: ["ignore", log, log] });
+  child.unref();
+  plog("ops", "main restart triggered (detached)");
+}
+
 // ── 更新流水线 ──
 // 状态机：null = 空闲；否则 { stage, trigger, from, to, startedAt, message }
 let currentUpdate = null;
@@ -470,8 +490,7 @@ async function performUpdate({ trigger }) {
     fs.rmSync(extractDir, { recursive: true, force: true });
 
     setStage("restarting", "重启主应用");
-    const restart = await runMainCmd("restart");
-    plog("update", `cmd/main restart: ${restart.ok}`, { output: restart.output.slice(-200) });
+    restartMainDetached();
 
     setStage("health-check", "等待健康检查");
     const healthy = await healthWait();
@@ -755,8 +774,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method === "POST" && urlObj.pathname === "/api/main/restart") {
-      const r = await runMainCmd("restart");
-      sendJson(res, r.ok ? 200 : 500, r);
+      // detached：立即响应，前端靠 15s 轮询 /api/status 观察重启完成
+      restartMainDetached();
+      sendJson(res, 202, { started: true });
       return;
     }
     if (req.method === "GET" && urlObj.pathname === "/api/logs") {
@@ -812,7 +832,7 @@ async function installFromArchive(archivePath, trigger) {
     backupDir = await swapServerDir(payload, null);
     fs.rmSync(extractDir, { recursive: true, force: true });
     setStage("restarting", "重启主应用");
-    await runMainCmd("restart");
+    restartMainDetached();
     setStage("health-check", "等待健康检查");
     const healthy = await healthWait();
     // 与 performUpdate 同一核验：健康之外还要确认「跑起来的版本 = 产物版本」，
@@ -887,9 +907,11 @@ function renderUi() {
   .top { max-width:880px; margin:0 auto; display:flex; align-items:center; gap:10px; }
   .top .spacer { flex:1; }
   #themeBtn { background:var(--card); border:1px solid var(--line); color:var(--txt); width:34px; height:34px; padding:0; font-size:16px; }
-  .tabs { display:flex; gap:4px; max-width:880px; margin:14px auto 0; border-bottom:1px solid var(--line); }
-  .tabs button { background:transparent; color:var(--mut); border:0; border-radius:8px 8px 0 0; padding:8px 16px; font-size:13px; border-bottom:2px solid transparent; }
-  .tabs button.on { color:var(--brand); border-bottom-color:var(--brand); font-weight:600; }
+  /* 胶囊分段控件（dsh 同款 seg-ctl）：浅灰槽 + 激活项浮起白底 */
+  .tabs { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); max-width:880px; margin:14px auto 0; }
+  .tabs button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 14px; border-radius:7px; cursor:pointer; }
+  .tabs button.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  html[data-theme="dark"] .tabs button.on { background:rgba(255,255,255,.1); }
   .grid { display:grid; gap:16px; max-width:880px; margin:16px auto; }
   .tabpane { display:none; } .tabpane.on { display:block; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
@@ -924,12 +946,12 @@ function renderUi() {
   <span class="spacer"></span>
   <button id="themeBtn" onclick="toggleTheme()" title="切换日/夜主题">🌙</button>
 </div>
-<div class="tabs" id="tabs">
+<div style="text-align:center"><div class="tabs" id="tabs" style="display:inline-flex">
   <button data-tab="overview" class="on" onclick="switchTab('overview')">总览</button>
   <button data-tab="update" onclick="switchTab('update')">更新</button>
   <button data-tab="ops" onclick="switchTab('ops')">运维</button>
   <button data-tab="settings" onclick="switchTab('settings')">设置</button>
-</div>
+</div></div>
 <div class="grid">
 
 <div class="tabpane on" id="pane-overview">
