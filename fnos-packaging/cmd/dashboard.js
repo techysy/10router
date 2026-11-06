@@ -942,6 +942,16 @@ function renderUi() {
   #langBtn { font-size:12px; font-weight:700; }
   /* 胶囊分段控件（dsh 同款 seg-ctl）：浅灰槽 + 激活项浮起白底 */
   .tabs { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); margin:14px 0 0; }
+  /* 分段胶囊组（tabs 同语言）：频率与周几选择 */
+  .seg { display:inline-flex; gap:2px; padding:2px; border-radius:9px; background:var(--soft); }
+  .seg button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 12px; border-radius:7px; cursor:pointer; transition:background .15s ease, color .15s ease; }
+  .seg button.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  html[data-theme="dark"] .seg button.on { background:rgba(255,255,255,.1); }
+  .seg.seg-sm button { padding:3px 10px; font-size:11px; }
+  /* time 输入：毛玻璃卡语言（soft 底、圆角、无边框突兀感） */
+  input[type="time"] { background:var(--soft); border:1px solid var(--line); color:var(--txt); border-radius:9px; padding:6px 12px; font-size:13px; font-weight:600; }
+  input[type="time"]::-webkit-calendar-picker-indicator { filter:var(--picker-filter, none); cursor:pointer; }
+  html[data-theme="dark"] { --picker-filter: invert(1) opacity(.7); }
   .tabs button { border:none; background:transparent; color:var(--mut); font-size:12px; font-weight:600; padding:4px 14px; border-radius:7px; cursor:pointer; }
   .tabs button.on { background:var(--card); color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.08); }
   html[data-theme="dark"] .tabs button.on { background:rgba(255,255,255,.1); }
@@ -1036,14 +1046,19 @@ function renderUi() {
   <div class="card" style="margin-top:16px"><h2 data-i18n="autoCard"></h2>
     <div class="row">
       <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
-      <select id="autoFreq" onchange="saveAuto()" title="更新频率">
-        <option value="daily" data-i18n="freqDaily">每天</option>
-        <option value="weekly" data-i18n="freqWeekly">每周</option>
-      </select>
-      <span id="autoWeekdayWrap" style="display:none"><select id="autoWeekday" onchange="saveAuto()" title="周几检查">
-        <option value="1" data-i18n="wd1">周一</option><option value="2" data-i18n="wd2">周二</option><option value="3" data-i18n="wd3">周三</option>
-        <option value="4" data-i18n="wd4">周四</option><option value="5" data-i18n="wd5">周五</option><option value="6" data-i18n="wd6">周六</option><option value="0" data-i18n="wd0">周日</option>
-      </select></span>
+      <span class="seg" id="autoFreq">
+        <button type="button" data-v="daily" data-i18n="freqDaily" onclick="setFreq('autoFreq','daily')">每天</button>
+        <button type="button" data-v="weekly" data-i18n="freqWeekly" onclick="setFreq('autoFreq','weekly')">每周</button>
+      </span>
+      <span id="autoWeekdayWrap" style="display:none"><span class="seg seg-sm" id="autoWeekday">
+        <button type="button" data-v="1" data-i18n="wd1" onclick="setWeekday('autoWeekday',1)">周一</button>
+        <button type="button" data-v="2" data-i18n="wd2" onclick="setWeekday('autoWeekday',2)">周二</button>
+        <button type="button" data-v="3" data-i18n="wd3" onclick="setWeekday('autoWeekday',3)">周三</button>
+        <button type="button" data-v="4" data-i18n="wd4" onclick="setWeekday('autoWeekday',4)">周四</button>
+        <button type="button" data-v="5" data-i18n="wd5" onclick="setWeekday('autoWeekday',5)">周五</button>
+        <button type="button" data-v="6" data-i18n="wd6" onclick="setWeekday('autoWeekday',6)">周六</button>
+        <button type="button" data-v="0" data-i18n="wd0" onclick="setWeekday('autoWeekday',0)">周日</button>
+      </span></span>
       <input type="time" id="autoTime" onchange="saveAuto()">
       <span class="mut" id="autoHint"></span>
     </div>
@@ -1071,14 +1086,19 @@ function renderUi() {
   <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
     <div class="row">
       <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
-      <select id="autoFreq2" onchange="saveAuto()" title="更新频率">
-        <option value="daily" data-i18n="freqDaily">每天</option>
-        <option value="weekly" data-i18n="freqWeekly">每周</option>
-      </select>
-      <span id="autoWeekdayWrap2" style="display:none"><select id="autoWeekday2" onchange="saveAuto()" title="周几检查">
-        <option value="1" data-i18n="wd1">周一</option><option value="2" data-i18n="wd2">周二</option><option value="3" data-i18n="wd3">周三</option>
-        <option value="4" data-i18n="wd4">周四</option><option value="5" data-i18n="wd5">周五</option><option value="6" data-i18n="wd6">周六</option><option value="0" data-i18n="wd0">周日</option>
-      </select></span>
+      <span class="seg" id="autoFreq2">
+        <button type="button" data-v="daily" data-i18n="freqDaily" onclick="setFreq('autoFreq2','daily')">每天</button>
+        <button type="button" data-v="weekly" data-i18n="freqWeekly" onclick="setFreq('autoFreq2','weekly')">每周</button>
+      </span>
+      <span id="autoWeekdayWrap2" style="display:none"><span class="seg seg-sm" id="autoWeekday2">
+        <button type="button" data-v="1" data-i18n="wd1" onclick="setWeekday('autoWeekday2',1)">周一</button>
+        <button type="button" data-v="2" data-i18n="wd2" onclick="setWeekday('autoWeekday2',2)">周二</button>
+        <button type="button" data-v="3" data-i18n="wd3" onclick="setWeekday('autoWeekday2',3)">周三</button>
+        <button type="button" data-v="4" data-i18n="wd4" onclick="setWeekday('autoWeekday2',4)">周四</button>
+        <button type="button" data-v="5" data-i18n="wd5" onclick="setWeekday('autoWeekday2',5)">周五</button>
+        <button type="button" data-v="6" data-i18n="wd6" onclick="setWeekday('autoWeekday2',6)">周六</button>
+        <button type="button" data-v="0" data-i18n="wd0" onclick="setWeekday('autoWeekday2',0)">周日</button>
+      </span></span>
       <input type="time" id="autoTime2" onchange="saveAuto()">
       <span class="mut" id="autoHint2"></span>
     </div>
@@ -1295,6 +1315,17 @@ function toggleTheme() {
 applyTheme(curTheme());
 applyLang();
 
+/* ── seg 胶囊组 helpers ── */
+function markSeg(id, val) {
+  document.querySelectorAll("#" + id + " button").forEach((b) => b.classList.toggle("on", b.dataset.v === String(val)));
+}
+function segValue(id) {
+  const on = document.querySelector("#" + id + " button.on");
+  return on ? on.dataset.v : "daily";
+}
+function setFreq(id, val) { markSeg(id, val); saveAuto(); }
+function setWeekday(id, val) { markSeg(id, val); saveAuto(); }
+
 /* ── tabs ── */
 function switchTab(name) {
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
@@ -1340,12 +1371,14 @@ async function refresh() {
       ["autoEnabled2", "autoFreq2", "autoWeekday2", "autoWeekdayWrap2", "autoTime2", "autoHint2"],
     ]) {
       $(en).checked = !!s.autoUpdate.enabled;
-      $(ef).value = s.autoUpdate.freq || "daily";
-      $(ew).value = String(s.autoUpdate.weekday ?? 3);
-      $(eww).style.display = ($(ef).value === "weekly") ? "" : "none";
+      const freq = s.autoUpdate.freq || "daily";
+      const wd = String(s.autoUpdate.weekday ?? 3);
+      markSeg(ef, freq);
+      markSeg(ew, wd);
+      $(eww).style.display = (freq === "weekly") ? "" : "none";
       $(et).value = s.autoUpdate.time || "04:30";
       const NEXT_WORD = t("weekdayNames");
-      const freqWord = $(ef).value === "weekly" ? (t("everyWeek") + (NEXT_WORD[$(ew).value] || "")) : t("every");
+      const freqWord = freq === "weekly" ? (t("everyWeek") + (NEXT_WORD[Number(wd)] || "")) : t("every");
       $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? (freqWord + " " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
     }
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
@@ -1396,9 +1429,9 @@ async function uploadInstall() {
 async function saveAuto() {
   await jpost("/api/settings", { autoUpdate: {
     enabled: $("autoEnabled").checked,
-    freq: $("autoFreq").value,
+    freq: segValue("autoFreq"),
     time: $("autoTime").value || "04:30",
-    weekday: Number($("autoWeekday").value),
+    weekday: Number(segValue("autoWeekday")),
   } });
   toast(t("saved"), "ok"); refresh();
 }
