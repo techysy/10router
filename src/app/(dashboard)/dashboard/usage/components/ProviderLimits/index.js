@@ -8,6 +8,7 @@ import QuotaToolbar from "./QuotaToolbar";
 import QuotaWindowTimeline from "@/shared/components/QuotaWindowTimeline";
 import { detailRows, needsPerPackDetails } from "@/shared/utils/quotaRows";
 import { classifyConnectionCooldown } from "@/shared/utils/connectionCooldown";
+import { hasCdSyncBadge, isCdSyncedConnection, cdSyncBadgeTitleKey } from "@/shared/utils/cdSyncBadge";
 import {
   connectionsCacheKey,
   createLimiter,
@@ -1510,30 +1511,14 @@ export default function ProviderLimits() {
                           >
                             {isInactive ? "disabled" : (connState === "needs-reauth" ? translate("Needs re-auth") : connState === "partial" ? "partial" : connState || "unknown")}
                           </span>
-                          {(conn.provider === "qoder" ||
-                            conn.provider === "qoder-cn" ||
-                            conn.provider === "codebuddy-cn" ||
-                            conn.provider === "codebuddy-intl" ||
-                            conn.provider === "loomy") && (
+                          {hasCdSyncBadge(conn.provider) && !conn.external && (
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                conn.providerSpecificData?.creditDaddyWebSession || conn.providerSpecificData?.creditDaddySync
-                                  ? "bg-primary/10 text-primary"
-                                  : "bg-surface-2 text-text-muted"
+                                isCdSyncedConnection(conn) ? "bg-primary/10 text-primary" : "bg-surface-2 text-text-muted"
                               }`}
-                              title={
-                                conn.providerSpecificData?.creditDaddyWebSession
-                                  ? translate("Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)")
-                                  : conn.providerSpecificData?.creditDaddySync
-                                    ? translate("Synced from CreditDaddy (issue feedback goes to CreditDaddy)")
-                                    : translate(conn.provider === "qoder" || conn.provider === "qoder-cn"
-                                        ? "Native Qoder authorization"
-                                        : conn.provider === "loomy"
-                                          ? "Native Loomy authorization"
-                                          : "Native CodeBuddy authorization")
-                              }
+                              title={translate(cdSyncBadgeTitleKey(conn))}
                             >
-                              {(conn.providerSpecificData?.creditDaddyWebSession || conn.providerSpecificData?.creditDaddySync) ? "CD Sync" : "Native"}
+                              {isCdSyncedConnection(conn) ? "CD Sync" : "Native"}
                             </span>
                           )}
                           {conn.providerSpecificData?.profileArn && (

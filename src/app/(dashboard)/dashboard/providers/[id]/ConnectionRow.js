@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { classifyConnectionCooldown, sameConnectionCooldown } from "@/shared/utils/connectionCooldown";
+import { hasCdSyncBadge, isCdSyncedConnection, cdSyncBadgeTitleKey } from "@/shared/utils/cdSyncBadge";
 import { translate } from "@/i18n/runtime";
 import { extractAccountsVerificationUrl, extractRealnameVerificationUrl } from "@/shared/utils/validationUrl";
 import { translateQuotaError } from "@/shared/utils/quotaError";
@@ -37,6 +38,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const boundProxyPool = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
   const hasAnyProxy = !!boundProxyPoolId || hasLegacyProxy;
+  // CreditDaddy 同步来源标记（旗标判定与白名单在 cdSyncBadge 单一事实源，
+  // 与配额页同名徽章共享）
+  const isCdSynced = isCdSyncedConnection(connection);
   // issue #90 phase 3: same truth table as the engine's privacyEnabledFor
   const privacyOn =
     connection.providerSpecificData?.privacy === true ||
@@ -331,13 +335,13 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 🔒
               </Badge>
             )}
-            {(connection.provider === "qoder" || connection.provider === "qoder-cn") && (
+            {hasCdSyncBadge(connection.provider) && (
               <Badge
-                variant={connection.providerSpecificData?.creditDaddyWebSession ? "primary" : "neutral"}
+                variant={isCdSynced ? "primary" : "neutral"}
                 size="sm"
-                title={connection.providerSpecificData?.creditDaddyWebSession ? translate("Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)") : translate("Native Qoder authorization")}
+                title={translate(cdSyncBadgeTitleKey(connection))}
               >
-                {connection.providerSpecificData?.creditDaddyWebSession ? "CD Sync" : "Native"}
+                {isCdSynced ? "CD Sync" : "Native"}
               </Badge>
             )}
             {hasAnyProxy && (

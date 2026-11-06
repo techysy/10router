@@ -2171,6 +2171,9 @@
   "Glass Dark": "毛玻璃 · 深",
   "Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)": "经 CreditDaddy 网页会话同步（问题反馈给 CreditDaddy）",
   "Synced from CreditDaddy (issue feedback goes to CreditDaddy)": "由 CreditDaddy 同步（问题反馈给 CreditDaddy）",
+  "Native Qoder authorization": "Qoder 原生授权",
   "Native Loomy authorization": "Loomy 原生授权",
-  "Native CodeBuddy authorization": "CodeBuddy 原生授权"
+  "Native CodeBuddy authorization": "CodeBuddy 原生授权",
+  "Native MiniMax Code authorization": "MiniMax Code 原生授权",
+  "Native MiniMax Code (Global) authorization": "MiniMax Code (Global) 原生授权"
 }
