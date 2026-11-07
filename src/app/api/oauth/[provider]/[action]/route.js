@@ -238,8 +238,8 @@ export async function GET(request, { params }) {
 
     if (action === "ide-status") {
       // Detect whether the IDE is installed locally (used by import-token UX).
-      if (provider !== "trae" && provider !== "windsurf") {
-        return NextResponse.json({ error: "ide-status only supported for trae/windsurf" }, { status: 400 });
+      if (provider !== "trae" && provider !== "trae-cn" && provider !== "windsurf") {
+        return NextResponse.json({ error: "ide-status only supported for trae/trae-cn/windsurf" }, { status: 400 });
       }
       const status = await detectIdeInstalled(provider);
       return NextResponse.json(status);
