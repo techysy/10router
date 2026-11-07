@@ -38,6 +38,10 @@ export default {
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
     { id: "fast", name: "快速" },
+    // 2026-11-07: QoDuck（lmodel）— app 场景独占的免费模型（chat 场景不发布），
+    // 目录合并（#100）后可见可调用，CN/国际实测 200。免费不是永久：live 目录
+    // price_factor 0 + original_price_factor 0.5 透传，徽章 tooltip 保留原价。
+    { id: "lmodel", name: "QoDuck", promoFreeNote: "个人版限时每日赠送尝鲜额度" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
     { id: "qmodel_latest", name: "Qwen3.7-Max" },
     { id: "qmodel", name: "Qwen3.7-Plus" },

@@ -31,6 +31,9 @@ export default {
     // Ultimate/Performance/Efficient stay: the INTL catalog prices them
     // (1.6x / 1.1x / 0.3x) and badges render from that live data.
     { id: "auto", name: "Auto" },
+    // 2026-11-07: QoDuck（lmodel）— app 场景独占的免费模型，同 qoder-cn 行；
+    // 国际版 app 端同样可见（用户界面截图 2026-11-07）。
+    { id: "lmodel", name: "QoDuck", promoFreeNote: "个人版限时每日赠送尝鲜额度" },
     { id: "ultimate", name: "Ultimate" },
     { id: "performance", name: "Performance" },
     { id: "efficient", name: "Efficient" },

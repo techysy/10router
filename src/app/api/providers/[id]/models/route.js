@@ -131,8 +131,9 @@ const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => asyn
 // Qoder (intl + CN share one resolver; fetchQoderCatalogRaw branches on
 // credentials.provider for the gateway URL). Passes the provider through so
 // a qoder-cn connection no longer dials the intl host, and forwards the
-// server-published pricing (rateMultiplier / promotion) the dashboard badges
-// render. Registered under both provider keys in PROVIDER_MODELS_CONFIG.
+// server-published pricing (rateMultiplier / originalRateMultiplier /
+// promotion) the dashboard badges render. Registered under both provider
+// keys in PROVIDER_MODELS_CONFIG.
 const resolveQoderCatalog = async (connection) => {
   const credentials = {
     provider: connection.provider,
@@ -159,6 +160,7 @@ const resolveQoderCatalog = async (connection) => {
           maxOutputTokens: m.maxOutputTokens,
           description: m.description,
           rateMultiplier: m.rateMultiplier,
+          originalRateMultiplier: m.originalRateMultiplier,
           promotion: m.promotion,
         })),
       };

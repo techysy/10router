@@ -139,6 +139,13 @@ describe("mergeQoderLivePricing", () => {
     const live = [{ id: "qoder/qfmodel", rateMultiplier: 0 }];
     expect(mergeQoderLivePricing(plain, live)[0].rateMultiplier).toBe(0);
   });
+  it("live 原价透传（originalRateMultiplier）—— 0× 徽章的 tooltip 才有原价可显", () => {
+    const plain = [{ id: "lmodel", name: "QoDuck", rateMultiplier: 0.5 }];
+    const live = [{ id: "qoder-cn/lmodel", rateMultiplier: 0, originalRateMultiplier: 0.5, promotion: null }];
+    const out = mergeQoderLivePricing(plain, live);
+    expect(out[0].rateMultiplier).toBe(0);                  // 现价 = 限免 0×
+    expect(out[0].originalRateMultiplier).toBe(0.5);        // 原价不被合并吃掉
+  });
   it("empty live catalog (fetch failed) → static list verbatim", () => {
     expect(mergeQoderLivePricing(staticModels, [])).toBe(staticModels);
   });
@@ -148,13 +155,14 @@ describe("catalog → badge wiring guards", () => {
   it("qoderModels maps price_factor/promotion onto the model entries", () => {
     const src = readFileSync(new URL("../../open-sse/services/qoderModels.js", import.meta.url), "utf8");
     expect(src).toMatch(/rateMultiplier:\s*typeof entry\.price_factor === "number"/);
+    expect(src).toMatch(/originalRateMultiplier:\s*typeof entry\.original_price_factor === "number"/);
     expect(src).toMatch(/promotion:\s*entry\.promotion/);
   });
   it("the models route serves BOTH qoder regions through one resolver and forwards the fields", () => {
     const src = readFileSync(new URL("../../src/app/api/providers/[id]/models/route.js", import.meta.url), "utf8");
     expect(src).toMatch(/"qoder-cn":\s*\{\s*customResolver:\s*resolveQoderCatalog/);
     expect(src).toMatch(/provider:\s*connection\.provider,/); // CN connections dial the CN gateway
-    expect(src).toMatch(/rateMultiplier:\s*m\.rateMultiplier,\s*\n\s*promotion:\s*m\.promotion,/);
+    expect(src).toMatch(/rateMultiplier:\s*m\.rateMultiplier,\s*\n\s*originalRateMultiplier:\s*m\.originalRateMultiplier,\s*\n\s*promotion:\s*m\.promotion,/);
   });
   it("the provider page overlays live pricing and renders the countdown banner", () => {
     const src = readFileSync(new URL("../../src/app/(dashboard)/dashboard/providers/[id]/page.js", import.meta.url), "utf8");

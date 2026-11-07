@@ -265,7 +265,10 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
   if (Array.isArray(body.app)) {
     const seen = new Set(body.chat.map((e) => e && e.key).filter(Boolean));
     for (const e of body.app) {
-      if (e && e.key && !seen.has(e.key)) entries.push(e);
+      if (e && e.key && !seen.has(e.key)) {
+        entries.push(e);
+        seen.add(e.key); // body.app 自身同 key 只取首条, 不然模型列表出重复行
+      }
     }
   }
   for (const entry of entries) {
@@ -296,6 +299,9 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
       // multiplier badge + OffPeakBanner; zero client-side price math — the
       // server rewrites price_factor itself when a window opens or closes.
       rateMultiplier: typeof entry.price_factor === "number" ? entry.price_factor : null,
+      // 促销前的原价倍率（QoDuck 限免期 price_factor 0 / original_price_factor 0.5）。
+      // 没有它，0× 徽章的 tooltip 只会说「走免费额度」，原价就被抹掉了。
+      originalRateMultiplier: typeof entry.original_price_factor === "number" ? entry.original_price_factor : null,
       promotion: entry.promotion && typeof entry.promotion === "object" ? entry.promotion : null,
     });
   }

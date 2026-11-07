@@ -787,6 +787,7 @@ export const PROVIDER_CAPABILITIES = {
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
+    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — app 场景独占免费档；context_config 发布 1M（默认 200K）；家族未确证，暂按 qwen 形状
   }, { ...QODER_NAME_ALIASES, "Auto": "auto", "Ultimate": "ultimate", "Performance": "performance", "Efficient": "efficient" }),
   "qoder-cn": aliased({
     // 虚拟档：家族随上游路由漂移，给保守超集（与 INTL 侧的 auto/efficient 同形状）。
@@ -806,6 +807,7 @@ export const PROVIDER_CAPABILITIES = {
     "q37fmodel":      { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Flash
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
+    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — app 场景独占免费档；同 INTL 行，家族未确证
   }, { ...QODER_CN_NAME_ALIASES, "Auto": "auto" }),
   // ACE Music — acemusic.ai 托管的 ACE-Step 音乐生成（/v1/models 模型卡 2026-11-05）：
   // text+audio 进、audio+text 出；context_length 4096，输出上限未公布（取上下文内

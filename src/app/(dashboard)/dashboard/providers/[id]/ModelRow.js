@@ -389,6 +389,12 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                       + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
                     : displayMultiplier === 0
                     ? translate("Credit multiplier") + ": 0x — " + translate("rides the free quota")
+                      // 0× 多为限免（QoDuck 类）：tooltip 保留原价与额度口径，
+                      // 不然用户只看到 free，会以为整段时间随便用。
+                      + (typeof model.originalRateMultiplier === "number" && model.originalRateMultiplier > 0
+                        ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x`
+                        : "")
+                      + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
                     : translate("Credit multiplier") + `: ${displayMultiplier}x`
                       // `discountNote` 承载「夜间折扣/错峰使用」这类**立减型**折扣的
                       // 时段规则。它们不是免费窗口（nightFree 徽章会亮 free 夸大），
@@ -499,6 +505,8 @@ ModelRow.propTypes = {
   model: PropTypes.shape({
     id: PropTypes.string.isRequired,
     rateMultiplier: PropTypes.number,
+    // 促销前的原价倍率（live 目录 original_price_factor），0× 徽章 tooltip 显示用。
+    originalRateMultiplier: PropTypes.number,
     // Listed behind a subscription lock on the provider's credit page.
     paidTier: PropTypes.bool,
     // Tagged "订阅优先" on the credit page: queued ahead for subscribers.
