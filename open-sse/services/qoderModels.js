@@ -255,7 +255,20 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
 
   const models = [];
   const rawConfigs = new Map();
-  for (const entry of body.chat) {
+  // The catalog also carries per-scene arrays beyond `chat`. The `app`
+  // scene holds app-only models (e.g. lmodel / "QoDuck") that never appear
+  // in `chat`; upstream chat accepts them with their app-scene entry as
+  // model_config (verified live 2026-11-07), so merge app-only keys in —
+  // chat entries win on duplicate keys — or those models stay unusable
+  // ("model_config not yet known").
+  const entries = [...body.chat];
+  if (Array.isArray(body.app)) {
+    const seen = new Set(body.chat.map((e) => e && e.key).filter(Boolean));
+    for (const e of body.app) {
+      if (e && e.key && !seen.has(e.key)) entries.push(e);
+    }
+  }
+  for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
     const key = entry.key;
     if (!key) continue;
