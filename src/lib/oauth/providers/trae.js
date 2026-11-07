@@ -7,7 +7,11 @@ import { extractJsonPath } from "./_shared.js";
 // ───────────────────────────────────────────────────────────────────────────
 
 // Per-login device context. No IDE access in 10router, so use stable defaults.
-function buildTraeDeviceContext() {
+// 客户端版本按站点对齐真机客户端（CN 3.4.15 / intl 3.6.4，product.json 实测）。
+function traeAppVersionFor(site) {
+  return TRAE_CONFIG.appVersions?.[site] || TRAE_CONFIG.defaultAppVersion;
+}
+function buildTraeDeviceContext(site = "intl") {
   return {
     plugin_version: TRAE_CONFIG.defaultPluginVersion,
     machine_id: crypto.randomUUID(),
@@ -16,7 +20,7 @@ function buildTraeDeviceContext() {
     x_device_type: "unknown",
     x_os_version: "unknown",
     x_env: "",
-    x_app_version: TRAE_CONFIG.defaultAppVersion,
+    x_app_version: traeAppVersionFor(site),
     x_app_type: TRAE_CONFIG.defaultAppType,
   };
 }
@@ -260,7 +264,7 @@ async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl"
     ClientID: TRAE_CONFIG.clientId,
     AuthCode: authCode,
     CodeVerifier: codeVerifier || "",
-    IDEVersion: TRAE_CONFIG.defaultAppVersion,
+    IDEVersion: device.x_app_version || TRAE_CONFIG.defaultAppVersion,
     DeviceInfo: {
       DeviceID: device.device_id || TRAE_CONFIG.defaultDeviceId,
       MachineID: device.machine_id || crypto.randomUUID(),
@@ -268,7 +272,7 @@ async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl"
       DeviceType: "PC",
       DeviceName: deviceName,
       DeviceModel: device.x_device_brand || "unknown",
-      ClientVersion: TRAE_CONFIG.defaultAppVersion,
+      ClientVersion: device.x_app_version || TRAE_CONFIG.defaultAppVersion,
       DevicePublicKey: generateDevicePublicKey(),
       DeviceBrand: device.x_device_brand || "unknown",
       DeviceCPU: "",
@@ -376,9 +380,9 @@ function traeScopeForRegion(aiRegion, site = "intl") {
 // 否则国内 token 会带着 x-user-region: US 打上官方的 SOLO 网关。
 function traeRegionDefaults(site) {
   if (normalizeTraeRegion(site) === "cn") {
-    return { region: "CN", aiRegion: "CN", userRegion: "CN", appLanguage: "zh" };
+    return { region: "CN", aiRegion: "CN", userRegion: "CN", appLanguage: "zh", appVersion: traeAppVersionFor("cn") };
   }
-  return { region: "US-East", aiRegion: "US-East", userRegion: "US", appLanguage: "en" };
+  return { region: "US-East", aiRegion: "US-East", userRegion: "US", appLanguage: "en", appVersion: traeAppVersionFor("intl") };
 }
 
 // Trae — browser OAuth: GetLoginGuidance → verification URL
@@ -400,7 +404,7 @@ const trae = {
     // PKCE verifier 与设备上下文随本次登录登记进 pending 表（按 loginTraceID 消费），
     // exchangeToken 拿 state / 回调里的 login_trace_id 找回——它们不能放 config，
     // exchangeTokens 会重跑 prepareConfig 把 config 换成新的一轮。
-    const deviceCtx = buildTraeDeviceContext();
+    const deviceCtx = buildTraeDeviceContext(site);
     const pkce = generateTraePKCE();
     rememberTraePending(loginTraceID, { codeVerifier: pkce.verifier, region: site, loginHost, device: deviceCtx });
     return { ...config, loginTraceID, loginHost, region: site, codeChallenge: pkce.challenge, deviceCtx };
@@ -487,7 +491,7 @@ const trae = {
         bizUserId: "",
         userUniqueId: "",
         appLanguage: defaults.appLanguage,
-        appVersion: TRAE_CONFIG.defaultAppVersion,
+        appVersion: defaults.appVersion || TRAE_CONFIG.defaultAppVersion,
         userRegion: site === "cn" ? "CN" : (aiRegion === "SG" ? "SG" : "US"),
         userIdentity: "Free",
       },

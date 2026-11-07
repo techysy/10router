@@ -51,7 +51,9 @@ describe("trae-free provider icon", () => {
     // （LOBE_PROVIDER_ICONS 是 JSX 模块，tests 的 vitest 不解析 .js 里的 JSX，
     //  故此处读源码断言映射项缺席。）
     expect(lobeIconSrc).not.toMatch(/^\s*["']trae-free["']\s*:/m);
-    // 远程 trae 自己那张彩色标不受影响
-    expect(lobeIconSrc).toMatch(/^\s*trae:\s*Trae,/m);
+    // #99 用户口径：官方早已换白底新标，trae / trae-cn 与 trae-free 同一张
+    // 提取图（providerIcon.js 里 alias 到 trae-free.png），彩色 Lobe 标全线退场
+    expect(lobeIconSrc).not.toMatch(/^\s*trae:\s*Trae,/m);
+    expect(lobeIconSrc).not.toMatch(/^\s*["']trae-cn["']\s*:/m);
   });
 });

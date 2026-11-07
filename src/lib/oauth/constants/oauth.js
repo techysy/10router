@@ -224,8 +224,10 @@ export const TRAE_CONFIG = {
   getUserInfoPath: "/cloudide/api/v3/trae/GetUserInfo",
   authorizationPath: "/authorization",
   callbackPath: "/callback",
-  minAppVersion: "3.5.54",
-  defaultAppVersion: "3.5.54",
+  // 客户端版本按站点对齐真机（2026-11-07 本机 product.json 实测：CN 3.4.15 / intl 3.6.4）。
+  // 此前单值 3.5.54 在 CN 端是不存在的版本——授权页「网络错误」的头号嫌疑。
+  appVersions: { cn: "3.4.15", intl: "3.6.4" },
+  defaultAppVersion: "3.6.4",
   defaultAppType: "stable",
   defaultPluginVersion: "local",
   // service machine id is derived at runtime; device_id "0" is the stable default

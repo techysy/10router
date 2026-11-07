@@ -703,7 +703,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
-            {PASTE_TOKEN_PROVIDERS[provider] && (
+            {PASTE_TOKEN_PROVIDERS[provider] && provider !== "trae" && provider !== "trae-cn" && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -725,9 +725,22 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             {authMode === "browser" && (
               <>
                 {step === "waiting" && (
-                  <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
-                    <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
-                    <span className="text-sm">Waiting for browser authorization…</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
+                      <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
+                      <span className="text-sm">Waiting for browser authorization…</span>
+                    </div>
+                    {/* trae/trae-cn：qoder 式外置直登——浏览器窗口就是主入口，不再摆
+                        模式切换按钮；粘贴 Token 降级为兜底小链接 */}
+                    {(provider === "trae" || provider === "trae-cn") && PASTE_TOKEN_PROVIDERS[provider] && (
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
+                        className="self-start text-xs text-text-muted hover:text-primary underline-offset-2 hover:underline"
+                      >
+                        无法弹出浏览器？改用粘贴 Token 登录
+                      </button>
+                    )}
                   </div>
                 )}
                 {step === "input" && (

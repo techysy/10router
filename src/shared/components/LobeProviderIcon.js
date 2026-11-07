@@ -117,9 +117,8 @@ export const LOBE_PROVIDER_ICONS = {
   cline: Cline,
   windsurf: Windsurf,
   kiro: Kiro,
-  trae: Trae,
-  // trae-cn（国内站）与 trae 是同一产品的两个站点（#99 拆线），共用官方 Trae 标。
-  "trae-cn": Trae,
+  // trae / trae-cn 不再映射 Lobe 的彩色 Trae 标：官方客户端早已换成白底新标
+  // （trae-free 就是从 SOLO exe 提取的这张），PNG 优先级低于 Lobe 映射，必须摘掉才生效。
   // trae-free 故意不映射到 Lobe 的彩色 Trae 标：它代表本机 TRAE SOLO 客户端，
   // 与远程 trae 不是同一张脸。走 /providers/trae-free.png（从 SOLO exe 的 PE
   // 资源提取的黑白标）才能在卡片 / 拓扑 / 用量各屏保持同一张脸。

@@ -32,8 +32,9 @@ const ICON_ALIASES = {
   "alitp-cn": "alitp",
   alims: "alitp",
   alicode: "alitp",
-  // trae-cn（国内站）与 trae 同一产品的两个站点（#99 拆线），共用官方 Trae 标
-  "trae-cn": "trae",
+  // trae / trae-cn 与 trae-free 同一张官方白标（用户口径：trae-free 那张就对）
+  "trae": "trae-free",
+  "trae-cn": "trae-free",
   // Web-cookie variants ride their brand's existing mark
   "deepseek-web": "deepseek",
   "muse-web": "muse",
