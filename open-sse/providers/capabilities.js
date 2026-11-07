@@ -426,6 +426,7 @@ const QODER_NAME_ALIASES = {
   // audit-capabilities 判成 dead provider row（别名键必须能在 registry 找到对应条目）。
   "DeepSeek-V4.1-Flash 1017": "dfmodel",
   "MiniMax-M3.1-Flash": "mmodel",
+  "QoDuck": "lmodel",
 };
 const QODER_CN_NAME_ALIASES = {
   ...QODER_NAME_ALIASES,
