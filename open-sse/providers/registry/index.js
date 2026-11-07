@@ -139,6 +139,7 @@ import p134 from "./topaz.js";
 import p135 from "./tortoise.js";
 import p136 from "./trae-free.js";
 import p137 from "./trae.js";
+import p137b from "./trae-cn.js";
 import p138 from "./v1m.js";
 import p139 from "./venice.js";
 import p140 from "./vercel-ai-gateway.js";
@@ -309,6 +310,7 @@ export default [
   p135,
   p136,
   p137,
+  p137b,
   p138,
   p139,
   p140,

@@ -146,7 +146,9 @@ export async function GET(request, { params }) {
     if (action === "start-proxy") {
       // Trae/Windsurf/Zed use a dynamic-port local callback server (singleton session,
       // state is registered separately via /register-session after /authorize).
-      if (provider === "trae") {
+      // #99 拆线：trae-cn 与 trae 共用同一回调代理（站点由各自 oauth 条目钉死，
+      // 单例会话按 state 匹配，一机一次只登一个）。
+      if (provider === "trae" || provider === "trae-cn") {
         const result = await startTraeProxy();
         return NextResponse.json(result);
       }
@@ -161,7 +163,7 @@ export async function GET(request, { params }) {
         return NextResponse.json(result);
       }
       if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/trae-cn/windsurf/zed" }, { status: 400 });
       }
       const appPort = searchParams.get("app_port");
       if (!appPort) {
@@ -188,7 +190,7 @@ export async function GET(request, { params }) {
         return NextResponse.json({ error: "Missing state" }, { status: 400 });
       }
       let session;
-      if (provider === "trae") session = getTraeSessionStatus(state);
+      if (provider === "trae" || provider === "trae-cn") session = getTraeSessionStatus(state);
       else if (provider === "windsurf") session = getWindsurfSessionStatus(state);
       else if (provider === "zed") session = getZedSessionStatus(state);
       else if (provider === "xai") session = getXaiSessionStatus(state);
@@ -350,7 +352,7 @@ export async function POST(request, { params }) {
       const state = searchParams.get("state") || body?.state;
       if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
       let ok = false;
-      if (provider === "trae") ok = registerTraeSession({ state });
+      if (provider === "trae" || provider === "trae-cn") ok = registerTraeSession({ state });
       else if (provider === "windsurf") ok = registerWindsurfSession({ state });
       else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier });
       else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });

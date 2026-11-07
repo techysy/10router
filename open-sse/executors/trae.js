@@ -41,21 +41,33 @@ function flattenQuery(messages) {
   return JSON.stringify([{ type: "text", data: { content: parts.join("\n\n") } }]);
 }
 
+// #99 拆线：同一执行器服务两条 registry 条目——
+//   trae     → 国际站（默认 intl）
+//   trae-cn  → 国内站（默认 cn）
+// 连接落库的 psd.site 仍是最终权威（老连接 / 粘贴探测纠偏过的站点优先），
+// 条目缺省只兜 psd 缺 site 的场景。
 export default class TraeExecutor extends BaseExecutor {
-  constructor() {
-    super("trae", PROVIDERS.trae);
+  constructor(providerId = "trae") {
+    super(providerId, PROVIDERS[providerId] || PROVIDERS.trae);
+    this.defaultSite = providerId === "trae-cn" ? "cn" : "intl";
+  }
+
+  siteOf(psd = {}) {
+    const declared = String(psd.site || "").toLowerCase();
+    return declared === "cn" || declared === "intl" ? declared : this.defaultSite;
   }
 
   // SOLO 网关按站点分叉：国内站 (trae.cn) 与国际站 (trae.ai) 的 token 不能互用，
-  // 网关也不互通。cn 侧域名没有现成公开端点（core-normal.trae.cn 不解析），
-  // 目前用国内站 web 端同一套 SOLO 远端接口；若上游改域，改这里一处即可。
+  // 网关也不互通。cn 侧数据面走国内 web remote 网关 trae-api-cn.mchost.guru
+  // （core-normal.trae.cn 不解析；api.trae.com.cn 只承接 CloudIDE/OAuth/pay，#99 情报二）；
+  // 若上游改域，改这里一处即可。
   base(psd = {}) {
-    const site = String(psd.site || "").toLowerCase() === "cn" ? "cn" : "intl";
+    const site = this.siteOf(psd);
     const configured = site === "cn"
       ? (this.config.soloBaseUrlCn || process.env.TRAE_SOLO_BASE_URL_CN)
       : (this.config.soloBaseUrl || this.config.baseUrl || process.env.TRAE_SOLO_BASE_URL);
     const fallback = site === "cn"
-      ? "https://core-normal.trae.cn/api/remote/v1"
+      ? "https://trae-api-cn.mchost.guru/api/remote/v1"
       : "https://core-normal.trae.ai/api/remote/v1";
     return (configured || fallback).replace(/\/$/, "");
   }
@@ -63,7 +75,7 @@ export default class TraeExecutor extends BaseExecutor {
   buildHeaders(credentials, stream = true) {
     const token = credentials?.accessToken || "";
     const psd = credentials?.providerSpecificData || {};
-    const isCn = String(psd.site || "").toLowerCase() === "cn";
+    const isCn = this.siteOf(psd) === "cn";
     return {
       Authorization: `Cloud-IDE-JWT ${token}`,
       "Content-Type": "application/json",

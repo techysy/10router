@@ -179,6 +179,8 @@ const REFRESH_HANDLERS = {
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
+  // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
+  "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // Cline/ClinePass: upstream demands camelCase JSON (issue #21), not the
   // generic form-encoded OAuth2 body — dedicated handler, shared endpoints.
   cline: (c, log) => refreshClineToken("cline", c.refreshToken, log),

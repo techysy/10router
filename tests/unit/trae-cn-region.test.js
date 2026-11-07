@@ -136,3 +136,70 @@ describe("Trae 换 token 走对应站点的网关", () => {
     expect(calls.some((c) => c.url.startsWith("https://api.trae.com.cn/") && c.url.includes("GetUserInfo"))).toBe(true);
   });
 });
+
+// Issue #99 拆线：trae / trae-cn 两条 registry 条目，oauth 侧各钉一个站点。
+describe("Trae 拆线 — trae-cn 条目钉死国内站", () => {
+  const realFetch = globalThis.fetch;
+  let guidanceCalls;
+
+  beforeEach(() => {
+    guidanceCalls = [];
+    globalThis.fetch = vi.fn(async (url) => {
+      const u = String(url);
+      if (u.includes("GetLoginGuidance")) {
+        guidanceCalls.push(u);
+        const isCn = ["api.trae.com.cn", "api.marscode.cn", "api.trae.cn"].some((h) => u.includes(h));
+        return new Response(
+          JSON.stringify(isCn ? { Result: { LoginHost: "www.trae.cn" } } : { Result: { LoginHost: "www.trae.ai" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      // 换票：只认国内端（模拟真实的「站点不匹配」20101）
+      if (["api.trae.com.cn", "api.marscode.cn", "api.trae.cn"].some((h) => u.includes(h))) {
+        return new Response(
+          JSON.stringify({ Result: { AccessToken: "jwt-cn", RefreshToken: "rt-cn-2", ExpiresAt: 4102444800 } }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ ResponseMetadata: { Error: { Code: "20101", Message: "refresh token is invalid" } } }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    });
+  });
+
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  it("oauth 注册表含 trae-cn，config 钉死 cn", async () => {
+    const { getProvider } = await import("../../src/lib/oauth/providers/index.js");
+    const cn = getProvider("trae-cn");
+    expect(cn).toBeTruthy();
+    expect(cn.config.region).toBe("cn");
+    expect(getProvider("trae").config.region).toBeUndefined(); // 国际条目不带站点偏置
+  });
+
+  it("trae-cn 的登录引导只打国内白名单，落库 site=cn", async () => {
+    const { getProvider } = await import("../../src/lib/oauth/providers/index.js");
+    const cfg = await getProvider("trae-cn").prepareConfig(getProvider("trae-cn").config);
+    expect(cfg.region).toBe("cn");
+    expect(cfg.loginHost).toBe("www.trae.cn");
+    expect(guidanceCalls.length).toBeGreaterThan(0);
+    expect(guidanceCalls.every((u) => ["api.trae.com.cn", "api.marscode.cn", "api.trae.cn"].some((h) => u.includes(h)))).toBe(true);
+  });
+
+  it("trae 条目显式 meta.region=cn 时也走国内引导（修复：meta 此前从未传入 prepareConfig）", async () => {
+    const { getProvider } = await import("../../src/lib/oauth/providers/index.js");
+    const intl = getProvider("trae");
+    const cfg = await intl.prepareConfig(intl.config, { region: "cn" });
+    expect(cfg.region).toBe("cn");
+    expect(guidanceCalls.every((u) => ["api.trae.com.cn", "api.marscode.cn", "api.trae.cn"].some((h) => u.includes(h)))).toBe(true);
+  });
+
+  it("trae-cn 换票 fallback 站点为 cn（回调缺 loginHost 时不再赌国际端）", async () => {
+    const traeCn = (await import("../../src/lib/oauth/providers/trae.js")).traeCn;
+    // loginHost 判不出 → 回落 config.region=cn → cn origins 换票成功
+    const tokens = await traeCn.exchangeToken({ region: "cn" }, "http://127.0.0.1:1/cb?refreshToken=rt&loginHost=mirror.example.com");
+    expect(tokens._site).toBe("cn");
+    expect(tokens.accessToken).toBe("jwt-cn");
+  });
+});

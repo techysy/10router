@@ -1,4 +1,5 @@
-// Trae (ByteDance marscode) provider registry entry.
+// Trae 国际站 (trae.ai, ByteDance marscode) registry entry — issue #99 拆线。
+// 国内站独立条目见 trae-cn.js（账号与 refresh token 不互通，主机面完全分叉）。
 // Chat = SOLO remote agent API:
 //   POST {base}/chat_sessions → {data:{chat_session_id, message_id}}
 //   GET  {base}/chat_sessions/{id}/events?reply_to_message_id=... → SSE
@@ -19,19 +20,11 @@ export default {
     textIcon: "TR",
     website: "https://www.trae.ai",
     notice: { signupUrl: "https://www.trae.ai" },
-    // 国内站 / 国际站账号不互通（refresh token 拿错端换必 20101），
-    // 登录弹窗按站点分叉（issue #69）。
-    loginSites: {
-      param: "region",
-      default: "intl",
-      options: [
-        { value: "intl", label: "国际站", hint: "www.trae.ai · 海外账号" },
-        { value: "cn", label: "国内站", hint: "www.trae.cn · 国内手机号 / 抖音账号" },
-      ],
-    },
   },
   transport: {
     // SOLO remote agent base — verified working chat endpoint.
+    // 国际版 core host 已按账号区域生成（USTTP → traeapi.us / SG → coresg- / US → coreva-），
+    // 动态发现待 #99 落地要点 3；当前仍是老全球主机。
     baseUrl: "https://core-normal.trae.ai/api/remote/v1",
     format: "openai",
     headers: {
@@ -71,6 +64,8 @@ export default {
     refresh: { encoding: "json" },
   },
   // Model catalog (IDE flow, core-normal.trae.ai).
+  // INTL 端 model_list 返回 403 no schema found（#99 情报二），目录只能静态维护，
+  // 待按 trae2api-hub 的 trae_catalog_intl.json 口径重筛。
   models: [
     { id: "auto", name: "Auto (Server Picks)" },
     { id: "work", name: "Work (Fast)" },

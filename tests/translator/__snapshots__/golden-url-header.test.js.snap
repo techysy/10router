@@ -1979,6 +1979,34 @@ exports[`GOLDEN buildHeaders (default executor providers) > trae → headers (ap
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > trae-cn → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://www.trae.cn/",
+    "X-Preferenced-Language": "zh",
+    "X-Trae-Client-Type": "web",
+  },
+  "nonStream": {
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://www.trae.cn/",
+    "X-Preferenced-Language": "zh",
+    "X-Trae-Client-Type": "web",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "<CRED>",
+    "Content-Type": "application/json",
+    "Referer": "https://www.trae.cn/",
+    "X-Preferenced-Language": "zh",
+    "X-Trae-Client-Type": "web",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > trae-free → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2816,6 +2844,13 @@ exports[`GOLDEN buildUrl (default executor providers) > trae → url (stream + n
 {
   "nonStream": "https://core-normal.trae.ai/api/remote/v1",
   "stream": "https://core-normal.trae.ai/api/remote/v1",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > trae-cn → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://trae-api-cn.mchost.guru/api/remote/v1",
+  "stream": "https://trae-api-cn.mchost.guru/api/remote/v1",
 }
 `;
 

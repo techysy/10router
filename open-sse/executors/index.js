@@ -73,6 +73,7 @@ const executors = {
   cline: new ClineExecutor(),
   cl: new ClineExecutor(),
   trae: new TraeExecutor(),
+  "trae-cn": new TraeExecutor("trae-cn"),
   zed: new ZedExecutor(),
   windsurf: new WindsurfExecutor(),
   "devin-cli": new DevinCliExecutor(),

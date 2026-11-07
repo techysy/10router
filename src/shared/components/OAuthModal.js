@@ -7,21 +7,10 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Providers using the dynamic-port local callback proxy.
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
-const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed"]);
+const PROXY_OAUTH_PROVIDERS = new Set(["trae", "trae-cn", "windsurf", "zed"]);
 
-// 登录站点选项（issue #69）。Trae 国内站 (trae.cn) 与国际站 (trae.ai) 账号不互通：
-// refresh token 拿到另一端换必回 20101，所以必须由用户显式选站点，不能赌默认值。
-// key 会原样作为 meta.region 传给 /authorize。
-const LOGIN_SITES = {
-  trae: {
-    param: "region",
-    default: "intl",
-    options: [
-      { value: "intl", label: "国际站", hint: "www.trae.ai · 海外账号" },
-      { value: "cn", label: "国内站", hint: "www.trae.cn · 国内手机号 / 抖音账号" },
-    ],
-  },
-};
+// #99 拆线：站点选择收敛为两条独立供应商（trae=国际站 / trae-cn=国内站），各自在
+// oauth 条目里钉死站点，弹窗不再出「登录站点」卡片；服务端 meta.region 仍兼容老入口。
 
 // Providers offering a paste-token fallback (import-token flow).
 // UX warns if the IDE (which issues the token) is not installed.
@@ -29,10 +18,18 @@ const PASTE_TOKEN_PROVIDERS = {
   trae: {
     label: "Cloud-IDE-JWT",
     instructions:
-      "Sign in at trae.ai / solo.trae.ai (国际站) or trae.cn (国内站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). CN and intl accounts are not interchangeable.",
+      "Sign in at trae.ai / solo.trae.ai (国际站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). 国内站 token 请用 Trae (China) 导入，两端账号不互通。",
     placeholder: "Paste Cloud-IDE-JWT here...",
     ideName: "Trae",
     ideOptional: true, // token can be grabbed from DevTools without the IDE
+  },
+  "trae-cn": {
+    label: "Cloud-IDE-JWT",
+    instructions:
+      "登录 trae.cn（国内站，支持手机号 / 抖音账号），DevTools → Network 里任取一条请求 Authorization 头的 Cloud-IDE-JWT token 粘贴（约 14 天有效）。国际站 token 请用 Trae 导入，两端账号不互通。",
+    placeholder: "Paste Cloud-IDE-JWT here...",
+    ideName: "Trae",
+    ideOptional: true,
   },
   windsurf: {
     label: "Windsurf API key",
@@ -59,8 +56,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [polling, setPolling] = useState(false);
   // trae/windsurf: choose between browser OAuth (proxy) and paste-token (import)
   const [authMode, setAuthMode] = useState("browser"); // "browser" | "paste-token"
-  // 登录站点（目前只有 trae 用）；切换时重置登录态，避免拿上一站点的会话去换 token。
-  const [loginSite, setLoginSite] = useState("intl");
   const [pasteToken, setPasteToken] = useState("");
   const [ideStatus, setIdeStatus] = useState(null);
   const popupRef = useRef(null);
@@ -206,9 +201,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     // 2. Build the authorize URL with redirect_uri = proxy callback URL.
     const authorizeUrl = new URL(`/api/oauth/${providerId}/authorize`, window.location.origin);
     authorizeUrl.searchParams.set("redirect_uri", startData.callbackUrl);
-    // 登录站点选择原样进 meta，服务端按它决定打哪一端网关（trae: intl / cn）。
-    const siteSpec = LOGIN_SITES[providerId];
-    if (siteSpec) authorizeUrl.searchParams.set(siteSpec.param, loginSite);
     const authRes = await fetch(authorizeUrl);
     const authData = await authRes.json();
     if (!authRes.ok) throw new Error(authData.error);
@@ -227,7 +219,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     setStep("waiting");
     popupRef.current = window.open(authData.authUrl, "oauth_popup", "width=600,height=700");
     if (!popupRef.current) setStep("input"); // popup blocked → fall back to manual paste
-  }, [loginSite]);
+  }, []);
 
   // Start OAuth flow
   const startOAuthFlow = useCallback(async () => {
@@ -438,7 +430,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setPolling(false);
       setAuthMode("browser");
       setPasteToken("");
-      setLoginSite(LOGIN_SITES[provider]?.default || "intl");
       setIdeStatus(null);
       pollingAbortRef.current = false;
       // Best-effort IDE detection for paste-token providers (Trae/Windsurf)
@@ -712,36 +703,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
-            {/* 登录站点：只在浏览器登录模式、且该 provider 有站点概念时出现。
-                trae 国内/国际账号不互通，选错站点换 token 必 20101，所以必须显式选。 */}
-            {authMode === "browser" && LOGIN_SITES[provider] && (
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-text-muted">登录站点</span>
-                <div className="flex gap-2">
-                  {LOGIN_SITES[provider].options.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        if (opt.value === loginSite) return;
-                        setLoginSite(opt.value);
-                        // 站点变了，登录会话也得重开：先停掉旧回调监听再重跑整条流程。
-                        fetch(`/api/oauth/${provider}/stop-proxy`).catch(() => {});
-                        setAuthData(null);
-                        setError(null);
-                        setStep("waiting");
-                        startOAuthFlow();
-                      }}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${loginSite === opt.value ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
-                    >
-                      <div className="font-medium">{opt.label}</div>
-                      <div className="text-xs opacity-70">{opt.hint}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {PASTE_TOKEN_PROVIDERS[provider] && (
             <div className="flex gap-2">
               <button

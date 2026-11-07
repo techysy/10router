@@ -1270,6 +1270,31 @@
     "clientSecret": "-",
     "tokenUrl": "https://api.marscode.com/cloudide/api/v3/trae/oauth/ExchangeToken"
   },
+  "trae-cn": {
+    "baseUrl": "https://trae-api-cn.mchost.guru/api/remote/v1",
+    "soloBaseUrlCn": "https://trae-api-cn.mchost.guru/api/remote/v1",
+    "format": "openai",
+    "headers": {
+      "X-Trae-Client-Type": "web",
+      "X-Preferenced-Language": "zh",
+      "Referer": "https://www.trae.cn/"
+    },
+    "auth": {
+      "combined": true,
+      "header": "Authorization",
+      "scheme": "Cloud-IDE-JWT"
+    },
+    "usage": {
+      "url": "https://api.trae.com.cn/cloudide/api/v3/trae/GetUserInfo"
+    },
+    "regions": {
+      "cn": "https://api.trae.com.cn"
+    },
+    "defaultRegion": "cn",
+    "clientId": "ono9krqynydwx5",
+    "clientSecret": "-",
+    "tokenUrl": "https://api.trae.com.cn/cloudide/api/v3/trae/oauth/ExchangeToken"
+  },
   "venice": {
     "baseUrl": "https://api.venice.ai/api/v1/chat/completions",
     "validateUrl": "https://api.venice.ai/api/v1/models",

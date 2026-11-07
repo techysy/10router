@@ -257,11 +257,13 @@ const trae = {
   config: TRAE_CONFIG,
   flowType: "authorization_code",
   callbackPath: TRAE_CONFIG.callbackPath,
-  prepareConfig: async (config) => {
+  prepareConfig: async (config, meta) => {
     const loginTraceID = crypto.randomUUID();
-    // 站点由前端 meta.region（或 redirect_uri 里带 ?region=）决定，缺省国际站。
-    // 拿到的 LoginHost 再反推一次，作为最终站点的权威来源。
-    const requested = normalizeTraeRegion(config?.region);
+    // 站点来源优先级：条目钉死的 config.region（trae-cn 固定 cn）→ 前端 meta.region
+    // （/authorize?region=，#69 老入口）→ 缺省国际站。此前本函数只收 config，
+    // 弹窗传上来的 meta.region 实际从未生效（#99 拆线时修复）；拿到的 LoginHost
+    // 再反推一次，作为最终站点的权威来源。
+    const requested = normalizeTraeRegion(meta?.region || config?.region);
     const loginHost = await fetchTraeLoginGuidance(loginTraceID, requested);
     const site = traeRegionFromHost(loginHost, requested);
     return { ...config, loginTraceID, loginHost, region: site };
@@ -343,4 +345,15 @@ const trae = {
   },
 };
 
+// trae-cn — 国内站独立条目（#99 拆线，方案 A）。整条链路钉死 cn：GetLoginGuidance
+// 只打国内白名单，换票 / GetUserInfo 落在 cn origins。回调里的 loginHost 仍是
+// 最终权威——贴错端的 token 会拿到 20101「站点不匹配」人话提示，不会静默串端。
+const traeCn = {
+  ...trae,
+  config: { ...TRAE_CONFIG, region: "cn" },
+  prepareConfig: async (config, meta) => trae.prepareConfig({ ...config, region: "cn" }, meta),
+  exchangeToken: async (config, code) => trae.exchangeToken({ ...config, region: "cn" }, code),
+};
+
+export { traeCn };
 export default trae;
