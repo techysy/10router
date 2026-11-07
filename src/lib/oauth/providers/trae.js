@@ -21,6 +21,41 @@ function buildTraeDeviceContext() {
   };
 }
 
+// PKCE S256（新版授权，muskke 考古）：verifier 只留服务端 pending 表，
+// authorize URL 只带 challenge。
+function generateTraePKCE() {
+  const verifier = crypto.randomBytes(48).toString("base64url");
+  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
+
+// v3 AuthCode 换票的 DevicePublicKey：官方客户端每次换票生成一把临时 EC P-256
+// 公钥（SPKI PEM）随 DeviceInfo 上送，服务端只存不用，照抄生成即可。
+function generateDevicePublicKey() {
+  const { publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  return publicKey.export({ type: "spki", format: "pem" }).toString();
+}
+
+// prepareConfig 时登记、exchangeToken 时按 loginTraceID 消费——PKCE verifier 必须跨
+// authorize → exchange 两步一致，而 exchangeTokens 会重跑 prepareConfig（verifier
+// 不能放 config 里传过去）。10 分钟未消费自动作废（对齐 oauthTimeoutMs）。
+const PENDING_TTL_MS = 10 * 60 * 1000;
+const pendingTraeLogins = new Map();
+function rememberTraePending(loginTraceID, entry) {
+  const now = Date.now();
+  for (const [k, v] of pendingTraeLogins) {
+    if (now - v.createdAt > PENDING_TTL_MS) pendingTraeLogins.delete(k);
+  }
+  pendingTraeLogins.set(loginTraceID, { ...entry, createdAt: now });
+}
+function takeTraePending(loginTraceID) {
+  if (!loginTraceID) return null;
+  const entry = pendingTraeLogins.get(loginTraceID);
+  if (!entry) return null;
+  pendingTraeLogins.delete(loginTraceID);
+  return entry;
+}
+
 // ── Ecosystem (intl / cn) ──────────────────────────────────────────────────
 // Trae 国内站 (www.trae.cn) 与国际站 (www.trae.ai) 共用同一套 cloudide 接口形态，
 // 但**账号不互通**：国内发的 refresh token 拿到国际站换，必回 20101
@@ -79,7 +114,7 @@ async function fetchTraeLoginGuidance(loginTraceId, region = "intl") {
 }
 
 // Build the browser verification URL the user opens to sign in.
-function buildTraeVerificationUrl(loginHost, loginTraceId, callbackUrl, ctx) {
+function buildTraeVerificationUrl(loginHost, loginTraceId, callbackUrl, ctx, codeChallenge) {
   const url = new URL(loginHost.startsWith("http") ? loginHost : `https://${loginHost.replace(/^\/+/, "")}`);
   url.pathname = TRAE_CONFIG.authorizationPath;
   const p = new URLSearchParams();
@@ -102,12 +137,20 @@ function buildTraeVerificationUrl(loginHost, loginTraceId, callbackUrl, ctx) {
   p.set("x_env", ctx.x_env);
   p.set("x_app_version", ctx.x_app_version);
   p.set("x_app_type", ctx.x_app_type);
+  // 新版授权：PKCE S256。老客户端忽略这两个参数，无害双发。
+  if (codeChallenge) {
+    p.set("code_challenge", codeChallenge);
+    p.set("code_challenge_method", "S256");
+  }
   url.search = p.toString();
   return url.toString();
 }
 
 // Parse the Trae OAuth callback (query string or full URL).
-// Expected: ?isRedirect=true&refreshToken=...&loginHost=...[&x-cloudide-token=...]
+// 两种形态（#99 情报一）：
+//   旧：?isRedirect=true&refreshToken=...&loginHost=...[&x-cloudide-token=...]
+//   新：?authCode=... / ?authCodeInfo={"AuthCode":"...","ExpireAt":...}&loginHost=...
+//       （附 userRegion / userTag / userInfo JSON 等元数据，站点推断用）
 function parseTraeCallback(raw) {
   const text = String(raw || "").trim();
   let queryStr = text;
@@ -123,12 +166,26 @@ function parseTraeCallback(raw) {
     const desc = pick(["error_description", "error_desc", "message"]);
     throw new Error(desc ? `Trae auth failed: ${err} (${desc})` : `Trae auth failed: ${err}`);
   }
+  // authCodeInfo 是 URL 编码的 JSON（AuthCode + ExpireAt 毫秒时间戳）
+  let authCode = pick(["authCode", "auth_code", "AuthCode", "authorization_code", "code"]);
+  const authCodeInfoRaw = pick(["authCodeInfo", "auth_code_info", "AuthCodeInfo"]);
+  if (!authCode && authCodeInfoRaw) {
+    let info;
+    try { info = JSON.parse(authCodeInfoRaw); } catch { info = null; }
+    const code = info && String(info.AuthCode || info.authCode || info.auth_code || info.code || "").trim();
+    if (!code) throw new Error("Trae authCodeInfo missing AuthCode");
+    const expireAt = Number(info.ExpireAt || info.expireAt || info.expiresAt || 0);
+    if (expireAt > 0 && expireAt < Date.now()) throw new Error("Trae login callback authCodeInfo is expired");
+    authCode = code;
+  }
   const refreshToken = pick(["refreshToken", "refresh_token", "RefreshToken"]);
-  if (!refreshToken) throw new Error("Trae callback missing refreshToken");
+  if (!refreshToken && !authCode) throw new Error("Trae callback missing authCodeInfo/AuthCode and refreshToken");
   const loginHost = pick(["loginHost", "login_host", "LoginHost", "host", "consoleHost"]);
-  if (!loginHost) throw new Error("Trae callback missing loginHost");
+  const userRegion = pick(["userRegion", "user_region", "UserRegion", "loginRegion", "login_region", "LoginRegion"]);
+  const userTag = pick(["userTag", "user_tag", "UserTag"]);
+  const traceId = pick(["loginTraceID", "login_trace_id", "loginTraceId"]);
   const cloudideToken = pick(["x-cloudide-token", "xCloudideToken", "accessToken", "access_token", "token"]);
-  return { refreshToken, loginHost, cloudideToken };
+  return { refreshToken, authCode, loginHost, userRegion, userTag, traceId, cloudideToken };
 }
 
 // Allowed API origins for ExchangeToken/GetUserInfo — hardcoded HTTPS allowlist only.
@@ -193,6 +250,80 @@ async function fetchTraeExchangeToken(refreshToken, cloudideToken, region = "int
     );
   }
   throw new Error(`Trae ExchangeToken failed (${region}): ${lastErr}`);
+}
+
+// POST {origin}/trae/api/v3/oauth/ExchangeToken — AuthCode + PKCE + DeviceInfo
+// （新版授权，muskke exchangeAuthCode 考古）。DevicePublicKey 每次换票现生成。
+async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl", device = {}) {
+  const deviceName = String(process.env.USERNAME || process.env.USER || process.env.HOSTNAME || "PC").trim() || "PC";
+  const body = JSON.stringify({
+    ClientID: TRAE_CONFIG.clientId,
+    AuthCode: authCode,
+    CodeVerifier: codeVerifier || "",
+    IDEVersion: TRAE_CONFIG.defaultAppVersion,
+    DeviceInfo: {
+      DeviceID: device.device_id || TRAE_CONFIG.defaultDeviceId,
+      MachineID: device.machine_id || crypto.randomUUID(),
+      PlatformCode: "IDE_PC",
+      DeviceType: "PC",
+      DeviceName: deviceName,
+      DeviceModel: device.x_device_brand || "unknown",
+      ClientVersion: TRAE_CONFIG.defaultAppVersion,
+      DevicePublicKey: generateDevicePublicKey(),
+      DeviceBrand: device.x_device_brand || "unknown",
+      DeviceCPU: "",
+      OSInfo: device.x_device_type || "unknown",
+      OSVersion: device.x_os_version || "unknown",
+    },
+  });
+  const origins = normalizeTraeRegion(region) === "cn" ? [...TRAE_CONFIG.cnAuthCodeOrigins] : [...TRAE_CONFIG.authCodeOrigins];
+  let lastErr = "no successful response";
+  let wrongSide = false;
+  for (const origin of origins) {
+    const url = `${origin.replace(/\/$/, "")}${TRAE_CONFIG.authCodeExchangePath}`;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": TRAE_CONFIG.userAgent },
+        body,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        if (text.includes("20101") || /refresh token is invalid|Token 无效/i.test(text)) wrongSide = true;
+        lastErr = `${url} HTTP ${res.status}`;
+        continue;
+      }
+      let data; try { data = JSON.parse(text); } catch { lastErr = `${url} invalid JSON`; continue; }
+      const accessToken = extractJsonPath(data, [
+        ["Result", "AccessToken"], ["Result", "accessToken"], ["data", "AccessToken"], ["data", "accessToken"],
+        ["accessToken"], ["access_token"],
+      ]);
+      if (!accessToken) {
+        const msg = extractJsonPath(data, [["message"], ["msg"], ["error"], ["Result", "Message"], ["data", "Message"]]) || "missing AccessToken";
+        lastErr = `${url} ${msg}`;
+        continue;
+      }
+      return {
+        accessToken,
+        refreshToken: extractJsonPath(data, [
+          ["Result", "RefreshToken"], ["Result", "refreshToken"], ["data", "RefreshToken"], ["data", "refresh_token"], ["refreshToken"],
+        ]) || null,
+        expiresIn: null,
+        expiresAt: extractJsonPath(data, [
+          ["Result", "ExpiresAt"], ["Result", "expiresAt"], ["data", "ExpiresAt"], ["data", "expires_at"], ["expiresAt"],
+        ]),
+      };
+    } catch (e) { lastErr = `${url} ${e.message}`; }
+  }
+  if (wrongSide) {
+    const want = normalizeTraeRegion(region) === "cn" ? "国内站 (trae.cn)" : "国际站 (trae.ai)";
+    throw new Error(
+      `Trae 登录站点不匹配：这个授权码不是${want}签发的（20101）。` +
+      `国内站与国际站账号不互通，请用对应站点的供应商条目重新登录。` +
+      `连的是 ${origins[0]}。`
+    );
+  }
+  throw new Error(`Trae AuthCode ExchangeToken failed (${region}): ${lastErr}`);
 }
 
 // POST GetUserInfo with x-cloudide-token → identity fields used by SOLO common_params.
@@ -266,29 +397,48 @@ const trae = {
     const requested = normalizeTraeRegion(meta?.region || config?.region);
     const loginHost = await fetchTraeLoginGuidance(loginTraceID, requested);
     const site = traeRegionFromHost(loginHost, requested);
-    return { ...config, loginTraceID, loginHost, region: site };
+    // PKCE verifier 与设备上下文随本次登录登记进 pending 表（按 loginTraceID 消费），
+    // exchangeToken 拿 state / 回调里的 login_trace_id 找回——它们不能放 config，
+    // exchangeTokens 会重跑 prepareConfig 把 config 换成新的一轮。
+    const deviceCtx = buildTraeDeviceContext();
+    const pkce = generateTraePKCE();
+    rememberTraePending(loginTraceID, { codeVerifier: pkce.verifier, region: site, loginHost, device: deviceCtx });
+    return { ...config, loginTraceID, loginHost, region: site, codeChallenge: pkce.challenge, deviceCtx };
   },
   buildAuthUrl: (config, redirectUri, state) => {
-    const ctx = buildTraeDeviceContext();
     const traceId = config.loginTraceID || state;
-    return buildTraeVerificationUrl(config.loginHost, traceId, redirectUri, ctx);
+    return buildTraeVerificationUrl(config.loginHost, traceId, redirectUri, config.deviceCtx || buildTraeDeviceContext(), config.codeChallenge);
   },
-  exchangeToken: async (config, code) => {
+  exchangeToken: async (config, code, redirectUri, codeVerifier, state) => {
     const trimmed = String(code || "").trim();
     const fallbackSite = normalizeTraeRegion(config?.region);
     // Paste-token mode: raw Cloud-IDE-JWT (no refresh exchange)
-    const looksCallback = /[?=&]/.test(trimmed) && (trimmed.includes("refreshToken") || trimmed.includes("refresh_token"));
+    const looksCallback = /[?=&]/.test(trimmed)
+      && (trimmed.includes("refreshToken") || trimmed.includes("refresh_token") || trimmed.includes("authCode") || trimmed.includes("auth_code") || trimmed.includes("authCodeInfo"));
     if (!looksCallback) {
       // Strip "Cloud-IDE-JWT " / "Bearer " prefix users paste from the Authorization header
       const clean = trimmed.replace(/^(Cloud-IDE-JWT|Bearer)\s+/i, "");
       return { accessToken: clean, refreshToken: null, expiresIn: TRAE_CONFIG.tokenLifetimeDays * 24 * 60 * 60, _authMethod: "imported", _site: fallbackSite };
     }
-    const { refreshToken, loginHost, cloudideToken } = parseTraeCallback(trimmed);
-    // 回调里的 loginHost 决定用哪一端换 token：国内回调带 www.trae.cn，
-    // 只贴 token 没带 loginHost 时回落到调用方 meta 里的区域选择，
-    // 国际回调带 www.trae.ai。拿错端必 20101，因此这里以回调为准。
-    const site = traeRegionFromHost(loginHost, fallbackSite);
-    return { ...(await fetchTraeExchangeToken(refreshToken, cloudideToken, site)), _authMethod: "oauth", _site: site };
+    const parsed = parseTraeCallback(trimmed);
+    // pending 表（authorize 那一轮）优先：verifier / 站点 / 设备上下文都是它的。
+    const pending = takeTraePending(state || parsed.traceId);
+    // 回调里的 loginHost 决定用哪一端换 token（#69 起的权威来源）；host 判不出时
+    // 依次回落 pending 站点、回调 userRegion、声明 region。拿错端必 20101。
+    const hostLower = String(parsed.loginHost || "").toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+    const hostKnown = !!hostLower
+      && [...TRAE_CONFIG.intlHostSuffixes, ...TRAE_CONFIG.cnHostSuffixes].some((s) => hostLower === s || hostLower.endsWith(`.${s}`));
+    const site = hostKnown
+      ? traeRegionFromHost(parsed.loginHost, fallbackSite)
+      : normalizeTraeRegion(parsed.userRegion === "cn" || parsed.userRegion === "CN" ? "cn" : (pending?.region || fallbackSite));
+    if (parsed.authCode) {
+      return {
+        ...(await fetchTraeAuthCodeExchange(parsed.authCode, pending?.codeVerifier || codeVerifier, site, pending?.device)),
+        _authMethod: "oauth",
+        _site: site,
+      };
+    }
+    return { ...(await fetchTraeExchangeToken(parsed.refreshToken, parsed.cloudideToken, site)), _authMethod: "oauth", _site: site };
   },
   postExchange: async (tokens) => {
     const userInfo = await fetchTraeUserInfo(tokens.accessToken, tokens._site);
@@ -352,7 +502,9 @@ const traeCn = {
   ...trae,
   config: { ...TRAE_CONFIG, region: "cn" },
   prepareConfig: async (config, meta) => trae.prepareConfig({ ...config, region: "cn" }, meta),
-  exchangeToken: async (config, code) => trae.exchangeToken({ ...config, region: "cn" }, code),
+  // state 必须透传——pending 表按 loginTraceID 发 PKCE verifier / 站点 / 设备上下文
+  exchangeToken: async (config, code, redirectUri, codeVerifier, state, meta) =>
+    trae.exchangeToken({ ...config, region: "cn" }, code, redirectUri, codeVerifier, state, meta),
 };
 
 export { traeCn };

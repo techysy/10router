@@ -445,9 +445,11 @@ let traeProxyTimeout = null;
 let traeProxyPort = null;
 let traeSession = null;
 
-export function registerTraeSession({ state }) {
+export function registerTraeSession({ state, provider }) {
   if (!state) return false;
-  traeSession = { state, status: "pending", createdAt: Date.now() };
+  // provider 随会话落栈（#99 拆线）：trae-cn 的回调要换票/建连在 trae-cn 名下，
+  // 而不是被硬编码到 trae。
+  traeSession = { state, provider: provider || "trae", status: "pending", createdAt: Date.now() };
   return true;
 }
 export function getTraeSessionStatus(state) {
@@ -499,9 +501,10 @@ export function startTraeProxy() {
       try {
         const { exchangeTokens } = await import("../providers.js");
         const { createProviderConnection } = await import("@/models");
-        const tokenData = await exchangeTokens("trae", rawCallback);
+        const proxyProvider = session.provider || "trae";
+        const tokenData = await exchangeTokens(proxyProvider, rawCallback);
         const connection = await createProviderConnection({
-          provider: "trae",
+          provider: proxyProvider,
           authType: "oauth",
           ...tokenData,
           expiresAt: tokenData.expiresIn

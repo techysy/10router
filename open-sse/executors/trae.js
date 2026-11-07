@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { PROVIDERS } from "../config/providers.js";
@@ -18,6 +19,32 @@ const STREAM_TIMEOUT_MS = parseInt(process.env.TRAE_STREAM_TIMEOUT_MS || "300000
 const TRAE_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
+
+// 国际站 core host 候选链（#99 情报二）：老账号在 core-normal.trae.ai 上仍可用，
+// 新一代账号面已迁 traeapi.us / 区域生成域名（coresg-/coreva-）。createSession
+// 失败按序换站重试，不写死任何单一域名。
+const INTL_CORE_CANDIDATES = [
+  "https://core-normal.trae.ai/api/remote/v1",
+  "https://core-normal.traeapi.us/api/remote/v1",
+  "https://coresg-normal.trae.ai/api/remote/v1",
+  "https://coreva-normal.trae.ai/api/remote/v1",
+];
+const CN_CORE_CANDIDATES = ["https://trae-api-cn.mchost.guru/api/remote/v1"];
+
+// 设备指纹按账号派生（#99 落地要点 4）：共享硬编码 device_id 是 4017 风控的
+// 主要触发面（trae2api-hub v1.4.3 同款修法）。uid 取 psd.userId，缺了退邮箱/
+// token 前缀——同一连接永远得到同一组稳定指纹。
+function traeDeviceIdentity(psd = {}, accessToken = "") {
+  const uidSource = String(psd.userId || psd.email || `tok:${String(accessToken).slice(0, 64)}` || "anonymous");
+  const digest = crypto.createHash("sha256").update(`10router-trae:${uidSource}`).digest("hex");
+  const deviceId = digest.slice(0, 16).replace(/\D/g, "").padEnd(16, "7");
+  const machineId = [
+    digest.slice(16, 24), digest.slice(24, 28), `4${digest.slice(28, 31)}`,
+    [["8", "9", "a", "b"][parseInt(digest.slice(31, 32), 16) % 4], digest.slice(32, 35)].join(""),
+    digest.slice(35, 47),
+  ].join("-");
+  return { deviceId, machineId };
+}
 
 function flattenQuery(messages) {
   const parts = [];
@@ -62,26 +89,38 @@ export default class TraeExecutor extends BaseExecutor {
   // （core-normal.trae.cn 不解析；api.trae.com.cn 只承接 CloudIDE/OAuth/pay，#99 情报二）；
   // 若上游改域，改这里一处即可。
   base(psd = {}) {
+    return this.baseCandidates(psd)[0];
+  }
+
+  // 候选链有序：registry/env 配置优先（显式指定 = 信任），其后补社区实测域名。
+  baseCandidates(psd = {}) {
     const site = this.siteOf(psd);
     const configured = site === "cn"
       ? (this.config.soloBaseUrlCn || process.env.TRAE_SOLO_BASE_URL_CN)
       : (this.config.soloBaseUrl || this.config.baseUrl || process.env.TRAE_SOLO_BASE_URL);
-    const fallback = site === "cn"
-      ? "https://trae-api-cn.mchost.guru/api/remote/v1"
-      : "https://core-normal.trae.ai/api/remote/v1";
-    return (configured || fallback).replace(/\/$/, "");
+    const tail = site === "cn" ? CN_CORE_CANDIDATES : INTL_CORE_CANDIDATES;
+    return [configured, ...tail].filter(Boolean)
+      .map((u) => String(u).replace(/\/$/, ""))
+      .filter((u, i, arr) => arr.indexOf(u) === i);
   }
 
   buildHeaders(credentials, stream = true) {
     const token = credentials?.accessToken || "";
     const psd = credentials?.providerSpecificData || {};
     const isCn = this.siteOf(psd) === "cn";
+    // 设备指纹按账号派生并随请求上送（社区在同款 web remote 端点的实测头组合）：
+    // 共享硬编码设备号是 4017 风控的主要触发面。
+    const { deviceId, machineId } = traeDeviceIdentity(psd, token);
     return {
       Authorization: `Cloud-IDE-JWT ${token}`,
       "Content-Type": "application/json",
       "X-Trae-Client-Type": "web",
       "X-Preferenced-Language": psd.appLanguage || (isCn ? "zh" : "en"),
       "x-user-region": psd.userRegion || (isCn ? "CN" : "US"),
+      "x-uid": psd.userId || "",
+      "x-device-id": deviceId,
+      "x-machine-id": machineId,
+      "x-request-id": crypto.randomUUID(),
       Referer: isCn ? "https://www.trae.cn/" : "https://solo.trae.ai/",
       "User-Agent": TRAE_UA,
       Accept: stream ? "text/event-stream" : "application/json",
@@ -122,8 +161,8 @@ export default class TraeExecutor extends BaseExecutor {
     return JSON.stringify(cp);
   }
 
-  // POST /chat_sessions — creates a session and submits the first turn.
-  async createSession(headers, query, model, psd, signal) {
+  // POST /chat_sessions — creates a session and submits the first turn on ONE base.
+  async createSessionOnBase(base, headers, query, model, psd, signal) {
     const { mode, strategy, modelName } = this.resolveMode(model);
     const body = {
       mode,
@@ -141,7 +180,7 @@ export default class TraeExecutor extends BaseExecutor {
       auto_create_project: false,
       origin: "web",
     };
-    const res = await proxyAwareFetch(`${this.base(psd)}/chat_sessions`, {
+    const res = await proxyAwareFetch(`${base}/chat_sessions`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -152,6 +191,23 @@ export default class TraeExecutor extends BaseExecutor {
     const json = JSON.parse(text);
     if (json?.code !== 0) throw new Error(`Trae create_session: ${JSON.stringify(json)}`);
     return { sessionId: json.data.chat_session_id, messageId: json.data.message_id };
+  }
+
+  // createSession 按候选链换站重试（#99 落地要点 3）：国际账号面域名已按区域
+  // 生成，写死单一域名是直连线不可用的根因之一。首个 code:0 的 host 胜出。
+  async createSession(headers, query, model, psd, signal) {
+    let lastErr = new Error("no core host candidates");
+    for (const base of this.baseCandidates(psd)) {
+      try {
+        const session = await this.createSessionOnBase(base, headers, query, model, psd, signal);
+        session.base = base;
+        return session;
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        lastErr = err;
+      }
+    }
+    throw lastErr;
   }
 
   // GET /events SSE → invoke onEvent(eventType, dataObj) per frame.
@@ -201,6 +257,7 @@ export default class TraeExecutor extends BaseExecutor {
     const psd = credentials?.providerSpecificData || {};
     // 站点固定的 SOLO 网关。按请求取局部值——执行器是全局单例，存实例字段
     // 会让并发的国内站 / 国际站请求互相覆盖，token 打到错的一端。
+    // base 只作展示兜底；实际 host 由 createSession 换站重试的胜出者决定。
     const base = this.base(psd);
     const query = flattenQuery(body?.messages || []);
     const responseId = `chatcmpl-trae-${Date.now()}`;
@@ -217,6 +274,7 @@ export default class TraeExecutor extends BaseExecutor {
     } catch (err) {
       return { response: errResponse(502, err?.message ? String(err.message) : String(err)), url: base, headers, transformedBody: body };
     }
+    const usedBase = session.base || base;
 
     // Shared per-turn state: plan_item thoughts (cumulative, longest wins).
     const order = [];
@@ -249,7 +307,7 @@ export default class TraeExecutor extends BaseExecutor {
             choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
           });
           try {
-            await this.streamEvents(base, headers, session.sessionId, session.messageId, (ev, data) => {
+            await this.streamEvents(usedBase, headers, session.sessionId, session.messageId, (ev, data) => {
               if (ev === "error") { errorEvent = data; return true; }
               if (ev === "token_usage") usage = data;
               if (ev === "plan_item") {
@@ -322,7 +380,7 @@ export default class TraeExecutor extends BaseExecutor {
 
     // Non-streaming: drive to completion, return chat.completion JSON.
     try {
-      await this.streamEvents(base, headers, session.sessionId, session.messageId, (ev, data) => {
+      await this.streamEvents(usedBase, headers, session.sessionId, session.messageId, (ev, data) => {
         if (ev === "error") { errorEvent = data; return true; }
         if (ev === "token_usage") usage = data;
         if (ev === "plan_item") renderNewText(data);

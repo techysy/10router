@@ -172,11 +172,34 @@ export const TRAE_CONFIG = {
     "https://api.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
     "https://www.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
   ],
+  // 国际账号面（cloudide 族：旧 ExchangeToken 刷新 + GetUserInfo）host 已换代
+  // （#99 情报一/二）：api.trae.ai 的 pay/ent 已 404（trae2api-hub 实测 2026-10-19），
+  // USTTP（US）账号只认 grow-normal.traeapi.us。顺序 = 尝试顺序，新 host 优先，
+  // 老 marscode/trae.ai 保留兜底（存量老账号仍走它们）。
   apiOrigins: [
+    "https://grow-normal.trae.ai",
+    "https://grow-normal.traeapi.us",
     "https://api.marscode.com",
     "https://api.trae.ai",
     "https://www.trae.ai",
     "https://www.marscode.com",
+  ],
+  // ── 新版授权（AuthCode + PKCE，muskke/trae-api-proxy v0.5 考古）──
+  // 官方客户端升级为 PKCE 授权码流：authorize URL 带 code_challenge（S256），
+  // 回调回 AuthCode（或 authCodeInfo JSON），用 v3 换票端点 + DeviceInfo 换
+  // access/refresh。旧 refreshToken 回调 + /cloudide/.../ExchangeToken 仍活着，
+  // 作为兼容路径保留（社区至今用它做 refresh）。
+  authCodeExchangePath: "/trae/api/v3/oauth/ExchangeToken",
+  // v3 AuthCode 换票 host（muskke authCodeAPIHosts）。USTTP userTag 的账号
+  // 只认 grow-normal.traeapi.us，其余国际账号走 growsg/grow-normal.trae.ai。
+  authCodeOrigins: [
+    "https://growsg-normal.trae.ai",
+    "https://grow-normal.trae.ai",
+    "https://grow-normal.traeapi.us",
+  ],
+  cnAuthCodeOrigins: [
+    "https://api.trae.cn",
+    "https://api.trae.com.cn",
   ],
   // ── CN (trae.cn) ──────────────────────────────────────────────────────────
   cnLoginGuidanceUrls: [
@@ -191,7 +214,8 @@ export const TRAE_CONFIG = {
   ],
   // Hosts that only ever appear on the intl side — used to tell the two apart
   // when all we have is a pasted callback / an already-stored loginHost.
-  intlHostSuffixes: ["trae.ai", "marscode.com"],
+  // traeapi.us = 国际站新一代生成域名族（USTTP 账号面，#99）。
+  intlHostSuffixes: ["trae.ai", "marscode.com", "traeapi.us"],
   cnHostSuffixes: ["trae.cn", "trae.com.cn", "marscode.cn"],
   // Done-card web console, one per ecosystem (accounts don't cross over).
   consoleUrl: "https://www.trae.ai/settings",

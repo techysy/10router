@@ -6,6 +6,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 - **Trae split into China / International providers**: Trae CN (trae.cn) and international (trae.ai) accounts never interoperate — they are now two separate provider cards ("Trae" for international, "Trae (China)" for domestic), each with its own model catalog and sign-in entry. The site picker in the login dialog is gone, existing connections migrate with no action, and the CN data plane now points at the current official gateway.
+- **Trae authorization upgraded**: sign-in now speaks the current official PKCE + authorization-code flow (both legacy and new callback shapes accepted), token/account endpoints moved to the current gateway hosts, executor requests carry per-account device fingerprints (no more shared hardcoded device id), and the international data plane fails over across gateway hosts. Existing connections need no action.
 
 - **Media providers → Music**: a new Music category in the sidebar that generates full songs.
   - **ACE Music**: hosted ACE-Step — a song in tens of seconds, returned as a playable, downloadable MP3.
