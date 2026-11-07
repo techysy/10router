@@ -37,6 +37,11 @@ import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
+// 「每日赠送积分优先」只在 usage 暴露 daily/permanent 配对的供应商上有意义
+// （loomy 今天，见 auth.js #Loomy-daily-first 与 extractDailyGrantAndPermanent）。
+// 其他供应商的下拉一律不出现该选项；历史误存的非 loomy override 由 fetchData 兜底忽略。
+const DAILY_GRANT_PROVIDERS = new Set(["loomy"]);
+
 const AUTO_PING_SETTINGS_KEYS = {
   claude: "claudeAutoPing",
   codex: "codexAutoPing",
@@ -672,7 +677,9 @@ export default function ProviderDetailPage() {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
-      setDailyGrantFirst(override.dailyGrantFirst === true);
+      // 非 daily-grant 供应商（usage 不暴露 daily/permanent 配对）的历史误存
+      // override 在此忽略——不参与下拉取值，调度侧也按 provider 默认走。
+      setDailyGrantFirst(DAILY_GRANT_PROVIDERS.has(providerId) && override.dailyGrantFirst === true);
       setOauthTransferEnabled(settingsData.codeBuddyOAuthImport === true);
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
@@ -2227,7 +2234,9 @@ export default function ProviderDetailPage() {
 
                 // 1. Pack Asset Providers (CodeBuddy, Qoder)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
-                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
+                  // 资源包供应商的 usage 不暴露 daily/permanent 配对，daily-grant 选项不提供
+                  // （历史上误存过 qoder-cn 的 dailyGrantFirst，fetchData 已兜底忽略）。
+                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2239,7 +2248,6 @@ export default function ProviderDetailPage() {
                           onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                           options={[
                             { value: "earliest", label: translate("Earliest Pack Expiry") },
-                            { value: "daily-grant", label: translate("Daily Grant First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                           ]}
@@ -2302,6 +2310,8 @@ export default function ProviderDetailPage() {
 
                 // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
+                  // 长文案放工具栏外（见下方独立提示行），不挤占同一行
+                  const dailyGrantAllowed = DAILY_GRANT_PROVIDERS.has(providerId);
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2309,23 +2319,18 @@ export default function ProviderDetailPage() {
                           {translate("Scheduling Preference")}
                         </span>
                         <Select
-                          value={balanceStrategy}
+                          value={dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy)}
                           onChange={(e) => handleBalanceStrategyChange(e.target.value)}
                           options={[
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                             { value: "lowest-first", label: translate("Lowest Balance First") },
                             { value: "highest-first", label: translate("Highest Balance First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
-                            { value: "daily-grant", label: translate("Daily Grant First") },
+                            ...(dailyGrantAllowed ? [{ value: "daily-grant", label: translate("Daily Grant First") }] : []),
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
                         />
                       </div>
-                      {balanceStrategy === "daily-grant" && (
-                        <div className="w-full text-xs text-text-muted">
-                          {translate("Daily Grant First Hint")}
-                        </div>
-                      )}
                       {balanceStrategy === "round-robin" && (
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
@@ -2353,7 +2358,7 @@ export default function ProviderDetailPage() {
                 }
 
                 // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
-                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
+                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                 return (
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -2365,7 +2370,6 @@ export default function ProviderDetailPage() {
                         onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                         options={[
                           { value: "earliest", label: translate("Earliest Expiry First") },
-                          { value: "daily-grant", label: translate("Daily Grant First") },
                           { value: "round-robin", label: translate("Round Robin (Balanced)") },
                           { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                         ]}
@@ -2390,6 +2394,17 @@ export default function ProviderDetailPage() {
               })()}
             </div>
           </div>
+
+          {/* 算法说明独立成行（PURE_BALANCE + daily-grant 时）：放工具栏行内会把
+              整行布局挤乱（长文案强制换行、左右控件错位）。 */}
+          {balanceStrategy === "daily-grant" &&
+            DAILY_GRANT_PROVIDERS.has(providerId) &&
+            getProviderQuotaCategory(providerId) === PROVIDER_QUOTA_TYPES.PURE_BALANCE && (
+            <div className="-mt-3 mb-3 flex items-start gap-1.5 text-xs leading-relaxed text-text-muted">
+              <span className="material-symbols-outlined text-[14px] leading-5">info</span>
+              <p className="min-w-0">{translate("Daily Grant First Hint")}</p>
+            </div>
+          )}
 
           {connections.length === 0 ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
