@@ -148,3 +148,29 @@ sudo /usr/local/bin/appcenter-cli start 10router
 | `docs/zh-CN/test-report-INDEX.md` | 事故复盘总索引（含 NAS 场景报告，一篇一文件） |
 | 31.31: `~/.hermes/skills/productivity/fnos-app-development/references/nextjs-standalone-hotfix-redeploy.md` | 本流程的原始出处（Hermes skill，含 10Router 诊断经验） |
 | 31.31: `~/.hermes/skills/productivity/fnos-app-development/references/appcenter-auto-restart.md` | 72s 自动拉起的排查记录（TRIMEVENT） |
+| `scripts/fpk-deploy-gate.mjs` / `scripts/fpk-hot-replace.sh` | 热替换两道门禁：构建侧预检（上传前）/ NAS 侧部署 + 自动回滚 |
+
+## 7. 门禁与自动回滚（2026-11-07 事故后固化）
+
+热替换必须过两道门禁，任何一道失败都不许继续：
+
+1. **构建侧预检**（上传前，build 机器上跑）：
+
+   ```bash
+   node scripts/fpk-deploy-gate.mjs <server.tar.gz> \
+     --expect-file open-sse/services/qoderModels.js --expect-regex <本次commit特征串> \
+     --expect-file node_modules/@swc/helpers/package.json
+   ```
+
+   体积下限 / 条目数 / node_modules 实体文件数 / **绝对符号链接投毒** / 版本号必须 `-test.N` / BUILD_ID 非空 / 按 commit 定制标记（从 tar 包内提取验证，不信构建盘上的文件——盘上检查会顺着 symlink 假通过）。2026-11-07 抓出过 11.5MB 的悬空链接毒包。
+
+2. **NAS 侧部署 + 自动回滚**：
+
+   ```bash
+   scp scripts/fpk-hot-replace.sh nas:/tmp/
+   ssh nas 'sudo bash /tmp/fpk-hot-replace.sh /tmp/10rf-server.tar.gz'
+   ```
+
+   解包后复检（node_modules 实体文件数、绝对符号链接）→ 原子交换 → stop+start 同会话 → **health 轮询 90s + /login、/dashboard 冒烟，失败自动 stop+mv 回滚+start**（退出码 0=成功，2=已自动回滚且健康，3=回滚后仍不健康需人工）。
+
+红线：worktree 构建时 node_modules 必须**真拷贝**（`cp -a`）——symlink 会让 standalone 原样保留绝对链接，tar 打包后成悬空链接，NAS 上起不来；assemble 只**增补**不 `rm`——`rm -rf standalone/node_modules` 会连 Next trace 出的运行时依赖（`@swc/helpers` 等）一起删掉（2026-11-07 两次死服都是这两只手）。
