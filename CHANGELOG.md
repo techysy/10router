@@ -6,6 +6,7 @@
 
 ### ✨ 新增
 
+- **组合页双栏网格（2xl+ 视口）**：组合数量增长后单列列表过长；宽屏自动两列、窄屏保持单列。卡片拖拽换位是 id 语义（拖到目标卡即换位），网格逐行铺排与顺序数组一致，跨列拖放成立。
 - **Qoder/Qoder-CN 接入 QoDuck（lmodel，app 场景独占免费模型）**（#100）：Qoder 的模型目录按场景返回多个数组，此前只解析 `chat` 场景，只在 `app` 场景发布的 QoDuck 一直报 "model_config not yet known" 无法调用。现在 `app` 场景独占条目并入目录（chat 同名优先、`app` 内部同 key 去重），CN/国际双端实测 `qoder-cn/lmodel`、`qoder/lmodel` 均 200。注册表新增 QoDuck 行 + 能力行（vision/reasoning 按上游 `is_vl/is_reasoning`，窗口按 `context_config` 上限 1M）；限免语义如实呈现——live 目录 `price_factor 0` + `original_price_factor 0.5` 透传为 `originalRateMultiplier`，免费徽章 tooltip 保留「原价 0.5x — 个人版限时每日赠送尝鲜额度」，不再把限免抹成永久免费。
 - **fnOS 管理面板（#97，fpk 专属）**：`fnos-packaging` 新增独立管理进程 `cmd/dashboard.js`（Node stdlib 零依赖，默认仅监听 `127.0.0.1:20125`，可选 `PANEL_TOKEN` 鉴权），与主应用同生命周期但 restart 不中断——定时自动更新的调度器跑在这里。能力：npm latest 快速更新（aria2c 16 线程分段 + 断点续传，缺失回退 Node 原生；HTTP CONNECT 后显式 `tls.connect` 握手；60s 停滞看门狗）、tgz/zip 双魔数校验、浏览器上传离线安装、同卷三步热覆盖 + 健康检查/版本核验失败自动回滚上一版、每日 HH:mm 定时自动更新（错窗补跑一次、失败 2h 重试当日上限 3 次）、日志关键字过滤、`sudo -l` 折行解析。`cmd/main` 负责拉起；`uninstall_init` 卸载清理、`upgrade_callback` 升级后换新版面板。目标版本一律服务端从 npm 解析，绝不信请求体（延续 #9 纪律）。纯函数逻辑（semver/魔数/调度/sudo 解析）抽在 `cmd/dashboard-lib.js`，20 条 vitest 用例钉死。
 - **媒体提供商 → 音乐（全新分类）**：侧栏媒体提供商新增「音乐」入口，与图像/语音/视频同列。收录两类形态：
@@ -42,6 +43,7 @@
 ### 🧪 测试与工程
 
 - **测试构建版本严格 N+1 门禁**：`scripts/test-build-version.mjs` 持久化轮次账本，拒绝重复或倒退使用已烧掉的 `test.N`；新增 `--next` 自动严格递增。
+- **fpk 热替换两道门禁**：`scripts/fpk-deploy-gate.mjs`（构建侧预检：体积 / 条目数 / node_modules 实体文件数 / 绝对符号链接投毒 / 版本号必须 `-test.N` / BUILD_ID / 按 commit 标记，全部从 tar 包内提取验证，不过闸不许上传）+ `scripts/fpk-hot-replace.sh`（NAS 侧解包复检 → 原子交换 → stop/start 同会话 → health 轮询 90s + /login、/dashboard 冒烟，失败自动 stop+回滚+start）。落地自 2026-11-07 两次 symlink node_modules 毒包致 NAS 死服事故；用法与红线见 `docs/zh-CN/fnos-hot-replace-deploy.md` §7。
 - 该门禁自身的测试改为只读隔离（`TEST_BUILD_ROUND_FILE` 指向临时账本）：原先读被 gitignore 的真实账本，在干净 checkout/CI 上必然失败，且在 `--force` 路径下改写并回退仓库四个版本文件，与并行 worker 互相踩。
 - `snapshot-inventory.mjs` 输出按键排序：此前按 vitest 报告顺序落盘（取决于文件发现与 worker 调度），每次重基线都重写整个文件——上一版 6500 行变更实际只对应 25 个新增测试。
 
