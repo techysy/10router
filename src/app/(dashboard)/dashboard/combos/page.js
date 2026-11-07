@@ -281,7 +281,9 @@ export default function CombosPage() {
           </div>
         </Card>
       ) : (
-        <div className="flex flex-col gap-4">
+        /* 双栏网格（2xl+）：组合多了以后单列太长。拖拽是 id 语义（拖到目标卡上
+           即换位），网格逐行铺排与数组顺序一致，跨列拖放依然成立。 */
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
           {(() => {
             const sortedCombos = [...combos].sort(buildComboCardComparator({ cardOrder: comboCardOrder }));
             const comboByName = Object.fromEntries(sortedCombos.map((c) => [c.name, c.models]));
