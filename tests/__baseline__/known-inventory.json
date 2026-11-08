@@ -3258,7 +3258,7 @@
   "tests/unit/loomy-provider.test.js :: Loomy provider registration does not fall through to DEFAULT_CAPABILITIES for any shipped model": "passed",
   "tests/unit/loomy-provider.test.js :: Loomy provider registration icon ships as a real file and the official avatar was committed": "passed",
   "tests/unit/loomy-provider.test.js :: Loomy provider registration registers as a freeTier provider with apikey auth and llm service kind": "passed",
-  "tests/unit/loomy-provider.test.js :: Loomy provider registration ships the eight live-verified models with spark-x2.6 as the free default": "passed",
+  "tests/unit/loomy-provider.test.js :: Loomy provider registration ships the tightened live-verified lineup (spark-x2.6 free default, MiMo V2.5 added)": "passed",
   "tests/unit/loomy-usage.test.js :: getLoomyUsage — records V1 卡面 100002 after retry reports points-unavailable WITHOUT claiming session expiry (认证层可能仍活着)": "passed",
   "tests/unit/loomy-usage.test.js :: getLoomyUsage — records V1 卡面 100002 → POST first-login → retry records once (client protocol)": "passed",
   "tests/unit/loomy-usage.test.js :: getLoomyUsage — records V1 卡面 daily row uses the 5000文案上限 even when the response omits dailyLimitPoints": "passed",
