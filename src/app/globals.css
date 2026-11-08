@@ -1174,6 +1174,17 @@ button:disabled,
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
 }
 
+/* 弹窗面板是文字密集面,不能吃卡片级 0.38 的透明度:muted 正文(62% α)
+   会糊进磨砂底里(公告弹窗浅玻璃实测看不清)。面板单独提到 0.8+ 实底,
+   blur/saturate 仍由 .theme-card 规则保留,透光感交给边缘与光斑;
+   置于 .theme-card 之后靠同特异度后者胜。 */
+.theme-glass-light .theme-modal {
+  background: rgba(255, 255, 255, 0.8);
+}
+.theme-glass-dark .theme-modal {
+  background: rgba(30, 32, 40, 0.85);
+}
+
 .theme-glass-light .theme-picker-panel,
 .theme-glass-dark .theme-picker-panel {
   background: var(--color-surface);

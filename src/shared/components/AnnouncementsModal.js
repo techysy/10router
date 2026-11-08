@@ -224,13 +224,13 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
             className={cn(
               "rounded-lg border p-2.5",
               it.level === "critical"
-                ? "border-red-500/30 bg-red-500/5"
+                ? "border-red-500/40 bg-red-500/10"
                 : it.level === "warning"
-                  ? "border-amber-500/30 bg-amber-500/5"
+                  ? "border-amber-500/40 bg-amber-500/10"
                   : it.level === "promo"
-                    ? "border-green-500/40 bg-green-500/5"
+                    ? "border-green-500/40 bg-green-500/10"
                     : it.level === "feature"
-                      ? "border-blue-500/40 bg-blue-500/5"
+                      ? "border-blue-500/40 bg-blue-500/10"
                       : "border-black/10 dark:border-white/10 bg-surface/50"
             )}
           >
