@@ -358,7 +358,13 @@ export default function ProviderDetailPage() {
       if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
       const list = Array.isArray(data?.results) ? data.results : [];
       if (list.length === 0) {
-        notify.warning(translate("No active Qoder connections found"));
+        // Trae: the check-in endpoint only exists on the CN site — an intl trae
+        // deployment has no eligible connections at all, so say which side is covered.
+        notify.warning(
+          providerId === "trae" || providerId === "trae-cn"
+            ? translate("No Trae (China) connections found — check-in covers CN-site connections only")
+            : translate("No active Qoder connections found")
+        );
         return;
       }
       const checkedInList = list.filter((r) => r.status === "checked-in");
@@ -403,7 +409,11 @@ export default function ProviderDetailPage() {
       onClick={handleQoderCheckin}
       disabled={qoderCheckinRunning}
       className="w-full sm:w-auto"
-      title={translate("Claim daily activity Credits")}
+      title={translate(
+        providerId === "trae" || providerId === "trae-cn"
+          ? "Claim the daily Trae check-in credits"
+          : "Claim daily activity Credits"
+      )}
     >
       {qoderCheckinRunning ? translate("Claiming...") : translate("Claim Credits")}
     </Button>
@@ -453,7 +463,7 @@ export default function ProviderDetailPage() {
   // Manual claim / check-in button (Qoder credits, MiniMax Code daily sign-in).
   // Must appear in every action row — single-auth providers (minimax-code is
   // OAuth-only) take the non-dual branch, which once lacked it.
-  const hasClaimCheckin = ["qoder", "qoder-cn", "minimax-code", "minimax-code-global"].includes(providerId);
+  const hasClaimCheckin = ["qoder", "qoder-cn", "minimax-code", "minimax-code-global", "trae", "trae-cn"].includes(providerId);
   /**
    * The Export/Import button pair, hoisted out of the dual-auth-only branch.
    *

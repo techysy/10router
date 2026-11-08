@@ -999,5 +999,9 @@
   "Native Loomy authorization": "Loomy 原生授權",
   "Native CodeBuddy authorization": "CodeBuddy 原生授權",
   "Native MiniMax Code authorization": "MiniMax Code 原生授權",
-  "Native MiniMax Code (Global) authorization": "MiniMax Code (Global) 原生授權"
+  "Native MiniMax Code (Global) authorization": "MiniMax Code (Global) 原生授權",
+  "Trae auto daily check-in": "Trae 每日自動簽到",
+  "Automatically check in Trae (China) connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)": "每天自動為 Trae (China) 連線簽到領取每日贈送積分——國際站 trae.ai 連線不參與（該介面只在國內站註冊）",
+  "No Trae (China) connections found — check-in covers CN-site connections only": "未找到 Trae (China) 連線——簽到只涵蓋國內站連線",
+  "Claim the daily Trae check-in credits": "領取 Trae 每日簽到積分"
 }

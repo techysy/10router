@@ -185,6 +185,19 @@ export async function PATCH(request) {
       }
     }
 
+    // Auto daily check-in for Trae CN connections (ug/checkin_credits)
+    if (Object.prototype.hasOwnProperty.call(body, "traeCheckin")) {
+      if (settings.traeCheckin === true) {
+        import("@/sse/services/traeCheckin.js")
+          .then(({ startTraeCheckin }) => startTraeCheckin())
+          .catch((error) => console.warn("[TraeCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/traeCheckin.js")
+          .then(({ stopTraeCheckin }) => stopTraeCheckin())
+          .catch((error) => console.warn("[TraeCheckin] stop failed:", error.message));
+      }
+    }
+
     const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     // Establishing protection used to kick the operator straight to the login

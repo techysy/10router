@@ -164,6 +164,15 @@ async function runHeavyStartup() {
       .then(({ startMinimaxCheckin }) => startMinimaxCheckin())
       .catch((e) => console.log("[MinimaxCheckin] scheduler start failed:", e.message));
   }
+
+  // Auto daily check-in for Trae CN connections (ug/checkin_credits, ported from
+  // CreditDaddy traeClient). Only site=cn connections participate; the scheduler
+  // no-ops when none exist or the toggle is off.
+  if (settings.traeCheckin === true) {
+    import("@/sse/services/traeCheckin.js")
+      .then(({ startTraeCheckin }) => startTraeCheckin())
+      .catch((e) => console.log("[TraeCheckin] scheduler start failed:", e.message));
+  }
 }
 
 function hasQuotaAutoPingEnabled(settings) {

@@ -124,6 +124,27 @@ export default function ExperimentalClient() {
               />
             </div>
 
+            {/* Trae CN auto daily check-in — ug/checkin_credits (ported from
+                CreditDaddy traeClient). Only site=cn connections participate;
+                the intl trae line has no check-in product on the upstream. */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">{translate("Trae auto daily check-in")}</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {translate("Automatically check in Trae (China) connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)")}
+                </p>
+              </div>
+              <Toggle
+                checked={settings.traeCheckin === true}
+                onChange={() =>
+                  patch(
+                    { traeCheckin: !(settings.traeCheckin === true) },
+                    "Error toggling Trae auto check-in:"
+                  )
+                }
+              />
+            </div>
+
             {/* CodeBuddy CN auto daily check-in (shares the UI slot with import/export) */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">

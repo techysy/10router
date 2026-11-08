@@ -326,6 +326,15 @@ export async function POST(request, { params }) {
         const results = await runMinimaxCheckinTick({ skipIfCheckedToday: false, provider });
         return NextResponse.json({ success: true, results });
       }
+      // Trae 国内站每日签到(ug/checkin_credits,移植自 CreditDaddy traeClient):
+      // 只有 site=cn 的连接参与;trae-cn 条目整体放行,trae 条目里 psd.site=cn 的
+      // 存量连接也认。intl 连接由 eligible 过滤跳过,结果里带 skipped 说明。
+      if (provider === "trae" || provider === "trae-cn") {
+        const { runTraeCheckinTick } = await import("@/sse/services/traeCheckin.js");
+        const results = await runTraeCheckinTick({ skipIfCheckedToday: false });
+        const site = provider === "trae-cn" ? "cn" : "cn-connections-only";
+        return NextResponse.json({ success: true, site, results });
+      }
       return NextResponse.json({ error: `Check-in not supported for ${provider}` }, { status: 400 });
     }
 
