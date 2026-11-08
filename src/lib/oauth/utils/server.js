@@ -437,7 +437,9 @@ export function stopXaiProxy() {
 
 // ───────────────────────────────────────────────────────────────────────────
 // Trae dynamic-port proxy. Singleton session (one connect at a time per provider).
-// Callback path = /callback with params refreshToken + loginHost.
+// Callback path = /authorize（授权页只认它，见 TRAE_CONFIG.callbackPath 注释；
+// /callback 是老版本 10router 发出去过的路径，作为兼容一并接受）.
+// Callback params: refreshToken|authCode|authCodeInfo + loginHost.
 // ───────────────────────────────────────────────────────────────────────────
 
 let traeProxyServer = null;
@@ -469,7 +471,7 @@ export function startTraeProxy() {
     }
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, "http://localhost");
-      if (url.pathname !== TRAE_CONFIG.callbackPath && url.pathname !== "/auth/callback") {
+      if (url.pathname !== TRAE_CONFIG.callbackPath && url.pathname !== "/callback" && url.pathname !== "/auth/callback") {
         res.writeHead(404);
         res.end("Not found");
         return;

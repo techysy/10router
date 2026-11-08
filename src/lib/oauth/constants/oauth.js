@@ -223,7 +223,11 @@ export const TRAE_CONFIG = {
   exchangeTokenPath: "/cloudide/api/v3/trae/oauth/ExchangeToken",
   getUserInfoPath: "/cloudide/api/v3/trae/GetUserInfo",
   authorizationPath: "/authorization",
-  callbackPath: "/callback",
+  // 回调路径必须是 /authorize——官方客户端用它，且授权页（CN+intl 实测 2026-11-08，
+  // #99 用户报障）在渲染登录 UI 前用 /^http:\/\/127\.0\.0\.1:(\d+)\/authorize$/ 校验
+  // auth_callback_url，路径不是 /authorize 时直接进「登录失败/网络错误」死页，不发任何
+  // 换票请求。此前 /callback 在本地代理侧完全可用，故只在这个站上翻车。
+  callbackPath: "/authorize",
   // 客户端版本按站点对齐真机（2026-11-07 本机 product.json 实测：CN 3.4.15 / intl 3.6.4）。
   // 此前单值 3.5.54 在 CN 端是不存在的版本——授权页「网络错误」的头号嫌疑。
   appVersions: { cn: "3.4.15", intl: "3.6.4" },

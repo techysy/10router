@@ -144,6 +144,24 @@ describe("Trae 新版授权 — PKCE + AuthCode", () => {
     const cn = await trae.exchangeToken({}, "http://127.0.0.1:1/cb?refreshToken=r1&userRegion=CN&loginHost=mirror.example.com");
     expect(cn._site).toBe("cn");
   });
+
+  // 回归钉：CN+intl 授权页（2026-11-08 真机浏览器实测，#99 用户报障「登录失败/
+  // 网络错误」）在渲染登录 UI 前用 /^http:\/\/127\.0\.0\.1:(\d+)\/authorize$/ 校验
+  // auth_callback_url——路径必须是 /authorize，否则直接进失败死页且不发任何请求。
+  // 回调路径错在弹窗侧完全无感（本地代理照常监听），只有真开授权页才会翻车。
+  it("auth_callback_url 必须是 http://127.0.0.1:<port>/authorize（授权页白名单正则）", async () => {
+    const trae = (await import("../../src/lib/oauth/providers/trae.js")).default;
+    expect(trae.callbackPath).toBe("/authorize");
+    expect(TRAE_CONFIG.callbackPath).toBe("/authorize");
+    const traeCn = (await import("../../src/lib/oauth/providers/trae.js")).traeCn;
+    expect(traeCn.callbackPath).toBe("/authorize");
+    for (const provider of [trae, traeCn]) {
+      const cfg = await provider.prepareConfig(provider.config);
+      const authUrl = new URL(provider.buildAuthUrl(cfg, `http://127.0.0.1:52345${TRAE_CONFIG.callbackPath}`, cfg.loginTraceID));
+      const cb = authUrl.searchParams.get("auth_callback_url");
+      expect(cb).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/authorize$/);
+    }
+  });
 });
 
 describe("Trae executor — 设备指纹与换站重试", () => {

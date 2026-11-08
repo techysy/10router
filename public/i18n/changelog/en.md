@@ -23,6 +23,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **Trae browser sign-in "Login Failed / network error" fixed**: the official authorization page only accepts an `/authorize` callback URL, but we were sending `/callback`, so the popup died on a "Login Failed, network error" screen before showing any login UI. Now aligned with the official client (`/authorize`); browser sign-in reaches the QR / phone-number login screen on both the China and international sites.
 - **Reasoning-only answers were discarded as empty (#96)**: some upstreams end a turn with thinking content and no body text, which clients like Hermes Agent treat as an empty reply and drop. Combos now fall through to the next model; a single model promotes the thinking into the body instead — emitted before the finish marker, so clients actually read it.
 - **Tool calls polluted with a synthetic text frame**: Claude / Gemini tool turns got extra text appended after translation; fixed.
 - **Same-named resource packs overwriting each other**: with several packs (LongCat and others), the per-pack breakdown now lists them as "Bonus Pack 1/2/3" with individual expiry countdowns instead of only the last one.
