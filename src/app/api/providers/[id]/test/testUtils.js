@@ -1,6 +1,7 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
+import { geoRedirectNote } from "open-sse/services/usage/minimax-code.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel, getModelUpstreamId } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
@@ -720,6 +721,13 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
         newTokens,
       };
     }
+
+    // Geo-redirect short-circuit (issue #101): a region-redirected probe
+    // (agent.minimax.io → CN domain from CN networks) fails auth regardless of
+    // token validity — refresh here would only churn tokens on a network
+    // problem. Surface the actionable message instead.
+    const geoNote = geoRedirectNote(testUrl, res);
+    if (geoNote) return { valid: false, error: geoNote, refreshed: false };
 
     if (res.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
       const tokens = await refreshOAuthToken(connection);
