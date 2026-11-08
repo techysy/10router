@@ -7,8 +7,18 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-11-08T00:00:00+08:00",
+  "updatedAt": "2026-11-08",
   "items": [
+    {
+      "id": "2026-11-08-loomy-model-pool",
+      "date": "2026-11-08",
+      "level": "warning",
+      "title": "Loomy 模型池收紧：三款下线，新增 MiMo V2.5",
+      "body": "讯飞收紧模型池：Qwen 3.8 Max / MiniMax M3 / Kimi K2.6 下线不可调（组合引用了它们的请更新成员）；新增 MiMo V2.5（全模态，×3.3）。各模型积分倍率已标注在模型行（Spark-X2.6 正式版限时免费 ×0.0）。多账号的邀请码可在 CreditDaddy 快速填写与获取。",
+      "titleEn": "Loomy model pool tightened: 3 models retired, MiMo V2.5 added",
+      "bodyEn": "iFlytek tightened the pool: Qwen 3.8 Max / MiniMax M3 / Kimi K2.6 are retired (update combos referencing them); MiMo V2.5 added (omni-modal, x3.3). Credit multipliers are now labeled on model rows (Spark-X2.6 official is free for a limited time, x0.0). Invite codes for multiple accounts can be quickly filled/obtained via CreditDaddy.",
+      "link": "https://loomy.xunfei.cn"
+    },
     {
       "id": "2026-11-08-update-channel",
       "date": "2026-11-08",
@@ -83,15 +93,6 @@
       "body": "代理失败立即报错接力，不再回退直连死等（曾实测 788 秒）。",
       "titleEn": "Proxy change: direct-connect channels default to strict",
       "bodyEn": "Proxy failures now error immediately and relay instead of hanging on blocked direct connections (788s seen)."
-    },
-    {
-      "id": "2026-10-20-combo-router",
-      "date": "2026-10-20",
-      "level": "feature",
-      "title": "组合 router 策略",
-      "body": "决策模型分析 prompt 动态挑最擅长的成员回答，失败 8 秒内退回原顺序。",
-      "titleEn": "Combo router strategy",
-      "bodyEn": "A decision model picks the best-suited member per prompt; failures fall back within 8s."
     },
     {
       "id": "2026-10-21-gemini4-argon-gpt61",

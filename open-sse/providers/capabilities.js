@@ -558,12 +558,12 @@ export const PROVIDER_CAPABILITIES = {
   // spark-x2.6 无公开规格（讯飞自家模型，×0.0 免费），保留 floor + allowlist。
   "loomy": {
     "qwen3.8-flash":          { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
-    "qwen-3.8-max":           { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
     "DeepSeek-V4.1-Flash":    { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
     "deepseek-v4-flash-0731": { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
-    "MiniMax-M3":             { vision: true, reasoning: true, thinkingFormat: "minimax", contextWindow: 1000000, maxOutput: 131072 },
-    "Kimi-k2.6":              { vision: true, reasoning: true, thinkingFormat: "kimi", contextWindow: 262144, maxOutput: 262144 },
     "GLM-5.3-Flash":          { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
+    // mimo-v2.5（2026-11-08 新增，live /models 实测）：全模态输入（image/audio/video），
+    // reasoning_efforts 档位（none→xhigh）→ openai 形状；窗口 1048576（live 原值）。
+    "mimo-v2.5":              { vision: true, audioInput: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
   },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
