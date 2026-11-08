@@ -14,6 +14,7 @@
 import * as log from "../utils/logger.js";
 import { signedAccountRequest } from "../../../open-sse/services/usage/minimax-code.js";
 import { proxyAwareFetch } from "../../../open-sse/utils/proxyFetch.js";
+import { geoRedirectNote } from "../../../open-sse/utils/error.js";
 import { resolveConnectionProxyConfig } from "../../lib/network/connectionProxy.js";
 
 const TICK_MS = 2 * 60 * 60 * 1000;
@@ -142,21 +143,6 @@ export async function checkinOneMinimax(conn, deps = {}) {
   const proxyOptions = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
   const fetchFn = deps.fetch || ((url, init) => proxyAwareFetch(url, init, proxyOptions));
 
-  // Geo-redirect 检测：最终 URL host ≠ 请求 host 时，失败与 token 无关，
-  // 给出可操作的报错而不是"Token 失效"。
-  const geoFail = (requestedUrl, res) => {
-    try {
-      if (!res || !res.url) return null;
-      const from = new URL(requestedUrl).host;
-      const to = new URL(res.url).host;
-      if (from === to) return null;
-      if (res.status && res.status < 400) return null;
-      return `MiniMax 全球站点 ${from} 在当前网络被重定向到 ${to}（地区限制），鉴权因此在错误的站点上失败——请为本连接配置代理后重试（与 token 是否有效无关）。`;
-    } catch {
-      return null;
-    }
-  };
-
   try {
     // 1. Status
     const { url: statusUrl, init: statusInit } = signinRequest(conn, "/minimax-cloud/api/v1/signin/status");
@@ -165,7 +151,7 @@ export async function checkinOneMinimax(conn, deps = {}) {
       signal: AbortSignal.timeout(15000),
     });
     if (statusRes.status === 401 || statusRes.status === 403) {
-      const geo = geoFail(statusUrl, statusRes);
+      const geo = geoRedirectNote(statusUrl, statusRes);
       if (geo) return { ...base, status: "failed", error: geo };
       return { ...base, status: "failed", error: `Authentication failed (${statusRes.status})` };
     }
@@ -196,7 +182,7 @@ export async function checkinOneMinimax(conn, deps = {}) {
       signal: AbortSignal.timeout(15000),
     });
     if (claimRes.status === 401 || claimRes.status === 403) {
-      const geo = geoFail(claimUrl, claimRes);
+      const geo = geoRedirectNote(claimUrl, claimRes);
       if (geo) return { ...base, status: "failed", error: geo };
       return { ...base, status: "failed", error: `Authentication failed (${claimRes.status})` };
     }

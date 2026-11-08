@@ -119,7 +119,29 @@ export function unwrapJsonErrorMessage(bodyText) {
   return human;
 }
 
-export async function parseUpstreamError(response, executor = null) {
+// 地区重定向检测（issue #101）：部分供应商端点按网络地区重定向
+// （agent.minimax.io 在 CN 网络 307 → CN 域名家族）。fetch 自动跟随重定向，
+// 把 host 绑定的签名头/与地区不匹配的 token 重放到重定向后的站点上——
+// 失败表现与「token 过期」一模一样，但重登录永远无效。识别 host 变化，
+// 把真正的原因说出来，而不是甩锅给 token。
+export function geoRedirectNote(requestedUrl, response) {
+  try {
+    if (!response || !response.url) return null;
+    const from = new URL(requestedUrl).host;
+    const to = new URL(response.url).host;
+    if (from === to) return null;
+    if (response.status && response.status < 400) return null; // 跟随后仍成功的重定向链不算
+    return `上游端点 ${from} 在当前网络被重定向到 ${to}（地区限制），鉴权因此在错误的站点上失败——请为本连接配置代理后重试（与 token 是否有效无关）。`;
+  } catch {
+    return null;
+  }
+}
+
+export async function parseUpstreamError(response, executor = null, requestedUrl = null) {
+  // Geo 短路（issue #101）：先于任何「token 失效」类消息，也先于调用方的
+  // 401 自动刷新——网络问题不该轮换 token。
+  const geo = requestedUrl ? geoRedirectNote(requestedUrl, response) : null;
+  if (geo) return { statusCode: response.status, message: geo };
   let bodyText = "";
   try {
     bodyText = await response.text();

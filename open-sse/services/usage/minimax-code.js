@@ -112,24 +112,9 @@ export function parsePlanWindows(body) {
   return out;
 }
 
-// Geo-redirect detection (issue #101): from CN networks the GLOBAL agent host
-// (agent.minimax.io) 307-redirects to the CN domain family (agent.minimaxi.com
-// / agent.minimax.cn). fetch follows the redirect and replays the signed
-// headers against a host the signature (and a global token) can't authorize —
-// the result reads exactly like "token expired" but no amount of re-login
-// fixes it. Detect the host change and say what actually happened.
-export function geoRedirectNote(requestedUrl, res) {
-  try {
-    if (!res || !res.url) return null;
-    const from = new URL(requestedUrl).host;
-    const to = new URL(res.url).host;
-    if (from === to) return null;
-    if (res.status && res.status < 400) return null; // redirect chain that still succeeded
-    return `MiniMax 全球站点 ${from} 在当前网络被重定向到 ${to}（地区限制），鉴权因此在错误的站点上失败——请为本连接配置代理后重试（与 token 是否有效无关）。`;
-  } catch {
-    return null;
-  }
-}
+// geo-redirect 检测用共享实现（open-sse/utils/error.js geoRedirectNote）——
+// issue #101：agent.minimax.io 在 CN 网络 307 重定向到 CN 域名家族。
+import { geoRedirectNote } from "../../utils/error.js";
 
 export async function getMiniMaxCodeUsage(accessToken, provider, proxyOptions = null, providerSpecificData = null) {
   const site = SITES[provider];
