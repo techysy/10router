@@ -2178,7 +2178,7 @@
   "Native MiniMax Code authorization": "MiniMax Code 原生授权",
   "Native MiniMax Code (Global) authorization": "MiniMax Code (Global) 原生授权",
   "Trae auto daily check-in": "Trae 每日自动签到",
-  "Automatically check in Trae (China) connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)": "每天自动为 Trae (China) 连接签到领取每日赠送积分——国际站 trae.ai 连接不参与（该接口只在国内站注册）",
-  "No Trae (China) connections found — check-in covers CN-site connections only": "未找到 Trae (China) 连接——签到只覆盖国内站连接",
+  "Automatically check in Trae CN connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)": "每天自动为 Trae CN 连接签到领取每日赠送积分——国际站 trae.ai 连接不参与（该接口只在国内站注册）",
+  "No Trae CN connections found — check-in covers CN-site connections only": "未找到 Trae CN 连接——签到只覆盖国内站连接",
   "Claim the daily Trae check-in credits": "领取 Trae 每日签到积分"
 }

@@ -362,7 +362,7 @@ export default function ProviderDetailPage() {
         // deployment has no eligible connections at all, so say which side is covered.
         notify.warning(
           providerId === "trae" || providerId === "trae-cn"
-            ? translate("No Trae (China) connections found — check-in covers CN-site connections only")
+            ? translate("No Trae CN connections found — check-in covers CN-site connections only")
             : translate("No active Qoder connections found")
         );
         return;

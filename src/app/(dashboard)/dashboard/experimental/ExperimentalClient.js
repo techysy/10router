@@ -131,7 +131,7 @@ export default function ExperimentalClient() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm sm:text-base">{translate("Trae auto daily check-in")}</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  {translate("Automatically check in Trae (China) connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)")}
+                  {translate("Automatically check in Trae CN connections daily to claim the free daily credits — international trae.ai connections are not covered (the upstream registers this endpoint on the CN site only)")}
                 </p>
               </div>
               <Toggle

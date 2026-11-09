@@ -18,7 +18,7 @@ const PASTE_TOKEN_PROVIDERS = {
   trae: {
     label: "Cloud-IDE-JWT",
     instructions:
-      "Sign in at trae.ai / solo.trae.ai (国际站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). 国内站 token 请用 Trae (China) 导入，两端账号不互通。",
+      "Sign in at trae.ai / solo.trae.ai (国际站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). 国内站 token 请用 Trae CN 导入，两端账号不互通。",
     placeholder: "Paste Cloud-IDE-JWT here...",
     ideName: "Trae",
     ideOptional: true, // token can be grabbed from DevTools without the IDE

@@ -15,7 +15,7 @@ export default {
   hasOAuth: true,
   authModes: ["oauth"],
   display: {
-    name: "Trae (China)",
+    name: "Trae CN",
     icon: "bolt",
     color: "#FF6A00",
     textIcon: "TC",
