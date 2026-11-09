@@ -31,6 +31,7 @@ import { getGlmUsage } from "./usage/glm.js";
 import { getCommandCodeUsage } from "./usage/commandcode.js";
 import { getMiniMaxCodeUsage } from "./usage/minimax-code.js";
 import { getCursorUsage } from "./usage/cursor.js";
+import { getTraeUsage } from "./usage/trae.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -101,6 +102,15 @@ const USAGE_HANDLERS = {
   "alitp-intl": (c) => getAlibabaTokenPlanUsage("alitp-intl"),
   "alitp-cn": (c) => getAlibabaTokenPlanUsage("alitp-cn"),
   cursor: (c) => getCursorUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  // Trae 国内站：权益包（ug 签到发的 150 分/7 天包逐包归并）+ 套餐名。
+  // trae-cn 条目直接命中；trae 条目（国际站为主）只有 psd.site=cn 的存量连接
+  // 才有国内产品面——intl 连接不发这个 handler，卡面继续走 "not implemented"
+  // 文案之外的指路逻辑（site 判定与 traeCheckin 的资格过滤同口径）。
+  "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
+  trae: (c) =>
+    String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
+      ? getTraeUsage(c.accessToken, c.proxyOptions)
+      : { message: "Usage API not implemented for trae (intl connections have no CN entitlement endpoint)" },
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {
