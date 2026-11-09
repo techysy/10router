@@ -6,16 +6,22 @@ import { extractJsonPath } from "./_shared.js";
 // Trae (ByteDance marscode) OAuth helpers
 // ───────────────────────────────────────────────────────────────────────────
 
-// Per-login device context. No IDE access in 10router, so use stable defaults.
+// Per-login device context. No IDE access in 10router, so derive stable defaults.
 // 客户端版本按站点对齐真机客户端（CN 3.4.15 / intl 3.6.4，product.json 实测）。
 function traeAppVersionFor(site) {
   return TRAE_CONFIG.appVersions?.[site] || TRAE_CONFIG.defaultAppVersion;
 }
-function buildTraeDeviceContext(site = "intl") {
+// device_id 派生 16 位真号（cockpit 同款红线：授权 URL 与换票体必须同源——此前发
+// "0"，v3 换票回 10101 无效参数）。seed 用 loginTraceID：一次登录内稳定，登录间不同。
+function deriveTraeDeviceId(seed) {
+  const digest = crypto.createHash("sha256").update(`10router-trae-login:${seed}`).digest("hex");
+  return digest.slice(0, 16).replace(/\D/g, "").padEnd(16, "7");
+}
+function buildTraeDeviceContext(site = "intl", seed = crypto.randomUUID()) {
   return {
     plugin_version: TRAE_CONFIG.defaultPluginVersion,
     machine_id: crypto.randomUUID(),
-    device_id: TRAE_CONFIG.defaultDeviceId,
+    device_id: deriveTraeDeviceId(seed),
     x_device_brand: "unknown",
     x_device_type: "unknown",
     x_os_version: "unknown",
@@ -256,55 +262,103 @@ async function fetchTraeExchangeToken(refreshToken, cloudideToken, region = "int
   throw new Error(`Trae ExchangeToken failed (${region}): ${lastErr}`);
 }
 
+// AuthCode 换票请求的公共头——CD traeAuth.postJson 实测口径：空 token 头缺失会被
+// 上游当非客户端流量（workbuddy 抓包沉淀），X-App-Id / x-plugin-channel 为客户端原样。
+function traeExchangeHeaders() {
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": TRAE_CONFIG.userAgent,
+    "x-cloudide-token": "",
+    "X-App-Id": "6eefa01c-1036-4c7e-9ca5-d891f63bfcd8",
+    "x-plugin-channel": "icube-ai",
+  };
+}
+
 // POST {origin}/trae/api/v3/oauth/ExchangeToken — AuthCode + PKCE + DeviceInfo
-// （新版授权，muskke exchangeAuthCode 考古）。DevicePublicKey 每次换票现生成。
-async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl", device = {}) {
+// CN 链整体对齐 CD traeAuth.exchangeAuthCode（真机验证过的三段降级）：
+//   ① 新端点 v3 + 嵌套 DeviceInfo（muskke 口径）
+//   ② 旧端点扁平体 AuthCode   ③ 旧端点扁平体 Code
+// host 来源：回调里的 host 参数（限 API 白名单，防 SSRF）优先，cnAuthCodeOrigins 兜底；
+// 国际线保持 muskke 单段 v3（grow-normal 族，未观察到需要降级）。
+async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl", device = {}, callbackHost = "") {
   const deviceName = String(process.env.USERNAME || process.env.USER || process.env.HOSTNAME || "PC").trim() || "PC";
-  const body = JSON.stringify({
-    ClientID: TRAE_CONFIG.clientId,
-    AuthCode: authCode,
-    CodeVerifier: codeVerifier || "",
-    IDEVersion: device.x_app_version || TRAE_CONFIG.defaultAppVersion,
-    DeviceInfo: {
-      DeviceID: device.device_id || TRAE_CONFIG.defaultDeviceId,
-      MachineID: device.machine_id || crypto.randomUUID(),
-      PlatformCode: "IDE_PC",
-      DeviceType: "PC",
-      DeviceName: deviceName,
-      DeviceModel: device.x_device_brand || "unknown",
-      ClientVersion: device.x_app_version || TRAE_CONFIG.defaultAppVersion,
-      DevicePublicKey: generateDevicePublicKey(),
-      DeviceBrand: device.x_device_brand || "unknown",
-      DeviceCPU: "",
-      OSInfo: device.x_device_type || "unknown",
-      OSVersion: device.x_os_version || "unknown",
-    },
-  });
-  const origins = normalizeTraeRegion(region) === "cn" ? [...TRAE_CONFIG.cnAuthCodeOrigins] : [...TRAE_CONFIG.authCodeOrigins];
+  const appVersion = device.x_app_version || traeAppVersionFor(normalizeTraeRegion(region));
+  const deviceId = device.device_id || deriveTraeDeviceId(callbackHost || authCode);
+  const deviceInfo = {
+    DeviceID: deviceId,
+    MachineID: device.machine_id || crypto.randomUUID(),
+    PlatformCode: "IDE_PC",
+    DeviceType: "PC",
+    DeviceName: deviceName,
+    DeviceModel: device.x_device_brand || "unknown",
+    ClientVersion: appVersion,
+    DevicePublicKey: generateDevicePublicKey(),
+    DeviceBrand: device.x_device_brand || "unknown",
+    DeviceCPU: "",
+    OSInfo: device.x_device_type || "unknown",
+    OSVersion: device.x_os_version || "unknown",
+  };
+  const isCn = normalizeTraeRegion(region) === "cn";
+  const exchangePath = TRAE_CONFIG.authCodeExchangePath;
+  const legacyPath = TRAE_CONFIG.exchangeTokenPath;
+  // host 候选：回调 host（仅认 API 域，console 域 www.* 跳过——真机回调带的是 api.trae.cn）
+  // → 各自站点的 origins。CN 在每个 host 上按三段形态降级；intl 只打 v3。
+  const apiHostAllow = isCn ? TRAE_CONFIG.cnApiOrigins : TRAE_CONFIG.authCodeOrigins.map((o) => o.replace(/^https:\/\//, ""));
+  const cbHost = String(callbackHost || "").toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+  const hostChain = [];
+  if (cbHost && apiHostAllow.includes(cbHost)) hostChain.push(`https://${cbHost}`);
+  for (const origin of isCn ? TRAE_CONFIG.cnAuthCodeOrigins : TRAE_CONFIG.authCodeOrigins) {
+    if (!hostChain.includes(origin)) hostChain.push(origin);
+  }
+
+  const attempts = [];
+  for (const host of hostChain) {
+    attempts.push({
+      url: `${host}${exchangePath}`,
+      body: JSON.stringify({
+        ClientID: TRAE_CONFIG.clientId,
+        AuthCode: authCode,
+        CodeVerifier: codeVerifier || "",
+        IDEVersion: appVersion,
+        DeviceInfo: deviceInfo,
+      }),
+    });
+    if (isCn) {
+      attempts.push({
+        url: `${host}${legacyPath}`,
+        body: JSON.stringify({ ClientID: TRAE_CONFIG.clientId, AuthCode: authCode, CodeVerifier: codeVerifier || "", DeviceID: deviceId, PlatformCode: "IDE_PC" }),
+      });
+      attempts.push({
+        url: `${host}${legacyPath}`,
+        body: JSON.stringify({ ClientID: TRAE_CONFIG.clientId, Code: authCode, CodeVerifier: codeVerifier || "", DeviceID: deviceId, PlatformCode: "IDE_PC" }),
+      });
+    }
+  }
+
   let lastErr = "no successful response";
   let wrongSide = false;
-  for (const origin of origins) {
-    const url = `${origin.replace(/\/$/, "")}${TRAE_CONFIG.authCodeExchangePath}`;
+  for (const attempt of attempts) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(attempt.url, {
         method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": TRAE_CONFIG.userAgent },
-        body,
+        headers: traeExchangeHeaders(),
+        body: attempt.body,
       });
       const text = await res.text();
       if (!res.ok) {
         if (text.includes("20101") || /refresh token is invalid|Token 无效/i.test(text)) wrongSide = true;
-        lastErr = `${url} HTTP ${res.status}`;
+        lastErr = `${attempt.url} HTTP ${res.status}`;
         continue;
       }
-      let data; try { data = JSON.parse(text); } catch { lastErr = `${url} invalid JSON`; continue; }
+      let data; try { data = JSON.parse(text); } catch { lastErr = `${attempt.url} invalid JSON`; continue; }
       const accessToken = extractJsonPath(data, [
         ["Result", "AccessToken"], ["Result", "accessToken"], ["data", "AccessToken"], ["data", "accessToken"],
         ["accessToken"], ["access_token"],
       ]);
       if (!accessToken) {
         const msg = extractJsonPath(data, [["message"], ["msg"], ["error"], ["Result", "Message"], ["data", "Message"]]) || "missing AccessToken";
-        lastErr = `${url} ${msg}`;
+        lastErr = `${attempt.url} ${msg}`;
         continue;
       }
       return {
@@ -317,14 +371,14 @@ async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl"
           ["Result", "ExpiresAt"], ["Result", "expiresAt"], ["data", "ExpiresAt"], ["data", "expires_at"], ["expiresAt"],
         ]),
       };
-    } catch (e) { lastErr = `${url} ${e.message}`; }
+    } catch (e) { lastErr = `${attempt.url} ${e.message}`; }
   }
   if (wrongSide) {
-    const want = normalizeTraeRegion(region) === "cn" ? "国内站 (trae.cn)" : "国际站 (trae.ai)";
+    const want = isCn ? "国内站 (trae.cn)" : "国际站 (trae.ai)";
     throw new Error(
       `Trae 登录站点不匹配：这个授权码不是${want}签发的（20101）。` +
       `国内站与国际站账号不互通，请用对应站点的供应商条目重新登录。` +
-      `连的是 ${origins[0]}。`
+      `连的是 ${hostChain[0]}。`
     );
   }
   throw new Error(`Trae AuthCode ExchangeToken failed (${region}): ${lastErr}`);
@@ -404,7 +458,7 @@ const trae = {
     // PKCE verifier 与设备上下文随本次登录登记进 pending 表（按 loginTraceID 消费），
     // exchangeToken 拿 state / 回调里的 login_trace_id 找回——它们不能放 config，
     // exchangeTokens 会重跑 prepareConfig 把 config 换成新的一轮。
-    const deviceCtx = buildTraeDeviceContext(site);
+    const deviceCtx = buildTraeDeviceContext(site, loginTraceID);
     const pkce = generateTraePKCE();
     rememberTraePending(loginTraceID, { codeVerifier: pkce.verifier, region: site, loginHost, device: deviceCtx });
     return { ...config, loginTraceID, loginHost, region: site, codeChallenge: pkce.challenge, deviceCtx };
@@ -437,7 +491,7 @@ const trae = {
       : normalizeTraeRegion(parsed.userRegion === "cn" || parsed.userRegion === "CN" ? "cn" : (pending?.region || fallbackSite));
     if (parsed.authCode) {
       return {
-        ...(await fetchTraeAuthCodeExchange(parsed.authCode, pending?.codeVerifier || codeVerifier, site, pending?.device)),
+        ...(await fetchTraeAuthCodeExchange(parsed.authCode, pending?.codeVerifier || codeVerifier, site, pending?.device, parsed.loginHost)),
         _authMethod: "oauth",
         _site: site,
       };
