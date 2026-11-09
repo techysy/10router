@@ -60,29 +60,40 @@ export default {
     userInfoUrl: "https://api.trae.com.cn/cloudide/api/v3/trae/GetUserInfo",
     refresh: { encoding: "json" },
   },
-  // 模型目录对齐 TRAE 2.3.87413 官方 remote（Work / SOLO Agent，2026-10-10 采集，#54；
-  // 与 trae-free 同源——同一条 SOLO remote 协议的国内目录）。
+  // 模型目录：显示名 / 倍率 / 标签按官方客户端 2026-11-09 实拍对齐（用户截图四张，
+  // 倍率 = 官方积分消耗速度；#108 发版前校准）。
+  // 标签字段口径（与 codebuddy-cn 同一套）：
+  //   专属补贴 / 会员限时优惠 / 闲时折扣 都是**折扣型**（倍率非 0），用 discountNote
+  //   承载规则说明——不亮 free 徽章（promoFree* 会亮 free，夸大）。
+  //   Kimi-K3.1-Pro 官方列表带锁（会员 Lite/Pro/Pro+/Ultra/Express 专属）→ paidTier。
+  // 显示名去掉『Doubao 』前缀（官方列表就叫 Seed-2.1-Turbo）；id 不动（老 combo /
+  // 连接引用不受影响）。官方截图没有的旧模型（glm-5.2 / qwen-3.7-plus 等）保留不删。
   models: [
-    { id: "Doubao-Seed-Code", name: "Doubao Seed Code" },
-    { id: "Doubao-Seed-2.1-Pro", name: "Doubao Seed 2.1-Pro" },
-    { id: "Doubao-Seed-2.1-Turbo", name: "Doubao Seed 2.1-Turbo" },
-    { id: "Doubao-Seed-Evolving", name: "Doubao Seed Evolving" },
-    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1-Flash" },
-    { id: "DeepSeek-V4-Flash-Official", name: "DeepSeek V4-Flash Official" },
-    { id: "DeepSeek-V4-Pro-Official", name: "DeepSeek V4-Pro Official" },
+    { id: "Doubao-Seed-2.1-Turbo", name: "Seed-2.1-Turbo", rateMultiplier: 0.20, discountNote: "专属补贴：积分消耗 0.20 倍" },
+    { id: "Doubao-Seed-2.1-Pro", name: "Seed-2.1-Pro-0915", rateMultiplier: 0.80 },
+    { id: "Doubao-Seed-Evolving", name: "Seed-Evolving", rateMultiplier: 0.80 },
+    { id: "Doubao-Seed-Code", name: "Seed-Code", rateMultiplier: 0.06, discountNote: "专属补贴：积分消耗 0.06 倍" },
+    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.78, discountNote: "会员限时优惠 0.78 倍，生效至 11-16" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.06, discountNote: "会员限时优惠 0.06 倍，生效至 11-16" },
+    { id: "DeepSeek-V4-Pro-Official", name: "DeepSeek-V4-Pro", rateMultiplier: 0.36, discountNote: "闲时折扣：北京时间周一至周五 09:00-12:00、14:00-18:00 属忙时 0.36 倍，其余时段 5 折 0.06 倍" },
+    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", paidTier: true },
+    { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.83 },
+    { id: "mimo-v2.6-flash", name: "MiMo-V2.6-Flash", rateMultiplier: 0.06 },
+    { id: "mimo-v2.6-pro", name: "MiMo-V2.6-Pro", rateMultiplier: 0.15 },
+    { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.09 },
+    { id: "minimax-m3", name: "MiniMax-M3", rateMultiplier: 0.26 },
+    { id: "step-5-preview", name: "Step-5-Preview", rateMultiplier: 0.48 },
+    { id: "qwen3.8-flash", name: "Qwen3.8-Flash", rateMultiplier: 0.08 },
+    { id: "qwen3.8-max", name: "Qwen3.8-Max", rateMultiplier: 1.50 },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
+    { id: "glm-5.3-flashx", name: "GLM-5.3-FlashX", rateMultiplier: 0.31 },
+    // 官方客户端 11-09 清单已无下列模型（下架/改版），保留 id 防老引用断链，不展示倍率：
+    // （Doubao-Seed-Code 已在上面按官方名/倍率收录，此处不再重复）
     { id: "glm-5.2", name: "GLM 5.2" },
-    { id: "glm-5.3", name: "GLM 5.3" },
-    { id: "glm-5.3-flash", name: "GLM 5.3-Flash" },
-    { id: "glm-5.3-flashx", name: "GLM 5.3-FlashX" },
-    { id: "mimo-v2.6-flash", name: "MiMo V2.6-Flash" },
-    { id: "mimo-v2.6-pro", name: "MiMo V2.6-Pro" },
+    { id: "DeepSeek-V4-Flash-Official", name: "DeepSeek V4-Flash Official" },
     { id: "kimi-k2.6", name: "Kimi K2.6" },
     { id: "kimi-k2.7-code", name: "Kimi K2.7-Code" },
-    { id: "kimi-k3", name: "Kimi K3" },
-    { id: "minimax-m3", name: "MiniMax M3" },
     { id: "qwen-3.7-plus", name: "Qwen 3.7-Plus" },
-    { id: "qwen3.8-max", name: "Qwen 3.8-Max" },
-    { id: "step-5-preview", name: "Step 5-Preview" },
   ],
   features: { usage: true },
 };
