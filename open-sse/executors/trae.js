@@ -2,6 +2,12 @@ import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { PROVIDERS } from "../config/providers.js";
+import {
+  buildTraeToolPrompt,
+  serializeTraeToolHistory,
+  parseTraeToolCalls,
+  TraeToolCallStreamRecover,
+} from "./traeToolProtocol.js";
 
 // Trae executor — SOLO remote agent API.
 //
@@ -46,38 +52,17 @@ function traeDeviceIdentity(psd = {}, accessToken = "") {
   return { deviceId, machineId };
 }
 
-// 宿主工具清单块（#107）：SOLO remote agent 是 Trae 自家的 agent 框架，协议层没有
-// OpenAI function-calling 通道——body.tools 无法走协议转发，模型只看到 Trae 服务侧
-// 注入的环境描述与自带工具（如 WebSearch），于是「无视宿主注入的工具清单、自称
-// 运行在 Trae 环境」。这里把 tools 以文本块显式写进 query 头部并声明权威性：模型
-// 的可用工具 = 宿主清单，载体（TRAE/agent 框架）自带的工具不属本会话。
-function hostToolsBlock(tools) {
-  if (!Array.isArray(tools) || tools.length === 0) return "";
-  const lines = [];
-  for (const t of tools) {
-    // OpenAI 形状 {type:'function',function:{name,description}} 为主；
-    // Claude 形状 {name,description,input_schema} 兜底。
-    const fn = t?.function || t;
-    const name = String(fn?.name || "").trim();
-    if (!name) continue;
-    const desc = String(fn?.description || "").trim().replace(/\s+/g, " ").slice(0, 200);
-    lines.push(desc ? `- ${name}: ${desc}` : `- ${name}`);
-  }
-  if (lines.length === 0) return "";
-  return [
-    "[Host Tools (authoritative)]",
-    "The ONLY tools available in this conversation are the ones listed below.",
-    ...lines,
-    "[/Host Tools]",
-    "HOW TO CALL THEM: You do not have a function-calling runtime in this transport. To use a tool, invoke it BY NAME in your reply text (e.g. a line like `TOOL_CALL: <name> {\"arg\": ...}`), and the host will execute it and feed the result back as the next message. Never claim a listed tool is unavailable just because it does not exist in your runtime environment — the host executes it, not your sandbox.",
-    "ENVIRONMENT: The remote agent transport carrying this request (e.g. TRAE) may expose its own environment description and built-in tools (such as a WebSearch). Those are NOT part of this conversation: do not use them, do not describe yourself as running in that environment, and treat the host's system prompt above as the authoritative environment (OS, cwd, shell).",
-  ].join("\n");
-}
+// 工具协议块已迁往 traeToolProtocol.js（#108：marker 协议 + 结构化 tool_calls
+// 出口恢复，参照 trae2api-hub 三层方案）。flattenQuery 通过 buildTraeToolPrompt /
+// serializeTraeToolHistory 取注入块与多轮历史。
 
 function flattenQuery(messages, tools = null) {
   const parts = [];
-  const toolBlock = hostToolsBlock(tools);
-  if (toolBlock) parts.push(toolBlock);
+  // #108：工具协议三段之①③——格式声明注入 + 多轮历史透传。tool_calls 历史的
+  // marker 形态与 ② 出口解析同源（traeToolProtocol.js）。
+  const toolProtocol = buildTraeToolPrompt(tools);
+  if (toolProtocol.prompt) parts.push(toolProtocol.prompt);
+  for (const block of serializeTraeToolHistory(messages)) parts.push(block);
   for (const m of messages) {
     let content = "";
     if (typeof m.content === "string") content = m.content;
@@ -290,6 +275,11 @@ export default class TraeExecutor extends BaseExecutor {
     // base 只作展示兜底；实际 host 由 createSession 换站重试的胜出者决定。
     const base = this.base(psd);
     const query = flattenQuery(body?.messages || [], body?.tools || null);
+    // #108 工具协议三段之②：出口恢复器——把模型输出里的 marker 块转成标准
+    // tool_calls（流式 = delta；非流式 = message.tool_calls）。无 tools 的请求
+    // allowedNames 为空集，守卫直接 fail-open（原文透传，零开销）。
+    const toolRecover = new TraeToolCallStreamRecover(body?.tools ? buildTraeToolPrompt(body.tools).allowedNames : new Set());
+    const hasTools = Array.isArray(body?.tools) && body.tools.length > 0;
     const responseId = `chatcmpl-trae-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
 
@@ -341,7 +331,32 @@ export default class TraeExecutor extends BaseExecutor {
               if (ev === "error") { errorEvent = data; return true; }
               if (ev === "token_usage") usage = data;
               if (ev === "plan_item") {
-                const piece = renderNewText(data);
+                let piece = renderNewText(data);
+                if (piece && hasTools) {
+                  // #108 ②：文本 delta 过恢复器——正文原样透传，marker 块转
+                  // tool_calls delta（OpenAI 流形态，SDK 客户端直接可用）。
+                  const chunks = [...toolRecover.feed(piece), ...toolRecover.flush()];
+                  for (const ch of chunks) {
+                    if (ch.tool_calls) {
+                      emit({
+                        id: responseId,
+                        object: "chat.completion.chunk",
+                        created,
+                        model,
+                        choices: [{ index: 0, delta: { tool_calls: ch.tool_calls }, finish_reason: null }],
+                      });
+                    } else if (ch.content) {
+                      emit({
+                        id: responseId,
+                        object: "chat.completion.chunk",
+                        created,
+                        model,
+                        choices: [{ index: 0, delta: { content: ch.content }, finish_reason: null }],
+                      });
+                    }
+                  }
+                  piece = "";
+                }
                 if (piece) {
                   emit({
                     id: responseId,
@@ -364,12 +379,27 @@ export default class TraeExecutor extends BaseExecutor {
                 error: { message: `trae ${errorEvent.code || ""}: ${errorEvent.message || ""}`, type: "api_error" },
               });
             } else {
+              // #108 ②收尾：恢复器缓冲里可能还剩正文尾巴（无 marker 的正常尾段）
+              if (hasTools) {
+                for (const ch of toolRecover.flush()) {
+                  if (ch.content) {
+                    emit({
+                      id: responseId,
+                      object: "chat.completion.chunk",
+                      created,
+                      model,
+                      choices: [{ index: 0, delta: { content: ch.content }, finish_reason: null }],
+                    });
+                  }
+                }
+              }
+              const finish = hasTools && toolRecover.emitted > 0 ? "tool_calls" : "stop";
               emit({
                 id: responseId,
                 object: "chat.completion.chunk",
                 created,
                 model,
-                choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+                choices: [{ index: 0, delta: {}, finish_reason: finish }],
               });
               if (usage) {
                 emit({
@@ -423,12 +453,22 @@ export default class TraeExecutor extends BaseExecutor {
       return { response: errResponse(502, `trae ${errorEvent.code || ""}: ${errorEvent.message || ""}`), url: base, headers, transformedBody: body };
     }
     const content = order.map((i) => thoughts[i]).join("");
+    // #108 ②：非流式同样过恢复器——marker 块转 message.tool_calls
+    let toolCalls = null;
+    let cleanContent = content;
+    if (hasTools) {
+      const parsed = parseTraeToolCalls(content, toolRecover.allowed);
+      cleanContent = parsed.content;
+      if (parsed.calls.length) toolCalls = parsed.calls;
+    }
+    const message = { role: "assistant", content: cleanContent };
+    if (toolCalls) message.tool_calls = toolCalls;
     const out = {
       id: responseId,
       object: "chat.completion",
       created,
       model,
-      choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+      choices: [{ index: 0, message, finish_reason: toolCalls ? "tool_calls" : "stop" }],
     };
     if (usage) {
       out.usage = {
