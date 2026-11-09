@@ -57,6 +57,14 @@ async function getDoneMap() {
   return doneMap;
 }
 
+// 签到积分有效期展示：获得日 +1 自然月（官网积分明细页实测规律）。接口无逐笔
+// 到期字段，这是展示口径——正常消耗先烧积分，语义一致。
+function expiryNote(now = new Date()) {
+  const d = new Date(now);
+  d.setMonth(d.getMonth() + 1);
+  return `有效期至 ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function dayKey(nowMs = Date.now()) {
   const d = new Date(nowMs);
   const p = (n) => String(n).padStart(2, "0");
@@ -209,7 +217,10 @@ export async function checkinOneMinimax(conn, deps = {}) {
     return {
       ...base,
       status: "checked-in",
-      message: `签到成功第 ${cdata.day_no || 1} 天（+${pts} 积分）`,
+      // 签到积分有效期 = 获得日 +1 自然月（MiniMax 官网积分明细页实测规律：11-09→
+      // 12-09、11-05→12-05 全部吻合）。签到接口本身不带逐笔到期字段——这是展示
+      // 层推算口径，不是接口值；正常消耗会先烧掉它们，与官网语义一致。
+      message: `签到成功第 ${cdata.day_no || 1} 天（+${pts} 积分，${expiryNote()}）`,
       claimedAmount: pts,
     };
   } catch (err) {
