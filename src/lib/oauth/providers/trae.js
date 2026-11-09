@@ -352,9 +352,13 @@ async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl"
         continue;
       }
       let data; try { data = JSON.parse(text); } catch { lastErr = `${attempt.url} invalid JSON`; continue; }
+      // v3 端点的真机实测契约（#99 换票对照实验）：HTTP 200 + Result.Token（不是
+      // AccessToken！）+ Result.RefreshToken + BoundDeviceID/DeviceBindStatus=BOUND
+      //（服务端另行绑定设备号）。旧端点扁平体对新版授权码回 10101——留着只为兼容
+      // 更老的回调形态。AccessToken 系字段名保留在前，Token 兜底。
       const accessToken = extractJsonPath(data, [
         ["Result", "AccessToken"], ["Result", "accessToken"], ["data", "AccessToken"], ["data", "accessToken"],
-        ["accessToken"], ["access_token"],
+        ["accessToken"], ["access_token"], ["Result", "Token"], ["data", "Token"], ["Token"], ["token"],
       ]);
       if (!accessToken) {
         const msg = extractJsonPath(data, [["message"], ["msg"], ["error"], ["Result", "Message"], ["data", "Message"]]) || "missing AccessToken";
@@ -369,6 +373,8 @@ async function fetchTraeAuthCodeExchange(authCode, codeVerifier, region = "intl"
         expiresIn: null,
         expiresAt: extractJsonPath(data, [
           ["Result", "ExpiresAt"], ["Result", "expiresAt"], ["data", "ExpiresAt"], ["data", "expires_at"], ["expiresAt"],
+          // v3 契约：RefreshToken 的过期毫秒时间戳（实测字段名 RefreshExpireAt）
+          ["Result", "RefreshExpireAt"], ["Result", "refreshExpireAt"], ["data", "RefreshExpireAt"], ["refreshExpireAt"],
         ]),
       };
     } catch (e) { lastErr = `${attempt.url} ${e.message}`; }
@@ -517,8 +523,12 @@ const trae = {
     return { userInfo, _site: site };
   },
   mapTokens: (tokens, extra) => {
+    // expiresAt 兼容秒/毫秒两种时间戳：v3 契约的 RefreshExpireAt 是毫秒，
+    // 旧端点 ExpiresAt 是秒——>1e11 一刀切判定（1000-09-09 前的秒数都到不了）。
+    const rawExpiresAt = Number(tokens.expiresAt) || 0;
+    const expiresAtSec = rawExpiresAt > 1e11 ? Math.floor(rawExpiresAt / 1000) : rawExpiresAt;
     const expiresIn = tokens.expiresIn
-      || (tokens.expiresAt ? Math.max(60, Number(tokens.expiresAt) - Math.floor(Date.now() / 1000)) : TRAE_CONFIG.tokenLifetimeDays * 24 * 60 * 60);
+      || (expiresAtSec ? Math.max(60, expiresAtSec - Math.floor(Date.now() / 1000)) : TRAE_CONFIG.tokenLifetimeDays * 24 * 60 * 60);
     const ui = extra?.userInfo || {};
     // postExchange 的探测结论优先（裸 JWT 粘贴时它才最准）。
     const site = normalizeTraeRegion(extra?._site || tokens._site);
