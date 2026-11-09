@@ -157,7 +157,9 @@ Ok "已清空"
 Step 2 "盖测试版本号"
 Push-Location $RepoDir
 try {
-    npm run test-version $Version
+    # 直接调 node,不走 npm run:npm.ps1 的 notice 输出走 stderr 时会被 PS5.1 的
+    # NativeCommandError 机制当成异常打断整轮（2026-11-09 test.59 轮实测）。
+    node scripts\test-build-version.mjs $Version
     if ($LASTEXITCODE -ne 0) { Die "test-version 失败(测试号必须严格大于最新 git tag)" }
 } finally { Pop-Location }
 
@@ -185,7 +187,10 @@ try {
         Step 4 "electron-builder --win --dir"
         Push-Location $DesktopDir
         try {
-            npx electron-builder --win --dir "-c.directories.output=$EbOutDir"
+            # 直接调本地 .bin 的 node 入口,不走 npx:npx.ps1 的 notice 输出走 stderr
+            # 时会被 PS5.1 NativeCommandError 当异常打断整轮（2026-11-09 test.59 实测,
+            # 与 step 2 的 npm.ps1 同款问题）。
+            node node_modules\electron-builder\cli.js --win --dir "-c.directories.output=$EbOutDir"
             if ($LASTEXITCODE -ne 0) { Die "electron-builder 失败" }
         } finally { Pop-Location }
         $unpacked = Join-Path $EbOutDir "win-unpacked"
@@ -229,7 +234,7 @@ try {
         Step 4 "electron-builder --win nsis --x64(只打安装包一档)"
         Push-Location $DesktopDir
         try {
-            npx electron-builder --win nsis --x64 "-c.directories.output=$EbOutDir"
+            node node_modules\electron-builder\cli.js --win nsis --x64 "-c.directories.output=$EbOutDir"
             if ($LASTEXITCODE -ne 0) { Die "electron-builder 失败" }
         } finally { Pop-Location }
         # v1.4.0 起 artifactName 平台化:10Router-Win-Setup-<版本>.exe(旧形态是
