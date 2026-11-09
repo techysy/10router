@@ -61,13 +61,14 @@ export default {
     refresh: { encoding: "json" },
   },
   // 模型目录：显示名 / 倍率 / 标签按官方客户端 2026-11-09 实拍对齐（用户截图四张，
-  // 倍率 = 官方积分消耗速度；#108 发版前校准）。
+  // 倍率 = 官方积分消耗速度；#108 发版前校准）。官方清单没有的旧模型**删除**
+  // （用户明确要求：截图上没有的就删掉；老 combo 引用断了可重建，不留僵尸行）。
   // 标签字段口径（与 codebuddy-cn 同一套）：
   //   专属补贴 / 会员限时优惠 / 闲时折扣 都是**折扣型**（倍率非 0），用 discountNote
   //   承载规则说明——不亮 free 徽章（promoFree* 会亮 free，夸大）。
   //   Kimi-K3.1-Pro 官方列表带锁（会员 Lite/Pro/Pro+/Ultra/Express 专属）→ paidTier。
   // 显示名去掉『Doubao 』前缀（官方列表就叫 Seed-2.1-Turbo）；id 不动（老 combo /
-  // 连接引用不受影响）。官方截图没有的旧模型（glm-5.2 / qwen-3.7-plus 等）保留不删。
+  // 连接引用不受影响）。
   models: [
     { id: "Doubao-Seed-2.1-Turbo", name: "Seed-2.1-Turbo", rateMultiplier: 0.20, discountNote: "专属补贴：积分消耗 0.20 倍" },
     { id: "Doubao-Seed-2.1-Pro", name: "Seed-2.1-Pro-0915", rateMultiplier: 0.80 },
@@ -87,13 +88,6 @@ export default {
     { id: "qwen3.8-max", name: "Qwen3.8-Max", rateMultiplier: 1.50 },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
     { id: "glm-5.3-flashx", name: "GLM-5.3-FlashX", rateMultiplier: 0.31 },
-    // 官方客户端 11-09 清单已无下列模型（下架/改版），保留 id 防老引用断链，不展示倍率：
-    // （Doubao-Seed-Code 已在上面按官方名/倍率收录，此处不再重复）
-    { id: "glm-5.2", name: "GLM 5.2" },
-    { id: "DeepSeek-V4-Flash-Official", name: "DeepSeek V4-Flash Official" },
-    { id: "kimi-k2.6", name: "Kimi K2.6" },
-    { id: "kimi-k2.7-code", name: "Kimi K2.7-Code" },
-    { id: "qwen-3.7-plus", name: "Qwen 3.7-Plus" },
   ],
   features: { usage: true },
 };
