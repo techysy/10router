@@ -104,13 +104,17 @@ const USAGE_HANDLERS = {
   cursor: (c) => getCursorUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   // Trae 国内站：权益包（ug 签到发的 150 分/7 天包逐包归并）+ 套餐名。
   // trae-cn 条目直接命中；trae 条目（国际站为主）只有 psd.site=cn 的存量连接
-  // 才有国内产品面——intl 连接不发这个 handler，卡面继续走 "not implemented"
-  // 文案之外的指路逻辑（site 判定与 traeCheckin 的资格过滤同口径）。
+  // 才有国内产品面。intl 线的 Dollar Usage（$1/月 Free 额度）实测不在 agent 线
+  // ——api.trae.ai 的 pay 端点 404（TLB 网关层不存在），数据只在官网 dashboard
+  // 前端（网页会话线，未考古）。intl 连接给指路文案而不是空 "not implemented"。
   "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
   trae: (c) =>
     String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
       ? getTraeUsage(c.accessToken, c.proxyOptions)
-      : { message: "Usage API not implemented for trae (intl connections have no CN entitlement endpoint)" },
+      : {
+          message:
+            "Trae 国际线的 Dollar Usage（$1/月 Free 额度）暂无 API 口径：数据只在 trae.ai 官网 dashboard 的 Usage 页（pay 端点在国际网关上不存在）。额度可在官网 Usage 页查看，消耗不影响路由。",
+        },
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {
