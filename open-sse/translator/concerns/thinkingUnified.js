@@ -348,9 +348,14 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
     case "deepseek": {
       if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
       body.thinking = { type: "enabled" };
-      // DeepSeek: low/medium→high, xhigh/max→xhigh (SenseNova rejects "max").
+      // #106：档位原样透传（low/medium/high/max）——此前 low/medium→high、
+      // max→xhigh 的钳制是为 SenseNova 写的，但 SenseNova 全系已走 openai 方言，
+      // 这个钳制只剩伤害：river.ai 的 DeepSeek-V4.1-Flash 恰好拒 xhigh 收 max，
+      // 客户端本来能用的 max 被网关换成 xhigh 必 400（报错还是上游文案，极易误判
+      // 成「渠道不支持 max」）。xhigh 是非标档（上游多为 openai 四档），钳到 max
+      // —— deepseek 系语义里 max 就是最高思考档。
       const level = toLevel(eff);
-      body.reasoning_effort = level === "xhigh" || level === "max" ? "xhigh" : "high";
+      if (level && level !== "auto") body.reasoning_effort = level === "xhigh" ? "max" : level;
       break;
     }
     case "kimi": {

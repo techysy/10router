@@ -12,7 +12,7 @@ const L = {
   levelMax: ["none", "low", "medium", "high", "max"],               // kimi
   budgetX: ["none", "low", "medium", "high", "xhigh", "max"],       // claude-budget, claude-adaptive
   gemini: ["minimal", "low", "medium", "high"],                     // gemini-3 thinkingLevel (no disable)
-  hiMax: ["none", "high", "max"],                                   // deepseek (low/med→high, xhigh→max)
+  hiMax: ["none", "low", "medium", "high", "max"],                  // deepseek (#106：档位全透传，不再钳)
 };
 
 // thinkingFormat → valid selectable levels (source of truth for UI options).
