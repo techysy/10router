@@ -126,8 +126,9 @@ const DOTTED_ID = REGISTRY.flatMap((entry) =>
 );
 
 describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
-  it("is offered by apinex, opencode-go, opencode-zen, both CodeBuddy gateways and trae-cn", () => {
-    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "deepseek", "opencode-go", "opencode-zen", "trae-cn", "trae-free"]);
+  // 2026-11-10: trae intl 目录对齐官方客户端清单后也带此 id（paidTier 行）。
+  it("is offered by apinex, opencode-go, opencode-zen, both CodeBuddy gateways, trae-cn and trae intl", () => {
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "deepseek", "opencode-go", "opencode-zen", "trae", "trae-cn", "trae-free"]);
   });
 
   it("resolves from the canonical row where the provider has no override", () => {
