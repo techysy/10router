@@ -42,7 +42,7 @@ describe("Antigravity usage headers", () => {
     const summaryCall = proxyAwareFetch.mock.calls.find(([url]) => url.includes(":retrieveUserQuotaSummary"));
     expect(summaryCall[0]).toBe("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary");
     for (const [, options] of proxyAwareFetch.mock.calls) {
-      expect(options.headers["User-Agent"]).toBe("antigravity/ide/2.22.0 darwin/arm64");
+      expect(options.headers["User-Agent"]).toBe("antigravity/ide/2.29.0 darwin/arm64");
       expect(options.headers).not.toHaveProperty("x-request-source");
     }
   });
