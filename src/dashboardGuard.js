@@ -371,6 +371,27 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  // IMPORT on a passwordless deployment (issue #104): requireLogin=false with no
+  // dashboard credential of its own means verify-password and the password
+  // header above are unusable by design — there is no password to know. The
+  // route's own authorization is the transfer passphrase's GCM tag (an attacker
+  // without it cannot forge a valid blob), so passing the guard through is safe:
+  // these same LAN callers already reach every sibling /api/oauth/* write via
+  // the requireLogin=false catch-all. Export stays ALWAYS_PROTECTED — it dumps
+  // live tokens, and a passwordless deployment cannot re-auth anyone.
+  // NOTE: this must sit ABOVE the local transfer branch — isAuthenticated()
+  // returns true for ANY caller once requireLogin is off, so the local-only
+  // condition there can never be met remotely and this case needs its own.
+  if (
+    request.method === "POST" &&
+    pathname === "/api/oauth/transfer/import"
+  ) {
+    const settings = await loadSettings();
+    if (settings && settings.requireLogin === false && !isDashboardAuthConfigured(settings)) {
+      return NextResponse.next();
+    }
+  }
+
   // Same two paths carrying an explicit dashboard password header: the guard's
   // cookie/CLI-token checks cannot see a header credential, but the ROUTE is
   // the real authorization — export re-authenticates the password

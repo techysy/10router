@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   validateApiKey: vi.fn(),
   getConsistentMachineId: vi.fn(),
   verifyDashboardAuthToken: vi.fn(),
+  // Runtime-toggleable credential state for the #104 passwordless case: the
+  // dashboardSession mock delegates here (steady state = credential exists).
+  authConfigured: vi.fn(() => true),
 }));
 
 vi.mock("next/server", () => ({
@@ -27,7 +30,8 @@ vi.mock("@/shared/utils/machineId", () => ({
 vi.mock("@/lib/auth/dashboardSession", () => ({
   verifyDashboardAuthToken: mocks.verifyDashboardAuthToken,
   // Steady state: a password exists, so the bootstrap-loopback rule stays off.
-  isDashboardAuthConfigured: () => true,
+  // Delegates to mocks.authConfigured so tests can flip the credential away.
+  isDashboardAuthConfigured: (settings) => mocks.authConfigured(settings),
 }));
 
 const { proxy } = await import("../../src/dashboardGuard.js");
@@ -87,6 +91,39 @@ describe("audit: guard behavior for new sensitive paths (requireLogin=false)", (
     mocks.getSettings.mockResolvedValue({ requireLogin: true });
     expect((await proxy(req("/api/oauth/transfer/import", "127.0.0.1"))).status).toBe(401);
     expect((await proxy(req("/api/oauth/transfer/export", "127.0.0.1"))).status).toBe(401);
+  });
+
+  // Issue #104: a PASSWORDLESS deployment (requireLogin=false, no stored hash,
+  // no INITIAL_PASSWORD, no SSO) has no dashboard credential anyone could
+  // present — verify-password 401s every input, and the password-header branch
+  // below needs a non-empty header. IMPORT stays reachable from the LAN: the
+  // route's transfer-passphrase GCM tag is the real authorization (an attacker
+  // without it cannot forge a valid blob), and these same callers already reach
+  // every sibling /api/oauth/* write via the requireLogin=false catch-all.
+  // EXPORT keeps its credential demands: it dumps live tokens, and a
+  // passwordless deployment cannot re-auth anyone — it only passes for the
+  // machine itself (the pre-existing local branch), never remotely.
+  it("passwordless deployment: remote import passes (GCM authorizes); remote export stays 401", async () => {
+    // Flip the credential off: the dashboardSession mock delegates here.
+    mocks.authConfigured.mockReturnValue(false);
+    // Remote import passes the guard — the route's GCM tag does the auth.
+    expect(await proxy(req("/api/oauth/transfer/import", "10.0.0.5"))).toBe(mocks.nextResponse);
+    // Remote export stays locked — no credential exists to re-auth a token dump.
+    expect((await proxy(req("/api/oauth/transfer/export", "10.0.0.5"))).status).toBe(401);
+    // Loopback import/export keep passing via the pre-existing local branch.
+    expect(await proxy(req("/api/oauth/transfer/import", "127.0.0.1"))).toBe(mocks.nextResponse);
+    expect(await proxy(req("/api/oauth/transfer/export", "127.0.0.1"))).toBe(mocks.nextResponse);
+    // requireLogin back on → the new exemption no longer applies.
+    mocks.getSettings.mockResolvedValue({ requireLogin: true });
+    expect((await proxy(req("/api/oauth/transfer/import", "10.0.0.5"))).status).toBe(401);
+    // Credential configured again (e.g. SSO) → back to the old posture too.
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    mocks.authConfigured.mockReturnValue(true);
+    expect((await proxy(req("/api/oauth/transfer/import", "10.0.0.5"))).status).toBe(401);
+    // Restore the steady-state mocks for the tests after this one —
+    // clearAllMocks does NOT reset mockReturnValue implementations.
+    mocks.authConfigured.mockReturnValue(true);
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
   });
 
   it("transfer routes pass with CLI token", async () => {
