@@ -7,8 +7,18 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版"
   },
-  "updatedAt": "2026-11-08",
+  "updatedAt": "2026-11-11",
   "items": [
+    {
+      "id": "2026-11-11-qoder-queue-throttle",
+      "date": "2026-11-11",
+      "level": "info",
+      "title": "Qoder 排队机制与账号风控说明",
+      "body": "近期部分 Qoder 账号出现模型请求持续排队（预计等待约 1 分钟，底层返回 10605）。据官方社区反馈，该现象系平台对高频或并发调用的账号触发了安全风控机制，处于限制使用状态（排队等待、响应较慢）。拥有订阅套餐（套餐内配额）的账号享有专属优先通道；纯免费赠送包账号遭遇排队时，10Router 会自动识别 10605 并在冷却时间内顺延至下一个可用账号，建议多账号轮换使用。",
+      "titleEn": "Qoder queue throttle and account rate-limit explained",
+      "bodyEn": "Some Qoder accounts have experienced continuous queue waiting ('Estimated wait time ~1 min', upstream code 10605). According to official forum responses, this is a targeted security rate-limit / throttle applied to accounts with high-frequency or anomalous access patterns. Subscribed accounts with active plan quotas enjoy prioritized lanes; for free/grant-only accounts, 10Router automatically detects code 10605 and fails over to other accounts.",
+      "link": "https://forum.qoder.com/t/topic/13804"
+    },
     {
       "id": "2026-11-08-loomy-model-pool",
       "date": "2026-11-08",
