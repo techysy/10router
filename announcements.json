@@ -14,9 +14,9 @@
       "date": "2026-11-11",
       "level": "info",
       "title": "Qoder 排队机制与账号风控说明",
-      "body": "近期部分 Qoder 账号出现模型请求持续排队（预计等待约 1 分钟，底层返回 10605）。据官方社区反馈，该现象系平台对高频或并发调用的账号触发了安全风控机制，处于限制使用状态（排队等待、响应较慢）。拥有订阅套餐（套餐内配额）的账号享有专属优先通道；纯免费赠送包账号遭遇排队时，10Router 会自动识别 10605 并在冷却时间内顺延至下一个可用账号，建议多账号轮换使用。",
+      "body": "部分 Qoder 账号请求出现持续排队（底层返回 10605）。官方证实此为调用触发的账号级风控惩罚（慢速队列）。订阅套餐享有专属优先通道；遇到排队时，10Router 会自动识别并冷却顺延至其他可用账号。",
       "titleEn": "Qoder queue throttle and account rate-limit explained",
-      "bodyEn": "Some Qoder accounts have experienced continuous queue waiting ('Estimated wait time ~1 min', upstream code 10605). According to official forum responses, this is a targeted security rate-limit / throttle applied to accounts with high-frequency or anomalous access patterns. Subscribed accounts with active plan quotas enjoy prioritized lanes; for free/grant-only accounts, 10Router automatically detects code 10605 and fails over to other accounts.",
+      "bodyEn": "Some Qoder accounts have experienced continuous queue waiting ('Estimated wait time ~1 min', upstream code 10605). According to official responses, this is a targeted rate-limit applied to accounts with high-frequency access patterns. Subscribed accounts enjoy prioritized lanes; 10Router automatically detects code 10605 and fails over to other accounts.",
       "link": "https://forum.qoder.com/t/topic/13804"
     },
     {
@@ -30,15 +30,6 @@
       "link": "https://loomy.xunfei.cn"
     },
     {
-      "id": "2026-11-08-update-channel",
-      "date": "2026-11-08",
-      "level": "warning",
-      "title": "v1.7.0 的 npm 通道已撤下:应用内升级提示请先忽略",
-      "body": "v1.7.0 在 npm 上的发布已撤下,该版本号不再使用。近期应用内「检查更新」提示的 v1.7.0-test.x 属测试通道,请忽略,不要升级。正式版用户维持现状即可,更新通道将在 v1.7.1 发布时自动恢复。",
-      "titleEn": "v1.7.0 npm channel withdrawn: ignore the in-app upgrade prompt for now",
-      "bodyEn": "The v1.7.0 npm publish has been withdrawn and the version number retired. The in-app updater may currently offer v1.7.0-test.x from the test lane — ignore it and stay on your stable build. The channel recovers automatically once v1.7.1 ships."
-    },
-    {
       "id": "2026-11-05-music-generation",
       "date": "2026-11-05",
       "level": "feature",
@@ -49,23 +40,14 @@
       "link": "https://github.com/techysy/10router/releases/tag/v1.7.0"
     },
     {
-      "id": "2026-11-05-v170-release",
-      "date": "2026-11-05",
-      "level": "feature",
-      "title": "v1.7.0 发布：音乐生成 · LongCat-2.5 正式版",
-      "body": "音乐分类上线（ACE Music / StepFun）；LongCat-2.5 正式版收录，1M 上下文、256K 输出；Qoder 目录同步；修复只有思考没有正文的回答被当成空回复丢弃（#96）与同名资源包互相覆盖。",
-      "titleEn": "v1.7.0: Music generation · LongCat-2.5 GA",
-      "bodyEn": "Music category ships (ACE Music / StepFun); LongCat-2.5 GA with 1M context and 256K output; Qoder catalog sync; fixes reasoning-only answers being dropped as empty (#96) and same-named resource packs overwriting each other.",
-      "link": "https://github.com/techysy/10router/releases/tag/v1.7.0"
-    },
-    {
-      "id": "2026-11-02-brutal-theme",
+      "id": "2026-11-02-new-themes-glass",
       "date": "2026-11-02",
       "level": "feature",
-      "title": "新主题「狂野派」上线（Neo-Brutalism）",
-      "body": "奶油纸底 + 硬黑描边 + 零模糊硬投影；右上角调色板或菜单切换，四态循环。顺带修复首屏主题闪烁与手机地址栏跟色。",
-      "titleEn": "New theme: Brutal (Neo-Brutalism)",
-      "bodyEn": "Cream paper, hard black outlines, zero-blur hard shadows — cycle it from the palette icon or the menu. Also fixes first-paint theme flash and mobile address-bar tint."
+      "title": "多套风格化新主题上线（含 Glass 毛玻璃）",
+      "body": "右上角调色板新增 Gruvbox、Nord、Dracula 极客主题与 Glass（深/浅毛玻璃质感）；支持独立设置跟随系统偏好，全局暗色与品牌对比度全面优化。",
+      "titleEn": "New themes: Gruvbox, Nord, Dracula & Glass",
+      "bodyEn": "Added Gruvbox, Nord, Dracula themes and Glass (dark/light frosted blur effect) to the theme selector. Supports independent follow-system preferences with enhanced dark-mode contrast.",
+      "link": "https://github.com/techysy/10router"
     },
     {
       "id": "2026-11-01-loomy-free-pool",
