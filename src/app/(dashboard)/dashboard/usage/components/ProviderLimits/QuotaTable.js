@@ -37,6 +37,11 @@ function fullDateTime(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function isPlanPack(q) {
+  const n = String(q?.name || "").trim();
+  return n === "Plan Credits" || n === "套餐内 Credits" || n.startsWith("Plan ");
+}
+
 function sortQuotas(quotas, sortMode) {
   if (sortMode === "remaining-asc") {
     return [...quotas].sort((a, b) => a.pct - b.pct || a.name.localeCompare(b.name));
@@ -46,7 +51,15 @@ function sortQuotas(quotas, sortMode) {
     return [...quotas].sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
   }
 
-  return quotas;
+  // 默认排序：核心月度/订阅套餐行（Plan Credits / 套餐内 Credits）置顶展示在首位，
+  // 避免其因为到期日较长而被几十个快到期的短期活动/每日赠送包挤到明细最底部。
+  return [...quotas].sort((a, b) => {
+    const aPlan = isPlanPack(a);
+    const bPlan = isPlanPack(b);
+    if (aPlan && !bPlan) return -1;
+    if (!aPlan && bPlan) return 1;
+    return (a.index ?? 0) - (b.index ?? 0);
+  });
 }
 
 /**
