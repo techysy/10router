@@ -123,10 +123,10 @@ export const ALLOWLIST = {
   "devin-cli/swe-1.5-fast": "no public spec",
   "devin-cli/swe-1.6": "no public spec",
   "devin-cli/swe-1.6-fast": "no public spec",
-  // Trae 虚拟档:server 按请求挑真实模型（Auto / Work Fast）——同 cursor/default
+  // Trae 虚拟档:server 按请求挑真实模型（Auto Mode）——同 cursor/default
   // 与 kilo-auto 的 aggregator 性质,静态能力行不可能准确。
+  // （trae/work 已随 2026-11-10 国际线目录对齐撤下,官方客户端清单无此档。）
   "trae/auto": "aggregator",
-  "trae/work": "aggregator",
   "github/goldeneye-free-auto": "codename",
   "iflow/iflow-rome-30ba3b": "codename",
   "morph/morph-dsv4flash": "codename",
