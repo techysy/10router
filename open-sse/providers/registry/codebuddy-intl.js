@@ -28,16 +28,16 @@ export default {
     // CodeBuddy intl speaks the same unified OpenAI reasoning_effort shape as CN.
     thinkingFormat: "openai",
     headers: {
-      // 2026-11-05 对齐官方 CLI 2.180.0（与 CN 侧同一份包）：版本信息改走
+      // 2026-11-11 对齐官方 CLI 2.182.0（与 CN 侧同一份包）：版本信息改走
       // X-IDE-Version / X-Client-Version / X-Product-Version 独立头，旧 UA
       // 过渡期双发（同 CN 侧注释）。
-      "User-Agent": "IDE/2.180.0 CodeBuddy/2.180.0",
+      "User-Agent": "IDE/2.182.0 CodeBuddy/2.182.0",
       "X-Product": "SaaS",
       "X-IDE-Type": "IDE",
       "X-IDE-Name": "IDE",
-      "X-IDE-Version": "2.180.0",
-      "X-Client-Version": "2.180.0",
-      "X-Product-Version": "2.180.0",
+      "X-IDE-Version": "2.182.0",
+      "X-Client-Version": "2.182.0",
+      "X-Product-Version": "2.182.0",
       "x-requested-with": "XMLHttpRequest",
       "x-codebuddy-request": "1",
     },
@@ -150,8 +150,8 @@ export default {
     stateUrl: "https://www.codebuddy.ai/v2/plugin/auth/state",
     tokenUrl: "https://www.codebuddy.ai/v2/plugin/auth/token",
     refreshUrl: "https://www.codebuddy.ai/v2/plugin/auth/token/refresh",
-    // OAuth 轮询的 UA 与 transport 同步升到 2.180.0。
-    userAgent: "IDE/2.180.0 CodeBuddy/2.180.0",
+    // OAuth 轮询的 UA 与 transport 同步升到 2.182.0。
+    userAgent: "IDE/2.182.0 CodeBuddy/2.182.0",
     platform: "ide",
     pollInterval: 5000,
   },
