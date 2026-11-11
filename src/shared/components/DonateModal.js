@@ -90,8 +90,18 @@ export default function DonateModal({ isOpen, onClose }) {
           {!loading && !error && data && (
             <>
               {data.message && (
-                <p className="text-text-muted text-sm mb-6 text-center">{translate(data.message)}</p>
+                <p className="text-text-muted text-sm mb-2 text-center">{translate(data.message)}</p>
               )}
+              {data.note && (
+                // Backer credit hint: the note rides on donate.json (read live
+                // from main, same as the rest of the payload) so the wording can
+                // be tuned without a release.
+                <p className="flex items-center justify-center gap-1.5 text-xs text-warning mb-6 text-center">
+                  <span className="material-symbols-outlined text-[14px] shrink-0">edit_note</span>
+                  <span>{translate(data.note)}</span>
+                </p>
+              )}
+              {!data.note && data.message && <div className="mb-4" />}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {data.channels?.map((ch) => (
                   <DonateChannelCard key={ch.id} channel={ch} />

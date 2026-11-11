@@ -1,6 +1,7 @@
 {
   "title": "Support 10Router",
   "message": "If you find 10Router useful, consider supporting its development — every token of the free-channel work is powered by coffee. Thanks to all the backers ❤️",
+  "note": "After paying, please leave a note with your GitHub username — it's how backers get credited as contributors. ❤️",
   "channels": [
     {
       "id": "github",
