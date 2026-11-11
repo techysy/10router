@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### ✨ 新增
+
+- **用量统计展示真实模型名（Qoder 代号翻译）**：用量/健康度视图此前直接显示 Qoder 上游的内部代号（`kmodel_latest`、`lmodel`、`qmodel_latest`…），可读性差。现在「最近的请求」、模型/账号/API Key/端点四张统计表、节点健康度下钻、请求明细与请求日志统一显示映射后的真实产品名（如 `kmodel_latest` → **Kimi-K3.1-Pro**、`lmodel` → **QoDuck**、`qmodel_latest` → **Qwen3.7-Max**），原始代号保留在悬浮提示/副标签里便于对账。实现为纯读取层映射（`src/shared/utils/modelDisplayName.js`，数据源即注册表 `models` 行）——**存储、请求链路、上游收到的模型 key 一律不变**，组合健康度缓存键（`${provider}|${model}`）仍按原始 id 对齐；历史用量行无需迁移，读取时即时映射全覆盖。MiniMax、Gemini 等本就用人话命名的供应商不受影响。
+
 ## v1.7.0 (2026-11-07)
 
 ### ✨ 新增

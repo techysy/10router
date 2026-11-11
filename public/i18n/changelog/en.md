@@ -2,6 +2,11 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## Unreleased
+
+### ✨ New
+- **Usage stats show real model names**: Qoder's internal codenames (kmodel_latest, lmodel, …) in the usage views and node health now display as their real product names — Kimi-K3.1-Pro, QoDuck, Qwen3.7-Max, and so on. Historical usage is covered too; hover to see the raw codename. Request routing is unchanged — upstreams still receive the original model id.
+
 ## v1.7.0 (2026-11-07)
 
 ### ✨ New

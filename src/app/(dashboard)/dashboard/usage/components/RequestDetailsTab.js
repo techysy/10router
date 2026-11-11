@@ -7,6 +7,7 @@ import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { getInputTokens, getCachedTokens, getCacheCreationTokens } from "@/shared/utils/usageDisplay";
+import { modelDisplayName } from "@/shared/utils/modelDisplayName";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 import UsageDashboard from "./UsageDashboard";
 
@@ -275,8 +276,8 @@ export default function RequestDetailsTab() {
                     <td className="whitespace-nowrap p-4 text-sm text-text-main">
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
-                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main">
-                      {detail.model}
+                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main" title={detail.model}>
+                      {modelDisplayName(detail.provider, detail.model)}
                     </td>
                     <td className="max-w-[180px] truncate p-4 text-sm text-text-main">
                        <span className="font-medium">
@@ -353,7 +354,9 @@ export default function RequestDetailsTab() {
                </div>
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
-                <span className="text-text-main font-mono">{selectedDetail.model}</span>
+                <span className="text-text-main font-mono" title={selectedDetail.model}>
+                  {modelDisplayName(selectedDetail.provider, selectedDetail.model)}
+                </span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}

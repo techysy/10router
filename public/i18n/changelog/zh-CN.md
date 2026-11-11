@@ -2,6 +2,12 @@
 
 这里展示面向用户的关键更新；完整开发明细见 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
+## Unreleased
+
+### ✨ 新增
+
+- **用量统计显示真实模型名**：用量与节点健康度里 Qoder 的内部代号（kmodel_latest、lmodel 等）现在显示为真实产品名——Kimi-K3.1-Pro、QoDuck、Qwen3.7-Max 等，历史用量一并生效；鼠标悬浮可查看原始代号。请求转发不受影响，上游仍按原模型名调用。
+
 ## v1.7.0 (2026-11-07)
 
 ### ✨ 新增

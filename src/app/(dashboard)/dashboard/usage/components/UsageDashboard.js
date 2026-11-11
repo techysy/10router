@@ -65,22 +65,32 @@ function cleanName(v) {
 
 function CellContent({ col, row, nameKey, subKey, expandable, isOpen }) {
   switch (col.kind) {
-    case "name":
+    case "name": {
+      // 内部代号行（qoder 的 kmodel_latest 等）：主行显示真实产品名，原始 id
+      // 降为副标签 —— 便于对账排查。无映射时二者相同，副标签不再重复。
+      const raw = cleanName(row[nameKey]);
+      const display = row.modelDisplay ? cleanName(row.modelDisplay) : raw;
+      const showSub = subKey && row[subKey] && cleanName(row[subKey]) !== display;
+      const rawSub = display !== raw && !showSub ? raw : null;
       return (
-        <div className="flex min-w-0 items-start gap-1">
+        <div className="flex min-w-0 items-start gap-1" title={display !== raw ? raw : undefined}>
           {expandable && (
             <span className="material-symbols-outlined mt-0.5 shrink-0 text-base leading-5 text-text-muted">
               {isOpen ? "expand_more" : "chevron_right"}
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-text-main">{cleanName(row[nameKey])}</div>
-            {subKey && row[subKey] && (
+            <div className="truncate text-sm font-medium text-text-main">{display}</div>
+            {showSub && (
               <div className="truncate text-xs text-text-muted">{cleanName(row[subKey])}</div>
+            )}
+            {rawSub && (
+              <div className="truncate text-xs font-mono text-text-muted">{rawSub}</div>
             )}
           </div>
         </div>
       );
+    }
     case "badge":
       // score null = no latency sample ever measured → the row does not
       // participate in health ranking; render a plain dash, not a badge.
