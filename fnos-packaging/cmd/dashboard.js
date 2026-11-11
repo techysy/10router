@@ -263,12 +263,22 @@ function freeDiskKb(dir) {
 function mainPid() {
   try {
     const pid = Number(fs.readFileSync(path.join(DATA_DIR, "10router.pid"), "utf8").trim());
-    if (!pid) return null;
-    process.kill(pid, 0);
-    return pid;
-  } catch {
-    return null;
-  }
+    if (pid) {
+      process.kill(pid, 0);
+      return pid;
+    }
+  } catch {}
+  // 端口自愈：pid 文件丢失/错位时，若端口有 node 监听且健康，自动定位并修复 pid 文件
+  try {
+    const { execFileSync } = require("child_process");
+    const out = execFileSync("fuser", [`${MAIN_PORT}/tcp`], { encoding: "utf8", timeout: 1500 });
+    const pids = out.trim().split(/\s+/).map(Number).filter(Boolean);
+    if (pids.length > 0) {
+      try { fs.writeFileSync(path.join(DATA_DIR, "10router.pid"), String(pids[0])); } catch {}
+      return pids[0];
+    }
+  } catch {}
+  return null;
 }
 
 function mainHealth(timeoutMs = 1500) {
@@ -707,8 +717,8 @@ async function buildStatus() {
   return {
     panel: { version: PANEL_VERSION, port: PANEL_PORT, host: PANEL_HOST },
     main: {
-      running: Boolean(pid),
-      pid,
+      running: Boolean(pid || healthy),
+      pid: pid || (healthy ? "active" : null),
       healthy,
       uptimeSeconds: uptime,
       version: versionInfo?.currentVersion || local,
@@ -889,6 +899,11 @@ async function installFromArchive(archivePath, trigger) {
   }
 }
 
+// 排除高频模型调用流水行（POST / DONE / RTK / COMBO 尝试等），仅保留系统与鉴权日志
+function isCallFlowLog(line) {
+  return /▶\s*POST\s|📊\s*DONE\s|\[RTK\]\s*saved|\[CHAT\]\s*Combo|\[COMBO\]\s*(?:Trying|Model.*succeeded)/i.test(line);
+}
+
 // 日志尾部读取：只取文件末尾 2MB 窗口再切行 —— 10router.log 跑几个月后
 // 可能上百 MB，整读会把面板进程顶爆。
 function tailLog(file, lines, filter) {
@@ -906,7 +921,9 @@ function tailLog(file, lines, filter) {
   } catch {
     return { lines: [], truncated: false };
   }
-  const all = raw.split("\n").filter((l) => l.length > 0);
+  let all = raw.split("\n").filter((l) => l.length > 0);
+  // 面板日志仅展示系统级事件，剔除模型调用流水噪音
+  all = all.filter((l) => !isCallFlowLog(l));
   let picked = all.slice(-lines);
   if (filter) picked = picked.filter((l) => l.includes(filter));
   return { lines: picked, truncated: fileLargerThanWindow };
@@ -1081,12 +1098,6 @@ function renderUi() {
       <button class="ghost" onclick="uploadInstall()" data-i18n="uploadBtn">上传安装</button>
     </div>
     <div class="mut" style="margin-top:8px" data-i18n="uploadHint">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
-  </div>
-</div>
-      </span></span>
-      <input type="time" id="autoTime2" onchange="saveAuto()">
-    </div>
-    <div class="row" style="margin-top:6px"><span class="mut" id="autoHint2"></span></div>
   </div>
 </div>
 

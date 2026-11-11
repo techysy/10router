@@ -68,11 +68,15 @@ start() {
     mkdir -p "${DATA_DIR}"
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
         echo "already running (pid $(cat "${PID_FILE}"))"
-        # 主应用已在跑 ≠ 面板已在跑：热替换 cmd/ 层后调用 start 的场景里，
-        # 这个早退曾是面板永远拉不起来的原因（2026-11-06 真机踩坑）。补一次
-        # 面板ensure（幂等，面板已活时内部直接 return）再退出。
         ensure_panel
         return 0
+    fi
+    # 端口自愈：若端口已被残留孤儿进程占用，清理防 EADDRINUSE 及 fnOS appcenter 11000 报错
+    local port_pids
+    port_pids="$(fuser "${PORT}/tcp" 2>/dev/null || true)"
+    if [ -n "${port_pids}" ]; then
+        fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
+        sleep 1
     fi
     # 清理 SQLite WAL/SHM 残留（旧版/跨用户安装后属主可能错误，导致 node:sqlite 无法打开）
     rm -f "${DATA_DIR}/db/data.sqlite-shm" "${DATA_DIR}/db/data.sqlite-wal" 2>/dev/null || true
@@ -148,7 +152,8 @@ stop() {
         kill "$(cat "${PID_FILE}")" 2>/dev/null || true
         rm -f "${PID_FILE}"
     fi
-    # 兜底：杀掉残留的 next-server 进程（仅限本应用目录）
+    # 彻底释放业务端口：next-server 子进程的命令行可能不包含 custom-server.js
+    fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
     pkill -f "${SRC_DIR}/custom-server.js" 2>/dev/null || true
     # 注意：这里刻意不杀管理面板（panel.pid）——面板持有定时自动更新的调度器，
     # 且更新流程自身会调用 `cmd/main restart`；若 restart 连带杀面板，编排
@@ -158,6 +163,14 @@ stop() {
 
 status() {
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+        echo "running"
+        return 0
+    fi
+    # 孤儿进程自愈：如果 pid 文件丢失但端口 20127 确实正在被当前应用的 node 监听
+    local port_pid
+    port_pid="$(fuser "${PORT}/tcp" 2>/dev/null | awk '{print $1}' || true)"
+    if [ -n "${port_pid}" ]; then
+        echo "${port_pid}" > "${PID_FILE}" 2>/dev/null || true
         echo "running"
         return 0
     fi
