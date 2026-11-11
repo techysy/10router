@@ -45,7 +45,6 @@ const NPM_PACKAGE = process.env.PANEL_NPM_PACKAGE || "@techysy/10router";
 const STAGING_DIR = path.join(APP_DIR, ".panel-staging");
 const SETTINGS_FILE = path.join(DATA_DIR, "panel", "settings.json");
 const PANEL_LOG = path.join(DATA_DIR, "panel.log");
-const MAIN_LOG = path.join(DATA_DIR, "10router.log");
 
 // 更新流水线常量（与 issue #97 约定一致）
 const STALL_WATCHDOG_MS = 60 * 1000;      // 60s 无新字节 = 半死连接
@@ -819,10 +818,6 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 202, { started: true });
       return;
     }
-    if (req.method === "GET" && urlObj.pathname === "/api/logs") {
-      sendJson(res, 200, tailLog(MAIN_LOG, Number(urlObj.searchParams.get("lines") || 400), urlObj.searchParams.get("filter") || ""));
-      return;
-    }
     if (req.method === "GET" && urlObj.pathname === "/api/panel-log") {
       sendJson(res, 200, tailLog(PANEL_LOG, Number(urlObj.searchParams.get("lines") || 200), urlObj.searchParams.get("filter") || ""));
       return;
@@ -899,12 +894,7 @@ async function installFromArchive(archivePath, trigger) {
   }
 }
 
-// 排除高频模型调用流水行（POST / DONE / RTK / COMBO 尝试等），仅保留系统与鉴权日志
-function isCallFlowLog(line) {
-  return /▶\s*POST\s|📊\s*DONE\s|\[RTK\]\s*saved|\[CHAT\]\s*Combo|\[COMBO\]\s*(?:Trying|Model.*succeeded)/i.test(line);
-}
-
-// 日志尾部读取：只取文件末尾 2MB 窗口再切行 —— 10router.log 跑几个月后
+// 日志尾部读取：只取文件末尾 2MB 窗口再切行 —— 日志跑几个月后
 // 可能上百 MB，整读会把面板进程顶爆。
 function tailLog(file, lines, filter) {
   let raw = "";
@@ -921,9 +911,7 @@ function tailLog(file, lines, filter) {
   } catch {
     return { lines: [], truncated: false };
   }
-  let all = raw.split("\n").filter((l) => l.length > 0);
-  // 面板日志仅展示系统级事件，剔除模型调用流水噪音
-  all = all.filter((l) => !isCallFlowLog(l));
+  const all = raw.split("\n").filter((l) => l.length > 0);
   let picked = all.slice(-lines);
   if (filter) picked = picked.filter((l) => l.includes(filter));
   return { lines: picked, truncated: fileLargerThanWindow };
@@ -1109,6 +1097,7 @@ function renderUi() {
     <div id="authBox" style="margin-top:10px"></div>
   </div>
   <div class="card" style="margin-top:16px"><h2 data-i18n="logsCard"></h2>
+    <div class="mut" style="margin-bottom:8px" data-i18n="logsHint"></div>
     <div class="row">
       <input id="logFilter" data-i18n-ph="logPh" placeholder="日志关键字过滤" style="flex:1">
       <button class="ghost" onclick="loadLogs()" data-i18n="refresh">刷新</button>
@@ -1152,7 +1141,8 @@ const I18N = {
     uploadCard: "上传安装（离线通道）", pickFile: "选择 tgz", noFile: "未选择文件",
     uploadBtn: "上传安装", uploadHint: "NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。",
     opsCard: "服务操作", restartBtn: "重启主应用",
-    logsCard: "主应用日志", logPh: "日志关键字过滤", refresh: "刷新",
+    logsCard: "面板日志", logPh: "日志关键字过滤", refresh: "刷新",
+    logsHint: "仅记录面板自身事件：更新检查/安装/回滚、定时调度、重启与授权。主应用的调用日志请看主面板。",
     proxyCard: "出站代理（面板自身）", proxyPh: "http://user:pass@host:port（留空直连）", save: "保存",
     proxyHint: "仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。",
     authOk: "已授权", authOkDesc: "重启走应用生命周期（appcenter-cli stop+start，状态机一致）",
@@ -1193,7 +1183,8 @@ const I18N = {
     uploadCard: "Upload install (offline)", pickFile: "Pick tgz", noFile: "No file selected",
     uploadBtn: "Upload & install", uploadHint: "When the NAS cannot reach the internet: upload the tgz from your browser → magic check → install & restart.",
     opsCard: "Service ops", restartBtn: "Restart main app",
-    logsCard: "Main app logs", logPh: "Filter logs by keyword", refresh: "Refresh",
+    logsCard: "Panel logs", logPh: "Filter logs by keyword", refresh: "Refresh",
+    logsHint: "Only panel-own events: update check/install/rollback, scheduler, restarts and authorization. For request/call logs, use the main dashboard.",
     proxyCard: "Outbound proxy (panel only)", proxyPh: "http://user:pass@host:port (empty = direct)", save: "Save",
     proxyHint: "Applies only to the panel's own downloads / version checks (TLS handshake done after CONNECT); the main app's proxy is configured in the main dashboard's Settings page.",
     authOk: "Authorized", authOkDesc: "Restarts go through the app lifecycle (appcenter-cli stop+start, state machine stays in sync)",
@@ -1437,7 +1428,7 @@ async function restartMain() {
   await jpost("/api/main/restart");
   refresh();
 }
-async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/logs?lines=400" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
+async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/panel-log?lines=200" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
 applyLang(); loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;
 }
