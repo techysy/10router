@@ -40,7 +40,8 @@ const debugItems = [
 // install; kept out of HeaderMenu (was: aggregate menu) since 2026-10 —
 // they read better as a sidebar section of their own.
 const communityLinks = [
-  { label: "Feishu Group", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=629nc6fd-1ce9-4822-8242-239f87f471c3&qr_code=true" },
+  { label: "Feishu Group 1", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=629nc6fd-1ce9-4822-8242-239f87f471c3&qr_code=true" },
+  { label: "Feishu Group 2", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5" },
   { label: "Discord", icon: "forum", href: "https://discord.gg/zDWT6YKav" },
   { label: "Telegram", icon: "send", href: "https://t.me/techysy" },
   { label: "X", icon: "alternate_email", href: "https://x.com/techysy_ai" },

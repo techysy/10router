@@ -280,9 +280,11 @@ npx vitest run --dir tests
 
 ## 👥 交流群与致谢
 
-欢迎加入 **9+1 Router 交流群** 交流使用体验与反馈 issue：
+欢迎加入 **9+1 Router 交流群** 交流使用体验与反馈 issue（一群已满，请优先加二群）：
 
 <img src="assets/feishu-qr.png" width="224" alt="交流群二维码">
+
+[![加入飞书群²](https://img.shields.io/badge/飞书群%C2%B2-加入链接-00D3A7?logo=feishu&logoColor=white)](https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5)
 
 ### 贡献者致谢
 
