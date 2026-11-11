@@ -2,12 +2,23 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
-## Unreleased
+## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
 
 - **Trae 直连非沙箱通道（直连问答模式）**：此前 Trae 执行器硬编码 `agent_type: "solo_agent_remote"` 与 `env: "remote"`，导致所有请求强制在远端分配云端沙箱容器，受制于 SOLO 容器并发（`solo_agent_parallel_limit: running=2`）且响应延迟高。现在对普通文本模型默认走轻量直连非沙箱通道（`agent_type: "chat"`，`env: "local"`），只有显式声明 solo/work/agent 任务时才启用远程沙箱；模型名称规范化映射为服务端要求的 TitleCase/PascalCase（如 `Doubao-Seed-Code`），事件流全面兼容 `plan_item`、`delta`、`message` 与 `content` 块。
-- **用量统计展示真实模型名（Qoder 代号翻译）**：用量/健康度视图此前直接显示 Qoder 上游的内部代号（`kmodel_latest`、`lmodel`、`qmodel_latest`…），可读性差。现在「最近的请求」、模型/账号/API Key/端点四张统计表、节点健康度下钻、请求明细与请求日志统一显示映射后的真实产品名（如 `kmodel_latest` → **Kimi-K3.1-Pro**、`lmodel` → **QoDuck**、`qmodel_latest` → **Qwen3.7-Max**），原始代号保留在悬浮提示/副标签里便于对账。实现为纯读取层映射（`src/shared/utils/modelDisplayName.js`，数据源即注册表 `models` 行）——**存储、请求链路、上游收到的模型 key 一律不变**，组合健康度缓存键（`${provider}|${model}`）仍按原始 id 对齐；历史用量行无需迁移，读取时即时映射全覆盖。MiniMax、Gemini 等本就用人话命名的供应商不受影响。
+- **Qoder / Qoder CN 接入 Qwen4-Max-Preview**：QoDuck 转正为阿里千问新一代基座模型 Qwen4-Max-Preview，全产品全档位上线；上游端点复用 `qmodel_latest`，限时 0.1x（原价 0.5x）倍率透传；下线失效的 `lmodel` 旧 key。
+- **用量统计展示真实模型名（Qoder 代号翻译）**：用量/健康度视图此前直接显示 Qoder 上游的内部代号（`kmodel_latest`、`lmodel`、`qmodel_latest`…），可读性差。现在「最近的请求」、模型/账号/API Key/端点四张统计表、节点健康度下钻、请求明细与请求日志统一显示映射后的真实产品名（如 `kmodel_latest` → **Kimi-K3.1-Pro**、`qmodel_latest` → **Qwen4-Max-Preview**），退役模型展示静态退役名，原始代号保留在悬浮提示/副标签里便于对账。实现为纯读取层映射（`src/shared/utils/modelDisplayName.js`）——存储与请求链路一律不变，历史用量无需迁移自动全覆盖。
+- **模型类型分布图家族归并补漏**：`lmodel`、`q37fmodel` 归入 `qwen` 家族，`jmodel` 归入 `step` 家族，解决此前以独立碎片曲线展示的问题。
+- **捐赠弹窗新增署名备注提示**：扫码打赏新增提示，提醒赞助者在支付备注中留下 GitHub 用户名，以便准确署名加入项目贡献者列表。
+- **用量逐包明细优先置顶展示「套餐内 Credits」**：月度核心订阅套餐（Plan Credits）置顶于明细首位，不再被大量近期到期的短期赠送包挤到底部。
+
+### 🐛 修复
+
+- **免密部署局域网 OAuth 导入 401 修复（#104）**：无凭据部署环境下放行导入请求到路由层做 GCM 校验，彻底修复局域网及 CreditDaddy 远程导入被 guard 误拦的问题。
+- **MiniMax 全球版地域重定向检测与连接代理（#101）**：增加 geo-redirect 探测与友好诊断提示，模型测试不再误报 token 错误。
+- **DeepSeek 思考方言档位全透传（#106）**：放宽方言限制，完美兼容 river.ai 等拒绝非标档位的渠道。
+- **反代指纹与请求头升级**：CodeBuddy 升级至 2.182.0，Antigravity 升级至 2.29.0，全面对齐最新官方客户端。
 
 ## v1.7.0 (2026-11-07)
 

@@ -2,11 +2,13 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## Unreleased
+## v1.7.1 (2026-11-11)
 
 ### ✨ New
 - **Trae direct non-sandbox channel**: Standard chat requests no longer force-allocate a remote SOLO container sandbox. They now route through a lightweight direct channel (`agent_type: "chat"`), eliminating container allocation latency and the SOLO parallel sandbox limit (`running=2`), while explicit solo/work tasks still spin up the cloud sandbox automatically.
-- **Usage stats show real model names**: Qoder's internal codenames (kmodel_latest, lmodel, …) in the usage views and node health now display as their real product names — Kimi-K3.1-Pro, QoDuck, Qwen3.7-Max, and so on. Historical usage is covered too; hover to see the raw codename. Request routing is unchanged — upstreams still receive the original model id.
+- **Qoder supports Qwen4-Max-Preview**: QoDuck has graduated to Alibaba Qwen's latest frontier base model Qwen4-Max-Preview, live across all plans; routed via `qmodel_latest` with 0.1x limited-time multiplier; retired `lmodel` key delisted.
+- **Usage stats show real model names**: Qoder's internal codenames (`kmodel_latest` etc.) in usage views and node health now display as their real product names — Kimi-K3.1-Pro, Qwen4-Max-Preview, etc. Historical usage is covered seamlessly; hover to see the raw codename.
+- **Dashboard & donation enhancements**: Priority pin for monthly "Plan Credits" in quota breakdown; backer note reminder in donation modal; LAN OAuth import fix for passwordless deployments.
 
 ## v1.7.0 (2026-11-07)
 

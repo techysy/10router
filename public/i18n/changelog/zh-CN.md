@@ -2,12 +2,14 @@
 
 这里展示面向用户的关键更新；完整开发明细见 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## Unreleased
+## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
 
 - **Trae 直连非沙箱通道**：日常对话不再强制在远端分配 SOLO 沙箱容器，切换到轻量直连通道（`agent_type: "chat"`），响应更快且不再受 SOLO 容器并发限制；显式带 solo/work 任务时依然自动开启云端沙箱。
-- **用量统计显示真实模型名**：用量与节点健康度里 Qoder 的内部代号（kmodel_latest、lmodel 等）现在显示为真实产品名——Kimi-K3.1-Pro、QoDuck、Qwen3.7-Max 等，历史用量一并生效；鼠标悬浮可查看原始代号。请求转发不受影响，上游仍按原模型名调用。
+- **Qoder 接入 Qwen4-Max-Preview**：QoDuck 正式升级为阿里千问新一代基座模型 Qwen4-Max-Preview，全产品全档位上线；上游端点复用 `qmodel_latest`，限时 0.1x（原价 0.5x）倍率透传；下线失效的 `lmodel` 旧 key。
+- **用量统计显示真实模型名**：用量与节点健康度里 Qoder 的内部代号（`kmodel_latest` 等）现在显示为真实产品名——Kimi-K3.1-Pro、Qwen4-Max-Preview 等，退役模型友好展示，历史用量一并生效；鼠标悬浮可查看原始代号。请求转发不受影响，上游仍按原模型名调用。
+- **用量明细与捐赠体验**：逐包明细优先置顶展示月度「套餐内 Credits」；捐赠弹窗新增署名备注提示；修复免密部署环境下的局域网 OAuth 导入问题。
 
 ## v1.7.0 (2026-11-07)
 
