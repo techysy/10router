@@ -65,6 +65,25 @@ function plog(stage, message, extra) {
   console.log(line);
 }
 
+// 面板事件 → 人话（UI 日志框用；NAS grep 仍用原始 plog 行）。
+// 语义对 {key,args} 复用 UI 端 i18n 词典 —— t/tMsg/I18N/LANG 都定义在
+// renderUi() 的内联 <script> 里，这里只产出结构，翻译交给 UI。
+// 返回 {at, stage, text}；text 若为 {key,args} 语义对则由 UI 端 tMsg 渲染。
+function panelEventText(line) {
+  const m = line.match(/^(\S+)\s+\[panel\]\s+(\S+)\s+(.*)$/);
+  if (!m) return null;
+  const [, at, stage, rest] = m;
+  // JSON 化的 extra 拆出来；其余原样。
+  let msg = rest;
+  let extra = null;
+  const brace = rest.indexOf(" {");
+  if (brace >= 0) {
+    try { extra = JSON.parse(rest.slice(brace + 1)); msg = rest.slice(0, brace); } catch { /* 不是合法 JSON 就整段原样 */ }
+  }
+  const text = extra && extra.key ? extra : msg;
+  return { at, stage, text };
+}
+
 // ── 设置持久化（panel/settings.json；主进程的配置走 SQLite，面板独立）──
 const DEFAULT_SETTINGS = {
   autoUpdate: { enabled: false, freq: "daily", time: "04:30", weekday: 3 },
@@ -346,7 +365,7 @@ async function lifecycleAuthorized() {
     });
   });
   lifecycleAuthCache = { value: ok, at: Date.now() };
-  if (!ok) plog("ops", "lifecycle NOT authorized (sudoers); restart will fall back to internal mode");
+  if (!ok) plog("ops", "lifecycle NOT authorized (sudoers); restart will fall back to internal mode", { key: "plogAuthFail" });
   return ok;
 }
 
@@ -358,7 +377,7 @@ function restartMainDetached() {
     'else echo "appcenter not authorized, fallback to cmd/main restart"; bash "$1" restart; fi';
   const child = spawn("bash", ["-c", script, "10r-restart", MAIN_CMD], { detached: true, stdio: ["ignore", log, log] });
   child.unref();
-  plog("ops", "main restart triggered (detached)");
+  plog("ops", "main restart triggered (detached)", { key: "plogRestart" });
   // 授权态在重启动作后失效——下次重新探测（sudoers 可能刚被管理员改过）
   lifecycleAuthCache = { value: null, at: 0 };
 }
@@ -472,7 +491,7 @@ async function swapServerDir(payload, expectedVersion) {
 
 async function rollback(backupDir) {
   if (!backupDir || !fs.existsSync(backupDir)) return;
-  plog("update", `rollback: restoring ${backupDir}`);
+  plog("update", `rollback: restoring ${backupDir}`, { key: "plogRollback", args: [backupDir] });
   try {
     await runMainCmd("stop");
   } catch { /* 尽力而为 */ }
@@ -480,7 +499,7 @@ async function rollback(backupDir) {
     fs.rmSync(SRC_DIR, { recursive: true, force: true });
     fs.renameSync(backupDir, SRC_DIR);
     await runMainCmd("start");
-    plog("update", "rollback done");
+    plog("update", "rollback done", { key: "plogRollbackDone" });
   } catch (e) {
     plog("update", `ROLLBACK FAILED: ${e.message} — 需要手动恢复 ${backupDir}`);
   }
@@ -598,17 +617,17 @@ async function schedulerTick() {
     nextRetryAtMs: 0,
   };
   saveSettings(updated);
-  plog("schedule", `trigger (${scheduledDue ? "window" : "retry"}, attempt ${attempts}/${MAX_ATTEMPTS_PER_DAY})`);
+  plog("schedule", `trigger (${scheduledDue ? "window" : "retry"}, attempt ${attempts}/${MAX_ATTEMPTS_PER_DAY})`, { key: "plogSchedTrigger", args: [scheduledDue ? "schedWindow" : "schedRetry", String(attempts), String(MAX_ATTEMPTS_PER_DAY)] });
 
   try {
     await performUpdate({ trigger: "schedule" });
-    plog("schedule", "auto update ok");
+    plog("schedule", "auto update ok", { key: "plogSchedOk" });
   } catch (e) {
     const s = loadSettings();
     if ((s.scheduleState.attemptsDateKey || "") === today && attempts < MAX_ATTEMPTS_PER_DAY) {
       s.scheduleState.nextRetryAtMs = Date.now() + RETRY_DELAY_MS;
       saveSettings(s);
-      plog("schedule", `retry scheduled at ${new Date(s.scheduleState.nextRetryAtMs).toISOString()}`);
+      plog("schedule", `retry scheduled at ${new Date(s.scheduleState.nextRetryAtMs).toISOString()}`, { key: "plogSchedRetryAt", args: [new Date(s.scheduleState.nextRetryAtMs).toLocaleString()] });
     }
   }
 }
@@ -728,7 +747,9 @@ async function buildStatus() {
     update: {
       localVersion: local,
       latestVersion: latest,
-      updateAvailable: Boolean(latest && local && lib.compareSemver(latest, local) > 0),
+      // local 未知（SRC_DIR 读不到 package.json）时不能塌成「已是最新」——
+      // 那会与 /api/update/check 的「可更新」判定自相矛盾；未知一律判可更新。
+      updateAvailable: Boolean(latest && lib.compareSemver(latest, local) > 0),
       inFlight: currentUpdate,
       last: settings.lastUpdate,
     },
@@ -819,7 +840,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method === "GET" && urlObj.pathname === "/api/panel-log") {
-      sendJson(res, 200, tailLog(PANEL_LOG, Number(urlObj.searchParams.get("lines") || 200), urlObj.searchParams.get("filter") || ""));
+      const raw = tailLog(PANEL_LOG, Number(urlObj.searchParams.get("lines") || 50), urlObj.searchParams.get("filter") || "");
+      const events = raw.lines.map(panelEventText).filter(Boolean);
+      sendJson(res, 200, { events, truncated: raw.truncated });
       return;
     }
     if (req.method === "GET" && urlObj.pathname === "/api/settings") {
@@ -1010,6 +1033,13 @@ function renderUi() {
   .file-pill { position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:6px; }
   .file-pill input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
   .file-name { font-size:12px; color:var(--mut); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 面板日志列表：紧凑两行式，限高防顶出页面滚动条 */
+  .loglist { display:flex; flex-direction:column; gap:4px; max-height:240px; overflow-y:auto; }
+  .logitem { display:flex; gap:10px; padding:5px 10px; border-radius:7px; background:var(--soft); font-size:12px; line-height:1.5; }
+  .logitem .lt { color:var(--mut); flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .logitem .ls { flex-shrink:0; font-weight:600; }
+  .logitem .ls.ok { color:var(--ok); } .logitem .ls.warn { color:var(--warn); } .logitem .ls.bad { color:var(--bad); } .logitem .ls.mut { color:var(--mut); }
+  .logitem .lx { word-break:break-all; }
 </style></head><body>
 <script>
 /* 首帧主题解析（防闪烁）：localStorage 手动选择 > 系统偏好。 */
@@ -1098,11 +1128,11 @@ function renderUi() {
   </div>
   <div class="card" style="margin-top:16px"><h2 data-i18n="logsCard"></h2>
     <div class="mut" style="margin-bottom:8px" data-i18n="logsHint"></div>
-    <div class="row">
+    <div id="logBox" class="loglist"><span class="mut" data-i18n="loading">加载中…</span></div>
+    <div class="row" style="margin-top:10px">
       <input id="logFilter" data-i18n-ph="logPh" placeholder="日志关键字过滤" style="flex:1">
       <button class="ghost" onclick="loadLogs()" data-i18n="refresh">刷新</button>
     </div>
-    <pre id="logBox" style="margin-top:10px">—</pre>
   </div>
 </div>
 
@@ -1143,6 +1173,13 @@ const I18N = {
     opsCard: "服务操作", restartBtn: "重启主应用",
     logsCard: "面板日志", logPh: "日志关键字过滤", refresh: "刷新",
     logsHint: "仅记录面板自身事件：更新检查/安装/回滚、定时调度、重启与授权。主应用的调用日志请看主面板。",
+    plogBoot: "面板启动", plogCrash: "面板崩溃", plogHttp: "接口错误", plogOps: "服务操作",
+    plogSchedule: "定时调度", plogUpdate: "更新", plogOther: "事件", logEmpty: "暂无事件",
+    plogAuthFail: "sudo 未放行，重启将回退内部模式", plogRestart: "主应用重启已触发",
+    plogRollback: "回滚：恢复 {0}", plogRollbackDone: "回滚完成",
+    plogSchedTrigger: "到点触发（{0}，第 {1}/{2} 次尝试）", plogSchedOk: "自动更新成功",
+    plogSchedRetryAt: "已排定重试：{0}",
+    schedWindow: "到点窗口", schedRetry: "重试",
     proxyCard: "出站代理（面板自身）", proxyPh: "http://user:pass@host:port（留空直连）", save: "保存",
     proxyHint: "仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。",
     authOk: "已授权", authOkDesc: "重启走应用生命周期（appcenter-cli stop+start，状态机一致）",
@@ -1185,6 +1222,13 @@ const I18N = {
     opsCard: "Service ops", restartBtn: "Restart main app",
     logsCard: "Panel logs", logPh: "Filter logs by keyword", refresh: "Refresh",
     logsHint: "Only panel-own events: update check/install/rollback, scheduler, restarts and authorization. For request/call logs, use the main dashboard.",
+    plogBoot: "Panel boot", plogCrash: "Panel crash", plogHttp: "API error", plogOps: "Service ops",
+    plogSchedule: "Scheduler", plogUpdate: "Update", plogOther: "Event", logEmpty: "No events yet",
+    plogAuthFail: "sudo not granted; restart falls back to internal mode", plogRestart: "Main app restart triggered",
+    plogRollback: "Rollback: restoring {0}", plogRollbackDone: "Rollback complete",
+    plogSchedTrigger: "Scheduled trigger ({0}, attempt {1}/{2})", plogSchedOk: "Auto update succeeded",
+    plogSchedRetryAt: "Retry scheduled: {0}",
+    schedWindow: "window", schedRetry: "retry",
     proxyCard: "Outbound proxy (panel only)", proxyPh: "http://user:pass@host:port (empty = direct)", save: "Save",
     proxyHint: "Applies only to the panel's own downloads / version checks (TLS handshake done after CONNECT); the main app's proxy is configured in the main dashboard's Settings page.",
     authOk: "Authorized", authOkDesc: "Restarts go through the app lifecycle (appcenter-cli stop+start, state machine stays in sync)",
@@ -1428,7 +1472,31 @@ async function restartMain() {
   await jpost("/api/main/restart");
   refresh();
 }
-async function loadLogs() { const f = $("logFilter").value; const r = await jget("/api/panel-log?lines=200" + (f ? "&filter=" + encodeURIComponent(f) : "")); $("logBox").textContent = (r.truncated ? "…仅显示末尾\\n" : "") + (r.lines.join("\\n") || "—"); }
+const LOG_STAGE_T = { boot: "plogBoot", crash: "plogCrash", http: "plogHttp", ops: "plogOps", schedule: "plogSchedule", update: "plogUpdate" };
+const LOG_STAGE_CLASS = { boot: "mut", crash: "bad", http: "bad", ops: "ok", schedule: "warn", update: "ok" };
+async function loadLogs() {
+  const f = $("logFilter").value;
+  const r = await jget("/api/panel-log?lines=50" + (f ? "&filter=" + encodeURIComponent(f) : ""));
+  const box = $("logBox");
+  if (!r.events || !r.events.length) { box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>"; return; }
+  box.innerHTML = r.events.map((ev) => {
+    const at = new Date(ev.at).toLocaleTimeString();
+    const cls = LOG_STAGE_CLASS[ev.stage] || "mut";
+    // text 可能是 {key,args} 语义对（tMsg 渲染）或纯字符串；update 行的
+    // "checking: xxx" 前缀是阶段枚举 → stage_xxx 词典；FAILED/rollback 保留原文。
+    let text = tMsg(ev.text);
+    const sm = typeof text === "string" && ev.stage === "update" ? text.match(/^(\w+)(?::\s*(.*))?$/) : null;
+    if (sm && sm[1] !== "FAILED" && sm[1] !== "rollback" && I18N[LANG]["stage_" + sm[1]] !== undefined) {
+      text = sm[2] ? t("stage_" + sm[1]) + " · " + sm[2] : t("stage_" + sm[1]);
+    }
+    // plogSchedTrigger 的 args 枚举词（schedWindow/schedRetry）翻成当前语言
+    if (typeof text === "string" && (text.includes("schedWindow") || text.includes("schedRetry"))) {
+      text = text.replace(/\b(schedWindow|schedRetry)\b/g, (w) => t(w));
+    }
+    const esc = String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    return '<div class="logitem"><span class="lt">' + at + '</span><span class="ls ' + cls + '">' + t(LOG_STAGE_T[ev.stage] || "plogOther") + '</span><span class="lx">' + esc + "</span></div>";
+  }).join("") + (r.truncated ? '<div class="mut" style="padding:4px 10px">…</div>' : "");
+}
 applyLang(); loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;
 }
