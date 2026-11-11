@@ -498,6 +498,20 @@ export function startTraeProxy() {
         stopTraeProxy();
         return;
       }
+      // 只有带授权参数的回调才进 exchange 流程。授权页（trae.cn/trae.ai）在渲染登录 UI
+      // 前会用 GET 预检 auth_callback_url 可达性（2026-11-12 实测复现），IDE 的 WebView
+      // 也可能探一次——裸 GET（无 authCode/refreshToken/isRedirect 等参数）绝不能进
+      // exchangeTokens：trae 的 paste-token 分支会把路径串误判成导入的 Cloud-IDE-JWT，
+      // 写入一条垃圾连接（"Account N"）并 finally stopTraeProxy 杀掉代理——用户随后完成
+      // 登录，授权页 302 回调时端口已死，浏览器报 ERR_CONNECTION_REFUSED（本轮全部 9 条
+      // "Account N" 垃圾连接即此 bug 所产，DB 实证）。
+      const hasAuthPayload = ["authCode", "auth_code", "AuthCode", "authCodeInfo", "auth_code_info", "AuthCodeInfo", "refreshToken", "refresh_token", "RefreshToken", "error", "error_code", "isRedirect"]
+        .some((k) => url.searchParams.has(k));
+      if (!hasAuthPayload) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(true, "Callback endpoint is alive. Complete the sign-in on the authorization page."));
+        return;
+      }
       // Pass the raw callback query to exchangeTokens → parseTraeCallback
       const rawCallback = `${url.pathname}?${url.searchParams.toString()}`;
       try {
