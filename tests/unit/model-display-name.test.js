@@ -9,9 +9,9 @@ describe("modelDisplayName", () => {
     expect(modelDisplayName("qoder-cn", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
     expect(modelDisplayName("qoder", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
     // lmodel（QoDuck）2026-11-11 转正 Qwen4-Max-Preview 且旧 key 上游下线
-    // （实测 400）——双区注册表均撤行，无注册行时回落原 id（约定行为）。
-    expect(modelDisplayName("qdc", "lmodel")).toBe("lmodel");
-    expect(modelDisplayName("qoder", "lmodel")).toBe("lmodel");
+    // （实测 400）——双区注册表均撤行；历史行走退役名映射，不落裸 id。
+    expect(modelDisplayName("qdc", "lmodel")).toBe("QoDuck (retired → Qwen4-Max-Preview)");
+    expect(modelDisplayName("qoder", "lmodel")).toBe("QoDuck (retired → Qwen4-Max-Preview)");
     expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen4-Max-Preview");
     expect(modelDisplayName("qoder", "qmodel_latest")).toBe("Qwen4-Max-Preview");
     expect(modelDisplayName("qoder", "dfmodel")).toBe("DeepSeek-V4.1-Flash 1017");
