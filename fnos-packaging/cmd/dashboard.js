@@ -51,7 +51,7 @@ const MAIN_LOG = path.join(DATA_DIR, "10router.log");
 const STALL_WATCHDOG_MS = 60 * 1000;      // 60s 无新字节 = 半死连接
 const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 const HEALTH_POLL_MS = 2 * 1000;
-const HEALTH_TIMEOUT_MS = 90 * 1000;
+const HEALTH_TIMEOUT_MS = 180 * 1000;
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000; // 失败 2h 后重试
 const MAX_ATTEMPTS_PER_DAY = 3;
 const MIN_FREE_KB = 1024 * 1024;           // 磁盘预检：1GB（tgz + 解包双份余量）
@@ -224,9 +224,9 @@ function downloadViaNode(urlStr, dest, proxy) {
 // ── 版本判定 ──
 let npmLatestCache = { version: null, fetchedAt: 0 };
 
-async function fetchLatestVersion(proxy) {
+async function fetchLatestVersion(proxy, force = false) {
   const now = Date.now();
-  if (npmLatestCache.version && now - npmLatestCache.fetchedAt < NPM_CACHE_TTL_MS) {
+  if (!force && npmLatestCache.version && now - npmLatestCache.fetchedAt < NPM_CACHE_TTL_MS) {
     return npmLatestCache.version;
   }
   const data = await httpsGetJson(lib.npmLatestUrl(NPM_PACKAGE), { proxy, timeoutMs: 10000 });
@@ -429,9 +429,13 @@ async function extractTarball(tgzPath) {
 }
 
 // 同卷三步换名（backup / server.new / server），任一步失败都保持原 server 可用。
+// 必须在 path.dirname(SRC_DIR) 同目录下操作，严禁硬编码 APP_DIR：
+// 当 SRC_DIR 为 /var/apps/10router/target/server 时，target 可能是独立挂载点，
+// 跨目录 rename 会触发 EXDEV: cross-device link not permitted。
 async function swapServerDir(payload, expectedVersion) {
-  fs.rmSync(path.join(APP_DIR, "server.new"), { recursive: true, force: true });
-  const newDir = path.join(APP_DIR, "server.new");
+  const parentDir = path.dirname(SRC_DIR);
+  const newDir = path.join(parentDir, "server.new");
+  fs.rmSync(newDir, { recursive: true, force: true });
   await shell("cp", ["-a", `${payload}${path.sep}`, newDir], 600000);
   const extractedVersion = lib.readPayloadVersion(newDir);
   if (expectedVersion && extractedVersion && extractedVersion !== expectedVersion) {
@@ -450,9 +454,9 @@ async function swapServerDir(payload, expectedVersion) {
   }
   // 只保留最近一个 backup
   try {
-    const siblings = fs.readdirSync(path.dirname(SRC_DIR))
+    const siblings = fs.readdirSync(parentDir)
       .filter((n) => n.startsWith(path.basename(SRC_DIR) + ".bak-") && n !== path.basename(backupDir));
-    for (const n of siblings) fs.rmSync(path.join(path.dirname(SRC_DIR), n), { recursive: true, force: true });
+    for (const n of siblings) fs.rmSync(path.join(parentDir, n), { recursive: true, force: true });
   } catch { /* 清理失败不阻塞 */ }
   return backupDir;
 }
@@ -490,7 +494,7 @@ async function performUpdate({ trigger }) {
   let backupDir = null;
   try {
     setStage("checking", { key: "checking" });
-    const target = await fetchLatestVersion(proxy);
+    const target = await fetchLatestVersion(proxy, true);
     currentUpdate.to = target;
     const local = readLocalVersion();
     if (local && lib.compareSemver(target, local) <= 0) {
@@ -751,7 +755,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && urlObj.pathname === "/api/update/check") {
       const settings = loadSettings();
       try {
-        const latest = await fetchLatestVersion(settings.proxy?.url || "");
+        const latest = await fetchLatestVersion(settings.proxy?.url || "", true);
         const local = readLocalVersion();
         sendJson(res, 200, { localVersion: local, latestVersion: latest, updateAvailable: lib.compareSemver(latest, local) > 0 });
       } catch (e) {
@@ -1027,7 +1031,6 @@ function renderUi() {
 </div>
 <div style="max-width:880px;margin:0 auto"><div class="tabs" id="tabs">
   <button data-tab="overview" class="on" onclick="switchTab('overview')">总览</button>
-  <button data-tab="update" onclick="switchTab('update')">更新</button>
   <button data-tab="ops" onclick="switchTab('ops')">运维</button>
   <button data-tab="settings" onclick="switchTab('settings')">设置</button>
 </div></div>
@@ -1037,12 +1040,18 @@ function renderUi() {
   <div class="card"><h2 data-i18n="mainStatus"></h2>
     <div class="row" id="mainStatus"><span class="mut" data-i18n="loading">加载中…</span></div>
   </div>
+
   <div class="card" style="margin-top:16px"><h2 data-i18n="versionCard"></h2>
     <div class="row" id="versionRow"><span class="mut" data-i18n="loading">加载中…</span></div>
+    <div class="row" style="margin-top:12px;gap:8px">
+      <button class="ghost" onclick="checkUpdate()" data-i18n="checkUpdate">检查更新</button>
+      <button id="btnUpdate" onclick="runUpdate()" data-i18n="btnUpdate">一键更新到 latest</button>
+    </div>
     <div class="row" style="margin-top:10px">
       <span class="mut" id="updateMsg"></span>
     </div>
   </div>
+
   <div class="card" style="margin-top:16px"><h2 data-i18n="autoCard"></h2>
     <div class="row">
       <label class="switch"><input type="checkbox" id="autoEnabled" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
@@ -1062,19 +1071,9 @@ function renderUi() {
       <input type="time" id="autoTime" onchange="saveAuto()">
     </div>
     <div class="row" style="margin-top:6px"><span class="mut" id="autoHint"></span></div>
-    <div class="mut" style="margin-top:8px"></div>
     <div class="mut" style="margin-top:8px" data-i18n="autoHint">到点检查 npm latest → 排队更新 → 健康检查，失败 2h 后重试（当日最多 3 次），启动失败自动回滚上一版。</div>
   </div>
-</div>
 
-<div class="tabpane" id="pane-update">
-  <div class="card"><h2 data-i18n="quickUpdate"></h2>
-    <div class="row">
-      <button class="ghost" onclick="checkUpdate()" data-i18n="checkUpdate">检查更新</button>
-      <button id="btnUpdate" onclick="runUpdate()" data-i18n="btnUpdate">一键更新到 latest</button>
-      <span class="mut" id="updateMsgInline"></span>
-    </div>
-  </div>
   <div class="card" style="margin-top:16px"><h2 data-i18n="uploadCard"></h2>
     <div class="row">
       <span class="file-pill ghost"><span data-i18n="pickFile">选择 tgz</span><input type="file" id="fileInput" accept=".tgz,.gz" onchange="onFilePick()"></span>
@@ -1083,21 +1082,7 @@ function renderUi() {
     </div>
     <div class="mut" style="margin-top:8px" data-i18n="uploadHint">NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。</div>
   </div>
-  <div class="card" style="margin-top:16px"><h2>定时自动更新</h2>
-    <div class="row">
-      <label class="switch"><input type="checkbox" id="autoEnabled2" onchange="saveAuto()"><span class="track"><span class="thumb"></span></span> <span data-i18n="autoEnable">启用</span></label>
-      <span class="seg" id="autoFreq2">
-        <button type="button" data-v="daily" data-i18n="freqDaily" onclick="setFreq('autoFreq2','daily')">每天</button>
-        <button type="button" data-v="weekly" data-i18n="freqWeekly" onclick="setFreq('autoFreq2','weekly')">每周</button>
-      </span>
-      <span id="autoWeekdayWrap2" style="display:none"><span class="seg seg-sm" id="autoWeekday2">
-        <button type="button" data-v="1" data-i18n="wd1" onclick="setWeekday('autoWeekday2',1)">周一</button>
-        <button type="button" data-v="2" data-i18n="wd2" onclick="setWeekday('autoWeekday2',2)">周二</button>
-        <button type="button" data-v="3" data-i18n="wd3" onclick="setWeekday('autoWeekday2',3)">周三</button>
-        <button type="button" data-v="4" data-i18n="wd4" onclick="setWeekday('autoWeekday2',4)">周四</button>
-        <button type="button" data-v="5" data-i18n="wd5" onclick="setWeekday('autoWeekday2',5)">周五</button>
-        <button type="button" data-v="6" data-i18n="wd6" onclick="setWeekday('autoWeekday2',6)">周六</button>
-        <button type="button" data-v="0" data-i18n="wd0" onclick="setWeekday('autoWeekday2',0)">周日</button>
+</div>
       </span></span>
       <input type="time" id="autoTime2" onchange="saveAuto()">
     </div>
@@ -1139,7 +1124,7 @@ const I18N = {
   zh: {
     title: "10Router · fnOS 管理面板",
     subtitle: "独立于主应用运行；更新失败自动回滚。默认仅本机回环可访问。",
-    tabOverview: "总览", tabUpdate: "更新", tabOps: "运维", tabSettings: "设置",
+    tabOverview: "总览", tabOps: "运维", tabSettings: "设置",
     themeTitle: "切换日/夜主题", ghTitle: "GitHub",
     mainStatus: "主应用状态", versionCard: "版本与更新", autoCard: "定时自动更新",
     loading: "加载中…", running: "运行中 pid", stopped: "已停止",
@@ -1180,7 +1165,7 @@ const I18N = {
   en: {
     title: "10Router · fnOS Panel",
     subtitle: "Runs independently of the main app; failed updates roll back automatically. Loopback-only by default.",
-    tabOverview: "Overview", tabUpdate: "Update", tabOps: "Ops", tabSettings: "Settings",
+    tabOverview: "Overview", tabOps: "Ops", tabSettings: "Settings",
     themeTitle: "Toggle light/dark theme", ghTitle: "GitHub",
     mainStatus: "Main app status", versionCard: "Version & update", autoCard: "Scheduled auto-update",
     loading: "Loading…", running: "Running pid", stopped: "Stopped",
@@ -1336,7 +1321,7 @@ try { const saved = localStorage.getItem("panelTab"); if (saved) switchTab(saved
 
 function pill(ok, on, off) { return '<span class="pill ' + (ok ? "ok" : "bad") + '">' + (ok ? on : off) + "</span>"; }
 function fmtUptime(s) { if (s == null) return ""; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + t("day") : "") + (h ? h + t("hour") : "") + m + t("min"); }
-function updateMsgEverywhere(text) { $("updateMsg").textContent = text; $("updateMsgInline").textContent = text; }
+function updateMsgEverywhere(text) { const el = $("updateMsg"); if (el) el.textContent = text; }
 // {key, args} 语义对 → 当前语言文案；纯字符串原样返回（含服务端错误文本）
 function tMsg(m) {
   if (!m) return "";
@@ -1366,21 +1351,18 @@ async function refresh() {
       (s.update.inFlight ? ' <span class="pill warn">' + inFlightText(s.update.inFlight) + "</span>" : "");
     if (s.update.inFlight) $("btnUpdate").disabled = true; else $("btnUpdate").disabled = false;
     if (s.update.last && s.update.last.at) updateMsgEverywhere(lastUpdateText(s.update.last));
-    for (const [en, ef, ew, eww, et, eh] of [
-      ["autoEnabled", "autoFreq", "autoWeekday", "autoWeekdayWrap", "autoTime", "autoHint"],
-      ["autoEnabled2", "autoFreq2", "autoWeekday2", "autoWeekdayWrap2", "autoTime2", "autoHint2"],
-    ]) {
-      $(en).checked = !!s.autoUpdate.enabled;
-      const freq = s.autoUpdate.freq || "daily";
-      const wd = String(s.autoUpdate.weekday ?? 3);
-      markSeg(ef, freq);
-      markSeg(ew, wd);
-      $(eww).style.display = (freq === "weekly") ? "" : "none";
-      $(et).value = s.autoUpdate.time || "04:30";
-      const NEXT_WORD = t("weekdayNames");
-      const freqWord = freq === "weekly" ? (t("everyWeek") + (NEXT_WORD[Number(wd)] || "")) : t("every");
-      $(eh).textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? (freqWord + " " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
-    }
+
+    $("autoEnabled").checked = !!s.autoUpdate.enabled;
+    const freq = s.autoUpdate.freq || "daily";
+    const wd = String(s.autoUpdate.weekday ?? 3);
+    markSeg("autoFreq", freq);
+    markSeg("autoWeekday", wd);
+    $("autoWeekdayWrap").style.display = (freq === "weekly") ? "" : "none";
+    $("autoTime").value = s.autoUpdate.time || "04:30";
+    const NEXT_WORD = t("weekdayNames");
+    const freqWord = freq === "weekly" ? (t("everyWeek") + (NEXT_WORD[Number(wd)] || "")) : t("every");
+    $("autoHint").textContent = s.autoUpdate.enabled && s.autoUpdate.nextRunMs ? (freqWord + " " + new Date(s.autoUpdate.nextRunMs).toLocaleString()) : "";
+
     $("proxyUrl").value = (s.proxy && s.proxy.url) || "";
     renderAuth(s.lifecycle || { authorized: false });
     if (s.update.inFlight) setTimeout(refresh, 3000);
