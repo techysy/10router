@@ -436,9 +436,6 @@ const QODER_CN_NAME_ALIASES = {
   "Step-5-Preview": "jmodel",
   "Qwen3.7-Flash": "q37fmodel",
   "GLM-5.2": "gm51model",
-  // CN 注册表仍保留 lmodel 行（app 场景 key 可能仍下发），QoDuck 名字 alias 随行
-  // 留在 CN 侧；INTL 已撤行，alias 一并移除（见 QODER_NAME_ALIASES 注释）。
-  "QoDuck": "lmodel",
 };
 
 /**
@@ -815,7 +812,9 @@ export const PROVIDER_CAPABILITIES = {
     "q37fmodel":      { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Flash
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
-    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — 2026-11-11 转正 Qwen4-Max-Preview；CN app 场景 key 仍可能下发，行保留
+    // lmodel（QoDuck）2026-11-11 转正为 Qwen4-Max-Preview（key qmodel_latest），
+    // 双区 live 目录均已无 lmodel 且旧 key 实测 400 —— 行随注册表撤下；
+    // 历史用量在类型图按 lmodel → qwen 归并（usageRepo CODENAME_FAMILIES）。
   }, { ...QODER_CN_NAME_ALIASES, "Auto": "auto" }),
   // ACE Music — acemusic.ai 托管的 ACE-Step 音乐生成（/v1/models 模型卡 2026-11-05）：
   // text+audio 进、audio+text 出；context_length 4096，输出上限未公布（取上下文内

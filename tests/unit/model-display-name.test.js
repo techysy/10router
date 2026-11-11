@@ -8,9 +8,9 @@ describe("modelDisplayName", () => {
   it("maps qoder codenames to real product names", () => {
     expect(modelDisplayName("qoder-cn", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
     expect(modelDisplayName("qoder", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
-    expect(modelDisplayName("qdc", "lmodel")).toBe("QoDuck");
-    // INTL 已撤 lmodel（QoDuck 转正 Qwen4-Max-Preview，key qmodel_latest）——
-    // 无注册行时回落原 id，是 modelDisplayName 的约定行为。
+    // lmodel（QoDuck）2026-11-11 转正 Qwen4-Max-Preview 且旧 key 上游下线
+    // （实测 400）——双区注册表均撤行，无注册行时回落原 id（约定行为）。
+    expect(modelDisplayName("qdc", "lmodel")).toBe("lmodel");
     expect(modelDisplayName("qoder", "lmodel")).toBe("lmodel");
     expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen4-Max-Preview");
     expect(modelDisplayName("qoder", "qmodel_latest")).toBe("Qwen4-Max-Preview");

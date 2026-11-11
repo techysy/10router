@@ -38,14 +38,11 @@ export default {
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
     { id: "fast", name: "快速" },
-    // 2026-11-07: QoDuck（lmodel）— app 场景独占的免费模型（chat 场景不发布），
-    // 目录合并（#100）后可见可调用，CN/国际实测 200。免费不是永久：live 目录
-    // price_factor 0 + original_price_factor 0.5 透传，徽章 tooltip 保留原价。
-    { id: "lmodel", name: "QoDuck", promoFreeNote: "个人版限时每日赠送尝鲜额度" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
     // 2026-11-11: QoDuck 转正为 Qwen4-Max-Preview，上游 key 复用 qmodel_latest
-    // （CN live 目录确认 0.1x/原价 0.5x）。lmodel 行暂留：app 场景 key 仍可能下发，
-    // live 目录不再返回时自然不再展示（#100 目录合并以 live 为准）。
+    // （CN live 目录确认 0.1x/原价 0.5x）。lmodel 已上游下线（实测 400
+    // "model_config not yet known"），注册表行与能力行随撤；历史用量在
+    // 模型类型图按 lmodel → qwen 家族归并（usageRepo CODENAME_FAMILIES）。
     { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     // Added 2026-09-19: present in the live CN catalog (rate 0.1, no promo);

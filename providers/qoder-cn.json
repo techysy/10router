@@ -8,7 +8,6 @@
     { "id": "performance", "name": "Performance", "type": "llm", "contextWindow": 1000000, "maxOutput": 128000, "reasoning": true, "vision": true },
     { "id": "efficient", "name": "Efficient", "type": "llm", "contextWindow": 200000, "maxOutput": 32000 },
     { "id": "lite", "name": "Lite", "type": "llm", "contextWindow": 200000, "maxOutput": 32000 },
-    { "id": "lmodel", "name": "QoDuck", "type": "llm", "contextWindow": 1000000, "maxOutput": 65536, "reasoning": true, "vision": true },
     { "id": "qmodel_38max", "name": "Qwen3.8-Max", "type": "llm", "contextWindow": 1000000, "maxOutput": 65536, "reasoning": true, "vision": true },
     { "id": "qmodel_latest", "name": "Qwen4-Max-Preview", "type": "llm", "contextWindow": 1000000, "maxOutput": 65536, "reasoning": true, "vision": true },
     { "id": "qmodel", "name": "Qwen3.7-Plus", "type": "llm", "contextWindow": 1000000, "maxOutput": 65536, "reasoning": true, "vision": true },
