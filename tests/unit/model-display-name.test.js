@@ -9,8 +9,11 @@ describe("modelDisplayName", () => {
     expect(modelDisplayName("qoder-cn", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
     expect(modelDisplayName("qoder", "kmodel_latest")).toBe("Kimi-K3.1-Pro");
     expect(modelDisplayName("qdc", "lmodel")).toBe("QoDuck");
-    expect(modelDisplayName("qoder", "lmodel")).toBe("QoDuck");
-    expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen3.7-Max");
+    // INTL 已撤 lmodel（QoDuck 转正 Qwen4-Max-Preview，key qmodel_latest）——
+    // 无注册行时回落原 id，是 modelDisplayName 的约定行为。
+    expect(modelDisplayName("qoder", "lmodel")).toBe("lmodel");
+    expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen4-Max-Preview");
+    expect(modelDisplayName("qoder", "qmodel_latest")).toBe("Qwen4-Max-Preview");
     expect(modelDisplayName("qoder", "dfmodel")).toBe("DeepSeek-V4.1-Flash 1017");
   });
 

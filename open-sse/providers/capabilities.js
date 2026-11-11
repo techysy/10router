@@ -413,7 +413,10 @@ function aliased(map, aliasOf) {
 // 个核对）。CN 另多 Qwen3.7-Flash / GLM-5.2 两款，见 QODER_CN_NAME_ALIASES。
 const QODER_NAME_ALIASES = {
   "Qwen3.8-Max": "qmodel_38max",
-  "Qwen3.7-Max": "qmodel_latest",
+  // 2026-11-11: QoDuck 转正 Qwen4-Max-Preview（key 复用 qmodel_latest）。
+  // 旧名 alias（Qwen3.7-Max / QoDuck）按 dfmodel→DeepSeek-V4-Flash 的先例一并
+  // 移除——别名键必须能在 registry 找到对应条目，留着会被 audit 判 dead row。
+  "Qwen4-Max-Preview": "qmodel_latest",
   "Qwen3.7-Plus": "qmodel",
   "Qwen3.8-Flash": "qfmodel",
   "Kimi-K3.1-Pro": "kmodel_latest",
@@ -426,7 +429,6 @@ const QODER_NAME_ALIASES = {
   // audit-capabilities 判成 dead provider row（别名键必须能在 registry 找到对应条目）。
   "DeepSeek-V4.1-Flash 1017": "dfmodel",
   "MiniMax-M3.1-Flash": "mmodel",
-  "QoDuck": "lmodel",
 };
 const QODER_CN_NAME_ALIASES = {
   ...QODER_NAME_ALIASES,
@@ -434,6 +436,9 @@ const QODER_CN_NAME_ALIASES = {
   "Step-5-Preview": "jmodel",
   "Qwen3.7-Flash": "q37fmodel",
   "GLM-5.2": "gm51model",
+  // CN 注册表仍保留 lmodel 行（app 场景 key 可能仍下发），QoDuck 名字 alias 随行
+  // 留在 CN 侧；INTL 已撤行，alias 一并移除（见 QODER_NAME_ALIASES 注释）。
+  "QoDuck": "lmodel",
 };
 
 /**
@@ -784,11 +789,13 @@ export const PROVIDER_CAPABILITIES = {
     "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro
     "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
     "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
-    "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Max
+    "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max-Preview（QoDuck 转正，key 复用）
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
-    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — app 场景独占免费档；context_config 发布 1M（默认 200K）；家族未确证，暂按 qwen 形状
+    // lmodel（QoDuck）2026-11-11 转正为 Qwen4-Max-Preview（key qmodel_latest），
+    // INTL live 目录已无 lmodel —— 行随注册表撤下；CN 侧（app 场景 key 可能仍
+    // 下发）保留独立行。
   }, { ...QODER_NAME_ALIASES, "Auto": "auto", "Ultimate": "ultimate", "Performance": "performance", "Efficient": "efficient" }),
   "qoder-cn": aliased({
     // 虚拟档：家族随上游路由漂移，给保守超集（与 INTL 侧的 auto/efficient 同形状）。
@@ -803,12 +810,12 @@ export const PROVIDER_CAPABILITIES = {
     "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
     "jmodel":         { vision: true, reasoning: true, thinkingFormat: "step", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Step-5-Preview
     "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
-    "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Max
+    "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max-Preview（QoDuck 转正，key 复用）
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "q37fmodel":      { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Flash
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
-    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — app 场景独占免费档；同 INTL 行，家族未确证
+    "lmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // QoDuck — 2026-11-11 转正 Qwen4-Max-Preview；CN app 场景 key 仍可能下发，行保留
   }, { ...QODER_CN_NAME_ALIASES, "Auto": "auto" }),
   // ACE Music — acemusic.ai 托管的 ACE-Step 音乐生成（/v1/models 模型卡 2026-11-05）：
   // text+audio 进、audio+text 出；context_length 4096，输出上限未公布（取上下文内

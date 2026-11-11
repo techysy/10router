@@ -43,7 +43,10 @@ export default {
     // price_factor 0 + original_price_factor 0.5 透传，徽章 tooltip 保留原价。
     { id: "lmodel", name: "QoDuck", promoFreeNote: "个人版限时每日赠送尝鲜额度" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
-    { id: "qmodel_latest", name: "Qwen3.7-Max" },
+    // 2026-11-11: QoDuck 转正为 Qwen4-Max-Preview，上游 key 复用 qmodel_latest
+    // （CN live 目录确认 0.1x/原价 0.5x）。lmodel 行暂留：app 场景 key 仍可能下发，
+    // live 目录不再返回时自然不再展示（#100 目录合并以 live 为准）。
+    { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     // Added 2026-09-19: present in the live CN catalog (rate 0.1, no promo);
     // it was leaking into the page as a lone "custom" row via the fetch

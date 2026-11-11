@@ -734,12 +734,16 @@ export async function getUsageStats(period = "all") {
 // the version outright restores single-bucket-per-product aggregation.
 // Opaque or proprietary codenames mapped to recognized product families.
 // E.g. Qoder internal codenames: qfmodel/qmodel → qwen, dfmodel/dmodel → deepseek.
+// 2026-11-11 gaps found in live traffic: lmodel (QoDuck) is Qoder's Qwen-family
+// test model and q37fmodel is Qwen3.7-Flash — both leaked out as their own
+// chart legend entries; jmodel is Step-5-Preview and folds into step.
 const CODENAME_FAMILIES = [
-  [/^q(?:f)?model(?:_.*)?$/, "qwen"],
+  [/^(?:l|q(?:f|37f)?)model(?:_.*)?$/, "qwen"],
   [/^d(?:f)?model(?:_.*)?$/, "deepseek"],
   [/^kmodel(?:_.*)?$/, "kimi"],
   [/^g(?:f|m\d+)?model(?:_.*)?$/, "glm"],
   [/^mmodel(?:_.*)?$/, "minimax"],
+  [/^jmodel(?:_.*)?$/, "step"],
   [/^(?:ultimate|performance)$/, "claude"],
   [/^qwq(?:-.*)?$/, "qwen"],
 ];
