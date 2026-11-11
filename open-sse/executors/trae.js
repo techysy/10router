@@ -83,6 +83,43 @@ function flattenQuery(messages, tools = null) {
   return JSON.stringify([{ type: "text", data: { content: parts.join("\n\n") } }]);
 }
 
+// Trae 标准模型名称映射（服务端的 chat_v3 / ConfigName 严格区分大小写，传错报 4001 config empty）
+const CANONICAL_TRAE_MODELS = {
+  "doubao-seed-code": "Doubao-Seed-Code",
+  "doubao-seed-2.1-turbo": "Doubao-Seed-2.1-Turbo",
+  "doubao-seed-2.1-pro": "Doubao-Seed-2.1-Pro",
+  "doubao-seed-2.0-code": "Doubao-Seed-2.0-Code",
+  "doubao-seed-evolving": "Doubao-Seed-Evolving",
+  "deepseek-v4.1-flash": "DeepSeek-V4-Flash",
+  "deepseek-v4-flash": "DeepSeek-V4-Flash",
+  "deepseek-v4-pro": "DeepSeek-V4-Pro",
+  "deepseek-v4-pro-official": "DeepSeek-V4-Pro-Official",
+  "glm-5.3": "GLM-5.3",
+  "glm-5.3-flash": "GLM-5.3-Flash",
+  "glm-5.3-flashx": "GLM-5.3-FlashX",
+  "kimi-k3.1-pro": "Kimi-K3.1-Pro",
+  "kimi-k3": "Kimi-K3",
+  "minimax-m3.1-flash": "MiniMax-M3.1-Flash",
+  "minimax-m3": "MiniMax-M3",
+  "step-5-preview": "Step-5-Preview",
+  "qwen3.8-flash": "qwen3.8-flash",
+  "qwen3.8-max": "qwen3.8-max",
+  "mimo-v2.6-flash": "mimo-v2.6-flash",
+  "mimo-v2.6-pro": "mimo-v2.6-pro",
+};
+
+export function canonicalTraeModel(model) {
+  if (!model) return "";
+  const key = String(model).trim().toLowerCase();
+  return CANONICAL_TRAE_MODELS[key] || model;
+}
+
+// 判定是否为显式要求的 SOLO 沙箱模式
+export function isSoloAgentMode(model = "") {
+  const m = String(model).trim().toLowerCase();
+  return m.includes("solo") || m.includes("work") || m.startsWith("agent-");
+}
+
 // #99 拆线：同一执行器服务两条 registry 条目——
 //   trae     → 国际站（默认 intl）
 //   trae-cn  → 国内站（默认 cn）
@@ -149,7 +186,8 @@ export default class TraeExecutor extends BaseExecutor {
       return { mode: "work", strategy: "auto", modelName: "" };
     }
     const auto = !m || m === "auto";
-    return { mode: "code", strategy: auto ? "auto" : "manual", modelName: auto ? "" : model };
+    const mapped = canonicalTraeModel(model);
+    return { mode: "code", strategy: auto ? "auto" : "manual", modelName: auto ? "" : mapped };
   }
 
   // common_params is a JSON-encoded string embedded inside initial_message.
@@ -177,8 +215,12 @@ export default class TraeExecutor extends BaseExecutor {
   }
 
   // POST /chat_sessions — creates a session and submits the first turn on ONE base.
+  // 区分直连非沙箱通道（agent_type: "chat", env: "local"）与 SOLO 沙箱通道（solo_agent_remote）：
+  // 普通模型调用默认走轻量非沙箱通道，避免在远端分配容器沙箱及并发上限；
+  // 只有明确指定 solo/work 任务模式时才启用云端沙箱。
   async createSessionOnBase(base, headers, query, model, psd, signal) {
     const { mode, strategy, modelName } = this.resolveMode(model);
+    const useSoloSandbox = isSoloAgentMode(model);
     const body = {
       mode,
       environment_id: "default",
@@ -187,11 +229,11 @@ export default class TraeExecutor extends BaseExecutor {
         content: [],
         query,
         model_name: modelName,
-        agent_type: "solo_agent_remote",
+        agent_type: useSoloSandbox ? "solo_agent_remote" : "chat",
         model_selection_strategy: strategy,
         common_params: this.commonParams(psd, mode),
       },
-      env: "remote",
+      env: useSoloSandbox ? "remote" : "local",
       auto_create_project: false,
       origin: "web",
     };
@@ -296,17 +338,17 @@ export default class TraeExecutor extends BaseExecutor {
     }
     const usedBase = session.base || base;
 
-    // Shared per-turn state: plan_item thoughts (cumulative, longest wins).
+    // Shared per-turn state: plan_item thoughts / content (cumulative, longest wins).
     const order = [];
     const thoughts = {};
     let sent = 0;
     let usage = null;
     let errorEvent = null;
     const renderNewText = (data) => {
-      const pid = data.id;
-      if (!pid) return "";
+      const pid = data.id || data.message_id || "default";
       if (!(pid in thoughts)) order.push(pid);
-      const t = data.thought || "";
+      // 提取回复文本：兼顾 SOLO 沙箱的 plan_item.thought 与直连 chat 的 content / delta / text
+      const t = data.thought || data.content || data.delta?.content || data.text || "";
       if (t.length >= (thoughts[pid] || "").length) thoughts[pid] = t;
       const full = order.map((i) => thoughts[i]).join("");
       const piece = full.slice(sent);
@@ -329,8 +371,8 @@ export default class TraeExecutor extends BaseExecutor {
           try {
             await this.streamEvents(usedBase, headers, session.sessionId, session.messageId, (ev, data) => {
               if (ev === "error") { errorEvent = data; return true; }
-              if (ev === "token_usage") usage = data;
-              if (ev === "plan_item") {
+              if (ev === "token_usage" || ev === "notify_usage") usage = data;
+              if (ev === "plan_item" || ev === "delta" || ev === "message" || ev === "content") {
                 let piece = renderNewText(data);
                 if (piece && hasTools) {
                   // #108 ②：文本 delta 过恢复器——正文原样透传，marker 块转
@@ -442,8 +484,8 @@ export default class TraeExecutor extends BaseExecutor {
     try {
       await this.streamEvents(usedBase, headers, session.sessionId, session.messageId, (ev, data) => {
         if (ev === "error") { errorEvent = data; return true; }
-        if (ev === "token_usage") usage = data;
-        if (ev === "plan_item") renderNewText(data);
+        if (ev === "token_usage" || ev === "notify_usage") usage = data;
+        if (ev === "plan_item" || ev === "delta" || ev === "message" || ev === "content") renderNewText(data);
         return ev === "done";
       }, signal);
     } catch (err) {

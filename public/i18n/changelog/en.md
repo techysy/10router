@@ -5,6 +5,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 ## Unreleased
 
 ### ✨ New
+- **Trae direct non-sandbox channel**: Standard chat requests no longer force-allocate a remote SOLO container sandbox. They now route through a lightweight direct channel (`agent_type: "chat"`), eliminating container allocation latency and the SOLO parallel sandbox limit (`running=2`), while explicit solo/work tasks still spin up the cloud sandbox automatically.
 - **Usage stats show real model names**: Qoder's internal codenames (kmodel_latest, lmodel, …) in the usage views and node health now display as their real product names — Kimi-K3.1-Pro, QoDuck, Qwen3.7-Max, and so on. Historical usage is covered too; hover to see the raw codename. Request routing is unchanged — upstreams still receive the original model id.
 
 ## v1.7.0 (2026-11-07)

@@ -6,6 +6,7 @@
 
 ### ✨ 新增
 
+- **Trae 直连非沙箱通道（直连问答模式）**：此前 Trae 执行器硬编码 `agent_type: "solo_agent_remote"` 与 `env: "remote"`，导致所有请求强制在远端分配云端沙箱容器，受制于 SOLO 容器并发（`solo_agent_parallel_limit: running=2`）且响应延迟高。现在对普通文本模型默认走轻量直连非沙箱通道（`agent_type: "chat"`，`env: "local"`），只有显式声明 solo/work/agent 任务时才启用远程沙箱；模型名称规范化映射为服务端要求的 TitleCase/PascalCase（如 `Doubao-Seed-Code`），事件流全面兼容 `plan_item`、`delta`、`message` 与 `content` 块。
 - **用量统计展示真实模型名（Qoder 代号翻译）**：用量/健康度视图此前直接显示 Qoder 上游的内部代号（`kmodel_latest`、`lmodel`、`qmodel_latest`…），可读性差。现在「最近的请求」、模型/账号/API Key/端点四张统计表、节点健康度下钻、请求明细与请求日志统一显示映射后的真实产品名（如 `kmodel_latest` → **Kimi-K3.1-Pro**、`lmodel` → **QoDuck**、`qmodel_latest` → **Qwen3.7-Max**），原始代号保留在悬浮提示/副标签里便于对账。实现为纯读取层映射（`src/shared/utils/modelDisplayName.js`，数据源即注册表 `models` 行）——**存储、请求链路、上游收到的模型 key 一律不变**，组合健康度缓存键（`${provider}|${model}`）仍按原始 id 对齐；历史用量行无需迁移，读取时即时映射全覆盖。MiniMax、Gemini 等本就用人话命名的供应商不受影响。
 
 ## v1.7.0 (2026-11-07)
