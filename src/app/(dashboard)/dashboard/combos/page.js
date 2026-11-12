@@ -13,6 +13,7 @@ import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { cn } from "@/shared/utils/cn";
+import { modelDisplayName } from "@/shared/utils/modelDisplayName";
 import { translate } from "@/i18n/runtime";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -404,24 +405,34 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
           <div className="min-w-0 flex-1">
             <code className="block truncate font-mono text-sm font-medium">{combo.name}</code>
             {/* Read-only summary: the card deliberately caps the chip list at 3
-                with a "+N more" tail — every model is editable in the edit modal. */}
+                with a "+N more" tail — every model is editable in the edit modal.
+                Chips show the display name (Qwen4-Max-Preview) with the raw id
+                in the tooltip — bare ids like qdc/qmodel_latest read as noise. */}
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
-                combo.models.slice(0, 3).map((model, index) => (
-                  <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{model}</span>
-                    <CapacityBadges caps={
-                      comboByName[model]
-                        ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
-                        : getCaps?.(model)
-                    } />
-                  </code>
-                ))
+                combo.models.slice(0, 3).map((model, index) => {
+                  const slashIdx = model.indexOf("/");
+                  const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+                  const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+                  const display = modelDisplayName(provider, bare);
+                  return (
+                    <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5" title={model}>
+                      <span>{display}</span>
+                      <CapacityBadges caps={
+                        comboByName[model]
+                          ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
+                          : getCaps?.(model)
+                      } />
+                    </code>
+                  );
+                })
               )}
               {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} {translate("more")}</span>
+                <span className="text-[10px] text-text-muted" title={combo.models.slice(3).join("\n")}>
+                  +{combo.models.length - 3} {translate("more")}
+                </span>
               )}
             </div>
             {comboCaps && (
@@ -720,7 +731,20 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                   </td>
                   <td className="px-3 py-2 text-text-main">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="truncate">{model}</span>
+                      <span className="truncate" title={model}>
+                        {(() => {
+                          const slashIdx = model.indexOf("/");
+                          const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+                          const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+                          const display = modelDisplayName(provider, bare);
+                          return display !== model ? (
+                            <>
+                              <span className="font-sans">{display}</span>
+                              <span className="text-[10px] text-text-muted">{model}</span>
+                            </>
+                          ) : model;
+                        })()}
+                      </span>
                       <CapacityBadges caps={getCaps?.(model)} />
                       {model === DEFAULT_FALLBACK_MODEL && (
                         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -854,7 +878,8 @@ function ModelItem({ id, index, model, isFirst, isLast, disabled, onEdit, onMove
       {/* Index badge */}
       <span className={`text-[10px] font-medium w-3 text-center shrink-0 ${disabled ? "text-text-muted/30" : "text-text-muted"}`}>{index + 1}</span>
 
-      {/* Inline editable model value */}
+      {/* Inline editable model value — display name (Qwen4-Max-Preview) with the
+          raw routed id as small print; the id stays the source of truth on edit. */}
       {editing ? (
         <input
           autoFocus
@@ -868,9 +893,20 @@ function ModelItem({ id, index, model, isFirst, isLast, disabled, onEdit, onMove
         <div
           className={`min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs hover:bg-black/5 dark:hover:bg-white/5 ${disabled ? "text-text-muted/40 line-through" : "text-text-main"}`}
           onClick={() => setEditing(true)}
-          title="Click to edit"
+          title={`${translate("Click to edit")} — ${model}`}
         >
-          {model}
+          {(() => {
+            const slashIdx = model.indexOf("/");
+            const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+            const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+            const display = modelDisplayName(provider, bare);
+            return display !== model ? (
+              <>
+                <span className="font-sans">{display}</span>
+                <span className="ml-1 text-[10px] text-text-muted">{model}</span>
+              </>
+            ) : model;
+          })()}
         </div>
       )}
 

@@ -72,8 +72,19 @@ export default function ModelSelectModal({
     for (const provider of activeProviders) {
       if (Object.hasOwn(map, provider.provider) && provider.id) map[provider.provider].push(provider.id);
     }
+    // 兼容节点（openai/anthropic-compatible，用户自建「供应商」）也走 live 目录：
+    // 节点新建后没有任何 alias/custom 注册时，选择器只出一个 placeholder chip
+    // （「供应商X/model-id」孤行）—— 而节点的 /models 端点明明列得出真实模型。
+    // 连接 id 即节点 id（isCustomProvider 分支按 providerId 匹配 providerNodes）。
+    for (const provider of activeProviders) {
+      if (provider.id && (isOpenAICompatibleProvider(provider.provider) || isAnthropicCompatibleProvider(provider.provider))) {
+        if (!map[provider.provider]) map[provider.provider] = [];
+        if (!map[provider.provider].includes(provider.id)) map[provider.provider].push(provider.id);
+      }
+    }
     return map;
   }, [activeProviders]);
+
 
   useEffect(() => {
     if (!isOpen) {
@@ -83,7 +94,9 @@ export default function ModelSelectModal({
 
     let cancelled = false;
     // 逐供应商聚合其全部账号的目录；同 id 跨账号去重（provider:model 对唯一）。
-    Promise.all(LIVE_CATALOG_PROVIDERS.map(async (providerId) => {
+    // 键集 = LIVE_CATALOG_PROVIDERS ∪ 兼容节点（liveConnectionIdsByProvider 已并入）。
+    const catalogProviderIds = [...new Set([...LIVE_CATALOG_PROVIDERS, ...Object.keys(liveConnectionIdsByProvider)])];
+    Promise.all(catalogProviderIds.map(async (providerId) => {
       const connectionIds = liveConnectionIdsByProvider[providerId];
       if (connectionIds.length === 0) return [providerId, []];
       const modelLists = await Promise.all(connectionIds.map(async (connectionId) => {
@@ -329,6 +342,11 @@ export default function ModelSelectModal({
         const displayName = matchedNode?.name || connection?.name || providerInfo.name;
         const nodePrefix = connection?.providerSpecificData?.prefix || matchedNode?.prefix || providerId;
 
+        // 兼容节点的 live 目录（2026-11-12）：节点 /models 端点列出的真实模型，
+        // 供 placeholder 兜底前优先使用 —— 新建节点没有 alias/custom 注册时不再
+        // 只出「供应商X/model-id」孤行。live 返回的 name 已带展示名。
+        const nodeLiveModels = (liveCatalogModels[providerId] || []).filter((m) => m?.id && !m.isPlaceholder);
+
         // Aliases are stored using the raw providerId as key (e.g. "openai-compatible-chat-<uuid>/glm-4.7"),
         // so we must filter by providerId, not by the display prefix.
         const nodeModels = Object.entries(modelAliases)
@@ -350,7 +368,20 @@ export default function ModelSelectModal({
             isCustom: true,
           }));
         const seen = new Set(nodeModels.map((m) => m.value));
-        const mergedModels = [...nodeModels, ...registeredCustom.filter((m) => !seen.has(m.value))];
+        const mergedModels = [
+          ...nodeModels,
+          ...registeredCustom.filter((m) => !seen.has(m.value)),
+          // live 目录补位：alias/custom 都没有时，节点的 /models 就是唯一清单。
+          // 按 value 去重（value 是 nodePrefix/id，与 nodeModels 的 value 同构）。
+          ...nodeLiveModels
+            .filter((m) => !seen.has(`${nodePrefix}/${m.id}`))
+            .map((m) => ({
+              id: m.id,
+              name: m.name || m.id,
+              value: `${nodePrefix}/${m.id}`,
+              isLive: true,
+            })),
+        ];
 
         // Always show compatible providers that are connected, even with no aliases.
         // When no aliases exist, show a placeholder so users know it's available.
