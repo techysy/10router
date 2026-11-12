@@ -16,11 +16,13 @@ import {
   MEOO_CLI_TEST_CLIENT_ID,
   resolveMeooCliClientId,
 } from "../../open-sse/shared/meoo/constants.js";
-import { MEOO_STATIC_MODEL_SPECS } from "../../open-sse/services/meooModels.js";
+import { MEOO_STATIC_MODEL_SPECS, clearMeooCatalog } from "../../open-sse/services/meooModels.js";
 
 const ATTESTED_MODEL_IDS = [
   "qwen3.8-max",
   "qwen3.8-flash",
+  // The gateway only accepts the all-lowercase id (capitalized 400s live).
+  "qwen4-max-preview",
   "qwen3.7-max",
   "qwen3.7-plus",
   "deepseek-v4.1-flash-1017",
@@ -134,6 +136,9 @@ describe("Meoo OAuth provider (src/lib/oauth/providers/meoo.js)", () => {
 const mocks = vi.hoisted(() => ({
   proxyAwareFetch: vi.fn(),
   createProviderConnection: vi.fn(),
+  getProviderConnectionById: vi.fn(),
+  getProviderNodeById: vi.fn(),
+  updateProviderCredentials: vi.fn(),
   nextJson: vi.fn((body, init) => ({ status: init?.status || 200, body })),
 }));
 
@@ -147,7 +152,30 @@ vi.mock("next/server", () => ({
 
 vi.mock("@/models", () => ({
   createProviderConnection: mocks.createProviderConnection,
+  getProviderConnectionById: mocks.getProviderConnectionById,
+  getProviderNodeById: mocks.getProviderNodeById,
 }));
+
+// The dashboard [id]/models route persists re-resolved credentials through
+// this module; stub it so the meoo branch's write-back is assertable
+// without the DB layer.
+vi.mock("@/sse/services/tokenRefresh", () => ({
+  refreshGoogleToken: vi.fn(),
+  refreshCodexToken: vi.fn(),
+  updateProviderCredentials: mocks.updateProviderCredentials,
+}));
+
+// The [id]/models route imports every provider's catalog resolver; the
+// sibling resolvers pull app dependencies (uuid, …) that this sandbox's
+// test node_modules doesn't carry. Stub them — only the meoo branch of
+// the route is under test here.
+vi.mock("../../open-sse/services/kiroModels.js", () => ({ resolveKiroModels: vi.fn() }));
+vi.mock("../../open-sse/services/kimchiModels.js", () => ({ resolveKimchiModels: vi.fn() }));
+vi.mock("../../open-sse/services/qoderModels.js", () => ({ resolveQoderModels: vi.fn() }));
+vi.mock("../../open-sse/services/mimoModels.js", () => ({ resolveMimoModels: vi.fn() }));
+vi.mock("../../open-sse/services/grokCliModels.js", () => ({ resolveGrokCliModels: vi.fn() }));
+vi.mock("../../open-sse/services/cursorModels.js", () => ({ resolveCursorModels: vi.fn() }));
+vi.mock("../../open-sse/shared/zedAuth.js", () => ({ resolveZedModels: vi.fn() }));
 
 const PROJECT_AK = "meoo_project_service_v1.test-ak";
 
@@ -422,5 +450,157 @@ describe("POST /api/oauth/meoo/import-apikey (route B)", () => {
     expect(arg["apiKey"]).toBe(PROJECT_AK);
     expect(arg.providerSpecificData.projectUrlId).toBe("proj-1");
     expect(arg.providerSpecificData.projectName).toBe("Demo App");
+  });
+});
+
+// ─── Dashboard discovery: GET /api/providers/[id]/models (meoo branch) ──
+// The endpoint must serve the LIVE gateway catalog (so models Meoo
+// configures later appear without a registry update), fall back to the
+// static seeds when the live fetch fails, and persist a re-resolved AK.
+
+describe("GET /api/providers/[id]/models — meoo live catalog (dashboard discovery)", () => {
+  const connLive = {
+    id: "conn-meoo-live",
+    provider: "meoo",
+    apiKey: PROJECT_AK,
+    providerSpecificData: { projectApiKey: PROJECT_AK, akStatus: "ok" },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearMeooCatalog();
+    mocks.getProviderNodeById.mockResolvedValue(null);
+  });
+
+  const getModels = async (id) => {
+    const { GET } = await import("../../src/app/api/providers/[id]/models/route.js");
+    return GET(new Request(`http://localhost/api/providers/${id}/models`), {
+      params: Promise.resolve({ id }),
+    });
+  };
+
+  it("returns the live gateway catalog verbatim, including ids outside the static spec table", async () => {
+    const gatewayAuths = [];
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("api.meoo.host")) {
+        gatewayAuths.push(opts?.headers?.Authorization);
+        return jsonResponse(200, {
+          data: [
+            { id: "qwen3.8-flash" },
+            { id: "qwen4-max-preview" },
+            { id: "glm-5.3-flash" },
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    mocks.getProviderConnectionById.mockResolvedValue(connLive);
+
+    const res = await getModels(connLive.id);
+    expect(res.status).toBe(200);
+    expect(res.body.provider).toBe("meoo");
+    expect(res.body.connectionId).toBe(connLive.id);
+    expect(res.body.warning).toBeUndefined();
+    expect(gatewayAuths).toEqual([`Bearer ${PROJECT_AK}`]);
+
+    const models = res.body.models;
+    // Live catalog as-is — no endpoint-layer filtering against the static
+    // table, so a model Meoo adds tomorrow is listed the moment it ships.
+    expect(models.map((m) => m.id)).toEqual([
+      "qwen3.8-flash",
+      "qwen4-max-preview",
+      "glm-5.3-flash",
+    ]);
+    // Spec-table hit under the corrected lowercase key.
+    expect(models[1]).toMatchObject({
+      name: "Qwen4-Max-Preview",
+      contextLength: 1_000_000,
+      maxOutputTokens: 131_072,
+      isVL: true,
+    });
+    // Unknown id rides the resolver's fallback spec and is still listed.
+    expect(models[2]).toMatchObject({
+      name: "glm-5.3-flash",
+      contextLength: 200_000,
+      maxOutputTokens: 65_536,
+      isVL: false,
+    });
+  });
+
+  it("falls back to the static seed catalog when the live fetch fails", async () => {
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes("api.meoo.host")) return jsonResponse(500, { error: "boom" });
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    mocks.getProviderConnectionById.mockResolvedValue(connLive);
+
+    const res = await getModels(connLive.id);
+    expect(res.status).toBe(200);
+    expect(res.body.warning).toContain("falling back to static");
+    const ids = res.body.models.map((m) => m.id).sort();
+    const seedIds = (PROVIDER_MODELS["meoo"] || []).map((m) => m.id).sort();
+    expect(ids).toEqual(seedIds);
+    // The corrected lowercase Qwen4 id is what the seeds now carry.
+    expect(ids).toContain("qwen4-max-preview");
+    expect(ids).not.toContain("Qwen4-Max-Preview");
+  });
+
+  it("re-resolves a stale project AK through the control key and persists it", async () => {
+    const staleAk = "meoo_project_service_v1.stale-ak";
+    const controlKey = "meoo_ak_stale_test_1234567890";
+    const conn = {
+      id: "conn-meoo-stale",
+      provider: "meoo",
+      apiKey: staleAk,
+      providerSpecificData: {
+        meooControlKey: controlKey,
+        projectApiKey: staleAk,
+        akStatus: "ok",
+      },
+    };
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("api.meoo.host")) {
+        if (opts?.headers?.Authorization === `Bearer ${staleAk}`) {
+          return jsonResponse(401, { error: "invalid ak" });
+        }
+        if (opts?.headers?.Authorization === `Bearer ${PROJECT_AK}`) {
+          return jsonResponse(200, { data: [{ id: "qwen3.8-max" }] });
+        }
+        throw new Error("gateway called with an unexpected AK");
+      }
+      // Control plane legs (same shapes as mockControlPlane above).
+      if (u.endsWith("/account/identity")) {
+        return jsonResponse(200, {
+          success: true,
+          data: { user: { id: "u-1", name: "alice", email: "alice@example.com", tenant_id: "t-1" } },
+        });
+      }
+      if (u.includes("/projects?")) {
+        return jsonResponse(200, {
+          success: true,
+          data: {
+            list: [{ url_id: "proj-1", name: "Demo App", status: "active", type: "create-desktop" }],
+            total: 1,
+          },
+        });
+      }
+      if (u.includes("/cloud/environment")) {
+        return jsonResponse(200, { success: true, data: { enabled: true, meooProjectApiKey: PROJECT_AK } });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    mocks.getProviderConnectionById.mockResolvedValue(conn);
+
+    const res = await getModels(conn.id);
+    expect(res.status).toBe(200);
+    expect(res.body.models.map((m) => m.id)).toEqual(["qwen3.8-max"]);
+    // The re-resolved AK was written back through updateProviderCredentials
+    // (the onCredentialsRefreshed wiring shared with /api/v1/models).
+    const persistCalls = mocks.updateProviderCredentials.mock.calls.filter((c) => c[0] === conn.id);
+    expect(persistCalls.length).toBeGreaterThan(0);
+    expect(persistCalls[0][1]).toMatchObject({ apiKey: PROJECT_AK });
   });
 });
