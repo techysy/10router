@@ -35,11 +35,14 @@ export async function POST(request) {
 
     const results = [];
     for (const conn of connections) {
-      if (!conn.refreshToken) {
-        results.push({ id: conn.id, ok: false, error: "Connection has no refresh token; re-login required" });
+      // Paste-key connections have no OAuth pair — their AK re-resolution
+      // runs on the stored control key instead (refreshMeooToken handles
+      // both credential shapes).
+      if (!conn.refreshToken && !conn.accessToken && !conn.providerSpecificData?.meooControlKey) {
+        results.push({ id: conn.id, ok: false, error: "Connection has no refresh token or control API key; re-connect required" });
         continue;
       }
-      const refreshed = await refreshMeooToken(conn.refreshToken, conn, console);
+      const refreshed = await refreshMeooToken(conn.refreshToken || "", conn, console);
       if (!refreshed || refreshed.error) {
         results.push({ id: conn.id, ok: false, error: refreshed?.error || "refresh_failed" });
         continue;

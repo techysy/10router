@@ -40,8 +40,52 @@ export class MeooService {
     return fetchMeooIdentity(accessToken);
   }
 
-  async resolveProjectAk(accessToken, projectUrlId = "") {
-    return resolveMeooProjectAk(accessToken, { projectUrlId });
+  async resolveProjectAk(credential, projectUrlId = "") {
+    return resolveMeooProjectAk(credential, { projectUrlId });
+  }
+
+  /**
+   * Paste-key import (POST /api/oauth/meoo/import-apikey): verify a
+   * control-plane API key (`meoo_ak_…`) and resolve the project service
+   * AK with it.
+   *
+   * Verification rests on the projects/environment leg answering, NOT on
+   * identity: a key's scope may cover projects while identity refuses it
+   * (observed 2026-11-13), so identity is fetched best-effort for
+   * display only. Two failure shapes are distinguished:
+   *   - the control plane ACCEPTED the key but no AK can be issued yet
+   *     (no project / cloud services disabled / AK missing — MeooApiError
+   *     with status 0 and a MEOO_* code): the connection is still created
+   *     with akStatus/akError, mirroring resolveLoginExtra, and can pick
+   *     the AK up later via refresh-ak;
+   *   - the control plane REJECTED the key (HTTP error from the projects
+   *     leg in either namespace): rethrown as MeooApiError so the route
+   *     can surface Meoo's status + detail to the user verbatim.
+   */
+  async resolveControlKeyImport(controlKey) {
+    const extra = { identity: null, projectApiKey: "", projectUrlId: "", projectName: "", akStatus: "pending", akError: "" };
+    try {
+      extra.identity = await fetchMeooIdentity(controlKey);
+    } catch {
+      // Display-only; a scoped key may not be entitled to identity.
+    }
+    try {
+      const ak = await resolveMeooProjectAk(controlKey);
+      extra.projectApiKey = ak.projectApiKey;
+      extra.projectUrlId = ak.projectUrlId;
+      extra.projectName = ak.projectName;
+      extra.akStatus = "ok";
+    } catch (err) {
+      const acceptedButNoAk =
+        err instanceof MeooApiError &&
+        err.status === 0 &&
+        typeof err.code === "string" &&
+        err.code.startsWith("MEOO_");
+      if (!acceptedButNoAk) throw err;
+      extra.akStatus = "error";
+      extra.akError = err.message;
+    }
+    return extra;
   }
 
   /**

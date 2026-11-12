@@ -426,9 +426,14 @@ export async function refreshGitHubToken(refreshToken, log) {
 // merges the providerSpecificData). If AK resolution fails after the pair
 // rotated, the new pair is still returned (with akStatus=error) so the
 // rotated refresh token is never lost.
+// Paste-key connections have no OAuth pair at all: their refresh is just
+// the AK re-resolution, driven by the stored control key
+// (providerSpecificData.meooControlKey) inside resolveMeooCredentials.
 export async function refreshMeooToken(refreshToken, credentials, log, proxyOptions = null) {
-  if (!refreshToken) return null;
-  return dedupRefresh("meoo", refreshToken, async () => {
+  const controlKey = credentials?.providerSpecificData?.meooControlKey || "";
+  if (!refreshToken && !credentials?.accessToken && !controlKey) return null;
+  const dedupKey = refreshToken || controlKey || credentials.accessToken;
+  return dedupRefresh("meoo", dedupKey, async () => {
     try {
       const resolved = await resolveMeooCredentials(
         {

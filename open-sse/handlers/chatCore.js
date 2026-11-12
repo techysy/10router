@@ -475,7 +475,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         }
         return result;
       }, 3, log);
-      if (newCredentials?.accessToken || newCredentials?.copilotToken) {
+      if (newCredentials?.accessToken || newCredentials?.copilotToken || newCredentials?.apiKey) {
         if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${provider}/${model}`);
         Object.assign(credentials, newCredentials);
         if (onCredentialsRefreshed) {

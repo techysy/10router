@@ -7,10 +7,13 @@ import { MEOO_CONFIG } from "../constants/oauth.js";
 //   POST /oauth/token (form): grant_type=authorization_code, client_id,
 //        code, redirect_uri, code_verifier
 // The redirect URI is whatever the dashboard hands the generic OAuth route
-// (the gateway's own callback), NOT the CLI's 127.0.0.1 loopback — whether
-// Meoo's authorize endpoint accepts a non-loopback redirect for this
-// public client is a known unknown (see the provider notes); the CLI
-// client_id is reused because it is the only public client Meoo issues.
+// (the gateway's own callback), NOT the CLI's 127.0.0.1 loopback. Verified
+// 2026-11-13 against the live authorize endpoint: Meoo rejects it with
+// invalid_redirect_uri — the CLI client only registers loopback redirect
+// URIs, so this popup flow cannot complete against production Meoo. It is
+// kept for parity/testing, but the supported connection path is the
+// paste-key import (POST /api/oauth/meoo/import-apikey), which resolves
+// the same project service AK from the account's control-plane API key.
 //
 // The gateway never sees the OAuth token: postExchange resolves the
 // project service AK and mapTokens stores it as the connection's apiKey,

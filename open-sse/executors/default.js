@@ -243,7 +243,13 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   async refreshCredentials(credentials, log, proxyOptions = null) {
-    if (!credentials.refreshToken) return null;
+    if (!credentials.refreshToken) {
+      // Meoo paste-key connections carry no OAuth pair — their "refresh"
+      // is a project-AK re-resolution driven by the stored control key.
+      const meooControlKey =
+        this.provider === "meoo" ? credentials.providerSpecificData?.meooControlKey : "";
+      if (!meooControlKey) return null;
+    }
 
     const refreshers = {
       claude: () => this.refreshFromGrant(credentials, proxyOptions),
@@ -369,9 +375,15 @@ export class DefaultExecutor extends BaseExecutor {
   // apiKey, so the 401-retry in chatCore replays with the fresh AK.
   async refreshMeoo(credentials, proxyOptions = null) {
     const refreshToken = credentials?.refreshToken;
-    if (!refreshToken) return null;
+    if (
+      !refreshToken &&
+      !credentials?.accessToken &&
+      !credentials?.providerSpecificData?.meooControlKey
+    ) {
+      return null;
+    }
     const { refreshMeooToken } = await import("../services/tokenRefresh/providers.js");
-    return refreshMeooToken(refreshToken, credentials, console, proxyOptions);
+    return refreshMeooToken(refreshToken || "", credentials, console, proxyOptions);
   }
 
   async refreshKilocode(refreshToken, proxyOptions = null) {

@@ -13,9 +13,25 @@
  *   environment GET /open/v1/cli-compat/projects/{urlId}/cloud/environment
  *              → data.meooProjectApiKey (data.enabled === false = cloud off)
  *
+ * Every control-plane read is dual-namespace: on failure it retries under
+ * the documented /open/v1/* namespace (《快速接入》 §2.2). A settings-page
+ * API key's scope decides which namespace (if any) accepts it, and that
+ * is only observable by trying. Identity is display-only — verification
+ * of a pasted key rests on the projects/environment leg answering.
+ *
+ * The identity credential on every control-plane call is just a Bearer
+ * string: either an OAuth access token or the account-level API key
+ * (`meoo_ak_…`, created in meoo.com 设置 → API 密钥） — the CLI treats the
+ * latter as credentialType "api_key" and sends it identically
+ * (dist/lib/credentials.js + apiClient.js). Every function below therefore
+ * takes an opaque `credential` string; OAuth-only concerns (refresh,
+ * expiry) live in resolveMeooCredentials, which picks the credential by
+ * priority: OAuth access token first, then the stored control key
+ * (providerSpecificData.meooControlKey).
+ *
  * Behaviour mirrored from the official CLI (@aliyun-meoo/cli 0.5.8):
  *   - control-plane requests carry X-Meoo-Client / X-Meoo-CLI-Version /
- *     X-Meoo-Request-Id headers and `Authorization: Bearer <access token>`
+ *     X-Meoo-Request-Id headers and `Authorization: Bearer <credential>`
  *     (dist/lib/apiClient.js);
  *   - a 401 with errCode `invalid_token` triggers ONE refresh + retry
  *     (apiClient.js), and proactive refresh happens once the access token
@@ -35,6 +51,8 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import {
   MEOO_API_BASE_URL,
   MEOO_CLI_COMPAT_VERSION,
+  MEOO_DOC_IDENTITY_PATH,
+  MEOO_DOC_PROJECTS_PATH,
   MEOO_IDENTITY_PATH,
   MEOO_PROJECTS_PATH,
   MEOO_REFRESH_EARLY_MS,
@@ -57,14 +75,14 @@ function isInvalidTokenError(err) {
   return err instanceof MeooApiError && err.status === 401 && err.code === "invalid_token";
 }
 
-function controlHeaders(accessToken) {
+function controlHeaders(credential) {
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
     "X-Meoo-Client": "cli",
     "X-Meoo-CLI-Version": MEOO_CLI_COMPAT_VERSION,
     "X-Meoo-Request-Id": `cli_req_${randomUUID()}`,
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${credential}`,
   };
 }
 
@@ -86,12 +104,13 @@ function unwrapEnvelope(body, status) {
   return body;
 }
 
-async function meooControlRequest(accessToken, path, { proxyOptions = null, signal = null } = {}) {
+async function meooControlRequest(credential, path, { proxyOptions = null, signal = null, method = "GET" } = {}) {
   const response = await proxyAwareFetch(
     `${MEOO_API_BASE_URL}${path}`,
     {
-      method: "GET",
-      headers: controlHeaders(accessToken),
+      method,
+      ...(method === "POST" ? { body: JSON.stringify({}) } : {}),
+      headers: controlHeaders(credential),
       signal: signal || AbortSignal.timeout(CONTROL_TIMEOUT_MS),
     },
     proxyOptions,
@@ -108,9 +127,16 @@ async function meooControlRequest(accessToken, path, { proxyOptions = null, sign
 /**
  * GET account/identity. The CLI reads `user.name || user.username`
  * (commands/account.js); the rest of the shape is parsed defensively.
+ * Dual-namespace: cli-compat first, documented /open/v1 path as fallback
+ * (a key's entitled namespace/scope is not knowable in advance).
  */
-export async function fetchMeooIdentity(accessToken, options = {}) {
-  const data = await meooControlRequest(accessToken, MEOO_IDENTITY_PATH, options);
+export async function fetchMeooIdentity(credential, options = {}) {
+  let data;
+  try {
+    data = await meooControlRequest(credential, MEOO_IDENTITY_PATH, options);
+  } catch {
+    data = await meooControlRequest(credential, MEOO_DOC_IDENTITY_PATH, options);
+  }
   const user = data?.user && typeof data.user === "object" ? data.user : data || {};
   return {
     userId: user.id || user.user_id || user.userId || "",
@@ -121,39 +147,96 @@ export async function fetchMeooIdentity(accessToken, options = {}) {
   };
 }
 
-/**
- * GET projects list. Response envelope data = { list, total }; items carry
- * snake_case fields (url_id, name, status, type) — commands/projects/list.js
- * buildProjectListRequest + mapProjectListItem.
- */
-export async function fetchMeooProjects(accessToken, options = {}) {
-  const data = await meooControlRequest(
-    accessToken,
-    `${MEOO_PROJECTS_PATH}?page_size=50&view=created`,
-    options,
-  );
+function normalizeMeooProjects(data) {
   const list = Array.isArray(data) ? data : Array.isArray(data?.list) ? data.list : [];
   return list
-    .filter((p) => p && (p.url_id || p.urlId))
+    .filter((p) => p && (p.url_id || p.urlId || p.id))
     .map((p) => ({
-      urlId: p.url_id || p.urlId,
-      name: p.name || "",
+      urlId: p.url_id || p.urlId || p.id,
+      name: p.name || p.title || "",
       status: p.status || "",
       type: p.type || null,
     }));
 }
 
 /**
+ * GET projects list. Response envelope data = { list, total }; items carry
+ * snake_case fields (url_id, name, status, type) — commands/projects/list.js
+ * buildProjectListRequest + mapProjectListItem. Dual-namespace like the
+ * identity fetch: cli-compat first, documented /open/v1/projects second.
+ */
+export async function fetchMeooProjects(credential, options = {}) {
+  try {
+    const data = await meooControlRequest(
+      credential,
+      `${MEOO_PROJECTS_PATH}?page_size=50&view=created`,
+      options,
+    );
+    return normalizeMeooProjects(data);
+  } catch {
+    const data = await meooControlRequest(
+      credential,
+      `${MEOO_DOC_PROJECTS_PATH}?page_size=50&view=created`,
+      options,
+    );
+    return normalizeMeooProjects(data);
+  }
+}
+
+/**
  * GET projects/{urlId}/cloud/environment. data.meooProjectApiKey is the
  * project service AK; data.enabled === false means cloud services are not
  * enabled for the project and no AK is issued (projectConfig.syncProjectEnv).
+ * Dual-namespace like the projects fetch.
  */
-export async function fetchMeooProjectEnvironment(accessToken, urlId, options = {}) {
-  return meooControlRequest(
-    accessToken,
-    `${MEOO_PROJECTS_PATH}/${encodeURIComponent(urlId)}/cloud/environment`,
-    options,
-  );
+export async function fetchMeooProjectEnvironment(credential, urlId, options = {}) {
+  const suffix = `${encodeURIComponent(urlId)}/cloud/environment`;
+  try {
+    return await meooControlRequest(credential, `${MEOO_PROJECTS_PATH}/${suffix}`, options);
+  } catch {
+    return meooControlRequest(credential, `${MEOO_DOC_PROJECTS_PATH}/${suffix}`, options);
+  }
+}
+
+/**
+ * POST projects/{urlId}/cloud — initialize the project's cloud services
+ * (dual-namespace like the reads). Attested by the third-party dsh-meoo
+ * client: a project whose cloud environment was never initialized has no
+ * environment to read (the console shows 云服务使用数 0/1) until this POST
+ * creates it. Errors propagate as-is.
+ */
+async function initializeMeooProjectCloud(credential, urlId, options = {}) {
+  const suffix = `${encodeURIComponent(urlId)}/cloud`;
+  try {
+    return await meooControlRequest(credential, `${MEOO_PROJECTS_PATH}/${suffix}`, { ...options, method: "POST" });
+  } catch {
+    return meooControlRequest(credential, `${MEOO_DOC_PROJECTS_PATH}/${suffix}`, { ...options, method: "POST" });
+  }
+}
+
+/**
+ * Environment read with one-shot cloud initialization: when the stored
+ * environment is unusable — the GET fails, reports enabled === false, or
+ * carries no AK — POST the cloud initialization once and read again
+ * (dsh-meoo's flow). Initialization is only attempted in those states, so
+ * a healthy project never sees the POST; any failure (init or re-read)
+ * propagates to the caller unchanged.
+ */
+export async function fetchMeooProjectEnvironmentWithInit(credential, urlId, options = {}) {
+  let environment = null;
+  try {
+    environment = await fetchMeooProjectEnvironment(credential, urlId, options);
+  } catch {
+    environment = null;
+  }
+  const usable =
+    environment &&
+    environment.enabled !== false &&
+    typeof environment.meooProjectApiKey === "string" &&
+    environment.meooProjectApiKey;
+  if (usable) return environment;
+  await initializeMeooProjectCloud(credential, urlId, options);
+  return fetchMeooProjectEnvironment(credential, urlId, options);
 }
 
 /**
@@ -163,14 +246,14 @@ export async function fetchMeooProjectEnvironment(accessToken, urlId, options = 
  * MEOO_PROJECT_AK_MISSING for the states the CLI surfaces separately
  * (NO_PROJECT_BOUND; environment.enabled === false).
  */
-export async function resolveMeooProjectAk(accessToken, { projectUrlId = "", proxyOptions = null, signal = null } = {}) {
+export async function resolveMeooProjectAk(credential, { projectUrlId = "", proxyOptions = null, signal = null } = {}) {
   const options = { proxyOptions, signal };
-  const projects = await fetchMeooProjects(accessToken, options);
+  const projects = await fetchMeooProjects(credential, options);
   if (projects.length === 0) {
     throw new MeooApiError(0, "MEOO_NO_PROJECT", "Meoo account has no project; create one in Meoo first, then re-resolve the project AK");
   }
   const project = (projectUrlId && projects.find((p) => p.urlId === projectUrlId)) || projects[0];
-  const environment = await fetchMeooProjectEnvironment(accessToken, project.urlId, options);
+  const environment = await fetchMeooProjectEnvironmentWithInit(credential, project.urlId, options);
   if (environment?.enabled === false) {
     throw new MeooApiError(0, "MEOO_CLOUD_NOT_ENABLED", `Meoo project ${project.urlId} has cloud services disabled; enable cloud services for the project, then re-resolve the project AK`);
   }
@@ -266,10 +349,24 @@ function parseTimeMs(value) {
 }
 
 /**
+ * The stored control-plane API key (`meoo_ak_…`) of a connection, or "".
+ * Connections created by pasting the key (POST /api/oauth/meoo/import-apikey)
+ * carry no OAuth pair — this key is their only identity credential.
+ */
+export function getMeooControlKey(credentials) {
+  const key = credentials?.providerSpecificData?.meooControlKey;
+  return typeof key === "string" ? key : "";
+}
+
+/**
  * Full credential resolution for a stored Meoo connection: refresh the
  * OAuth token when it is expired / inside the CLI's 60s early-refresh
  * window (or when the control plane rejects it with invalid_token), then
  * (re-)resolve the project service AK.
+ *
+ * Credential source priority: OAuth access token → stored control key.
+ * A connection with no OAuth pair but a control key resolves the AK
+ * directly with the key (no token fields in the result).
  *
  * Returns the mergeRefreshedCredentials-compatible shape:
  *   { accessToken?, refreshToken?, expiresIn?, apiKey,
@@ -278,10 +375,29 @@ function parseTimeMs(value) {
  * Token fields are present only when a refresh actually happened.
  */
 export async function resolveMeooCredentials(credentials, { proxyOptions = null, log = null, forceRefresh = false } = {}) {
+  const psd = credentials?.providerSpecificData || {};
+  const controlKey = getMeooControlKey(credentials);
   if (!credentials?.refreshToken && !credentials?.accessToken) {
-    throw new MeooApiError(0, "MEOO_NO_CREDENTIALS", "Meoo connection has no OAuth tokens");
+    if (!controlKey) {
+      throw new MeooApiError(0, "MEOO_NO_CREDENTIALS", "Meoo connection has no OAuth tokens and no control API key");
+    }
+    // Paste-key connection: the control key IS the identity credential.
+    const ak = await resolveMeooProjectAk(controlKey, {
+      projectUrlId: psd.projectUrlId || "",
+      proxyOptions,
+    });
+    return {
+      ["apiKey"]: ak.projectApiKey,
+      providerSpecificData: {
+        authMethod: "api_key",
+        projectUrlId: ak.projectUrlId,
+        projectName: ak.projectName,
+        projectApiKey: ak.projectApiKey,
+        akResolvedAt: new Date().toISOString(),
+        akStatus: "ok",
+      },
+    };
   }
-  const psd = credentials.providerSpecificData || {};
   let accessToken = credentials.accessToken || "";
   let tokenPart = null;
 

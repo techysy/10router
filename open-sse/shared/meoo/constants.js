@@ -51,11 +51,37 @@ export const MEOO_AUTHORIZE_URL = `${MEOO_API_BASE_URL}/oauth/authorize`;
 export const MEOO_TOKEN_URL = `${MEOO_API_BASE_URL}/oauth/token`;
 export const MEOO_REVOKE_URL = `${MEOO_API_BASE_URL}/oauth/revoke`;
 
+// Account-level control-plane API key (meoo.com 设置 → API 密钥）. The CLI
+// stores it as credentialType "api_key" (dist/lib/credentials.js) and sends
+// it as the same Bearer credential as an OAuth access token on every
+// cli-compat call (dist/lib/apiClient.js) — the control plane does not
+// distinguish the two. This is the credential behind the gateway's
+// paste-key connection path (POST /api/oauth/meoo/import-apikey), used
+// because the OAuth client's registered redirect URIs are loopback-only.
+export const MEOO_CONTROL_KEY_PREFIX = "meoo_ak_";
+
+export function isMeooControlKey(value) {
+  return (
+    typeof value === "string" &&
+    value.startsWith(MEOO_CONTROL_KEY_PREFIX) &&
+    value.length > MEOO_CONTROL_KEY_PREFIX.length + 8
+  );
+}
+
 // cli-compat control-plane paths (apiClient.js / projectConfig.js /
 // commands/projects/list.js in the CLI).
 export const MEOO_IDENTITY_PATH = "/open/v1/cli-compat/account/identity";
 export const MEOO_POINTS_PATH = "/open/v1/cli-compat/account/points";
 export const MEOO_PROJECTS_PATH = "/open/v1/cli-compat/projects";
+
+// Documented (non-cli-compat) namespace from the official 《快速接入》
+// guide §2.2 — GET /open/v1/projects. Field check 2026-11-13: a real
+// settings-page API key got 401 invalid_token on BOTH namespaces (scope
+// selection at key creation is the suspected cause, unverified), so the
+// resolver tries cli-compat first and falls back to these paths; which
+// namespace a given key is entitled to is not knowable in advance.
+export const MEOO_DOC_IDENTITY_PATH = "/open/v1/account/identity";
+export const MEOO_DOC_PROJECTS_PATH = "/open/v1/projects";
 
 // The cli-compat endpoints expect the CLI's client headers (apiClient.js
 // sends X-Meoo-Client: cli + its own package version on every request).

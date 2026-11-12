@@ -15,7 +15,10 @@
  * re-resolved once via meooAk.resolveMeooCredentials (which refreshes
  * the OAuth token first when needed); callers that can persist pass
  * options.onCredentialsRefreshed so the fresh AK lands back on the
- * connection row.
+ * connection row. The same re-resolution runs when no AK is stored at
+ * all, as long as the connection carries some identity credential —
+ * OAuth pair or the pasted control-plane API key
+ * (providerSpecificData.meooControlKey).
  */
 
 import { createHash } from "crypto";
@@ -132,18 +135,18 @@ export async function resolveMeooModels(credentials, options = {}) {
   }
 
   const fetchPromise = (async () => {
-    let projectAk = projectAkFrom(credentials);
-    if (!projectAk) return null;
-
-    let models = null;
-    try {
-      models = await fetchCatalogRaw(projectAk, options.proxyOptions, options.signal);
-    } catch (err) {
-      if (err?.status !== 401 && err?.status !== 403) throw err;
-      // Stale AK: re-resolve through the control plane and retry once.
-      options.log?.warn?.("MEOO", `Gateway rejected project AK (${err.status}); re-resolving`);
-      catalogCache.delete(key);
-      if (!credentials?.refreshToken && !credentials?.accessToken) return null;
+    // Re-resolve the project AK through the control plane (OAuth refresh
+    // included, or the stored control key when there is no OAuth pair)
+    // and hand the result to the persisting caller. Returns the fresh
+    // AK, or "" when resolution is impossible / failed.
+    const reresolveAk = async () => {
+      if (
+        !credentials?.refreshToken &&
+        !credentials?.accessToken &&
+        !credentials?.providerSpecificData?.meooControlKey
+      ) {
+        return "";
+      }
       let refreshed;
       try {
         refreshed = await resolveMeooCredentials(credentials, {
@@ -160,7 +163,7 @@ export async function resolveMeooModels(credentials, options = {}) {
             await options.onCredentialsRefreshed(resolveErr.refreshed);
           } catch { /* best effort */ }
         }
-        return null;
+        return "";
       }
       if (options.onCredentialsRefreshed && refreshed) {
         try {
@@ -169,7 +172,25 @@ export async function resolveMeooModels(credentials, options = {}) {
           options.log?.warn?.("MEOO", `Persisting refreshed AK failed: ${persistErr.message}`);
         }
       }
-      projectAk = refreshed?.apiKey || "";
+      return refreshed?.apiKey || "";
+    };
+
+    let projectAk = projectAkFrom(credentials);
+    if (!projectAk) {
+      // No AK stored (first-run state): resolve one before giving up.
+      projectAk = await reresolveAk();
+      if (!projectAk) return null;
+    }
+
+    let models = null;
+    try {
+      models = await fetchCatalogRaw(projectAk, options.proxyOptions, options.signal);
+    } catch (err) {
+      if (err?.status !== 401 && err?.status !== 403) throw err;
+      // Stale AK: re-resolve through the control plane and retry once.
+      options.log?.warn?.("MEOO", `Gateway rejected project AK (${err.status}); re-resolving`);
+      catalogCache.delete(key);
+      projectAk = await reresolveAk();
       if (!projectAk) return null;
       models = await fetchCatalogRaw(projectAk, options.proxyOptions, options.signal).catch(() => null);
     }
