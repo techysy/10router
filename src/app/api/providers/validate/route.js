@@ -286,9 +286,34 @@ export async function POST(request) {
           });
           // 404 is NOT a pass: THX-01 answers an UNAUTHENTICATED post with 404
           // carrying a full decision body, so "any non-auth status" would
-          // green an empty key; 404 also means "endpoint moved". A real 2xx,
-          // or the request-shaped 4xx that can only happen after auth passed.
-          isValid = res.ok || res.status === 400 || res.status === 422;
+          // green an empty key; 404 also means "endpoint moved".
+          //
+          // 400 也 NOT 一律是 pass（#110 实测 2026-11-12）：Gemini Decision 对
+          // 无效 key 返回 400 + body reason "API_KEY_INVALID" —— 与「key 有效但
+          // 请求形状错」的 400 无法从状态码区分，必须读 body。Google 的错误体：
+          // { error: { code, message, status, details[{ reason }] } }。
+          // 判定：4xx 通过的前提是 body 不是 key 无效类（API_KEY_INVALID /
+          // PERMISSION_DENIED / UNAUTHENTICATED）。
+          if (res.ok) {
+            isValid = true;
+          } else if (res.status === 400 || res.status === 422) {
+            let reason = "";
+            try {
+              const errBody = await res.json();
+              const err = errBody?.error || {};
+              reason = String(err.reason || err.status || err.message || "");
+              // details[].reason 是 Google RPC ErrorInfo 的规范位置
+              const detailReasons = (err.details || [])
+                .map((d) => d?.reason)
+                .filter(Boolean);
+              reason = detailReasons[0] || reason;
+            } catch { /* body 不是 JSON：按状态码旧规则放行 */ }
+            const keyRejected = /API_KEY_INVALID|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason);
+            isValid = !keyRejected;
+            if (keyRejected) error = "Invalid API key";
+          } else {
+            isValid = false;
+          }
         } catch {
           maintenance = true;
           error = "Endpoint unreachable — the provider may be under maintenance, try again later";
