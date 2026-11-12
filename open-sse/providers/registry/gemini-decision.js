@@ -41,5 +41,7 @@ export default {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/decisions",
     authType: "apikey",
     authHeader: "x-goog-api-key",
+    // 输入字段显式声明（core 按 authHeader 推导也能得到同值，双保险）
+    inputField: "input",
   },
 };
