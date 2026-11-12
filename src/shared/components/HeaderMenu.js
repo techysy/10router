@@ -96,6 +96,20 @@ export default function HeaderMenu({ onLogout }) {
               label={translate("Change Log")}
               onClick={() => { close(); setChangelogOpen(true); }}
             />
+            {/* 项目主页 / 提交 Issue（2026-11-12 对齐 CD 聚合菜单语义）：
+                外链走 anchor（中键/复制链接可用，fnOS webview 当普通链接处理）。 */}
+            <MenuItem
+              icon="home"
+              label={translate("Project Homepage")}
+              href="https://github.com/techysy/10router"
+              onClick={close}
+            />
+            <MenuItem
+              icon="flag"
+              label={translate("Submit Issue")}
+              href="https://github.com/techysy/10router/issues"
+              onClick={close}
+            />
             {/* 主题切换不在这里：入口统一到左侧相邻的主题按钮（ThemeToggle，
                 面板锚定按钮弹出），居中弹窗版已废弃。 */}
             <MenuItem
