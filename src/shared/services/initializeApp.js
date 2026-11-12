@@ -173,6 +173,16 @@ async function runHeavyStartup() {
       .then(({ startTraeCheckin }) => startTraeCheckin())
       .catch((e) => console.log("[TraeCheckin] scheduler start failed:", e.message));
   }
+
+  // Daily-grant midnight reset (每日赠送积分优先 policy, 2026-11-12): reopens
+  // connections auto-disabled by the drain guard in auth.js once their daily
+  // grant refreshes. The scheduler self-gates per tick on providerStrategies
+  // (re-read every pass), so no restart is needed when the toggle flips.
+  if (Object.values(settings.providerStrategies || {}).some((o) => o?.dailyGrantFirst === true)) {
+    import("@/sse/services/dailyGrantReset.js")
+      .then(({ startDailyGrantReset }) => startDailyGrantReset())
+      .catch((e) => console.log("[DailyGrantReset] scheduler start failed:", e.message));
+  }
 }
 
 function hasQuotaAutoPingEnabled(settings) {

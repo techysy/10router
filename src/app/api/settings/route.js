@@ -198,6 +198,21 @@ export async function PATCH(request) {
       }
     }
 
+    // Daily-grant midnight reset (每日赠送积分优先 policy). Keyed off the
+    // providerStrategies patch: any change that leaves at least one provider
+    // with dailyGrantFirst=true starts the scheduler, none stops it. An
+    // immediate boot pass rolls back any drain that happened before the toggle
+    // was on.
+    if (Object.prototype.hasOwnProperty.call(body, "providerStrategies")) {
+      const grantOn = Object.values(settings.providerStrategies || {}).some((o) => o?.dailyGrantFirst === true);
+      import("@/sse/services/dailyGrantReset.js")
+        .then(({ startDailyGrantReset, stopDailyGrantReset }) => {
+          if (grantOn) startDailyGrantReset();
+          else stopDailyGrantReset();
+        })
+        .catch((error) => console.warn("[DailyGrantReset] toggle failed:", error.message));
+    }
+
     const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     // Establishing protection used to kick the operator straight to the login

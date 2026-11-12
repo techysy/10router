@@ -116,6 +116,14 @@ function mostRecentUsedCarrier(ring, exclude) {
   return best;
 }
 
+// 下一个本地 0 点（毫秒）。daily-grant 烧尽后的 retry-after 锚点 —— 每日赠送
+// 按本地日历刷新（与签到/登录积分同一天界），不是 24h 滚动窗口。
+export function nextMidnightMs(now = Date.now()) {
+  const d = new Date(now);
+  d.setHours(24, 0, 0, 0);
+  return d.getTime();
+}
+
 /**
  * Start delay for one background quota refresh, by queue position. The first
  * scheduled connection fires immediately; each subsequent one is pushed out so
@@ -664,25 +672,55 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // gift is burned to 0 (see dailyRelayActive comment above), then step
       // forward along the dailyGrantFirst ring order. The relay derives "who is
       // carrying" from lastUsedAt — same stateless mechanism as earliest-expiry.
+      //
+      // 烧尽即关闭（2026-11-12 用户拍板）：每日赠送是 use-it-or-lose-it，
+      // 烧完后该连接当天不再服务 —— 永久积分不是兜底，是月末资产。烧尽的号
+      // isActive:false 自动关闭（卡片开关视觉可见），0 点由 dailyGrantReset
+      // 调度器统一重开并重置快照。relay 返回烧尽的号 = 全环烧尽 → 当日无可用号。
       const relay = selectRelayCarrier(orderedConnections, {
         healthOf: (c) => {
           const d = typeof c.dailyGrantRemaining === "number" ? c.dailyGrantRemaining : null;
           return d === null || d > 0; // unknown ⇒ healthy, never pre-switch on missing data
         },
       });
-      if (relay) {
+      if (relay && (typeof relay.connection.dailyGrantRemaining !== "number" || relay.connection.dailyGrantRemaining > 0)) {
         const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, relay.connection) : null;
         connection = relay.connection;
         log.info(
           "AUTH",
-          `${zoneMarker(connection)} ${provider} | daily ${typeof connection.dailyGrantRemaining === "number" ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"}${relay.stepped ? ` | daily grant drained → relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : " | single-account burn"}`
+          `${zoneMarker(connection)} ${provider} | daily ${typeof connection.dailyGrantRemaining === "number" ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"}${relay.stepped ? ` | daily grant drained → relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"} (drained account disabled)` : " | single-account burn"}`
         );
         quotaLogged = true;
         // Persist the carrier stamp — relay derives "who is carrying" from
         // lastUsedAt, the same field round-robin maintains.
         await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
+        // Handoff 顺手关掉刚烧尽的上一环：isActive=false 让卡片开关与真实可用
+        // 状态一致，防止手动轮换/其他调度路径再把烧尽的号捡回来。
+        // dailyGrantAutoDisabled 是本系统的关闭戳 —— midnight reset 调度器只
+        // 重开带这个戳的号，用户手动关的（无戳）绝不会被它复活。
+        if (relay.stepped && prevCarrier && typeof prevCarrier.dailyGrantRemaining === "number" && prevCarrier.dailyGrantRemaining <= 0) {
+          await updateProviderConnection(prevCarrier.id, { isActive: false, dailyGrantAutoDisabled: true });
+          log.info("AUTH", `${provider} | drained carrier ${prevCarrier.id?.slice(0, 8)} auto-disabled (daily 0/${prevCarrier.dailyGrantTotal ?? "?"}) — reopens at midnight reset`);
+        }
       } else {
-        connection = orderedConnections[0];
+        // 全环每日额度烧尽（或 relay 不可用）。把所有带快照且烧尽的号关掉，
+        // 然后返回当日限流（重试时间=次日 0 点）—— 永久积分不接客。
+        // allRateLimited 形状让 chat.js 走 503 + retry-after 路径而不是 404。
+        const drained = poolConnections.filter((c) => typeof c.dailyGrantRemaining === "number" && c.dailyGrantRemaining <= 0 && c.isActive !== false);
+        for (const c of drained) {
+          await updateProviderConnection(c.id, { isActive: false, dailyGrantAutoDisabled: true });
+        }
+        if (drained.length > 0) {
+          log.info("AUTH", `${provider} | all daily grants drained (${drained.length} accounts auto-disabled) — reopens at midnight reset; permanent points NOT used (daily-grant-first policy)`);
+        }
+        const midnight = nextMidnightMs();
+        return {
+          allRateLimited: true,
+          retryAfter: midnight,
+          retryAfterHuman: formatRetryAfter(midnight),
+          lastError: "All daily grants drained (daily-grant-first policy)",
+          lastErrorCode: 429,
+        };
       }
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;

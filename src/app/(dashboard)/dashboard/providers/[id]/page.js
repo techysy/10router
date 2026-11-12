@@ -934,6 +934,16 @@ export default function ProviderDetailPage() {
         setProviderStickyLimit(strategyOverride.stickyRoundRobinLimit != null ? String(strategyOverride.stickyRoundRobinLimit) : "1");
         setEarliestExpiryFirst(strategyOverride.earliestExpiryFirst === true);
         setBalanceStrategy(strategyOverride.balanceStrategy || "priority");
+        // dailyGrantFirst 的 UI 回显走同一个 Select（balanceStrategy='daily-grant'
+        // 是它的显示形态）：settings-effect 里不恢复它的话，保存后任何一次重进页面
+        // 都会把下拉显示打回「手动优先」，看起来像没保存（实际调度仍生效）。
+        // 与 fetchConnections(692) 的 DAILY_GRANT_PROVIDERS 门保持同一规则。
+        if (DAILY_GRANT_PROVIDERS.has(providerId) && strategyOverride.dailyGrantFirst === true) {
+          setBalanceStrategy("daily-grant");
+          setDailyGrantFirst(true);
+        } else {
+          setDailyGrantFirst(false);
+        }
       })
       .catch((e) => console.log("Error reading settings:", e));
   }, []);
