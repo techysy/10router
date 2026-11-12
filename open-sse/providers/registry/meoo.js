@@ -33,7 +33,7 @@ export default {
   models: [
     { id: "qwen3.8-max", name: "Qwen3.8-Max" },
     { id: "qwen3.8-flash", name: "Qwen3.8-Flash" },
-    { id: "Qwen4-Max-Preview", name: "Qwen4-Max-Preview" },
+    { id: "qwen4-max-preview", name: "Qwen4-Max-Preview" },
     { id: "qwen3.7-max", name: "Qwen3.7-Max" },
     { id: "qwen3.7-plus", name: "Qwen3.7-Plus" },
     { id: "deepseek-v4.1-flash-1017", name: "DeepSeek V4.1 Flash" },

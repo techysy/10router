@@ -38,7 +38,7 @@ export const MEOO_STATIC_MODEL_SPECS = {
   "qwen3.7-plus": { name: "Qwen3.7-Plus", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
   // Listed on the official pricing page under this exact id; context/output
   // follow the Qwen-Max family pattern until the live catalog proves more.
-  "Qwen4-Max-Preview": { name: "Qwen4-Max-Preview", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
+  "qwen4-max-preview": { name: "Qwen4-Max-Preview", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
   "deepseek-v4.1-flash-1017": { name: "DeepSeek V4.1 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: true },
   "deepseek-v4-pro-0813": { name: "DeepSeek V4 Pro", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false },
   "deepseek-v4-flash-0731": { name: "DeepSeek V4 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false },

@@ -21,7 +21,7 @@
     },
     {
       "contextWindow": 1000000,
-      "id": "Qwen4-Max-Preview",
+      "id": "qwen4-max-preview",
       "maxOutput": 131072,
       "name": "Qwen4-Max-Preview",
       "reasoning": true,
