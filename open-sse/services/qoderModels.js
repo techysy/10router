@@ -279,8 +279,10 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
     // Always cache the config — chat needs model_config even for UI-hidden
     // models (enable:false). Upstream still accepts chat for these keys.
     rawConfigs.set(key, entry);
-    if (entry.enable === false) continue;
-
+    // enable:false 条目保留进 models 列表（借上游 9router v0.5.119，2026-11-12）：
+    // 它们在 Qoder IDE 里仍可用，过滤掉会让 /v1/models、provider 页与 combo
+    // picker 静默缺项，而回退静态目录会给出陈旧清单。聊天路由不受影响 ——
+    // chat 走 rawConfigs 的 model_config，与列表可见性无关。
     const display = entry.display_name || key;
     const ctx = Number(entry.max_input_tokens) || 131_072;
     models.push({
@@ -303,6 +305,8 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
       // 没有它，0× 徽章的 tooltip 只会说「走免费额度」，原价就被抹掉了。
       originalRateMultiplier: typeof entry.original_price_factor === "number" ? entry.original_price_factor : null,
       promotion: entry.promotion && typeof entry.promotion === "object" ? entry.promotion : null,
+      // UI 侧可用此旗标弱化展示（置灰）而不必移除条目。
+      enabled: entry.enable !== false,
     });
   }
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getModelUpstreamId } from "../../open-sse/config/providerModels.js";
 import { AntigravityExecutor } from "../../open-sse/executors/antigravity.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
+import { getPricingForModel } from "../../open-sse/providers/pricing.js";
 import { getThinkingLevels } from "../../open-sse/providers/thinkingLevels.js";
 import { applyThinking, stripThinkingSuffix } from "../../open-sse/translator/concerns/thinkingUnified.js";
 
@@ -76,5 +77,31 @@ describe("Gemini 4 Argon Antigravity tier", () => {
 
     expect(finalBody.model).toBe("gemini-4-argon-high");
     expect(finalBody.request.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "high", includeThoughts: true });
+  });
+});
+
+// gemini-4-* 计价（借上游 9router v0.5.119 的记账错误修复，2026-11-12）：
+// 没有 gemini-4-* 模式时 -high/-medium/-low 后缀落到 generic gemini-*
+// （$0.50/$3.00），而实际是 $2/$10 —— 修复后被 tier 前缀无差别命中。
+describe("Gemini 4 pricing", () => {
+  it.each([
+    ["antigravity", "gemini-4-argon-high"],
+    ["antigravity", "gemini-4-argon"],
+    ["google", "gemini-4-carbon"],
+    ["google", "gemini-4-carbon-high"],
+    ["commandcode", "google/gemini-4-carbon"],
+    ["vertex", "gemini-4-argon-medium"],
+  ])("bills %s %s at the real Gemini 4 rate ($2/$10)", (provider, model) => {
+    const p = getPricingForModel(provider, model);
+    expect(p).not.toBeNull();
+    expect(p.input).toBe(2.0);
+    expect(p.output).toBe(10.0);
+  });
+
+  it("leaves older gemini families untouched (no regression)", () => {
+    expect(getPricingForModel("google", "gemini-2.5-pro").input).toBe(2.0);
+    expect(getPricingForModel("google", "gemini-2.5-flash").input).toBe(0.30);
+    expect(getPricingForModel("google", "gemini-3-flash").input).toBe(0.50);
+    expect(getPricingForModel("antigravity", "gemini-3.8-flash").input).toBe(1.50);
   });
 });

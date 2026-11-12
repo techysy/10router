@@ -3,6 +3,9 @@
   "version": "1.7.1",
   "description": "10Router web dashboard",
   "private": true,
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "scripts": {
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",

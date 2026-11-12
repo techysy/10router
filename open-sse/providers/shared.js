@@ -29,9 +29,66 @@ export const CLAUDE_API_HEADERS = {
   "Anthropic-Beta": "claude-code-20250219,interleaved-thinking-2025-05-14"
 };
 
+// Claude CLI version reported by the spoofed fingerprint. Gateways reject stale
+// identities (Fable 5.2 rejects < 2.1.290 with claude_code_version_too_old), so
+// the version auto-tracks the npm latest at call time and falls back to a pinned
+// floor when the registry is unreachable. A specific version can be forced via
+// CLAUDE_CLI_VERSION (环境变量同名 pin — 设置后完全跳过跟踪）。
+// (borrowed from upstream 9router v0.5.119, 2026-11-12)
+const CLAUDE_CLI_VERSION_FLOOR = "2.1.322";
+let claudeCliVersionCache = null; // { version, at }
+
+function parseSemverLoose(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(v || "").trim());
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3] };
+}
+
+function atLeastFloor(version) {
+  const v = parseSemverLoose(version);
+  const f = parseSemverLoose(CLAUDE_CLI_VERSION_FLOOR);
+  if (!v || !f) return false;
+  if (v.major !== f.major) return v.major > f.major;
+  if (v.minor !== f.minor) return v.minor > f.minor;
+  return v.patch >= f.patch;
+}
+
+async function fetchLatestCliVersion() {
+  // undici 全局 fetch；5s 超时，失败静默回 floor —— 指纹探测绝不能拖慢请求。
+  const res = await fetch("https://registry.npmjs.org/@anthropic-ai/claude-code/latest", { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const version = typeof data?.version === "string" ? data.version.trim() : "";
+  if (!version) throw new Error("registry response without version");
+  return version;
+}
+
+// Resolved at request time (cached 6h): npm latest when reachable AND newer than
+// the floor, otherwise the floor. env pin wins outright.
+export async function resolveClaudeCliVersion() {
+  const pin = process.env.CLAUDE_CLI_VERSION?.trim();
+  if (pin) return pin;
+  const now = Date.now();
+  if (claudeCliVersionCache && now - claudeCliVersionCache.at < 6 * 60 * 60 * 1000) {
+    return claudeCliVersionCache.version;
+  }
+  let version = CLAUDE_CLI_VERSION_FLOOR;
+  try {
+    const latest = await fetchLatestCliVersion();
+    if (atLeastFloor(latest)) version = latest;
+  } catch {
+    // registry unreachable / malformed — floor stands (cached too, so a flaky
+    // network doesn't turn every request into a 5s stall).
+  }
+  claudeCliVersionCache = { version, at: now };
+  return version;
+}
+
 // Claude CLI version reported by the spoofed fingerprint. Bumped in lockstep with
 // what upstream Claude Code ships — Opus 5.5 gateways reject older versions.
-export const CLAUDE_CLI_VERSION = "2.1.280";
+// FLOOR kept for sync-import sites (registry headers are static objects): async
+// paths (quotaAutoPing, usage) call resolveClaudeCliVersion() instead.
+export const CLAUDE_CLI_VERSION = CLAUDE_CLI_VERSION_FLOOR;
 
 // Full Claude CLI fingerprint — required by providers that gate on client identity (e.g. agentrouter)
 export const CLAUDE_CLI_SPOOF_HEADERS = {

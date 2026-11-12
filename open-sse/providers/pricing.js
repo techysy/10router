@@ -536,6 +536,11 @@ export const PATTERN_PRICING = [
   { pattern: "gemini-*-flash-lite", pricing: { input: 0.15, output: 1.25, cached: 0.015, reasoning: 1.875, cache_creation: 0.15 } },
   { pattern: "gemini-*-flash",  pricing: { input: 0.30,  output: 2.50,  cached: 0.03,  reasoning: 3.75,   cache_creation: 0.30  } },
   { pattern: "gemini-*-pro",    pricing: { input: 2.00,  output: 12.00, cached: 0.25,  reasoning: 18.00,  cache_creation: 2.00  } },
+  // Gemini 4（Argon/Carbon，2026-09-30 发布）：真实价 $2/$10（models.dev 与
+  // Command Code 目录同源，cache read $0.10 / write $0.1875）。没有这一条，
+  // -high/-medium/-low tier 后缀会落到 generic gemini-*（$0.50/$3.00）——
+  // 同 upstream 9router v0.5.119 修复的记账错误（2026-11-12）。
+  { pattern: "gemini-4-*",      pricing: { input: 2.00,  output: 10.00, cached: 0.10,  reasoning: 10.00,  cache_creation: 0.1875 } },
   { pattern: "gemini-3-*",      pricing: { input: 0.50,  output: 3.00,  cached: 0.03,  reasoning: 4.50,   cache_creation: 0.50  } },
   { pattern: "gemini-2.5-*",    pricing: { input: 0.30,  output: 2.50,  cached: 0.03,  reasoning: 3.75,   cache_creation: 0.30  } },
   { pattern: "gemini-*",        pricing: { input: 0.50,  output: 3.00,  cached: 0.03,  reasoning: 4.50,   cache_creation: 0.50  } },

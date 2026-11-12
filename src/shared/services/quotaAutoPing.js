@@ -110,10 +110,15 @@ function buildProxyOptions(cfg) {
 }
 
 async function sendClaudePing(connection, providerConfig, proxyOptions, deps) {
+  // UA 里的 CLI 版本走 resolveClaudeCliVersion()（npm latest 自动跟随，6h 缓存）——
+  // Fable 5.2 起后端拒绝旧版本号（claude_code_version_too_old），静态 floor 会逐渐过期。
+  const { resolveClaudeCliVersion } = await import("open-sse/providers/shared.js");
+  const cliVersion = await resolveClaudeCliVersion();
   const res = await deps.proxyAwareFetch(CLAUDE_PING_URL, {
     method: "POST",
     headers: {
       ...CLAUDE_CLI_SPOOF_HEADERS,
+      "User-Agent": `claude-cli/${cliVersion} (external, sdk-cli)`,
       "Authorization": `Bearer ${connection.accessToken}`,
       "content-type": "application/json",
     },
