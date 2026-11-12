@@ -593,6 +593,16 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       });
     }
 
+    // Daily-grant relay (2026-11-12, 用户拍板「单账号烧穿」)：dailyGrantFirst 的
+    // 排序只决定环形优先级，选择必须走 relay —— 否则每次请求按「每日剩余最多」
+    // 重排，负载被平摊到所有账号（雨露均沾），每个账号的每日 5000 都烧一半剩一半。
+    // 正解 = 单点烧穿：锁住当前账号直到它的每日赠送积分烧到 0，才沿环形 step 到
+    // 下一个有每日余量的账号；全部耗尽才落回永久积分组。健康谓词与百分比红区
+    // 无关 —— Loomy 没有 percent 窗口，「烧完」的判定就是 dailyGrantRemaining <= 0。
+    // 健康数据缺失（第一次请求、快照未落）视为健康 —— 绝不因缺数据预切换，
+    // 上游 429/锁定仍是兜底。
+    const dailyRelayActive = dailyGrantFirst && poolConnections.length > 1;
+
     let connection;
     // Set once a strategy branch has already emitted its own quota line, so the
     // closing "earliest-expiry selected" line below stays a summary for the
@@ -648,6 +658,31 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         // Persist the carrier stamp — relay derives "who is carrying" from
         // lastUsedAt, the same field round-robin maintains.
         await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
+      }
+    } else if (dailyRelayActive) {
+      // Single-point daily-grant relay: keep the current carrier until its daily
+      // gift is burned to 0 (see dailyRelayActive comment above), then step
+      // forward along the dailyGrantFirst ring order. The relay derives "who is
+      // carrying" from lastUsedAt — same stateless mechanism as earliest-expiry.
+      const relay = selectRelayCarrier(orderedConnections, {
+        healthOf: (c) => {
+          const d = typeof c.dailyGrantRemaining === "number" ? c.dailyGrantRemaining : null;
+          return d === null || d > 0; // unknown ⇒ healthy, never pre-switch on missing data
+        },
+      });
+      if (relay) {
+        const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, relay.connection) : null;
+        connection = relay.connection;
+        log.info(
+          "AUTH",
+          `${zoneMarker(connection)} ${provider} | daily ${typeof connection.dailyGrantRemaining === "number" ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"}${relay.stepped ? ` | daily grant drained → relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"}` : " | single-account burn"}`
+        );
+        quotaLogged = true;
+        // Persist the carrier stamp — relay derives "who is carrying" from
+        // lastUsedAt, the same field round-robin maintains.
+        await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
+      } else {
+        connection = orderedConnections[0];
       }
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
