@@ -2148,6 +2148,7 @@
   "Select Decision Model": "选择决策模型",
   "Select an option": "请选择",
   "Community": "社区",
+  "FREE_TIER_DATA_NOTICE": "免费层：200 请求/分钟 + 50K input tokens/分钟。注意：免费层发送的内容会被 Google 用于产品改进，敏感数据请使用付费层。",
   "Project Homepage": "项目主页",
   "Submit Issue": "提交 Issue",
   "Telegram": "Telegram",

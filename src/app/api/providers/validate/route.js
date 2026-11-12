@@ -267,12 +267,19 @@ export async function POST(request) {
       const sysCfg = AI_PROVIDERS[provider]?.systemoneConfig;
       if (sysCfg?.baseUrl && sysKinds.length > 0 && sysKinds.every((k) => k === "systemone")) {
         try {
+          // 鉴权/输入字段按供应商方言：Gemini Decision 走 x-goog-api-key + input
+          // （Google 拒绝该端点上的 Bearer；state 字段名是 Drex 方言 — issue #110）。
+          const isGoogle = sysCfg.authHeader === "x-goog-api-key";
+          const probeHeaders = { "Content-Type": "application/json" };
+          if (isGoogle) probeHeaders["x-goog-api-key"] = apiKey;
+          else probeHeaders["Authorization"] = `Bearer ${apiKey}`;
+          const probeInputField = isGoogle ? "input" : "state";
           const res = await fetch(sysCfg.baseUrl.replace(/\/$/, ""), {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            headers: probeHeaders,
             body: JSON.stringify({
               model: getDefaultModel(provider) || "test",
-              state: "Customer: I was charged twice for my order this morning.",
+              [probeInputField]: "Customer: I was charged twice for my order this morning.",
               questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
             }),
             signal: AbortSignal.timeout(8000),

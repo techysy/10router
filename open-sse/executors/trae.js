@@ -114,10 +114,34 @@ export function canonicalTraeModel(model) {
   return CANONICAL_TRAE_MODELS[key] || model;
 }
 
+// 4001 config-empty 降级链（#109）：上游 chat_v3 的 ConfigName 目录是社区人工
+// 校对的静态表（issue #99 备注），新模型可能还没进表（实测 GLM-5.3-FlashX 4001）。
+// 机械截段不行 —— tier 名是完整段（FlashX ≠ Flash + X），降级目标需显式声明：
+//   FlashX → Flash → 基型；Pro-Official → Pro；2.1-Turbo → 2.1-Pro（同族降档）
+// 表里没有的模型名返回 null（外层放弃降级，报原文错误）。命中即返回规范
+// ConfigName，重试同一 base；降级在日志标注（回复可能不是请求指定的模型）。
+const TRAE_CONFIG_DEGRADE = {
+  "GLM-5.3-FlashX": "GLM-5.3-Flash",
+  "DeepSeek-V4-Pro-Official": "DeepSeek-V4-Pro",
+  "Doubao-Seed-2.1-Turbo": "Doubao-Seed-2.1-Pro",
+};
+export function degradeTraeConfigName(configName) {
+  const m = String(configName || "").trim();
+  if (!m || m === "auto") return null;
+  const next = TRAE_CONFIG_DEGRADE[m] || null;
+  // 降级目标必须是目录已知名（或可继续降级的中间态）—— 防止降进未知名再 4001。
+  const knownValues = new Set(Object.values(CANONICAL_TRAE_MODELS));
+  return next && (knownValues.has(next) || TRAE_CONFIG_DEGRADE[next]) ? next : null;
+}
+
 // 判定是否为显式要求的 SOLO 沙箱模式
 export function isSoloAgentMode(model = "") {
   const m = String(model).trim().toLowerCase();
-  return m.includes("solo") || m.includes("work") || m.startsWith("agent-");
+  // 豆包系（doubao-*）：上游 chat 通道对豆包系也回落云端沙箱执行（#109 实测
+  // 日志：agent_type:chat 下 Doubao-Seed-Code 返回 TRAE 沙箱环境自述）。与其
+  // 走错通道拿错形态的回复，不如显式归位 SOLO 沙箱（As-Designed，#58 归档），
+  // 卡面/文档即可如实标注「云端沙箱执行」。
+  return m.includes("solo") || m.includes("work") || m.startsWith("agent-") || m.startsWith("doubao-");
 }
 
 // #99 拆线：同一执行器服务两条 registry 条目——
@@ -218,8 +242,10 @@ export default class TraeExecutor extends BaseExecutor {
   // 区分直连非沙箱通道（agent_type: "chat", env: "local"）与 SOLO 沙箱通道（solo_agent_remote）：
   // 普通模型调用默认走轻量非沙箱通道，避免在远端分配容器沙箱及并发上限；
   // 只有明确指定 solo/work 任务模式时才启用云端沙箱。
-  async createSessionOnBase(base, headers, query, model, psd, signal) {
-    const { mode, strategy, modelName } = this.resolveMode(model);
+  async createSessionOnBase(base, headers, query, model, psd, signal, configNameOverride = null) {
+    const { mode, strategy, modelName: resolvedName } = this.resolveMode(model);
+    // 4001 降级链的 ConfigName 覆盖优先于 resolveMode 的映射结果。
+    const modelName = configNameOverride ?? resolvedName;
     const useSoloSandbox = isSoloAgentMode(model);
     const body = {
       mode,
@@ -252,16 +278,28 @@ export default class TraeExecutor extends BaseExecutor {
 
   // createSession 按候选链换站重试（#99 落地要点 3）：国际账号面域名已按区域
   // 生成，写死单一域名是直连线不可用的根因之一。首个 code:0 的 host 胜出。
+  // 4001 降级重试（#109）：上游 ConfigName 目录是社区人工校对的静态表，新模型
+  // （如 GLM-5.3-FlashX）可能未进表。命中 4001 时按 degradeTraeConfigName 降级
+  // ConfigName 重试同一 base，逐级直到 auto；降级在日志标注（回复可能不是
+  // 请求指定的那个模型）。
   async createSession(headers, query, model, psd, signal) {
     let lastErr = new Error("no core host candidates");
     for (const base of this.baseCandidates(psd)) {
-      try {
-        const session = await this.createSessionOnBase(base, headers, query, model, psd, signal);
-        session.base = base;
-        return session;
-      } catch (err) {
-        if (signal?.aborted) throw err;
-        lastErr = err;
+      let configName = this.resolveMode(model).modelName;
+      for (;;) {
+        try {
+          const session = await this.createSessionOnBase(base, headers, query, model, psd, signal, configName);
+          session.base = base;
+          session.modelName = configName || "auto";
+          return session;
+        } catch (err) {
+          if (signal?.aborted) throw err;
+          const is4001 = err?.message?.includes("4001") || err?.message?.includes("config item is empty");
+          const next = is4001 ? degradeTraeConfigName(configName) : null;
+          if (!next || next === configName) { lastErr = err; break; }
+          lastErr = err;
+          configName = next;
+        }
       }
     }
     throw lastErr;

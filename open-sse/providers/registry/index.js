@@ -168,6 +168,7 @@ import p162 from "./chatgpt-web.js";
 import p163 from "./nace.js";
 import p164 from "./doubao.js";
 import p165 from "./acemusic.js";
+import p166 from "./gemini-decision.js";
 
 export default [
   p0,
@@ -339,4 +340,5 @@ export default [
   p163,
   p164,
   p165,
+  p166,
 ];
