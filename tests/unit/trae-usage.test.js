@@ -45,9 +45,9 @@ describe("Trae 额度查询 — getTraeUsage", () => {
     expect(r.quotas["通用积分"].total).toBe(300);
     expect(r.quotas["通用积分"].used).toBe(10);
     expect(r.quotas["通用积分"].expiresAt).toBe(new Date(1794200000 * 1000).toISOString());
-    // Work 包 recurring=false（不按日重置口径）
+    // 全部行都是积分资源包（recurring=false）——池语义，非滚动窗口（2026-11-12）
     expect(r.quotas["Work 积分"].recurring).toBe(false);
-    expect(r.quotas["通用积分"].recurring).toBe(true);
+    expect(r.quotas["通用积分"].recurring).toBe(false);
     // 头组合：Cloud-IDE-JWT + 签到同款风控头
     const h = proxyFetchMock.mock.calls.find((c) => String(c[0]).includes("ent_usage"))[1].headers;
     expect(h.authorization).toBe("Cloud-IDE-JWT jwt.tok.sig");

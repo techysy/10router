@@ -899,6 +899,31 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "trae":
+      case "trae-cn":
+        // Trae CN 积分资源包（用户福利 / 邀请好友奖励 / 每日签到 / 每月登录积分 /
+        // 通用积分 / Work 积分）— open-sse/services/usage/trae.js 已按池语义归并：
+        // recurring 全 false（资源包，非滚动窗口），「每月登录积分」带 giftPack。
+        // displayRemaining: 积分包按剩余/总量向下计数（新包 = "500 / 500"），
+        // 与 CodeBuddy 的 bonus pack 同一呈现；expiresAt → resetAt 供倒计时与
+        // expiryExtractor 使用（default 分支只认 resetAt，会把它丢掉）。
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              resetAt: quota.expiresAt && new Date(quota.expiresAt).getFullYear() <= 2099
+                ? quota.expiresAt
+                : null,
+              recurring: quota.recurring === true,
+              giftPack: quota.giftPack === true,
+              displayRemaining: true,
+            });
+          });
+        }
+        break;
+
       default:
         // Generic fallback for unknown providers
         if (data.quotas) {

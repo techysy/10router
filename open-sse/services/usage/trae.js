@@ -125,7 +125,18 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
       prev.used += spent;
       if (expiresAt && (!prev.expiresAt || expiresAt < prev.expiresAt)) prev.expiresAt = expiresAt;
     } else {
-      quotas[name] = { name, total: limit, used: spent, expiresAt, recurring: !isWork, unit: "积分" };
+      // 全部行都是「积分资源包」而非滚动窗口：签到包 7 天过期、邀请奖励领完即止、
+      // 每月登录积分按月发放。recurring:false 让 QuotaPackBar 把它们聚成一个
+      // 积分池（大数总余额 + 分段条），而不是渲染成四条独立满条。
+      // 「每月登录积分」名字含「月」会被 RECURRING_NAME_RE 误判为订阅窗口 →
+      // 标 giftPack:true（CodeBuddy Monthly 同语义：月度发放的资源包，进池、
+      // 不单独成行）。
+      quotas[name] = {
+        name, total: limit, used: spent, expiresAt,
+        recurring: false,
+        unit: "积分",
+        ...(name === "每月登录积分" ? { giftPack: true } : {}),
+      };
     }
     total += limit;
     used += spent;
