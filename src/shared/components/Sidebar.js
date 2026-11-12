@@ -39,13 +39,19 @@ const debugItems = [
 // External community entries (anchor, not router Link). Same for every
 // install; kept out of HeaderMenu (was: aggregate menu) since 2026-10 —
 // they read better as a sidebar section of their own.
+// 2026-11-12 扩编（对齐 CD 菜单语义）：GitHub 改指作者主页、补 项目主页 /
+// 提交 Issue / 个人站 About（zh 字面「关于」，与个人站导航同名）。
+const REPO_URL = "https://github.com/techysy/10router";
 const communityLinks = [
   { label: "Feishu¹", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=629nc6fd-1ce9-4822-8242-239f87f471c3&qr_code=true" },
   { label: "Feishu²", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5" },
   { label: "Discord", icon: "forum", href: "https://discord.gg/zDWT6YKav" },
   { label: "Telegram", icon: "send", href: "https://t.me/techysy" },
   { label: "X", icon: "alternate_email", href: "https://x.com/techysy_ai" },
-  { label: "GitHub", icon: "code", href: "https://github.com/techysy/10router" },
+  { label: "GitHub", icon: "code", href: "https://github.com/techysy" },
+  { label: "Project Homepage", icon: "home", href: REPO_URL },
+  { label: "Submit Issue", icon: "flag", href: `${REPO_URL}/issues` },
+  { label: "About Me", icon: "info", href: "https://shiyangyu.com/about/" },
 ];
 
 const systemItems = [
