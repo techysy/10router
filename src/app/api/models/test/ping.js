@@ -79,12 +79,16 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "systemone") {
+    // 输入字段按供应商方言（#110）：Gemini Decision 用 input（其上游 /v1beta/
+    // decisions 拒绝 state 字段，报 Unknown parameter 'state'）；Drex 系用 state。
+    // 判定依据 model 前缀（gmd/ 或 gemini-decision/）。
+    const isGeminiDecision = /^(gmd|gemini-decision)\//.test(model);
     const res = await fetch(`${baseUrl}/api/v1/systemone`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model,
-        state: "Customer: I was charged twice for my order this morning.",
+        [isGeminiDecision ? "input" : "state"]: "Customer: I was charged twice for my order this morning.",
         questions: {
           probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
         },

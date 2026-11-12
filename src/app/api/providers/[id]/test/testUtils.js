@@ -1448,25 +1448,35 @@ case "llm7": {
       case "drex":
       case "nace":
       case "v1m":
-      case "thx": {
-        // Pure System One decision providers (drex / v1m / thx — serviceKinds
-        // is systemone-only). The decision endpoint itself is the only
-        // validator: no /models, no chat surface, so without this case the
-        // Test button answered "Provider test not supported" for a healthy
-        // key and the row stayed "unknown" forever. Minimal typed decision in
-        // (same shape as the model ping). Endpoint honors the connection-level
+      case "thx":
+      case "gemini-decision": {
+        // Pure System One decision providers (drex / v1m / thx / gemini-decision
+        // — serviceKinds is systemone-only). The decision endpoint itself is the
+        // only validator: no /models, no chat surface, so without this case the
+        // Test button answered "Provider test not supported" for a healthy key
+        // and the row stayed "unknown" forever. Minimal typed decision in (same
+        // shape as the model ping). Endpoint honors the connection-level
         // providerSpecificData.baseUrl override, mirroring handleSystemoneCore.
         // Dual-surface providers that merely list a systemone kind (codiv,
         // openrouter) keep their own probes above — do not add them here.
+        //
+        // 方言同 systemoneCore/validate（#110）：Gemini Decision 走 x-goog-api-key
+        // + input 字段；Drex 系走 Bearer + state。400 也 NOT 一律 pass —— Google
+        // 对无效 key 返回 400 + API_KEY_INVALID（2026-11-12 实测），需读 body。
         const cfg = AI_PROVIDERS[connection.provider]?.systemoneConfig;
         const baseUrl = connection.providerSpecificData?.baseUrl || cfg?.baseUrl;
         if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const isGoogle = cfg?.authHeader === "x-goog-api-key";
+        const probeHeaders = { "Content-Type": "application/json" };
+        if (isGoogle) probeHeaders["x-goog-api-key"] = connection.apiKey;
+        else probeHeaders["Authorization"] = `Bearer ${connection.apiKey}`;
+        const probeInputField = isGoogle ? "input" : "state";
         const res = await fetchWithConnectionProxy(baseUrl.replace(/\/$/, ""), {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          headers: probeHeaders,
           body: JSON.stringify({
             model: model || getDefaultModel(connection.provider) || "test",
-            state: "Customer: I was charged twice for my order this morning.",
+            [probeInputField]: "Customer: I was charged twice for my order this morning.",
             questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
           }),
         }, effectiveProxy);
@@ -1474,8 +1484,20 @@ case "llm7": {
         // carrying a full decision body (so "any non-auth status" would green
         // an empty key), and 404 also means "endpoint moved". Accept only a
         // real 2xx, or the request-shaped 4xx that can only happen once auth
-        // passed (400/422 = payload/model rejected).
-        const valid = res.ok || res.status === 400 || res.status === 422;
+        // passed (400/422 = payload/model rejected) — except a key-rejection
+        // 400: Google answers a bad key with 400 + API_KEY_INVALID, which must
+        // fail (same rule as /api/providers/validate).
+        let valid = res.ok || res.status === 400 || res.status === 422;
+        if (valid && res.status === 400) {
+          let reason = "";
+          try {
+            const errBody = await res.json();
+            const err = errBody?.error || {};
+            reason = (err.details || []).map((d) => d?.reason).filter(Boolean)[0]
+              || String(err.reason || err.status || err.message || "");
+          } catch { /* body not JSON: keep status-based verdict */ }
+          if (/API_KEY_INVALID|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason)) valid = false;
+        }
         return { valid, error: valid ? null : "Invalid API key" };
       }
       default:
