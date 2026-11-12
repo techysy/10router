@@ -35,6 +35,12 @@ export const GEMINI_CONFIG = { ...GOOGLE_OAUTH_CLIENT, ...PROVIDER_OAUTH["gemini
 // of attempting to silently rotate.
 export const QODER_CONFIG = { ...PROVIDER_OAUTH["qoder"] };
 
+// Meoo （秒悟） OAuth Configuration (Authorization Code Flow with PKCE).
+// Public client from the official CLI (no secret); scope "cli.compat".
+// Chat traffic never uses these tokens — the project service AK resolved
+// at login is what the gateway accepts (see providers/meoo.js).
+export const MEOO_CONFIG = { ...PROVIDER_OAUTH["meoo"] };
+
 // iFlow OAuth Configuration (Authorization Code)
 export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };
 

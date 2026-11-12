@@ -167,6 +167,10 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     const updates = {};
 
     if (newCredentials.accessToken)         updates.accessToken  = newCredentials.accessToken;
+    // Meoo's refresh also re-resolves the project service AK, returned as
+    // apiKey — without forwarding it here the rotated AK would be dropped
+    // and the row would keep serving the stale key.
+    if (newCredentials.apiKey)              updates.apiKey       = newCredentials.apiKey;
     if (newCredentials.refreshToken)        updates.refreshToken = newCredentials.refreshToken;
     if (newCredentials.idToken)             updates.idToken = newCredentials.idToken;
     if (newCredentials.lastRefreshAt)       updates.lastRefreshAt = newCredentials.lastRefreshAt;

@@ -839,6 +839,12 @@ export const PROVIDER_CAPABILITIES = {
   "dots": {
     "dots3-note-prev": { vision: true, reasoning: true, contextWindow: 524288, maxOutput: 64000 },
   },
+  // Meoo（秒悟）网关的 DeepSeek-V4.1-Flash 带日期后缀 id：不是 canonical 精确
+  // id，裸落 *deepseek-v4* 通配行会拿到 vision:false、图片在 modality 层被剥。
+  // 该模型在 Meoo 侧为原生多模态（CLI 生态目录表口径：1M 上下文 / 393216 输出）。
+  "meoo": {
+    "deepseek-v4.1-flash-1017": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 393216 },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6

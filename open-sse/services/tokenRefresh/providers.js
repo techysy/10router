@@ -3,6 +3,7 @@ import { OAUTH_ENDPOINTS, GITHUB_COPILOT, buildKimiHeaders } from "../../config/
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 import { buildClineHeaders, getClineAccessToken } from "../../shared/clineAuth.js";
+import { resolveMeooCredentials } from "../meooAk.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
 
 let _xaiServiceSingleton = null;
@@ -417,6 +418,53 @@ export async function refreshIflowToken(refreshToken, log) {
 // GitHub: optional client_secret. Delegate to refreshAccessToken("github", ...).
 export async function refreshGitHubToken(refreshToken, log) {
   return refreshAccessToken("github", refreshToken, {}, log);
+}
+
+// Meoo （秒悟）: refreshing means BOTH rotating the OAuth pair AND
+// re-resolving the project service AK — the gateway only accepts the AK,
+// which rides back as `apiKey` (mergeRefreshedCredentials persists it and
+// merges the providerSpecificData). If AK resolution fails after the pair
+// rotated, the new pair is still returned (with akStatus=error) so the
+// rotated refresh token is never lost.
+export async function refreshMeooToken(refreshToken, credentials, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh("meoo", refreshToken, async () => {
+    try {
+      const resolved = await resolveMeooCredentials(
+        {
+          accessToken: credentials?.accessToken,
+          refreshToken,
+          expiresAt: credentials?.expiresAt,
+          providerSpecificData: credentials?.providerSpecificData || {},
+        },
+        { log, proxyOptions, forceRefresh: true },
+      );
+      return {
+        accessToken: resolved.accessToken || credentials?.accessToken,
+        refreshToken: resolved.refreshToken || refreshToken,
+        expiresIn: resolved.expiresIn,
+        apiKey: resolved.apiKey,
+        providerSpecificData: resolved.providerSpecificData,
+      };
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `meoo refresh failed: ${e?.message || e}`);
+      if (e?.refreshed?.accessToken) {
+        return {
+          accessToken: e.refreshed.accessToken,
+          refreshToken: e.refreshed.refreshToken || refreshToken,
+          expiresIn: e.refreshed.expiresIn,
+          providerSpecificData: {
+            akStatus: "error",
+            akError: e?.message || String(e),
+          },
+        };
+      }
+      if (e?.code === "invalid_grant" || e?.code === "invalid_request") {
+        return { error: e.code };
+      }
+      return null;
+    }
+  }, log);
 }
 
 export async function refreshCopilotToken(githubAccessToken, log) {
