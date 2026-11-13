@@ -25,26 +25,38 @@ export default {
     format: "openai",
     authType: "cookie",
   },
+  // `id` is the exact upstream model id — the DuMate gateway only registers the
+  // compressed spellings (deepseek-v41-flash, glm-53, qwen38-flash …); the dotted
+  // forms (deepseek-v4.1-flash, glm-5.3) answer 404 "model does not exist".
+  // `name` is the display label only, so it carries the human-readable version.
   models: [
     { id: "deepseek-v41-flash", name: "DeepSeek V4.1 Flash" },
     { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
     { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash 0731" },
     { id: "kimi-k31", name: "Kimi K3.1" },
     { id: "kimi-k3", name: "Kimi K3" },
-    { id: "glm-53", name: "GLM-5.3" },
-    { id: "glm-53-flash", name: "GLM-5.3 Flash" },
+    { id: "glm-53", name: "GLM 5.3" },
+    { id: "glm-53-flash", name: "GLM 5.3 Flash" },
+    { id: "glm-5", name: "GLM 5" },
     { id: "model-text", name: "DuMate model-text" },
-    { id: "qwen3.8-max", name: "Qwen3.8 Max" },
-    { id: "qwen38-flash", name: "Qwen3.8 Flash" },
-    { id: "qwen3.5-397b-a17b", name: "Qwen3.5 397B A17B" },
-    { id: "qwen3.5-35b-a3b", name: "Qwen3.5 35B A3B" },
-    { id: "qwen3.5-27b", name: "Qwen3.5 27B" },
+    { id: "qwen3.8-max", name: "Qwen 3.8 Max" },
+    { id: "qwen38-flash", name: "Qwen 3.8 Flash" },
+    { id: "qwen3.5-397b-a17b", name: "Qwen 3.5 397B A17B" },
+    { id: "qwen3.5-35b-a3b", name: "Qwen 3.5 35B A3B" },
+    { id: "qwen3.5-27b", name: "Qwen 3.5 27B" },
     { id: "doubao-seed-2-0-pro", name: "Doubao Seed 2.0 Pro" },
     { id: "dm-auto-model/text.L2", name: "DuMate Auto L2" },
     { id: "dm-auto-model/text.L1", name: "DuMate Auto L1" },
     { id: "dm-auto-model/text.L0", name: "DuMate Auto L0" },
     { id: "ernie-4.5-turbo-vl-32k", name: "ERNIE 4.5 Turbo VL 32K" },
-    { id: "qwen2.5-vl-32b-instruct", name: "Qwen2.5 VL 32B Instruct" },
+    { id: "qwen2.5-vl-32b-instruct", name: "Qwen 2.5 VL 32B Instruct" },
   ],
   passthroughModels: true,
+  // 配额卡：控制台积分/套餐/签到（open-sse/services/usage/dumate.js）。
+  // 凭据是连接上的 Cookie，所以是 usageCookie 而非 usageApikey——配额页的
+  // cookie-auth 分支按这个标记放行。
+  features: {
+    usage: true,
+    usageCookie: true,
+  },
 };

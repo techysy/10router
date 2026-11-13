@@ -14,6 +14,7 @@ import {
   pub,
   finish,
 } from "../../open-sse/shared/dumate/qr.js";
+import { buildQuotas, planOf, isLoginFailure } from "../../open-sse/services/usage/dumate.js";
 
 describe("dumate cookie jar", () => {
   it("scopes cookies to their Domain (host or subdomain only)", () => {
@@ -149,5 +150,80 @@ describe("dumate qr session pub contract", () => {
     expect(s.doneAt).toBeDefined();
     finish(s, "success"); // cannot leave a terminal state (except authorized)
     expect(s.status).toBe("expired");
+  });
+});
+
+describe("dumate usage (quota_overview -> 10Router quotas)", () => {
+  const quotaResult = {
+    isSubscribed: true,
+    usedPoints: 120,
+    totalPoints: 5000,
+    subscription: [
+      { packageType: "plan_pro", status: "active", usedPoints: 100, totalPoints: 4000, pointsExpireDate: 1799999999 },
+      { packageType: "plan_max", status: "expired", usedPoints: 9, totalPoints: 9 },
+    ],
+    incremental: [
+      { packageType: "plan_point", status: "active", source: "login_bonus", usedPoints: 20, totalPoints: 1000, pointsExpireDate: 1799999999 },
+      { packageType: "grant_point", status: "active", source: "invite_bonus", usedPoints: 0, totalPoints: 500 },
+    ],
+    modelThrottleInfo: { throttled: false },
+  };
+
+  it("builds subscription / incremental / balance rows and skips inactive packs", () => {
+    const quotas = buildQuotas(quotaResult, null);
+    expect(Object.keys(quotas).sort()).toEqual(
+      ["订阅·Pro 套餐", "积分加油包", "邀请赠送积分·永久", "积分余额"].sort(),
+    );
+    expect(quotas["订阅·Pro 套餐"]).toMatchObject({ used: 100, total: 4000, recurring: true });
+    expect(quotas["订阅·Pro 套餐"].resetAt).toBe(new Date(1799999999 * 1000).toISOString());
+    // plan_point is a purchased top-up, not a gift
+    expect(quotas["积分加油包"].giftPack).toBe(false);
+    expect(quotas["邀请赠送积分·永久"].giftPack).toBe(true);
+    expect(quotas["积分余额"]).toMatchObject({ used: 120, total: 5000, remaining: 4880, isCreditBalance: true });
+  });
+
+  it("renders the daily check-in chip from loginBonusInfo", () => {
+    const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+    const quotas = buildQuotas(quotaResult, { hasIssued: true, totalTimes: 7, signInDays: [today] });
+    expect(quotas["每日签到"]).toMatchObject({ checkinToday: true, streakDays: 7, detailOnly: true });
+  });
+
+  it("prefers the boolean hasIssued over the signInDays list", () => {
+    const quotas = buildQuotas(quotaResult, { hasIssued: false, totalTimes: 0, signInDays: [] });
+    expect(quotas["每日签到"].checkinToday).toBe(false);
+  });
+
+  it("marks the plan as throttled when the upstream says so", () => {
+    const throttled = { ...quotaResult, modelThrottleInfo: { throttled: true } };
+    expect(planOf(throttled)).toBe("Pro · 限流中");
+    expect(planOf({ ...quotaResult, modelThrottleInfo: { throttled: false } })).toBe("Pro");
+    expect(planOf({ subscription: [], modelThrottleInfo: null })).toBe("Free");
+  });
+
+  it("suffixes duplicate quota names instead of overwriting them", () => {
+    const dup = {
+      subscription: [],
+      incremental: [
+        { packageType: "grant_point", source: "event_bonus", status: "active", usedPoints: 1, totalPoints: 10 },
+        { packageType: "grant_point", source: "event_bonus", status: "active", usedPoints: 2, totalPoints: 20 },
+      ],
+    };
+    const quotas = buildQuotas(dup, null);
+    expect(quotas["活动赠送积分·永久"].total).toBe(10);
+    expect(quotas["活动赠送积分·永久·2"].total).toBe(20);
+  });
+});
+
+describe("dumate usage login-failure detection", () => {
+  it("treats redirects, 401/403 and non-JSON bodies as session loss", () => {
+    expect(isLoginFailure({ status: 302, text: "" })).toBe(true);
+    expect(isLoginFailure({ status: 401, text: "" })).toBe(true);
+    expect(isLoginFailure({ status: 200, text: "<html>login</html>" })).toBe(true);
+    expect(isLoginFailure({ status: 200, text: JSON.stringify({ code: 1, message: "登录凭证已过期" }) })).toBe(true);
+    expect(isLoginFailure({ status: 200, text: JSON.stringify({ code: 1, message: "boom" }) })).toBe(true);
+  });
+
+  it("accepts a well-formed quota payload", () => {
+    expect(isLoginFailure({ status: 200, text: JSON.stringify({ code: 0, result: { totalPoints: 1 } }) })).toBe(false);
   });
 });

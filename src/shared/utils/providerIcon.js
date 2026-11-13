@@ -40,8 +40,8 @@ const ICON_ALIASES = {
   "muse-web": "muse",
   "gemini-web": "gemini",
   "chatgpt-web": "openai",
-  // DuMate is Baidu's agent platform — the baidu asset already ships
-  "dumate": "baidu",
+  // DuMate 有官方专属标（public/providers/dumate.png，DuMate 控制台
+  // channelLogo 裁出的笑脸）——不再借用通用百度标。
 };
 
 // Providers whose asset ships as SVG (everything else is .png).
