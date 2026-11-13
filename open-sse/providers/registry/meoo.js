@@ -10,6 +10,8 @@ export default {
     website: "https://meoo.com",
     notice: {
       signupUrl: "https://meoo.com",
+      apiKeyUrl: "https://meoo.com/?inviteCode=ycDdBjLV",
+      inviteCode: "ycDdBjLV",
     },
   },
   category: "oauth",
