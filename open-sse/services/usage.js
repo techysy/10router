@@ -16,6 +16,7 @@ import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
 import { getMeooUsage } from "./usage/meoo.js";
 import { getLoomyUsage } from "./usage/loomy.js";
+import { getDumateUsage } from "./usage/dumate.js";
 import { getOpencodeGoUsage } from "./usage/opencode-go.js";
 import { getOpenCodeZenUsage } from "./usage/opencode-zen.js";
 import { getXiaomiMimoUsage, getXiaomiTokenPlanUsage } from "./usage/xiaomi-mimo.js";
@@ -76,6 +77,15 @@ const USAGE_HANDLERS = {
   // the handler — the project AK in c.apiKey cannot read it.
   meoo: (c) => getMeooUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   loomy: (c) => getLoomyUsage(c.apiKey, c.proxyOptions),
+  // DuMate 的配额在百度控制台（console.bce.baidu.com），凭据是连接上的 Cookie。
+  // 会话失效时 handler 内部复用 tokenFor() 做纯 HTTP 静默续期，续期后的 Cookie
+  // 经 onRenewed 回到调用方持久化（与聊天链路同一套通行证保活）。
+  dumate: (c) =>
+    getDumateUsage({
+      apiKey: c.apiKey,
+      proxyOptions: c.proxyOptions,
+      onRenewed: c.onRenewed,
+    }),
   "opencode-go": (c) => getOpencodeGoUsage(c.apiKey, c.proxyOptions),
   "opencode-zen": (c) => getOpenCodeZenUsage(c.apiKey, c.proxyOptions),
   // The cloud card bills through the plan / API at formal rates and owns NO
@@ -139,6 +149,10 @@ export async function getUsageForProvider(connection, proxyOptions = null, optio
     providerDataWithProjectId,
     proxyOptions,
     force: options.force === true,
+    // Cookie 型 provider 的静默续期可能轮换凭据（dumate）：连接 id 与写回回调
+    // 由调用方提供，缺省时 handler 只读不写，功能不受影响。
+    connectionId: connection.id,
+    onRenewed: options.onRenewed,
   });
 }
 

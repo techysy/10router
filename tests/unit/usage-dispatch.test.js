@@ -20,6 +20,9 @@ const SUPPORTED = [
   // The three Xiaomi/MiMo cards. The Desktop card was missed when the three-card
   // split added its id, so it showed no quota while the cloud card showed one.
   "xiaomi-mimo", "mimo-desktop", "xiaomi-tokenplan",
+  // Web-cookie provider: quota read from the Baidu console session on the
+  // connection's cookies (services/usage/dumate.js).
+  "dumate",
 ];
 
 describe("usage dispatch", () => {

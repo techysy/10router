@@ -663,6 +663,22 @@ export async function POST(request) {
           break;
         }
 
+        case "dumate": {
+          // Credential is the Baidu cookie blob — validity == the DuMate
+          // gateway token exchange succeeding (login session still live).
+          try {
+            const { tokenFor } = await import("open-sse/shared/dumate/token.js");
+            await tokenFor(apiKey, { force: true });
+            isValid = true;
+          } catch (e) {
+            isValid = false;
+            error = e.expired
+              ? e.message
+              : `DuMate validation failed: ${String(e.message).slice(0, 160)}`;
+          }
+          break;
+        }
+
         case "qoder": {
           // PAT (pt-...) needs the job-token exchange before it can sign
           // anything — the generic OpenAI-compat probe below can't validate it.

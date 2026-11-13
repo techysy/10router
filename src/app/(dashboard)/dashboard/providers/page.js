@@ -420,6 +420,9 @@ export default function ProvidersPage() {
     // "api_key" (placeholder token). Counting "oauth" only made the card show
     // "No connections" next to a live, tested connection on the detail page.
     if (key === "mimo-desktop") return ["oauth", "apikey", "api_key"];
+    // dumate is a webCookie provider surfaced in the OAuth group (QR login) —
+    // its connections carry authType "cookie", so count that alongside "oauth".
+    if (key === "dumate") return ["cookie", "oauth"];
     const modes = info?.authModes;
     // Free-tier and API-key providers default to supporting apikey even when the
     // registry entry omits authModes (e.g. cloudflare-ai, byteplus, ollama,
@@ -434,7 +437,13 @@ export default function ProvidersPage() {
   };
 
   const oauthEntries = sortByPriority(
-    Object.entries(OAUTH_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)),
+    // Merge the QR-login webCookie providers into the OAuth group so they show
+    // up where users expect an interactive login flow (DuMate is today the
+    // only one — the dedicated Web Cookie section stays collapsed below).
+    Object.entries({
+      ...OAUTH_PROVIDERS,
+      ...(WEB_COOKIE_PROVIDERS.dumate ? { dumate: WEB_COOKIE_PROVIDERS.dumate } : {}),
+    }).filter(([, info]) => !info.hidden && matchSearch(info.name)),
   ).filter(([key, info]) => matchesStatusFilter(getProviderStats(key, dualAuthTypes(info, key)), info, key));
   // Merge free (noAuth/connectionless) and free-tier (api-key) providers into
   // ONE list sorted by the shared connection-state rule. Without this, the two

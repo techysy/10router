@@ -148,6 +148,14 @@ export const ALLOWLIST = {
   // Loomy (讯飞) 免费活动池：无公开 API 规格、无 models.dev 条目；spark-x2.6 为
   // 讯飞自家模型（×0.0 免费倍率），规格只能以客户端实测为准，保留地板值。
   "loomy/spark-x2.6": "no public spec",
+
+  // DuMate (百度搭子) internal selectors: the platform routes "model-text" and
+  // the dm-auto-model/text.L* tiers to a concrete upstream per request — same
+  // aggregator nature as cursor/default and trae/auto.
+  "dumate/model-text": "aggregator",
+  "dumate/dm-auto-model/text.L2": "aggregator",
+  "dumate/dm-auto-model/text.L1": "aggregator",
+  "dumate/dm-auto-model/text.L0": "aggregator",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from

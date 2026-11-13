@@ -1487,5 +1487,10 @@
     "format": "openai",
     "clientId": "meoo_app_tdWlRbpvAxN1EjmZ8XICxdTh",
     "tokenUrl": "https://meoo.com/oauth/token"
+  },
+  "dumate": {
+    "baseUrl": "https://dumate-svc.baidu.com/gateway/apis/v1/chat/completions",
+    "format": "openai",
+    "authType": "cookie"
   }
 }
