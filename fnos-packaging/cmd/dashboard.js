@@ -23,7 +23,7 @@ const tls = require("tls");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { spawn, execFile } = require("child_process");
+const { spawn, execFile, spawnSync } = require("child_process");
 const { URL } = require("url");
 
 const lib = require("./dashboard-lib.js");
@@ -56,6 +56,11 @@ const MAX_ATTEMPTS_PER_DAY = 3;
 const MIN_FREE_KB = 1024 * 1024;           // 磁盘预检：1GB（tgz + 解包双份余量）
 const UPLOAD_MAX_BYTES = 800 * 1024 * 1024;
 const NPM_CACHE_TTL_MS = 60 * 60 * 1000;   // latest 查询缓存 1h
+// 更新流水线孤儿判定上限：performUpdate 最长路径 = 下载 30min + 解包 10min +
+// 健康等待 3min + 余量。超时仍未 finishUpdate（进程级异常打断、uncaught 后
+// currentUpdate 残留）视为孤儿，自动清场 —— 否则它挡住一切后续更新（409）
+// 并让调度器静默死亡，直到面板重启。
+const UPDATE_ORPHAN_MS = 50 * 60 * 1000;
 const PANEL_VERSION = "1.0.0";
 
 // ── 面板日志（结构化单行，便于 grep）──
@@ -88,7 +93,7 @@ function panelEventText(line) {
 const DEFAULT_SETTINGS = {
   autoUpdate: { enabled: false, freq: "daily", time: "04:30", weekday: 3 },
   proxy: { url: "" },
-  scheduleState: { lastRunAtMs: 0, attemptsDateKey: "", attempts: 0, nextRetryAtMs: 0 },
+  scheduleState: { lastRunAtMs: 0, attemptsDateKey: "", attempts: 0, nextRetryAtMs: 0, outcome: "" },
   lastUpdate: { at: 0, trigger: "", ok: true, from: "", to: "", message: "" },
 };
 
@@ -386,6 +391,18 @@ function restartMainDetached() {
 // 状态机：null = 空闲；否则 { stage, trigger, from, to, startedAt, message }
 let currentUpdate = null;
 
+// 孤儿更新清场：currentUpdate 超过 UPDATE_ORPHAN_MS 仍未被 finishUpdate/置空，
+// 判定为进程级异常打断的残留（uncaughtException/unhandledRejection 中断流水线、
+// 崩溃后状态丢失等）。不清场它会永久挡住 /api/update/run（409）并让调度器
+// 静默跳过 —— 直到面板重启。由 schedulerTick 每 30s 顺带检查（零额外定时器）。
+function reclaimOrphanUpdate(nowMs = Date.now()) {
+  if (!currentUpdate) return false;
+  if (nowMs - (currentUpdate.startedAt || 0) < UPDATE_ORPHAN_MS) return false;
+  plog("crash", `orphan update reclaimed: stage=${currentUpdate.stage} started=${new Date(currentUpdate.startedAt).toISOString()} — clearing after ${Math.round(UPDATE_ORPHAN_MS / 60000)}min`);
+  currentUpdate = null;
+  return true;
+}
+
 // stage/message 拆两层：stage 是英文枚举（UI 端 t("stage_" + stage) 翻译）；
 // message 参数带 {key, args} 语义对，UI 端按当前语言渲染。plog 仍记中文供
 // NAS 日志 grep（运维场景中文可读优先）。
@@ -587,6 +604,9 @@ function finishUpdate(ok, message) {
 let schedulerTimer = null;
 
 async function schedulerTick() {
+  // 孤儿更新清场：进程级异常中断的流水线会残留 currentUpdate（挡 409 +
+  // 调度器静默死亡），超时自动回收。每次 tick 顺带检查，不另起定时器。
+  reclaimOrphanUpdate();
   let settings;
   try { settings = loadSettings(); } catch { return; }
   const { enabled } = settings.autoUpdate || {};
@@ -615,6 +635,7 @@ async function schedulerTick() {
     attemptsDateKey: today,
     attempts,
     nextRetryAtMs: 0,
+    outcome: "",
   };
   saveSettings(updated);
   plog("schedule", `trigger (${scheduledDue ? "window" : "retry"}, attempt ${attempts}/${MAX_ATTEMPTS_PER_DAY})`, { key: "plogSchedTrigger", args: [scheduledDue ? "schedWindow" : "schedRetry", String(attempts), String(MAX_ATTEMPTS_PER_DAY)] });
@@ -622,6 +643,7 @@ async function schedulerTick() {
   try {
     await performUpdate({ trigger: "schedule" });
     plog("schedule", "auto update ok", { key: "plogSchedOk" });
+    markScheduleOutcome(today, "ok");
   } catch (e) {
     const s = loadSettings();
     if ((s.scheduleState.attemptsDateKey || "") === today && attempts < MAX_ATTEMPTS_PER_DAY) {
@@ -629,11 +651,46 @@ async function schedulerTick() {
       saveSettings(s);
       plog("schedule", `retry scheduled at ${new Date(s.scheduleState.nextRetryAtMs).toISOString()}`, { key: "plogSchedRetryAt", args: [new Date(s.scheduleState.nextRetryAtMs).toLocaleString()] });
     }
+    // 配额用尽的最后一次失败也要落 outcome —— 否则「当日窗口已跑完但全失败」
+    // 与「进程中途死亡」在状态上无法区分，自愈逻辑无从判定。
+    markScheduleOutcome(today, "failed");
   }
+}
+
+// 当日调度结果落盘（outcome: "ok" | "failed"）。供 startScheduler 的重启自愈
+// 区分「窗口已正常完结」与「进程死在窗口里」——后者才补跑。
+function markScheduleOutcome(today, outcome) {
+  try {
+    const s = loadSettings();
+    if ((s.scheduleState.attemptsDateKey || "") === today) {
+      s.scheduleState.outcome = outcome;
+      saveSettings(s);
+    }
+  } catch { /* 落盘失败不影响主流程 */ }
 }
 
 function startScheduler() {
   if (schedulerTimer) return;
+  // 面板重启后的「当日窗口被进程死亡吃掉」自愈：调度器在触发前就把
+  // lastRunAtMs 记成今天（幂等防重），若更新中途面板崩溃/被杀，重启后
+  // scheduledDue=false、nextRetryAtMs=0 → 当天窗口静默跳过。这里在首个
+  // tick 补一条自愈判定：lastRun 是今天、结果未记录（outcome 缺失）、
+  // 配额未用尽 → 安排一次 5 分钟后的重试（走既有 retry 路径，不另起管线）。
+  try {
+    const s = loadSettings();
+    const st = s.scheduleState || {};
+    const today = lib.dateKey(Date.now());
+    if ((st.lastRunDateKey || st.attemptsDateKey) === today
+      && !st.outcome
+      && (st.attemptsDateKey || "") === today
+      && st.attempts > 0 && st.attempts < MAX_ATTEMPTS_PER_DAY
+      && !st.nextRetryAtMs
+      && s.autoUpdate?.enabled) {
+      s.scheduleState.nextRetryAtMs = Date.now() + 5 * 60 * 1000;
+      saveSettings(s);
+      plog("schedule", `panel restarted mid-window: lastRun ${st.lastRunDateKey} has no outcome — recovery retry in 5min (attempt ${st.attempts}/${MAX_ATTEMPTS_PER_DAY})`, { key: "plogSchedRecover", args: [String(st.attempts), String(MAX_ATTEMPTS_PER_DAY)] });
+    }
+  } catch { /* 自愈失败不影响正常调度 */ }
   schedulerTimer = setInterval(() => { schedulerTick().catch((e) => plog("schedule", `tick error: ${e.message}`)); }, 30 * 1000);
   schedulerTimer.unref();
 }
@@ -760,8 +817,17 @@ async function buildStatus() {
   };
 }
 
-const server = http.createServer(async (req, res) => {
-  const urlObj = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+const server = http.createServer((req, res) => {
+  let urlObj;
+  // new URL 对畸形请求行（扫描器/坏客户端）会抛 TypeError —— handler 内的
+  // 同步 throw 在 async 语义下变成 unhandledRejection，Node ≥15 直接杀进程
+  // （面板「频繁崩溃」的主因）。畸形 URL 一律 400，不让它离开这里。
+  try {
+    urlObj = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  } catch {
+    try { res.writeHead(400, { "content-type": "application/json" }); res.end('{"error":"bad request"}'); } catch { /* socket 已死 */ }
+    return;
+  }
   const routeKey = `${req.method} ${urlObj.pathname}`;
 
   // 鉴权（可选）：设了 PANEL_TOKEN 则所有 /api/* 校验
@@ -772,6 +838,15 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  handleRequest(req, res, urlObj, routeKey).catch((e) => {
+    // 最后防线：handler 内任何未捕获异步错误（ENOSPC 写 settings、socket 死亡
+    // 后的 write 等）在这里收口 —— 只记日志，绝不让它变成 unhandledRejection。
+    plog("crash", `handler rejected: ${e.message}`);
+    try { if (!res.headersSent) sendJson(res, 500, { error: e.message }); else res.end(); } catch { /* socket 已死 */ }
+  });
+});
+
+async function handleRequest(req, res, urlObj, routeKey) {
   try {
     if (req.method === "GET" && urlObj.pathname === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -845,6 +920,15 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { events, truncated: raw.truncated });
       return;
     }
+    // 「重新检测」授权（recheckAuth 按钮的落点）：既有前端按钮调用的
+    // /api/auth/recheck 此前没有服务端路由 —— 404 被 catch 静默吞掉，按钮
+    // 每次都假报成功。现在真实清掉 lifecycle 授权缓存并重跑 sudo 探测。
+    if (req.method === "POST" && urlObj.pathname === "/api/auth/recheck") {
+      lifecycleAuthCache = { value: null, at: 0 };
+      const [lc, sudo] = await Promise.all([lifecycleAuthorized(), checkSudo()]);
+      sendJson(res, 200, { lifecycle: { authorized: lc }, sudo });
+      return;
+    }
     if (req.method === "GET" && urlObj.pathname === "/api/settings") {
       sendJson(res, 200, loadSettings());
       return;
@@ -879,7 +963,7 @@ const server = http.createServer(async (req, res) => {
     plog("http", `${routeKey} error: ${e.message}`);
     if (!res.headersSent) sendJson(res, 500, { error: e.message });
   }
-});
+}
 
 // 从（已魔数校验的）本机归档安装：解包 → 换名 → 重启 → 健康检查 → 失败回滚。
 // 目标版本取自解包产物自身的 package.json —— 上传内容不可信。
@@ -941,6 +1025,16 @@ function tailLog(file, lines, filter) {
 }
 
 // sudo -n -l：非交互，未授权时直接失败。折行合并后提取 NOPASSWD 命令。
+// 文本解析有一个已知盲区（dsh 0.2.2-rc.2 实测同款坑）：sudoers 长规则在输出里
+// 会从 token 中间折行（如 hot-apply → ho / t-apply 两行），折行合并只能处理
+// token 边界折行，词中切断会在 token 里插入空格 → 误判未授权。因此解析未命中
+// NOPASSWD 时，用 `sudo -n -l <具体命令>` 的退出码兜底探测一次（NOPASSWD 放行
+// 时退出码 0，与输出格式无关）；命中则跳过探测，轮询零额外开销。
+function sudoMayRun(argv) {
+  const r = spawnSync("sudo", ["-n", "-l", ...argv], { encoding: "utf8", timeout: 5000 });
+  return !r.error && r.status === 0;
+}
+
 function checkSudo() {
   return new Promise((resolve) => {
     execFile("sudo", ["-n", "-l"], { timeout: 10000 }, (err, stdout, stderr) => {
@@ -948,7 +1042,17 @@ function checkSudo() {
         resolve({ authorized: false, commands: [], hint: String(stderr || err.message).slice(-400) });
         return;
       }
-      resolve({ authorized: true, commands: lib.parseSudoList(stdout), hint: "" });
+      let commands = lib.parseSudoList(stdout);
+      if (commands.length === 0) {
+        const appcenterCli = "/usr/local/bin/appcenter-cli";
+        const mayCli = sudoMayRun([appcenterCli, "stop", APP_NAME]);
+        const mayMain = sudoMayRun([MAIN_CMD, "status"]);
+        if (mayCli) commands = [`NOPASSWD: ${appcenterCli} (exit-code probe)`];
+        if (mayCli || mayMain) {
+          plog("ops", "sudo -l text parse found no NOPASSWD line (suspected mid-token fold); exit-code probe " + (mayCli ? "GRANTED" : "partial"), { key: "plogSudoProbe" });
+        }
+      }
+      resolve({ authorized: commands.length > 0, commands, hint: commands.length ? "" : "no NOPASSWD rule found (text parse + exit-code probe)" });
     });
   });
 }
@@ -1179,6 +1283,8 @@ const I18N = {
     plogRollback: "回滚：恢复 {0}", plogRollbackDone: "回滚完成",
     plogSchedTrigger: "到点触发（{0}，第 {1}/{2} 次尝试）", plogSchedOk: "自动更新成功",
     plogSchedRetryAt: "已排定重试：{0}",
+    plogSchedRecover: "面板在更新窗口中途重启，结果未记录 — 5 分钟后自愈重试（第 {0}/{1} 次）",
+    plogSudoProbe: "sudo -l 文本解析未命中 NOPASSWD（疑似词中折行），退出码探测结果",
     schedWindow: "到点窗口", schedRetry: "重试",
     proxyCard: "出站代理（面板自身）", proxyPh: "http://user:pass@host:port（留空直连）", save: "保存",
     proxyHint: "仅对面板自身的下载 / 版本检查生效（CONNECT 后已做 TLS 握手）；主应用的出站代理在主面板「设置」页配置。",
@@ -1186,6 +1292,7 @@ const I18N = {
     authNo: "未授权", authNoDesc: "重启将回退内部模式（kill+nohup），应用中心状态可能短暂不同步。放行一次即永久生效：",
     authSteps: "1. SSH 登录 NAS（管理员账号）\\n2. 复制下方命令执行\\n3. 点「重新检测」",
     copy: "复制", recheck: "重新检测",
+    sudoDetected: "sudoers 放行已确认（退出码探测）", recheckFailed: "重新检测失败，请查看面板日志",
     saved: "定时更新已保存", proxySaved: "出站代理已保存", copied: "已复制到剪贴板",
     stage_starting: "准备中", stage_checking: "检查 npm latest", stage_downloading: "下载中",
     stage_extracting: "解包", stage_swapping: "热覆盖 server 产物", stage_restarting: "重启主应用",
@@ -1228,6 +1335,8 @@ const I18N = {
     plogRollback: "Rollback: restoring {0}", plogRollbackDone: "Rollback complete",
     plogSchedTrigger: "Scheduled trigger ({0}, attempt {1}/{2})", plogSchedOk: "Auto update succeeded",
     plogSchedRetryAt: "Retry scheduled: {0}",
+    plogSchedRecover: "Panel restarted mid-update-window, no outcome recorded — recovery retry in 5min (attempt {0}/{1})",
+    plogSudoProbe: "sudo -l text parse found no NOPASSWD (suspected mid-token fold); exit-code probe result",
     schedWindow: "window", schedRetry: "retry",
     proxyCard: "Outbound proxy (panel only)", proxyPh: "http://user:pass@host:port (empty = direct)", save: "Save",
     proxyHint: "Applies only to the panel's own downloads / version checks (TLS handshake done after CONNECT); the main app's proxy is configured in the main dashboard's Settings page.",
@@ -1235,6 +1344,7 @@ const I18N = {
     authNo: "Not authorized", authNoDesc: "Restart falls back to internal mode (kill+nohup); App Center state may briefly desync. Grant once — it persists:",
     authSteps: "1. SSH into the NAS (admin)\\n2. Run the command below\\n3. Click Re-check",
     copy: "Copy", recheck: "Re-check",
+    sudoDetected: "sudoers grant confirmed (exit-code probe)", recheckFailed: "Re-check failed — see panel log",
     saved: "Auto-update saved", proxySaved: "Proxy saved", copied: "Copied to clipboard",
     stage_starting: "Preparing", stage_checking: "Checking npm latest", stage_downloading: "Downloading",
     stage_extracting: "Extracting", stage_swapping: "Overlaying server build", stage_restarting: "Restarting main app",
@@ -1414,8 +1524,20 @@ async function refresh() {
     if (s.update.inFlight) setTimeout(refresh, 3000);
   } catch (e) { $("mainStatus").innerHTML = '<span class="mut">' + e.message + "</span>"; }
 }
-async function checkUpdate() { updateMsgEverywhere(t("checking")); const r = await jget("/api/update/check"); updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新"))); refresh(); }
-async function runUpdate() { $("btnUpdate").disabled = true; updateMsgEverywhere("已触发，进行中…"); await jpost("/api/update/run"); refresh(); }
+async function checkUpdate() {
+  updateMsgEverywhere(t("checking"));
+  try {
+    const r = await jget("/api/update/check");
+    updateMsgEverywhere(r.error ? r.error : ("latest " + r.latestVersion + (r.updateAvailable ? "，可更新" : "，已是最新")));
+  } catch (e) { updateMsgEverywhere(t("recheckFailed") + (e.message ? " · " + e.message : "")); }
+  refresh();
+}
+async function runUpdate() {
+  $("btnUpdate").disabled = true;
+  updateMsgEverywhere("已触发，进行中…");
+  try { await jpost("/api/update/run"); } catch (e) { updateMsgEverywhere(t("recheckFailed")); }
+  refresh();
+}
 function onFilePick() {
   const f = $("fileInput").files[0];
   $("fileName").textContent = f ? f.name + " (" + Math.round(f.size / 1048576) + "MB)" : t("noFile");
@@ -1424,20 +1546,30 @@ const GRANT_CMD = "echo '10router ALL=(root) NOPASSWD: /usr/local/bin/appcenter-
 function renderAuth(lc) {
   const box = $("authBox");
   if (lc.authorized) {
-    box.innerHTML = '<div class="auth-card ok"><div class="row"><span class="pill ok">' + t("authOk") + '</span><span class="mut">' + t("authOkDesc") + '</span><span class="spacer"></span><button class="ghost" onclick="recheckAuth()">' + t("recheck") + '</button></div></div>';
+    box.innerHTML = '<div class="auth-card ok"><div class="row"><span class="pill ok">' + t("authOk") + '</span><span class="mut">' + t("authOkDesc") + '</span><span class="spacer"></span><button class="ghost" onclick="recheckAuth(this)">' + t("recheck") + '</button></div></div>';
     return;
   }
   box.innerHTML = '<div class="auth-card">'
     + '<div class="row"><span class="pill warn">' + t("authNo") + '</span><span class="mut">' + t("authNoDesc") + '</span></div>'
     + '<div class="steps">' + t("authSteps").replace(/\\n/g, "<br>") + '</div>'
     + '<div class="auth-cmd"><code>' + GRANT_CMD.replace(/\\n/g, "<br>") + '</code><button class="ghost" onclick="copyText(GRANT_CMD, this)">' + t("copy") + '</button></div>'
-    + '<div class="row" style="margin-top:8px"><button class="ghost" onclick="recheckAuth()">' + t("recheck") + '</button></div>'
+    + '<div class="row" style="margin-top:8px"><button class="ghost" onclick="recheckAuth(this)">' + t("recheck") + '</button></div>'
     + '</div>';
 }
-async function recheckAuth() {
+async function recheckAuth(btn) {
+  // dsh 91e1a717 同款：按钮要有加载态与真实结果反馈 —— 此前调用指向不存在的
+  // 路由，404 被 catch 静默吞掉后无条件 toast「成功」，用户无法确认点击生效。
+  if (btn) { btn.disabled = true; }
   toast(t("recheck") + "…");
-  try { await jget("/api/auth/recheck"); } catch {}
-  toast(t("upToDate"), "ok");
+  try {
+    const r = await jpost("/api/auth/recheck");
+    const lc = r && r.lifecycle ? r.lifecycle : null;
+    const sudo = r && r.sudo ? r.sudo : null;
+    if (lc && lc.authorized) toast(t("authOk"), "ok");
+    else if (sudo && sudo.authorized) toast(t("sudoDetected"), "ok");
+    else toast(t("authNo"), "warn");
+  } catch { toast(t("recheckFailed"), "bad"); }
+  if (btn) { btn.disabled = false; }
   refresh();
 }
 async function uploadInstall() {
@@ -1455,30 +1587,44 @@ async function uploadInstall() {
   refresh();
 }
 async function saveAuto() {
-  await jpost("/api/settings", { autoUpdate: {
-    enabled: $("autoEnabled").checked,
-    freq: segValue("autoFreq"),
-    time: $("autoTime").value || "04:30",
-    weekday: Number(segValue("autoWeekday")),
-  } });
-  toast(t("saved"), "ok"); refresh();
+  try {
+    await jpost("/api/settings", { autoUpdate: {
+      enabled: $("autoEnabled").checked,
+      freq: segValue("autoFreq"),
+      time: $("autoTime").value || "04:30",
+      weekday: Number(segValue("autoWeekday")),
+    } });
+    toast(t("saved"), "ok");
+  } catch (e) { toast(t("recheckFailed"), "bad"); }
+  refresh();
 }
-async function saveProxy() { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast(t("proxySaved"), "ok"); }
+async function saveProxy() {
+  try { await jpost("/api/settings", { proxy: { url: $("proxyUrl").value } }); toast(t("proxySaved"), "ok"); }
+  catch (e) { toast(t("recheckFailed"), "bad"); }
+}
 async function restartMain() {
   const ok = await localConfirm(t("confirmRestartT"), t("confirmRestartM"), true);
   if (!ok) return;
   updateMsgEverywhere(t("restartSent"));
   toast(t("restartSent"));
-  await jpost("/api/main/restart");
+  try { await jpost("/api/main/restart"); } catch (e) { toast(t("recheckFailed"), "bad"); }
   refresh();
 }
 const LOG_STAGE_T = { boot: "plogBoot", crash: "plogCrash", http: "plogHttp", ops: "plogOps", schedule: "plogSchedule", update: "plogUpdate" };
 const LOG_STAGE_CLASS = { boot: "mut", crash: "bad", http: "bad", ops: "ok", schedule: "warn", update: "ok" };
 async function loadLogs() {
   const f = $("logFilter").value;
-  const r = await jget("/api/panel-log?lines=50" + (f ? "&filter=" + encodeURIComponent(f) : ""));
+  let r;
+  try {
+    r = await jget("/api/panel-log?lines=50" + (f ? "&filter=" + encodeURIComponent(f) : ""));
+  } catch (e) {
+    // 面板重启中 / 网络抖动：日志框显示占位而不是静默报错（控制台 unhandled rejection）
+    const box = $("logBox");
+    if (box) box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>";
+    return;
+  }
   const box = $("logBox");
-  if (!r.events || !r.events.length) { box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>"; return; }
+  if (!r || !r.events || !r.events.length) { box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>"; return; }
   box.innerHTML = r.events.map((ev) => {
     const at = new Date(ev.at).toLocaleTimeString();
     const cls = LOG_STAGE_CLASS[ev.stage] || "mut";
@@ -1509,6 +1655,10 @@ if (require.main === module) {
   });
   process.on("SIGTERM", () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 2000).unref(); });
   process.on("uncaughtException", (e) => plog("crash", `uncaught: ${e.stack || e.message}`));
+  // Node ≥15 默认把 unhandledRejection 当未捕获异常直接杀进程（面板「频繁崩溃」
+  // 的另一半来源）。这里只记录不退出 —— 面板进程挂掉意味着调度器丢失，宁可带病
+  // 运行；真正的状态破坏由 currentUpdate 孤儿 GC（UPDATE_ORPHAN_MS）兜底。
+  process.on("unhandledRejection", (e) => plog("crash", `unhandled rejection: ${e instanceof Error ? (e.stack || e.message) : String(e)}`));
 }
 
-module.exports = { server, loadSettings, saveSettings, performUpdate, installFromArchive, schedulerTick };
+module.exports = { server, loadSettings, saveSettings, performUpdate, installFromArchive, schedulerTick, reclaimOrphanUpdate, markScheduleOutcome, UPDATE_ORPHAN_MS };
