@@ -20,7 +20,10 @@ export default {
     color: "#FF6A00",
     textIcon: "TC",
     website: "https://www.trae.cn",
-    notice: { signupUrl: "https://www.trae.cn" },
+    notice: {
+      signupUrl: "https://www.trae.cn/events/code-fission/6SJTRWPCAP5X?utm_source=copy_link&utm_medium=code_fission",
+      apiKeyUrl: "https://www.trae.cn/events/code-fission/6SJTRWPCAP5X?utm_source=copy_link&utm_medium=code_fission",
+    },
   },
   transport: {
     // 国内 web remote 数据面（#99 情报二，trae2api-hub / Trae2api-cn 双源实测）：
