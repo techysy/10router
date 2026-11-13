@@ -2791,9 +2791,9 @@ export default function ProviderDetailPage() {
           onClose={() => setShowIFlowCookieModal(false)}
         />
       )}
-      {providerId === "dumate" && (
+      {providerId === "dumate" && showDumateQrModal && (
         <DumateQrModal
-          isOpen={showDumateQrModal}
+          isOpen
           connectionId={dumateQrConnectionId}
           onSuccess={refreshAfterConnectionChange}
           onClose={() => setShowDumateQrModal(false)}

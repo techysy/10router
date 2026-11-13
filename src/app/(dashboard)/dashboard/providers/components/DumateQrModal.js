@@ -7,6 +7,10 @@
 //   - Other methods (fallback): a bookmarklet that runs on passport.baidu.com
 //     and posts document.cookie back through a one-time `ot` token, or a plain
 //     document.cookie / exported-JSON paste.
+//
+// Mount contract: the parent mounts this component only while it is open
+// (`show && <DumateQrModal isOpen … />`), like LoomySmsModal — state resets on
+// unmount and the QR flow starts from the mount effect.
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { Button, Modal } from "@/shared/components";
@@ -29,7 +33,7 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
   const [st, setSt] = useState(null);          // last qr-status payload
   const [sid, setSid] = useState(null);
   const [er, setEr] = useState(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const [tab, setTab] = useState("qr");
   const [paste, setPaste] = useState("");
   const [pst, setPst] = useState(null);        // {p:"work"|"ok"|"err", ...}
@@ -67,28 +71,28 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
     }
   };
 
+  // Mount-only effects (parent mounts this component while it is open):
+  // start the QR session, mint the bookmarklet token, drive the countdown tick.
+  // Deferring the start past the mount commit keeps setState out of the effect
+  // body (react-hooks/set-state-in-effect) — the spinner is already the initial
+  // state, so there is nothing to paint before this runs.
   useEffect(() => {
-    if (!isOpen) return undefined;
     openedAt.current = Date.now();
-    setTab("qr");
-    setPst(null);
-    setPaste("");
-    setOt("");
-    start();
+    const boot = setTimeout(() => { void start(); }, 0);
     fetch("/api/oauth/dumate/import-init", { method: "POST" })
       .then((r) => r.json())
       .then((j) => { if (j && j.ot) setOt(j.ot); })
       .catch(() => {});
-    return undefined;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => { clearTimeout(boot); clearInterval(tick); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, []);
 
   // QR session polling
   useEffect(() => {
     if (!sid) return undefined;
     let alive = true;
     const t = setInterval(async () => {
-      setNow(Date.now());
       try {
         const r = await fetch("/api/oauth/dumate/qr-status?sid=" + sid, { cache: "no-store" });
         const j = await r.json().catch(() => ({}));
@@ -109,7 +113,6 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
 
   // Bookmarklet path: watch the connections list for a new/updated row
   useEffect(() => {
-    if (!isOpen) return undefined;
     const iv = setInterval(async () => {
       try {
         const r = await fetch("/api/providers");
@@ -128,7 +131,7 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
       } catch { /* transient */ }
     }, 3000);
     return () => clearInterval(iv);
-  }, [isOpen, cid]);
+  }, [cid]);
 
   const close = () => {
     const w = st && st.status;
@@ -163,12 +166,12 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
   };
 
   const w = st && st.status;
-  const left = st && st.expiresAt ? Math.max(0, Math.round((st.expiresAt - now) / 1000)) : null;
+  const left = st && st.expiresAt && now ? Math.max(0, Math.round((st.expiresAt - now) / 1000)) : null;
   const mmss = left == null ? "" : Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
   const busy = ["starting", "authorized", "saving", "confirming"].includes(w);
   const fin = ["expired", "error", "cancelled"].includes(w);
   const tabcls = (k) =>
-    "rounded-md px-2.5 py-1 text-xs " + (tab === k ? "bg-blue-600/15 text-blue-500 font-medium" : "text-text-muted hover:text-text-base");
+    "rounded-md px-2.5 py-1 text-xs " + (tab === k ? "bg-blue-600/15 text-blue-500 font-medium" : "text-text-muted hover:text-text-main");
 
   return (
     <Modal isOpen={isOpen} title={cid ? "重新登录 DuMate" : "登录 DuMate（新建连接）"} onClose={close}>
