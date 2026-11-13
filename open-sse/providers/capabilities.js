@@ -74,6 +74,9 @@ export function capabilitiesFromServiceKind(kind) {
  * otherwise mis-match. Only declare deltas vs DEFAULT.
  */
 export const MODEL_CAPABILITIES = {
+  // ERNIE 4.5 Turbo VL (Baidu) — the -vl variant is vision-language; the generic
+  // *ernie* pattern would under-declare it as text-only.
+  "ernie-4.5-turbo-vl-32k": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 32768, maxOutput: 8192 },
   // Claude Opus 5, 4.6/4.7/4.8, and Kiro Sonnet 5 have 1M context + adaptive thinking (override generic claude pattern)
   // Claude Fable 5.1 has 1M context + adaptive thinking (override generic claude pattern)
   "claude-fable-5-1":  {pdf: true,  vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },

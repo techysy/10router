@@ -1176,6 +1176,21 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const valid = !!(data && data.user);
         return { valid, error: valid ? null : "Session expired — re-paste cookie" };
       }
+      case "dumate": {
+        // Live check = the gateway token exchange; tokenFor also runs the
+        // silent passport relogin and returns the rotated cookie blob, which is
+        // persisted here since the request-path refresh can't reach this row.
+        try {
+          const { tokenFor } = await import("open-sse/shared/dumate/token.js");
+          const r = await tokenFor(connection.apiKey, { force: true });
+          const patch = { accessToken: r.token, expiresAt: new Date(r.exp).toISOString() };
+          if (r.raw !== connection.apiKey) patch.apiKey = r.raw;
+          await updateProviderConnection(connection.id, patch);
+          return { valid: true, error: null };
+        } catch (e) {
+          return { valid: false, error: String(e.message || e).slice(0, 200) };
+        }
+      }
       case "opencode-go": {
         const res = await fetchWithConnectionProxy("https://opencode.ai/zen/go/v1/chat/completions", {
           method: "POST",

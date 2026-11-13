@@ -40,6 +40,8 @@ const ICON_ALIASES = {
   "muse-web": "muse",
   "gemini-web": "gemini",
   "chatgpt-web": "openai",
+  // DuMate is Baidu's agent platform — the baidu asset already ships
+  "dumate": "baidu",
 };
 
 // Providers whose asset ships as SVG (everything else is .png).

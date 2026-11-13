@@ -470,6 +470,20 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  // DuMate bookmarklet cookie-import: the cross-site POST from *.baidu.com
+  // cannot carry the SameSite=Lax session cookie, so it replays the one-time
+  // `ot` token issued to an authenticated session by import-init. The ROUTE is
+  // the real authorization — it consumes the single-use token (10 min TTL) and
+  // rejects anything else. Same self-authenticating pattern as the
+  // transfer/import branches above.
+  if (
+    pathname === "/api/oauth/dumate/import" &&
+    (request.method === "OPTIONS" ||
+      (request.method === "POST" && new URL(request.url).searchParams.get("ot")))
+  ) {
+    return NextResponse.next();
+  }
+
   // Deny-by-default for /api/* — public allow-list bypasses, everything else requires auth.
   if (pathname.startsWith("/api/")) {
     if (isPublicApi(pathname)) return NextResponse.next();

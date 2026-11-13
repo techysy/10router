@@ -24,6 +24,7 @@ import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
+import DumateQrModal from "../components/DumateQrModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -84,6 +85,8 @@ export default function ProviderDetailPage() {
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
+  const [showDumateQrModal, setShowDumateQrModal] = useState(false);
+  const [dumateQrConnectionId, setDumateQrConnectionId] = useState(null);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
@@ -1651,6 +1654,10 @@ export default function ProviderDetailPage() {
                   setSelectedConnection(conn);
                   setShowEditModal(true);
                 }}
+                onReauth={providerId === "dumate" ? () => {
+                  setDumateQrConnectionId(conn.id);
+                  setShowDumateQrModal(true);
+                } : null}
                 onDelete={() => handleDelete(conn.id)}
                 oneByOneStatus={oneByOneResults[conn.id] || null}
               />
@@ -2462,6 +2469,11 @@ export default function ProviderDetailPage() {
                         Cookie
                       </Button>
                     )}
+                    {!isCompatible && providerId === "dumate" && (
+                      <Button size="sm" icon="qr_code_2" variant="secondary" onClick={() => { setDumateQrConnectionId(null); setShowDumateQrModal(true); }}>
+                        {translate("QR Login")}
+                      </Button>
+                    )}
                     {/* No connections yet: do not show check-in / claim credits */}
                     {providerId === "codex" && (
                       <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
@@ -2541,6 +2553,18 @@ export default function ProviderDetailPage() {
                       className="w-full sm:w-auto"
                     >
                       Cookie
+                    </Button>
+                  )}
+                  {providerId === "dumate" && (
+                    <Button
+                      size="sm"
+                      icon="qr_code_2"
+                      variant="secondary"
+                      onClick={() => { setDumateQrConnectionId(null); setShowDumateQrModal(true); }}
+                      title={translate("Login by scanning the Baidu QR code (no browser is spawned)")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("QR Login")}
                     </Button>
                   )}
                   {providerId === "codex" && (
@@ -2765,6 +2789,14 @@ export default function ProviderDetailPage() {
           isOpen={showIFlowCookieModal}
           onSuccess={handleIFlowCookieSuccess}
           onClose={() => setShowIFlowCookieModal(false)}
+        />
+      )}
+      {providerId === "dumate" && (
+        <DumateQrModal
+          isOpen={showDumateQrModal}
+          connectionId={dumateQrConnectionId}
+          onSuccess={refreshAfterConnectionChange}
+          onClose={() => setShowDumateQrModal(false)}
         />
       )}
       <AddApiKeyModal

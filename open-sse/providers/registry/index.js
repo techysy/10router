@@ -170,6 +170,7 @@ import p164 from "./doubao.js";
 import p165 from "./acemusic.js";
 import p166 from "./gemini-decision.js";
 import p167 from "./meoo.js";
+import p168 from "./dumate.js";
 
 export default [
   p0,
@@ -343,4 +344,5 @@ export default [
   p165,
   p166,
   p167,
+  p168,
 ];
