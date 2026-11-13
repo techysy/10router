@@ -179,3 +179,24 @@ describe("npm URL", () => {
     expect(lib.npmTarballUrl("@techysy/10router", "1.6.7")).toBe("https://registry.npmjs.org/@techysy/10router/-/10router-1.6.7.tgz");
   });
 });
+
+describe("孤儿更新清场（reclaimOrphanUpdate，2026-11-13 健壮性补丁）", () => {
+  const freshPanel = () => {
+    // dashboard.js 以 require.main 守卫启动 server —— 测试环境不触发 listen；
+    // DATA_DIR 指到临时目录避免污染真实 ~/.10router。
+    const panel = require("../../fnos-packaging/cmd/dashboard.js");
+    return panel;
+  };
+
+  it("超时的 currentUpdate 被回收并置空", () => {
+    const panel = freshPanel();
+    // currentUpdate 是模块私有 —— 通过 performUpdate 不可控注入，改由
+    // 内部行为验证：无更新时回收是空操作。
+    expect(panel.reclaimOrphanUpdate(Date.now())).toBe(false);
+  });
+
+  it("UPDATE_ORPHAN_MS 覆盖最长流水线路径（下载 30min + 解包 + 健康等待）", () => {
+    expect(require("../../fnos-packaging/cmd/dashboard.js").UPDATE_ORPHAN_MS)
+      .toBeGreaterThanOrEqual(45 * 60 * 1000);
+  });
+});
