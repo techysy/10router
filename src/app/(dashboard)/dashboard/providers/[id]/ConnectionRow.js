@@ -271,6 +271,31 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const gateUrl = verificationUrl || realnameUrl;
   const { copied, copy } = useCopyToClipboard();
 
+  // Meoo 每日登录积分：与配额卡（ProviderLimits）同一颗按钮的逻辑——
+  // 无领取接口，服务端做一次登录等价动作后以账面差值核验（claimed 才算
+  // 领到）。状态留在行内（一行一个连接），结果在本行信息列行内展示。
+  // 渲染条件与配额卡对齐：meoo 且非 external 行。
+  const [meooClaiming, setMeooClaiming] = useState(false);
+  const [meooClaimResult, setMeooClaimResult] = useState(null);
+  const showMeooDailyClaim = connection.provider === "meoo" && !connection.external;
+
+  const handleMeooDailyClaim = async () => {
+    if (meooClaiming) return;
+    setMeooClaiming(true);
+    try {
+      const response = await fetch(`/api/usage/${connection.id}/meoo-daily-claim`, { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || result.message || "领取失败，请稍后重试");
+      }
+      setMeooClaimResult(result);
+    } catch (error) {
+      setMeooClaimResult({ claimed: false, balance: null, message: error.message || "领取失败，请稍后重试" });
+    } finally {
+      setMeooClaiming(false);
+    }
+  };
+
   const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
 
   const getOneByOneVariant = () => {
@@ -416,6 +441,24 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               )}
             </div>
           )}
+          {meooClaimResult && (
+            <p
+              className={`mt-1 flex items-center gap-1 text-[11px] ${
+                meooClaimResult.claimed
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-text-muted"
+              }`}
+            >
+              <span className="material-symbols-outlined shrink-0 text-[12px]">
+                {meooClaimResult.claimed ? "check_circle" : "info"}
+              </span>
+              <span>
+                {meooClaimResult.message}
+                {typeof meooClaimResult.balance === "number" &&
+                  ` · 余额 ${meooClaimResult.balance} 积分`}
+              </span>
+            </p>
+          )}
         </div>
       </div>
       <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
@@ -473,6 +516,22 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </button>
             </Tooltip>
           )}
+          {showMeooDailyClaim && (
+            <Tooltip text="每日首次登录 Meoo 自动赠送 2000 积分 — 点击触发登录动作并核验到账">
+              <button
+                type="button"
+                onClick={handleMeooDailyClaim}
+                disabled={meooClaiming}
+                aria-label="每日领积分"
+                className="flex w-full flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className={`material-symbols-outlined text-[18px] ${meooClaiming ? "animate-spin" : ""}`}>
+                  {meooClaiming ? "progress_activity" : "redeem"}
+                </span>
+                <span className="text-[10px] leading-tight">每日领积分</span>
+              </button>
+            </Tooltip>
+          )}
           <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
             <span className="material-symbols-outlined text-[18px]">edit</span>
             <span className="text-[10px] leading-tight">Edit</span>
@@ -496,6 +555,8 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
 ConnectionRow.propTypes = {
   connection: PropTypes.shape({
     id: PropTypes.string,
+    provider: PropTypes.string,
+    external: PropTypes.bool,
     name: PropTypes.string,
     email: PropTypes.string,
     displayName: PropTypes.string,

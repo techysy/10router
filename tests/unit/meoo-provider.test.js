@@ -922,3 +922,59 @@ describe("POST /api/usage/[connectionId]/meoo-daily-claim (feature B)", () => {
     expect(mocks.proxyAwareFetch).not.toHaveBeenCalled();
   });
 });
+
+// ─── Feature B (provider page): 每日领积分 on the connection card ───────
+// The quota card (ProviderLimits) got the button first, but the provider
+// detail page renders connections through ConnectionRow — the button must
+// live there too, wired to the same endpoint with the same inline verdict.
+// Client component, so this is asserted at source level (the
+// codex-cli-version suite's read-and-scan posture).
+describe("Provider page ConnectionRow — meoo daily claim button (feature B)", () => {
+  const rowSource = readFileSync(
+    resolve(__dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/ConnectionRow.js"),
+    "utf8",
+  );
+  const pageSource = readFileSync(
+    resolve(__dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/page.js"),
+    "utf8",
+  );
+  const limitsSource = readFileSync(
+    resolve(__dirname, "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"),
+    "utf8",
+  );
+
+  it("is the connection card the provider page renders", () => {
+    expect(pageSource).toContain('import ConnectionRow from "./ConnectionRow"');
+    expect(pageSource).toContain("<ConnectionRow");
+  });
+
+  it("gates the button to meoo, non-external connections — the ProviderLimits condition", () => {
+    expect(rowSource).toContain('connection.provider === "meoo" && !connection.external');
+    expect(rowSource).toContain("{showMeooDailyClaim && (");
+    expect(limitsSource).toContain('conn.provider === "meoo" && !conn.external');
+  });
+
+  it("posts to the same daily-claim endpoint as the quota card", () => {
+    expect(rowSource).toContain("/api/usage/${connection.id}/meoo-daily-claim");
+    expect(rowSource).toContain('method: "POST"');
+  });
+
+  it("renders the labeled button with the redeem icon, a claiming spinner, and repeat-click lockout", () => {
+    expect(rowSource).toContain("每日领积分");
+    expect(rowSource).toContain('"redeem"');
+    expect(rowSource).toContain("progress_activity");
+    expect(rowSource).toContain("disabled={meooClaiming}");
+    expect(rowSource).toContain("if (meooClaiming) return;");
+  });
+
+  it("shows the verdict inline — green when claimed, balance appended", () => {
+    expect(rowSource).toContain("meooClaimResult.claimed");
+    expect(rowSource).toContain("text-green-600 dark:text-green-400");
+    expect(rowSource).toContain("余额 ${meooClaimResult.balance} 积分");
+  });
+
+  it("leaves the quota-card button in place (both surfaces share the route)", () => {
+    expect(limitsSource).toContain("handleMeooDailyClaim");
+    expect(limitsSource).toContain("meoo-daily-claim");
+  });
+});
