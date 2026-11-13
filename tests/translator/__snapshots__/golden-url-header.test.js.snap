@@ -1227,6 +1227,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > loomy → headers (a
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > meoo → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > minimax → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2585,6 +2604,13 @@ exports[`GOLDEN buildUrl (default executor providers) > loomy → url (stream + 
 {
   "nonStream": "https://loomyad.xunfei.cn/api/v1/chat/completions",
   "stream": "https://loomyad.xunfei.cn/api/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > meoo → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.meoo.host/meoo-ai/compatible-mode/v1/chat/completions",
+  "stream": "https://api.meoo.host/meoo-ai/compatible-mode/v1/chat/completions",
 }
 `;
 

@@ -13,6 +13,7 @@ import antigravity from "./antigravity.js";
 import iflow from "./iflow.js";
 import qoder from "./qoder.js";
 import qoderCn from "./qoder-cn.js";
+import meoo from "./meoo.js";
 import github from "./github.js";
 import kiro from "./kiro.js";
 import cursor from "./cursor.js";
@@ -43,6 +44,7 @@ const PROVIDERS = {
   iflow,
   qoder,
   "qoder-cn": qoderCn,
+  meoo,
   github,
   kiro,
   cursor,

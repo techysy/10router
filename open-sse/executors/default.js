@@ -243,7 +243,13 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   async refreshCredentials(credentials, log, proxyOptions = null) {
-    if (!credentials.refreshToken) return null;
+    if (!credentials.refreshToken) {
+      // Meoo paste-key connections carry no OAuth pair — their "refresh"
+      // is a project-AK re-resolution driven by the stored control key.
+      const meooControlKey =
+        this.provider === "meoo" ? credentials.providerSpecificData?.meooControlKey : "";
+      if (!meooControlKey) return null;
+    }
 
     const refreshers = {
       claude: () => this.refreshFromGrant(credentials, proxyOptions),
@@ -258,6 +264,7 @@ export class DefaultExecutor extends BaseExecutor {
       kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions),
       "minimax-code": () => this.refreshMinimaxCode("minimax-code", credentials, proxyOptions),
       "minimax-code-global": () => this.refreshMinimaxCode("minimax-code-global", credentials, proxyOptions),
+      meoo: () => this.refreshMeoo(credentials, proxyOptions),
     };
 
     const refresher = refreshers[this.provider];
@@ -361,6 +368,22 @@ export class DefaultExecutor extends BaseExecutor {
     if (!refreshToken) return null;
     const { refreshMinimaxCodeToken } = await import("../services/tokenRefresh/providers.js");
     return refreshMinimaxCodeToken(provider, refreshToken, console, proxyOptions);
+  }
+
+  // Meoo: the OAuth pair alone is useless to the gateway — the refresh
+  // handler also re-resolves the project service AK and returns it as
+  // apiKey, so the 401-retry in chatCore replays with the fresh AK.
+  async refreshMeoo(credentials, proxyOptions = null) {
+    const refreshToken = credentials?.refreshToken;
+    if (
+      !refreshToken &&
+      !credentials?.accessToken &&
+      !credentials?.providerSpecificData?.meooControlKey
+    ) {
+      return null;
+    }
+    const { refreshMeooToken } = await import("../services/tokenRefresh/providers.js");
+    return refreshMeooToken(refreshToken || "", credentials, console, proxyOptions);
   }
 
   async refreshKilocode(refreshToken, proxyOptions = null) {

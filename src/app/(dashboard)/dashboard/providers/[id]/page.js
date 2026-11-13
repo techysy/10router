@@ -29,6 +29,7 @@ import LoomySmsModal from "../components/LoomySmsModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
+import MeooImportApikeyModal from "./MeooImportApikeyModal";
 import CodeBuddyImportModal from "./CodeBuddyImportModal";
 import OAuthTransferModal from "./OAuthTransferModal";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
@@ -87,6 +88,7 @@ export default function ProviderDetailPage() {
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
+  const [showMeooImportApikey, setShowMeooImportApikey] = useState(false);
   const [showCodeBuddyImport, setShowCodeBuddyImport] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
@@ -2466,6 +2468,11 @@ export default function ProviderDetailPage() {
                         {translate("Bulk Add")}
                       </Button>
                     )}
+                    {providerId === "meoo" && (
+                      <Button size="sm" icon="key" variant="secondary" onClick={() => setShowMeooImportApikey(true)}>
+                        {translate("Paste API Key")}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       icon="add"
@@ -2546,6 +2553,18 @@ export default function ProviderDetailPage() {
                       className="w-full sm:w-auto"
                     >
                       {translate("Bulk Add")}
+                    </Button>
+                  )}
+                  {providerId === "meoo" && (
+                    <Button
+                      size="sm"
+                      icon="key"
+                      variant="secondary"
+                      onClick={() => setShowMeooImportApikey(true)}
+                      title={translate("Connect Meoo by pasting its control-plane API key")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Paste API Key")}
                     </Button>
                   )}
                   {hasDualAuthModes ? (
@@ -2807,6 +2826,14 @@ export default function ProviderDetailPage() {
         <BulkImportCodexModal
           isOpen={showBulkImportCodex}
           onClose={() => setShowBulkImportCodex(false)}
+          onSuccess={fetchConnections}
+        />
+      )}
+
+      {providerId === "meoo" && (
+        <MeooImportApikeyModal
+          isOpen={showMeooImportApikey}
+          onClose={() => setShowMeooImportApikey(false)}
           onSuccess={fetchConnections}
         />
       )}

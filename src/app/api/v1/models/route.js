@@ -13,6 +13,7 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { resolveMeooModels } from "open-sse/services/meooModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
 
 // This GET reads live connection/registry state — without it Next may serve a
@@ -51,6 +52,31 @@ const LIVE_MODEL_RESOLVERS = {
       email: conn.email,
       displayName: conn.displayName,
       providerSpecificData: conn.providerSpecificData || {}
+    });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  meoo: async (conn) => {
+    const result = await resolveMeooModels({
+      connectionId: conn.id,
+      apiKey: conn.apiKey,
+      accessToken: conn.accessToken,
+      refreshToken: conn.refreshToken,
+      expiresAt: conn.expiresAt,
+      providerSpecificData: conn.providerSpecificData || {}
+    }, {
+      log: console,
+      // A stale project AK is re-resolved inside resolveMeooModels; persist
+      // whatever came back (rotated OAuth pair and/or fresh AK) so the row
+      // does not keep serving the dead key.
+      onCredentialsRefreshed: async (refreshed) => {
+        await updateProviderCredentials(conn.id, {
+          ...refreshed,
+          existingProviderSpecificData: conn.providerSpecificData || {},
+        });
+      },
     });
     if (!result?.models?.length) return null;
     return {

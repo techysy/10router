@@ -10,6 +10,7 @@ import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveMimoModels } from "open-sse/services/mimoModels.js";
+import { resolveMeooModels } from "open-sse/services/meooModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
@@ -445,6 +446,56 @@ const PROVIDER_MODELS_CONFIG = {
   },
   "qoder-cn": {
     customResolver: resolveQoderCatalog,
+  },
+  // Meoo（秒悟）: two-stage auth — the gateway only accepts the per-project
+  // service AK, which resolveMeooModels resolves / re-resolves through the
+  // control plane (OAuth pair or pasted control key) and merges specs into
+  // the live catalog. Live ids pass through verbatim: an id missing from
+  // the static spec table rides the resolver's fallback spec, so models
+  // Meoo configures later surface here without a registry update.
+  meoo: {
+    customResolver: async (connection) => {
+      let warning;
+      try {
+        const result = await resolveMeooModels({
+          connectionId: connection.id,
+          apiKey: connection.apiKey,
+          accessToken: connection.accessToken,
+          refreshToken: connection.refreshToken,
+          expiresAt: connection.expiresAt,
+          providerSpecificData: connection.providerSpecificData || {},
+        }, {
+          forceRefresh: true,
+          log: console,
+          // A stale project AK is re-resolved inside resolveMeooModels;
+          // persist whatever came back (rotated OAuth pair and/or fresh
+          // AK) so the row does not keep serving the dead key — mirrors
+          // the /api/v1/models wiring.
+          onCredentialsRefreshed: async (refreshed) => {
+            await updateProviderCredentials(connection.id, {
+              ...refreshed,
+              existingProviderSpecificData: connection.providerSpecificData || {},
+            });
+          },
+        });
+        if (result?.models?.length) {
+          return {
+            models: result.models.map((m) => ({
+              id: m.id,
+              name: m.name,
+              contextLength: m.contextLength,
+              maxOutputTokens: m.maxOutputTokens,
+              isVL: m.isVL,
+            })),
+          };
+        }
+        warning = "Meoo returned no models; falling back to static catalog.";
+      } catch (error) {
+        warning = `Failed to fetch Meoo models: ${error.message}`;
+        console.log("Failed to fetch Meoo models dynamically, falling back to static:", error.message);
+      }
+      return { models: getStaticProviderModels("meoo"), warning };
+    },
   },
   // MiMo: official public catalog (api.xiaomimimo.com/v1/models). Powers the
   // "Fetch MiMo Models" import button. The resolver itself filters the two

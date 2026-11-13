@@ -13,6 +13,7 @@ import {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshMeooToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -34,6 +35,7 @@ export {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshMeooToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -178,6 +180,8 @@ const REFRESH_HANDLERS = {
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
+  // Meoo: token refresh + project AK re-resolution in one handler.
+  meoo: (c, log) => refreshMeooToken(c.refreshToken, c, log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
   "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),

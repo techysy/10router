@@ -14,6 +14,7 @@ import { getCodeBuddyCnUsage, getCodeBuddyIntlUsage } from "./usage/codebuddy-cn
 import { getGrokCliUsage } from "./usage/grok-cli.js";
 import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
+import { getMeooUsage } from "./usage/meoo.js";
 import { getLoomyUsage } from "./usage/loomy.js";
 import { getOpencodeGoUsage } from "./usage/opencode-go.js";
 import { getOpenCodeZenUsage } from "./usage/opencode-zen.js";
@@ -70,6 +71,10 @@ const USAGE_HANDLERS = {
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   kimi: (c) => getKimiUsage(c.accessToken, c.apiKey, c.proxyOptions, c.providerSpecificData),
   deepseek: (c) => getDeepseekUsage(c.apiKey, c.proxyOptions),
+  // Meoo's points ledger sits on the control plane: OAuth access token
+  // first, stored control key (psd.meooControlKey) as the fallback inside
+  // the handler — the project AK in c.apiKey cannot read it.
+  meoo: (c) => getMeooUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   loomy: (c) => getLoomyUsage(c.apiKey, c.proxyOptions),
   "opencode-go": (c) => getOpencodeGoUsage(c.apiKey, c.proxyOptions),
   "opencode-zen": (c) => getOpenCodeZenUsage(c.apiKey, c.proxyOptions),
