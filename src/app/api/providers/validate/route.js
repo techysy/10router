@@ -668,7 +668,7 @@ export async function POST(request) {
           // gateway token exchange succeeding (login session still live).
           try {
             const { tokenFor } = await import("open-sse/shared/dumate/token.js");
-            await tokenFor(apiKey, { force: true });
+            await tokenFor(apiKey, { force: true, proxyOptions: providerSpecificData?.proxyOptions || null });
             isValid = true;
           } catch (e) {
             isValid = false;

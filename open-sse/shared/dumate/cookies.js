@@ -24,6 +24,21 @@ const PASSPORT_HOST_ONLY = new Set(["STOKEN", "PTOKEN", "UBI", "UBI_BFESS", "PAS
 
 export const bare = (d) => String(d || "").replace(/^\./, "").toLowerCase();
 
+export function isConsoleCookie(c) {
+  if (!c || !c.name) return false;
+  const d = bare(c.domain);
+  if (c.name === "bce-sessionid") return !d || d === "bce.baidu.com" || d === "console.bce.baidu.com";
+  return false;
+}
+
+export function isStorableCookie(c) {
+  if (!c || !c.name || c.value == null || c.value === "") return false;
+  if (isConsoleCookie(c)) return true;
+  const d = bare(c.domain);
+  if (d) return (d === "baidu.com" || d === "passport.baidu.com") && PASSPORT_NAMES.includes(c.name);
+  return PASSPORT_NAMES.includes(c.name);
+}
+
 /** Minimal domain-aware cookie jar: name@domain -> {name,value,domain}. */
 export class Jar {
   constructor() { this.m = new Map(); }
@@ -88,10 +103,12 @@ export const cookieHeader = (arr) => arr.filter((c) => c.name).map((c) => `${c.n
 
 /** Keep only what the provider needs: the console session + the passport set. */
 export function keepCookie(c) {
-  if (c.name === "bce-sessionid") return true;
-  if (/^bce/i.test(c.name)) return false;
-  const d = bare(c.domain);
-  return d === "baidu.com" || d === "passport.baidu.com";
+  if (c && c.value == null) {
+    if (isConsoleCookie(c)) return true;
+    const d = bare(c.domain);
+    return PASSPORT_NAMES.includes(c.name) && (d === "baidu.com" || d === "passport.baidu.com");
+  }
+  return isStorableCookie(c);
 }
 
 export function slimCookie(c) {
@@ -125,8 +142,8 @@ export function passportCookies(raw) {
   }
   if (arr) {
     return arr
-      .filter((c) => c && c.name && c.value != null && !/^bce/i.test(c.name) &&
-        (c.domain ? ["baidu.com", "passport.baidu.com"].includes(bare(c.domain)) : PASSPORT_NAMES.includes(c.name)))
+      .filter((c) => c && c.name && c.value != null && PASSPORT_NAMES.includes(c.name) && !/^bce/i.test(c.name) &&
+        (c.domain ? ["baidu.com", "passport.baidu.com"].includes(bare(c.domain)) : true))
       .map((c) => c.domain
         ? slimCookie(c)
         : { name: c.name, value: String(c.value), domain: PASSPORT_HOST_ONLY.has(c.name) ? "passport.baidu.com" : ".baidu.com", path: "/" });
@@ -152,7 +169,7 @@ export function passportKey(raw) {
     .map((c) => c.value)
     .sort()
     .join("|");
-  return createHash("sha256").update(b).digest("hex").slice(0, 24);
+  return b ? createHash("sha256").update(b).digest("hex").slice(0, 24) : null;
 }
 
 export function accountFrom(raw) {

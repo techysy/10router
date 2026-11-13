@@ -17,10 +17,10 @@
  * (.reauth bubbles up from session.js); other failures are transient.
  */
 
-import https from "node:https";
 import { createHash } from "node:crypto";
-import { parseCookies, cookieHeader, bare, keepCookie, slimCookie, serializeCreds, passportCookies, hasPassport, passportKey, accountFrom } from "./cookies.js";
+import { parseCookies, cookieHeader, bare, keepCookie, slimCookie, serializeCreds, passportCookies, hasPassport, passportKey, accountFrom, isConsoleCookie } from "./cookies.js";
 import { quickLogin } from "./session.js";
+import { httpGet } from "./http.js";
 
 const CONSOLE = "console.bce.baidu.com";
 const TOKEN_PATH = "/api/dumate/app/token/get";
@@ -37,51 +37,29 @@ export const REAUTH_MSG =
 
 const log = (msg) => { try { console.log(`[dumate] ${msg}`); } catch { /* noop */ } };
 
-function httpsGet(opts) {
-  return new Promise((resolve, reject) => {
-    const r = https.request({ timeout: 25_000, method: "GET", ...opts }, (res) => {
-      const ch = [];
-      res.on("data", (d) => ch.push(d));
-      res.on("end", () =>
-        resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(ch).toString("utf8") }),
-      );
-    });
-    r.on("timeout", () => r.destroy(new Error("timeout")));
-    r.on("error", reject);
-    r.end();
-  });
-}
-
 const expiredError = (msg) => Object.assign(new Error(msg || REAUTH_MSG), { expired: true });
 
 const cookieKey = (raw) => createHash("sha256").update(String(raw || "")).digest("hex").slice(0, 24);
 
 /** cookie blob -> {token, exp} ; throws .expired when the login session is dead. */
-export async function exchangeToken(rawCookie) {
+export async function exchangeToken(rawCookie, { proxyOptions = null } = {}) {
   const arr = parseCookies(rawCookie);
   if (!arr.length) {
     throw Object.assign(expiredError("no cookies parsed — paste a Cookie header string or an exported cookies JSON"), { parse: true });
   }
   // Only send what a browser would send to console.bce.baidu.com — QR-login
   // creds also carry passport.baidu.com cookies that must not leak there.
-  const sendable = arr.filter((c) => {
-    if (!c.domain) return true;
-    const d = bare(c.domain);
-    return CONSOLE === d || CONSOLE.endsWith("." + d);
-  });
-  const r = await httpsGet({
-    host: CONSOLE,
-    path: TOKEN_PATH,
-    headers: {
-      Cookie: cookieHeader(sendable.length ? sendable : arr),
-      "User-Agent": UA,
-      Accept: "application/json",
-      Referer: `https://${CONSOLE}/`,
-    },
+  const sendable = arr.filter(isConsoleCookie);
+  if (!sendable.length) throw expiredError("no console session cookie — login state needs renewal");
+  const r = await httpGet(`https://${CONSOLE}${TOKEN_PATH}`, {
+    timeoutMs: 25_000,
+    proxyOptions,
+    jar: { header: () => cookieHeader(sendable), addSetCookie() {} },
+    headers: { Accept: "application/json", Referer: `https://${CONSOLE}/` },
   });
   if (r.status === 401 || r.status === 403 || (r.status >= 300 && r.status < 400)) throw expiredError();
   let p;
-  try { p = JSON.parse(r.body); } catch { throw expiredError(); }
+  try { p = JSON.parse(r.body); } catch { throw new Error("DuMate token exchange returned invalid JSON"); }
   if (p?.code !== 0 || !p?.result?.token) {
     const m = typeof p?.message === "object" ? (p.message.global || JSON.stringify(p.message)) : (p?.message || p?.code);
     if (/登录|login|未授权|unauthori|过期|expire/i.test(String(m))) throw expiredError();
@@ -93,12 +71,12 @@ export async function exchangeToken(rawCookie) {
 }
 
 const cache = new Map(); // cookieKey -> {t, exp, pending}
-export async function getToken(rawCookie, force = false) {
+export async function getToken(rawCookie, force = false, proxyOptions = null) {
   const k = cookieKey(rawCookie);
   const c = cache.get(k) || {};
   if (!force && c.t && Date.now() < c.exp - EARLY_MS) return { token: c.t, exp: c.exp, fresh: false };
   if (c.pending) return c.pending;
-  const pending = exchangeToken(rawCookie)
+  const pending = exchangeToken(rawCookie, { proxyOptions })
     .then((r) => { cache.set(k, { t: r.token, exp: r.exp }); return { token: r.token, exp: r.exp, fresh: true }; })
     .finally(() => { const cur = cache.get(k); if (cur && cur.pending === pending) delete cur.pending; });
   cache.set(k, { ...c, pending });
@@ -126,7 +104,7 @@ function latestRaw(raw) {
  * passport coalesce; failures back off for FAIL_BACKOFF_MS so a dead passport
  * doesn't spam Baidu on every request.
  */
-export async function renewCookies(raw, logLine) {
+export async function renewCookies(raw, logLine, proxyOptions = null) {
   const pk = passportKey(raw);
   const f = renewFail.get(pk);
   if (f && Date.now() - f.at < FAIL_BACKOFF_MS) throw f.err;
@@ -135,7 +113,7 @@ export async function renewCookies(raw, logLine) {
     try {
       const t0 = Date.now();
       const pp = passportCookies(raw);
-      const { cookies, account } = await quickLogin(pp);
+      const { cookies, account } = await quickLogin(pp, proxyOptions);
       const kept = cookies.filter(keepCookie);
       if (!kept.some((c) => c.name === "bce-sessionid" && c.value)) {
         throw new Error("quick-login produced no bce-sessionid");
@@ -148,7 +126,11 @@ export async function renewCookies(raw, logLine) {
       log(`silent relogin ok in ${Math.round((Date.now() - t0) / 1000)}s (${kept.length} cookies)`);
       return nraw;
     } catch (e) {
-      const err = e.reauth ? expiredError(e.message) : expiredError(`${REAUTH_MSG} (auto-renew failed: ${String(e.message).slice(0, 120)})`);
+      if (!e.reauth) {
+        log(`silent relogin transient failure: ${String(e.message).slice(0, 160)}`);
+        throw e;
+      }
+      const err = expiredError(e.message);
       if (!e.busy) renewFail.set(pk, { at: Date.now(), err });
       log(`silent relogin failed: ${String(e.message).slice(0, 160)}`);
       throw err;
@@ -163,15 +145,15 @@ export async function renewCookies(raw, logLine) {
  * performs one silent relogin and returns {token, exp, raw, renewed:true} —
  * `raw` is the new credential the caller must persist (apiKey).
  */
-export async function tokenFor(rawIn, { force = false } = {}) {
+export async function tokenFor(rawIn, { force = false, proxyOptions = null } = {}) {
   let raw = latestRaw(rawIn);
   try {
-    const r = await getToken(raw, force);
+    const r = await getToken(raw, force, proxyOptions);
     return { ...r, raw };
   } catch (e) {
     if (!e.expired || e.parse || !hasPassport(raw)) throw e;
-    raw = await renewCookies(raw);
-    const r = await getToken(raw, true);
+    raw = await renewCookies(raw, undefined, proxyOptions);
+    const r = await getToken(raw, true, proxyOptions);
     return { ...r, raw, renewed: true };
   }
 }

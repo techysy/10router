@@ -58,9 +58,13 @@ export class DumateExecutor extends BaseExecutor {
    * in" this may silently renew the cookie blob (tokenFor returns the new
    * credential in .raw — adopted in-memory here; the refresh path persists it).
    */
-  async ensureToken(credentials, force) {
-    const r = await tokenFor(credentials.apiKey, { force });
+  async ensureToken(credentials, force, proxyOptions = null, onCredentialsRefreshed = null) {
+    const before = credentials.apiKey;
+    const r = await tokenFor(credentials.apiKey, { force, proxyOptions });
     if (r.raw !== credentials.apiKey) credentials.apiKey = r.raw;
+    if (r.raw !== before && typeof onCredentialsRefreshed === "function") {
+      await onCredentialsRefreshed({ apiKey: r.raw, accessToken: r.token, expiresAt: new Date(r.exp).toISOString() });
+    }
     Object.defineProperty(credentials, "__dumateToken", {
       value: r.token, enumerable: false, configurable: true, writable: true,
     });
@@ -72,7 +76,7 @@ export class DumateExecutor extends BaseExecutor {
     const credentials = args.credentials || (args.credentials = {});
     let fresh = false;
     try {
-      const r = await this.ensureToken(credentials, false);
+      const r = await this.ensureToken(credentials, false, args.proxyOptions, args.onCredentialsRefreshed);
       fresh = r.fresh;
     } catch (e) {
       if (e.expired) return this.authFail(args, e.message);
@@ -84,7 +88,7 @@ export class DumateExecutor extends BaseExecutor {
     if (!fresh && (st === 401 || st === 403)) {
       args.log?.info?.("TOKEN", `dumate gateway ${st}; re-issuing token from cookies and retrying once`);
       try {
-        await this.ensureToken(credentials, true);
+        await this.ensureToken(credentials, true, args.proxyOptions, args.onCredentialsRefreshed);
         try { await res.response.body?.cancel?.(); } catch { /* noop */ }
         res = await super.execute(args);
       } catch (e) {
@@ -101,9 +105,9 @@ export class DumateExecutor extends BaseExecutor {
    *   success -> {apiKey: renewed cookie blob, accessToken: gateway token}
    *   dead login -> {error:"invalid_grant"} -> standard needs-reauth mark
    */
-  async refreshCredentials(credentials, log) {
+  async refreshCredentials(credentials, log, proxyOptions = null) {
     try {
-      const r = await tokenFor(credentials.apiKey, { force: true });
+      const r = await tokenFor(credentials.apiKey, { force: true, proxyOptions });
       log?.info?.("TOKEN", `dumate: ${r.renewed ? "silent relogin + " : ""}token re-issued, valid until ${new Date(r.exp).toISOString()}`);
       return {
         apiKey: r.raw,

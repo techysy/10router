@@ -2,6 +2,8 @@ import { takeImportToken, importCookies } from "open-sse/shared/dumate/qr.js";
 import { portrait } from "open-sse/shared/dumate/session.js";
 import { passportCookies, accountFrom } from "open-sse/shared/dumate/cookies.js";
 import { persistDumateCredential, json } from "../lib.js";
+import { getProviderConnectionById } from "@/models";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 
 /**
  * POST /api/oauth/dumate/import
@@ -17,7 +19,7 @@ import { persistDumateCredential, json } from "../lib.js";
  */
 
 const CORS_OK = (o) =>
-  /^https:\/\/([a-z0-9-]+\.)*baidu\.com$/i.test(String(o || "")) ||
+  /^https:\/\/passport\.baidu\.com$/i.test(String(o || "")) ||
   /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(String(o || ""));
 
 const corsHeaders = (request) => {
@@ -47,32 +49,44 @@ export async function POST(request) {
   try {
     const url = new URL(request.url);
 
-    // ot path (bookmarklet): token is single-use — consuming it here also
-    // prevents replays once the import below has run.
-    const ot = url.searchParams.get("ot");
-    if (ot && !takeImportToken(ot)) {
-      return json({ error: "Login token expired or invalid — reopen the dialog for a fresh link" }, 401, cors);
-    }
-
     const raw = await request.text();
     let body = {};
     try { body = JSON.parse(raw); } catch { /* text/plain cookie paste */ }
     const connectionId = body.connectionId || url.searchParams.get("connectionId") || null;
+
+    // ot path (bookmarklet): token is single-use — consuming it here also
+    // prevents replays once the import below has run.
+    const ot = url.searchParams.get("ot");
+    if (ot && !takeImportToken(ot, connectionId)) {
+      return json({ error: "Login token expired or invalid — reopen the dialog for a fresh link" }, 401, cors);
+    }
+
     const rawIn = String(body.cookies ?? body.apiKey ?? (/^\s*\{/.test(raw) ? "" : raw));
 
-    const { creds, account } = await importCookies(rawIn);
+    const existing = connectionId ? await getProviderConnectionById(connectionId) : null;
+    const p = await resolveConnectionProxyConfig(existing?.providerSpecificData || {});
+    const proxyOptions = {
+      connectionProxyEnabled: p.connectionProxyEnabled === true,
+      connectionProxyUrl: p.connectionProxyUrl || "",
+      connectionNoProxy: p.connectionNoProxy || "",
+      vercelRelayUrl: p.vercelRelayUrl || "",
+      strictProxy: p.strictProxy === true,
+    };
+    const { creds, account, accountKey } = await importCookies(rawIn, proxyOptions);
 
     // Account name for the connection label / same-account dedup: path 2
     // returns it from quick-login; path 1 resolves it via portrait.
     let acct = account;
     if (!acct) {
-      try { acct = (await portrait(passportCookies(rawIn)))?.username || accountFrom(creds); } catch { /* cosmetic */ }
+      try { acct = (await portrait(passportCookies(rawIn), proxyOptions))?.username || accountFrom(creds); } catch { /* cosmetic */ }
     }
 
     const r = await persistDumateCredential({
       creds,
       connectionId,
       connName: connectionId ? undefined : `DuMate 百度搭子（${acct || "导入"}）`,
+      accountKey,
+      proxyOptions,
     });
     return json({ ok: true, connectionId: r.id, connectionName: r.name, tokenExpiresAt: r.tokenExpiresAt }, 200, cors);
   } catch (e) {

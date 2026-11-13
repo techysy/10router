@@ -79,7 +79,7 @@ export default function DumateQrModal({ isOpen, onClose, connectionId, onSuccess
   useEffect(() => {
     openedAt.current = Date.now();
     const boot = setTimeout(() => { void start(); }, 0);
-    fetch("/api/oauth/dumate/import-init", { method: "POST" })
+    fetch("/api/oauth/dumate/import-init?connectionId=" + encodeURIComponent(cid), { method: "POST" })
       .then((r) => r.json())
       .then((j) => { if (j && j.ot) setOt(j.ot); })
       .catch(() => {});

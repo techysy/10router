@@ -282,13 +282,15 @@ export async function persistRefreshedCredentials(connectionId, newCreds, option
   // rotate, so the stored one is still good and losing the write only costs a
   // redundant refresh later. A different one means the stored token is already
   // consumed upstream.
+  const current = await getProviderConnectionById(connectionId).catch(() => null);
   const beforeToken =
     previousRefreshToken !== undefined
       ? previousRefreshToken
-      : (await getProviderConnectionById(connectionId).catch(() => null))?.refreshToken;
+      : current?.refreshToken;
   const rotated = !!newCreds?.refreshToken && (!beforeToken || beforeToken !== newCreds.refreshToken);
+  const dumateCookieRotated = provider === "dumate" && !!newCreds?.apiKey && newCreds.apiKey !== current?.apiKey;
 
-  if (rotated) {
+  if (rotated || dumateCookieRotated) {
     logger.error("TOKEN_REFRESH", "Rotated refresh token could not be persisted — refusing to continue", {
       connectionId,
       provider,

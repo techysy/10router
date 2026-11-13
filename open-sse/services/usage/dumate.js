@@ -197,7 +197,7 @@ export async function getDumateUsage({ apiKey, proxyOptions = null, onRenewed = 
     if (!hasPassport(raw)) return { message: REAUTH_MSG };
     try {
       // 与聊天链路共用 tokenFor：内部只在「登录失效 + 有通行证」时才静默续期
-      const renewed = await tokenFor(raw, { force: true });
+      const renewed = await tokenFor(raw, { force: true, proxyOptions });
       if (renewed.raw && renewed.raw !== raw) {
         raw = renewed.raw;
         if (typeof onRenewed === "function") {

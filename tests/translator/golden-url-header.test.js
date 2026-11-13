@@ -20,7 +20,7 @@ const SPECIALIZED = new Set([
   "antigravity", "azure", "gemini-cli", "github", "iflow", "qoder", "qoder-cn", "kiro",
   "codex", "cursor", "vertex", "vertex-partner", "opencode",
   "opencode-go", "grok-web", "perplexity-web", "ollama-local", "commandcode",
-  "xiaomi-tokenplan", "mimo-free",
+  "xiaomi-tokenplan", "mimo-free", "dumate",
   // mimo-desktop 与 xiaomi-mimo 共用 XiaomiMimoExecutor，但不同于后者：它的**每一个**
   // 模型都是 preview，buildUrl/buildHeaders 永不走 DefaultExecutor 分支，所以在这里
   // 快照下来只会锁住一段永远不会执行的代码。xiaomi-mimo 之所以**不**排除，正是因为

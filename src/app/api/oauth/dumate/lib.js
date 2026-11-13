@@ -11,9 +11,13 @@ import {
   getProviderConnectionById,
   createProviderConnection,
   updateProviderConnection,
+  deleteProviderConnection,
 } from "@/models";
 import { testSingleConnection } from "@/app/api/providers/[id]/test/testUtils.js";
 import { finish, pub } from "open-sse/shared/dumate/qr.js";
+import { passportKey } from "open-sse/shared/dumate/cookies.js";
+import { tokenFor } from "open-sse/shared/dumate/token.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 
 /** Owner key for QR/import session scoping — hash of the dashboard credential. */
 export function ownerOf(request) {
@@ -29,34 +33,76 @@ export const json = (obj, status = 200, headers) =>
  *   dedup by generated name -> create or update -> testSingleConnection.
  * Returns {id, name, tokenExpiresAt}; throws with a user-facing message.
  */
-export async function persistDumateCredential({ creds, connectionId, connName }) {
+export async function persistDumateCredential({ creds, connectionId, connName, accountKey, proxyOptions = null }) {
   let id = connectionId;
   if (!id && connName) {
     const list = await getProviderConnections({ provider: "dumate" });
-    const hit = (list || []).find((c) => c.name === connName);
+    const hit = accountKey
+      ? (list || []).find((c) => c.providerSpecificData?.dumateAccountKey === accountKey)
+      : null;
     if (hit) id = hit.id;
   }
 
+  const old = id ? await getProviderConnectionById(id) : null;
+  if (id && (!old || old.provider !== "dumate")) throw new Error("Target connection is not a DuMate connection");
+  if (!proxyOptions) {
+    const proxyConfig = await resolveConnectionProxyConfig(old?.providerSpecificData || {});
+    proxyOptions = {
+      connectionProxyEnabled: proxyConfig.connectionProxyEnabled === true,
+      connectionProxyUrl: proxyConfig.connectionProxyUrl || "",
+      connectionNoProxy: proxyConfig.connectionNoProxy || "",
+      vercelRelayUrl: proxyConfig.vercelRelayUrl || "",
+      strictProxy: proxyConfig.strictProxy === true,
+    };
+  }
+
+  // Validate before touching the database. This catches a dead/partial passport
+  // credential without destroying a currently working connection.
+  const validated = await tokenFor(creds, { force: true, proxyOptions });
+  const candidateCreds = validated.raw || creds;
+  const effectiveAccountKey = passportKey(candidateCreds) || accountKey;
+
   if (id) {
-    const conn = await getProviderConnectionById(id);
-    if (!conn || conn.provider !== "dumate") throw new Error("Target connection is not a DuMate connection");
-    await updateProviderConnection(id, { apiKey: creds });
+    await updateProviderConnection(id, {
+      apiKey: candidateCreds,
+      providerSpecificData: { ...(old.providerSpecificData || {}), ...(effectiveAccountKey ? { dumateAccountKey: effectiveAccountKey } : {}) },
+      testStatus: "unknown",
+    });
   } else {
     const conn = await createProviderConnection({
       provider: "dumate",
       authType: "cookie",
       name: connName || "DuMate 百度搭子（扫码）",
-      apiKey: creds,
+      apiKey: candidateCreds,
       priority: 1,
       testStatus: "unknown",
       isActive: true,
+      ...(effectiveAccountKey ? { providerSpecificData: { dumateAccountKey: effectiveAccountKey } } : {}),
     });
     id = conn?.id;
     if (!id) throw new Error("Failed to create the provider connection");
   }
 
-  const test = await testSingleConnection(id, {});
-  if (!test.valid) throw new Error("Saved, but the connection test failed: " + (test.error || "unknown error"));
+  const rollback = async () => {
+    if (old) {
+      const restored = { ...old };
+      delete restored.id;
+      await updateProviderConnection(id, restored);
+    } else {
+      await deleteProviderConnection(id);
+    }
+  };
+  let test;
+  try {
+    test = await testSingleConnection(id, {});
+  } catch (e) {
+    await rollback();
+    throw new Error("Credential test failed; the previous connection was kept: " + (e.message || e));
+  }
+  if (!test.valid) {
+    await rollback();
+    throw new Error("Credential test failed; the previous connection was kept: " + (test.error || "unknown error"));
+  }
 
   const conn = await getProviderConnectionById(id);
   return {
@@ -76,7 +122,7 @@ export async function persistQrSession(s) {
     s.saving = (async () => {
       s.status = "saving";
       try {
-        const r = await persistDumateCredential({ creds: s.creds, connectionId: s.connectionId, connName: s.connName });
+        const r = await persistDumateCredential({ creds: s.creds, connectionId: s.connectionId, connName: s.connName, accountKey: s.accountKey, proxyOptions: s.proxyOptions });
         s.connectionId = r.id;
         s.connectionName = r.name;
         s.tokenExpiresAt = r.tokenExpiresAt;
