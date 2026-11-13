@@ -29,6 +29,14 @@ export default {
   // bare ids; open-sse/services/meooModels.js merges specs + handles AK
   // re-resolution, and /v1/models prefers it over the static list below.
   modelsFetcher: { url: "https://api.meoo.host/meoo-ai/compatible-mode/v1/models", type: "openai" },
+  // Usage = the control-plane points ledger. API-key (paste-key)
+  // connections read it with the stored control key, so the usage route
+  // must admit them alongside OAuth connections (USAGE_APIKEY_PROVIDERS
+  // derives from this flag).
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
   passthroughModels: true,
   models: [
     { id: "qwen3.8-max", name: "Qwen3.8-Max" },

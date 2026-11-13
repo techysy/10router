@@ -52,8 +52,10 @@ import {
   MEOO_API_BASE_URL,
   MEOO_CLI_COMPAT_VERSION,
   MEOO_DOC_IDENTITY_PATH,
+  MEOO_DOC_POINTS_PATH,
   MEOO_DOC_PROJECTS_PATH,
   MEOO_IDENTITY_PATH,
+  MEOO_POINTS_PATH,
   MEOO_PROJECTS_PATH,
   MEOO_REFRESH_EARLY_MS,
   resolveMeooCliClientId,
@@ -144,6 +146,35 @@ export async function fetchMeooIdentity(credential, options = {}) {
     email: user.email || "",
     edition: user.edition || "",
     tenantId: user.tenant_id || user.tenantId || "",
+  };
+}
+
+function finitePointsNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * GET account/points — the account's points ledger (commands/account.js in
+ * the CLI maps data.account.{availableBalance,totalGranted,totalConsumed},
+ * totalExpired rides along). Dual-namespace like the identity fetch.
+ * Fields come back as finite numbers, or null when Meoo did not send a
+ * usable value — callers must not invent a balance from a missing field.
+ */
+export async function fetchMeooPoints(credential, options = {}) {
+  let data;
+  try {
+    data = await meooControlRequest(credential, MEOO_POINTS_PATH, options);
+  } catch {
+    data = await meooControlRequest(credential, MEOO_DOC_POINTS_PATH, options);
+  }
+  const account = data?.account && typeof data.account === "object" ? data.account : data || {};
+  return {
+    availableBalance: finitePointsNumber(account.availableBalance),
+    totalGranted: finitePointsNumber(account.totalGranted),
+    totalConsumed: finitePointsNumber(account.totalConsumed),
+    totalExpired: finitePointsNumber(account.totalExpired),
   };
 }
 

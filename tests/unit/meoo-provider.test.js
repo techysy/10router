@@ -139,6 +139,8 @@ const mocks = vi.hoisted(() => ({
   getProviderConnectionById: vi.fn(),
   getProviderNodeById: vi.fn(),
   updateProviderCredentials: vi.fn(),
+  getLocalDbConnectionById: vi.fn(),
+  refreshAndUpdateCredentials: vi.fn(),
   nextJson: vi.fn((body, init) => ({ status: init?.status || 200, body })),
 }));
 
@@ -165,12 +167,34 @@ vi.mock("@/sse/services/tokenRefresh", () => ({
   updateProviderCredentials: mocks.updateProviderCredentials,
 }));
 
+// The usage routes read connections through @/lib/localDb (not @/models).
+vi.mock("@/lib/localDb", () => ({
+  getProviderConnectionById: mocks.getLocalDbConnectionById,
+  updateProviderConnection: vi.fn(),
+}));
+
+// The daily-claim route reuses the usage route's credential-refresh chain;
+// stub the parent route module so the OAuth leg is assertable without the
+// executor/token-refresh stack.
+vi.mock("../../src/app/api/usage/[connectionId]/route.js", () => ({
+  refreshAndUpdateCredentials: mocks.refreshAndUpdateCredentials,
+}));
+
+// Routes import open-sse/index.js for its fetch-patching side effect; the
+// bare entry transitively pulls the translator chain (uuid — absent from
+// this sandbox's test node_modules). The modules under test patch nothing.
+vi.mock("../../open-sse/index.js", () => ({}));
+
 // The [id]/models route imports every provider's catalog resolver; the
 // sibling resolvers pull app dependencies (uuid, …) that this sandbox's
 // test node_modules doesn't carry. Stub them — only the meoo branch of
 // the route is under test here.
 vi.mock("../../open-sse/services/kiroModels.js", () => ({ resolveKiroModels: vi.fn() }));
 vi.mock("../../open-sse/services/kimchiModels.js", () => ({ resolveKimchiModels: vi.fn() }));
+// The usage dispatch table imports every provider's handler; cursor's
+// chain needs uuid (absent in this sandbox). Only the meoo dispatch entry
+// is under test here.
+vi.mock("../../open-sse/services/usage/cursor.js", () => ({ getCursorUsage: vi.fn() }));
 vi.mock("../../open-sse/services/qoderModels.js", () => ({ resolveQoderModels: vi.fn() }));
 vi.mock("../../open-sse/services/mimoModels.js", () => ({ resolveMimoModels: vi.fn() }));
 vi.mock("../../open-sse/services/grokCliModels.js", () => ({ resolveGrokCliModels: vi.fn() }));
@@ -602,5 +626,299 @@ describe("GET /api/providers/[id]/models — meoo live catalog (dashboard discov
     const persistCalls = mocks.updateProviderCredentials.mock.calls.filter((c) => c[0] === conn.id);
     expect(persistCalls.length).toBeGreaterThan(0);
     expect(persistCalls[0][1]).toMatchObject({ apiKey: PROJECT_AK });
+  });
+});
+
+// ─── Feature A: points balance in the quota window ──────────────────────
+// getMeooUsage reads the control-plane points ledger (cli-compat first,
+// documented namespace on failure). Credential priority: OAuth access
+// token, then the stored control key — never the project AK.
+
+const POINTS_ACCOUNT = { availableBalance: 5800, totalGranted: 10000, totalConsumed: 4200, totalExpired: 0 };
+
+function mockPointsOk() {
+  mocks.proxyAwareFetch.mockImplementation(async (url) => {
+    const u = String(url);
+    if (u.endsWith("/account/points")) {
+      return jsonResponse(200, { success: true, data: { account: { ...POINTS_ACCOUNT } } });
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  });
+}
+
+describe("getMeooUsage — points ledger → quota window (feature A)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the credit-pot quotas shape with the OAuth access token", async () => {
+    mockPointsOk();
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage("at-oauth-1", {}, null);
+    expect(usage.plan).toBe("Meoo");
+    expect(usage.quotas).toEqual({
+      "Balance （积分）": {
+        used: 0,
+        total: 5800,
+        remainingPercentage: 100,
+        resetAt: null,
+        unlimited: true,
+      },
+    });
+    const auths = mocks.proxyAwareFetch.mock.calls.map((c) => c[1]?.headers?.Authorization);
+    expect(auths).toEqual(["Bearer at-oauth-1"]);
+  });
+
+  it("falls back to the stored control key for paste-key connections", async () => {
+    mockPointsOk();
+    const controlKey = "meoo_ak_usage_test_1234567890";
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage(null, { meooControlKey: controlKey }, null);
+    expect(usage.quotas["Balance （积分）"].total).toBe(5800);
+    const auths = mocks.proxyAwareFetch.mock.calls.map((c) => c[1]?.headers?.Authorization);
+    expect(auths).toEqual([`Bearer ${controlKey}`]);
+  });
+
+  it("prefers the access token when both credentials exist", async () => {
+    mockPointsOk();
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    await getMeooUsage("at-wins", { meooControlKey: "meoo_ak_loses_test_123456" }, null);
+    const auths = mocks.proxyAwareFetch.mock.calls.map((c) => c[1]?.headers?.Authorization);
+    expect(auths).toEqual(["Bearer at-wins"]);
+  });
+
+  it("guides connections without any control-plane credential, without network", async () => {
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage(null, {}, null);
+    expect(usage.quotas).toBeUndefined();
+    expect(usage.message).toContain("控制面凭证");
+    expect(mocks.proxyAwareFetch).not.toHaveBeenCalled();
+  });
+
+  it("surfaces Meoo's business-envelope failure verbatim instead of throwing", async () => {
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.endsWith("/account/points")) {
+        return jsonResponse(200, { success: false, errCode: "points_denied", message: "points scope denied" });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage("at-1", {}, null);
+    expect(usage.plan).toBe("Meoo");
+    expect(usage.quotas).toBeUndefined();
+    expect(usage.message).toContain("points scope denied");
+  });
+
+  it("surfaces an HTTP 401 from the points endpoint", async () => {
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.endsWith("/account/points")) {
+        return jsonResponse(401, { errCode: "invalid_token", message: "invalid token" });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage("at-expired", {}, null);
+    expect(usage.plan).toBe("Meoo");
+    expect(usage.message).toContain("invalid token");
+  });
+
+  it("renders a zero balance as an empty pot (not unlimited)", async () => {
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.endsWith("/account/points")) {
+        return jsonResponse(200, {
+          success: true,
+          data: { account: { availableBalance: 0, totalGranted: 5000, totalConsumed: 5000, totalExpired: 0 } },
+        });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage("at-1", {}, null);
+    expect(usage.quotas["Balance （积分）"]).toEqual({
+      used: 0,
+      total: 0,
+      remainingPercentage: 0,
+      resetAt: null,
+      unlimited: false,
+    });
+  });
+
+  it("is registered in the usage dispatch and admits api-key connections", async () => {
+    const entry = REGISTRY.find((e) => e.id === "meoo");
+    expect(entry.features?.usageApikey).toBe(true);
+    const { USAGE_APIKEY_PROVIDERS } = await import("../../src/shared/constants/providers.js");
+    expect(USAGE_APIKEY_PROVIDERS).toContain("meoo");
+
+    mockPointsOk();
+    const { getUsageForProvider } = await import("../../open-sse/services/usage.js");
+    const usage = await getUsageForProvider(
+      { provider: "meoo", accessToken: "at-dispatch", apiKey: PROJECT_AK, providerSpecificData: {} },
+      null,
+    );
+    expect(usage.plan).toBe("Meoo");
+    expect(usage.quotas["Balance （积分）"].total).toBe(5800);
+  });
+});
+
+// ─── Feature B: POST /api/usage/[connectionId]/meoo-daily-claim ─────────
+// No claim endpoint exists upstream: the route performs a login-equivalent
+// action (OAuth → forced token refresh; paste-key → identity read) and
+// verifies against the points ledger. claimed=true requires totalGranted
+// to have actually increased.
+
+describe("POST /api/usage/[connectionId]/meoo-daily-claim (feature B)", () => {
+  const controlKey = "meoo_ak_claim_test_1234567890";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const postClaim = async (connectionId) => {
+    const { POST } = await import(
+      "../../src/app/api/usage/[connectionId]/meoo-daily-claim/route.js"
+    );
+    const res = await POST(
+      new Request(`http://localhost/api/usage/${connectionId}/meoo-daily-claim`, { method: "POST" }),
+      { params: Promise.resolve({ connectionId }) },
+    );
+    return { status: res.status, body: await res.json() };
+  };
+
+  // Stateful ledger: the daily grant lands when the login-equivalent
+  // identity read happens (paste-key path), mirroring Meoo's
+  // first-login-of-the-day grant.
+  function mockClaimLedger({ grantOnIdentity = true } = {}) {
+    const ledger = { availableBalance: 3000, totalGranted: 5000, totalConsumed: 2000, totalExpired: 0 };
+    let granted = false;
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.endsWith("/account/identity")) {
+        if (grantOnIdentity && !granted) {
+          granted = true;
+          ledger.totalGranted += 2000;
+          ledger.availableBalance += 2000;
+        }
+        return jsonResponse(200, { success: true, data: { user: { id: "u-1", name: "alice" } } });
+      }
+      if (u.endsWith("/account/points")) {
+        return jsonResponse(200, { success: true, data: { account: { ...ledger } } });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    return ledger;
+  }
+
+  it("claims via the identity touch for a paste-key connection and reports the verified delta", async () => {
+    mockClaimLedger();
+    mocks.getLocalDbConnectionById.mockResolvedValue({
+      id: "conn-claim-1",
+      provider: "meoo",
+      authType: "apikey",
+      providerSpecificData: { authMethod: "api_key", meooControlKey: controlKey },
+    });
+
+    const res = await postClaim("conn-claim-1");
+    expect(res.status).toBe(200);
+    expect(res.body.claimed).toBe(true);
+    expect(res.body.delta).toBe(2000);
+    expect(res.body.balance).toBe(5000);
+    // The control key does the work but is never echoed back.
+    expect(JSON.stringify(res.body)).not.toContain(controlKey);
+    // OAuth refresh chain must not run for a paste-key connection.
+    expect(mocks.refreshAndUpdateCredentials).not.toHaveBeenCalled();
+  });
+
+  it("reports claimed=false when the ledger does not move", async () => {
+    mockClaimLedger({ grantOnIdentity: false });
+    mocks.getLocalDbConnectionById.mockResolvedValue({
+      id: "conn-claim-2",
+      provider: "meoo",
+      authType: "apikey",
+      providerSpecificData: { authMethod: "api_key", meooControlKey: controlKey },
+    });
+
+    const res = await postClaim("conn-claim-2");
+    expect(res.status).toBe(200);
+    expect(res.body.claimed).toBe(false);
+    expect(res.body.delta).toBe(0);
+    expect(res.body.balance).toBe(3000);
+    expect(res.body.message).toContain("今日可能已领取");
+  }, 20000);
+
+  it("claims via the forced OAuth refresh and re-reads with the fresh token", async () => {
+    const ledger = { availableBalance: 1000, totalGranted: 4000, totalConsumed: 3000, totalExpired: 0 };
+    const pointsAuths = [];
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.endsWith("/account/points")) {
+        pointsAuths.push(opts?.headers?.Authorization);
+        return jsonResponse(200, { success: true, data: { account: { ...ledger } } });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const oauthConn = {
+      id: "conn-claim-3",
+      provider: "meoo",
+      authType: "oauth",
+      accessToken: "at-old",
+      refreshToken: "rt-1",
+      providerSpecificData: {},
+    };
+    mocks.getLocalDbConnectionById.mockResolvedValue(oauthConn);
+    // The token exchange is the login-equivalent action: the grant lands
+    // server-side, and the route continues with the rotated pair.
+    mocks.refreshAndUpdateCredentials.mockImplementation(async (connection) => {
+      ledger.totalGranted += 2000;
+      ledger.availableBalance += 2000;
+      return { connection: { ...connection, accessToken: "at-new", refreshToken: "rt-2" }, refreshed: true };
+    });
+
+    const res = await postClaim("conn-claim-3");
+    expect(res.status).toBe(200);
+    expect(res.body.claimed).toBe(true);
+    expect(res.body.delta).toBe(2000);
+    expect(res.body.balance).toBe(3000);
+    expect(mocks.refreshAndUpdateCredentials).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshAndUpdateCredentials.mock.calls[0][1]).toBe(true); // forced
+    // Baseline read carried the old token; the verifying re-read the fresh one.
+    expect(pointsAuths[0]).toBe("Bearer at-old");
+    expect(pointsAuths[pointsAuths.length - 1]).toBe("Bearer at-new");
+  });
+
+  it("rejects non-meoo connections with 400 before any network work", async () => {
+    mocks.getLocalDbConnectionById.mockResolvedValue({
+      id: "conn-claude-1",
+      provider: "claude",
+      authType: "oauth",
+      providerSpecificData: {},
+    });
+    const res = await postClaim("conn-claude-1");
+    expect(res.status).toBe(400);
+    expect(mocks.proxyAwareFetch).not.toHaveBeenCalled();
+  });
+
+  it("404s for an unknown connection", async () => {
+    mocks.getLocalDbConnectionById.mockResolvedValue(null);
+    const res = await postClaim("conn-missing");
+    expect(res.status).toBe(404);
+    expect(mocks.proxyAwareFetch).not.toHaveBeenCalled();
+  });
+
+  it("guides a meoo connection that has no control-plane credential", async () => {
+    mocks.getLocalDbConnectionById.mockResolvedValue({
+      id: "conn-claim-4",
+      provider: "meoo",
+      authType: "apikey",
+      providerSpecificData: {},
+    });
+    const res = await postClaim("conn-claim-4");
+    expect(res.status).toBe(200);
+    expect(res.body.claimed).toBe(false);
+    expect(res.body.balance).toBeNull();
+    expect(res.body.message).toContain("控制面凭证");
+    expect(mocks.proxyAwareFetch).not.toHaveBeenCalled();
   });
 });

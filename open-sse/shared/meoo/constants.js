@@ -81,6 +81,7 @@ export const MEOO_PROJECTS_PATH = "/open/v1/cli-compat/projects";
 // resolver tries cli-compat first and falls back to these paths; which
 // namespace a given key is entitled to is not knowable in advance.
 export const MEOO_DOC_IDENTITY_PATH = "/open/v1/account/identity";
+export const MEOO_DOC_POINTS_PATH = "/open/v1/account/points";
 export const MEOO_DOC_PROJECTS_PATH = "/open/v1/projects";
 
 // The cli-compat endpoints expect the CLI's client headers (apiClient.js
