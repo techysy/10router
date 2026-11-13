@@ -30,8 +30,10 @@ describe("TraeExecutor: direct non-sandbox channel & model canonicalization", ()
     expect(isSoloAgentMode("solo-work")).toBe(true);
     expect(isSoloAgentMode("solo-agent")).toBe(true);
     expect(isSoloAgentMode("agent-task")).toBe(true);
-    expect(isSoloAgentMode("Doubao-Seed-Code")).toBe(false);
-    expect(isSoloAgentMode("doubao-seed-code")).toBe(false);
+    // #109：豆包系显式归位 SOLO 沙箱（上游 chat 通道对豆包回落云端沙箱执行）——
+    // 详细断言在 trae-109-degrade.test.js，这里只钉住直连通道不再收豆包。
+    expect(isSoloAgentMode("Doubao-Seed-Code")).toBe(true);
+    expect(isSoloAgentMode("doubao-seed-code")).toBe(true);
     expect(isSoloAgentMode("deepseek-v4.1-flash")).toBe(false);
   });
 
@@ -49,10 +51,12 @@ describe("TraeExecutor: direct non-sandbox channel & model canonicalization", ()
     });
 
     const headers = { Authorization: "test" };
-    await executor.createSessionOnBase("https://example.com", headers, "[]", "doubao-seed-code", {});
+    // #109 后豆包系归位 SOLO 沙箱（见 trae-109-degrade.test.js）——直连通道用例
+    // 改用标准直连模型验证 agent_type:chat / env:local 的会话形态。
+    await executor.createSessionOnBase("https://example.com", headers, "[]", "deepseek-v4.1-flash", {});
 
     expect(capturedBody).toBeDefined();
-    expect(capturedBody.initial_message.model_name).toBe("Doubao-Seed-Code");
+    expect(capturedBody.initial_message.model_name).toBe("DeepSeek-V4-Flash");
     expect(capturedBody.initial_message.agent_type).toBe("chat");
     expect(capturedBody.env).toBe("local");
   });
