@@ -827,25 +827,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > dots → headers (ap
 }
 `;
 
-exports[`GOLDEN buildHeaders (default executor providers) > dumate → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "nonStream": {
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-}
-`;
-
 exports[`GOLDEN buildHeaders (default executor providers) > featherless → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2490,13 +2471,6 @@ exports[`GOLDEN buildUrl (default executor providers) > dots → url (stream + n
 {
   "nonStream": "https://note3-prev-api.askdiandian.com/v1/chat/completions",
   "stream": "https://note3-prev-api.askdiandian.com/v1/chat/completions",
-}
-`;
-
-exports[`GOLDEN buildUrl (default executor providers) > dumate → url (stream + non-stream) 1`] = `
-{
-  "nonStream": "https://dumate-svc.baidu.com/gateway/apis/v1/chat/completions",
-  "stream": "https://dumate-svc.baidu.com/gateway/apis/v1/chat/completions",
 }
 `;
 

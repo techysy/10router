@@ -282,7 +282,14 @@ export async function persistRefreshedCredentials(connectionId, newCreds, option
   // rotate, so the stored one is still good and losing the write only costs a
   // redundant refresh later. A different one means the stored token is already
   // consumed upstream.
-  const current = await getProviderConnectionById(connectionId).catch(() => null);
+  // Only read the row when it is actually needed: the caller's previousRefreshToken
+  // settles `beforeToken`, and only dumate rotates its cookie (apiKey) rather than
+  // its refresh token. Reading unconditionally cost every non-dumate refresh a DB
+  // round-trip on the success-path that already had the answer in hand.
+  const needsStoredRow = previousRefreshToken === undefined || provider === "dumate";
+  const current = needsStoredRow
+    ? await getProviderConnectionById(connectionId).catch(() => null)
+    : null;
   const beforeToken =
     previousRefreshToken !== undefined
       ? previousRefreshToken
