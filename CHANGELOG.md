@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- 每日赠送积分耗尽保护覆盖单账号、账号池缩减及指定账号，最后一个账号不再绕过永久积分保护。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
