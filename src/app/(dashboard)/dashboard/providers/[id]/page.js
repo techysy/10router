@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -2121,7 +2121,31 @@ export default function ProviderDetailPage() {
       {providerInfo.notice?.text && !providerInfo.deprecated && (
         <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
           <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{translate(providerInfo.notice.text)}</p>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">
+            {(() => {
+              const full = translate(providerInfo.notice.text);
+              const link = providerInfo.notice.textLink;
+              // 描述里的产品名 → 内联链接（registry textLink）：用户读到
+              // CreditDaddy 这类名字时，下一反应就是「去哪下载」。按译文
+              // 分段拼接，词条里与原文里都含 term，两种语言都对得上。
+              if (!link?.term || !full.includes(link.term)) return full;
+              return full.split(link.term).map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-blue-400/50 underline-offset-2 transition-colors hover:decoration-blue-500"
+                    >
+                      {link.term}
+                    </a>
+                  )}
+                  {part}
+                </Fragment>
+              ));
+            })()}
+          </p>
           {providerInfo.notice.apiKeyUrl && (
             <a
               href={providerInfo.notice.apiKeyUrl}

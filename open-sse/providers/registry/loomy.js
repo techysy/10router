@@ -17,6 +17,12 @@ export default {
       // 2026-11-15 用户点名：页面上要点明 CreditDaddy 的多账号管理 + 邀请码
       // 复制/填写能力 —— 多账号是 Loomy 的主用法，不写出来用户不知道去哪管理。
       text: "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.",
+      // 描述里的产品名渲染成内联链接（最新 Release 页）—— 用户看到
+      // CreditDaddy 时下一反应就是「去哪下载」。
+      textLink: {
+        term: "CreditDaddy",
+        href: "https://github.com/techysy/CreditDaddy/releases/latest",
+      },
       apiKeyUrl: "https://loomy.xunfei.cn",
     },
   },
