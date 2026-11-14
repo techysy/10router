@@ -17,6 +17,10 @@ import {
   finish,
 } from "../../open-sse/shared/dumate/qr.js";
 import { buildQuotas, planOf, isLoginFailure } from "../../open-sse/services/usage/dumate.js";
+import { extractEarliestPackageExpiry } from "../../open-sse/services/usage/expiryExtractor.js";
+import { extractConnectionBalance } from "../../open-sse/services/usage/balanceExtractor.js";
+import { parseQuotaData } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
+import { classifyCycleRows, cycleRowLines, detailRows, joinsPackPool } from "../../src/shared/utils/quotaRows.js";
 
 describe("dumate cookie jar", () => {
   it("scopes cookies to their Domain (host or subdomain only)", () => {
@@ -194,7 +198,8 @@ describe("dumate usage (quota_overview -> 10Router quotas)", () => {
     expect(Object.keys(quotas).sort()).toEqual(
       ["订阅·Pro 套餐", "积分加油包", "邀请赠送积分·永久", "积分余额"].sort(),
     );
-    expect(quotas["订阅·Pro 套餐"]).toMatchObject({ used: 100, total: 4000, recurring: true });
+    expect(quotas["订阅·Pro 套餐"]).toMatchObject({ used: 100, total: 4000, recurring: true, giftPack: true });
+    expect(quotas["订阅·Pro 套餐"].detailOnly).toBeUndefined();
     expect(quotas["订阅·Pro 套餐"].resetAt).toBe(new Date(1799999999 * 1000).toISOString());
     // plan_point is a purchased top-up, not a gift
     expect(quotas["积分加油包"].giftPack).toBe(false);
@@ -255,6 +260,81 @@ describe("dumate usage (quota_overview -> 10Router quotas)", () => {
     const quotas = buildQuotas(dup, null);
     expect(quotas["活动赠送积分·永久"].total).toBe(10);
     expect(quotas["活动赠送积分·永久·2"].total).toBe(20);
+  });
+});
+
+describe("dumate additive subscription credits", () => {
+  function payload({ subscriptionUsed = 4000, topupUsed = 0, permanentTopup = false } = {}) {
+    const expires = Math.floor(Date.now() / 1000) + 86400;
+    return {
+      totalPoints: 5000,
+      usedPoints: subscriptionUsed + topupUsed,
+      subscription: [{ packageType: "plan_pro", status: "active", totalPoints: 4000,
+        usedPoints: subscriptionUsed, pointsExpireDate: expires }],
+      incremental: [{ packageType: "plan_point", status: "active", totalPoints: 1000,
+        usedPoints: topupUsed, pointsExpireDate: permanentTopup ? null : expires + 86400 }],
+    };
+  }
+
+  it("uses the live top-up's expiry and health after the subscription is spent", () => {
+    const quotas = buildQuotas(payload(), null);
+    expect(extractEarliestPackageExpiry({ quotas })).toMatchObject({
+      name: "积分加油包",
+      expiry: quotas["积分加油包"].resetAt,
+      shortRemainingPct: 100,
+      longRemainingPct: 100,
+      zone: "green",
+      recurringWindowCount: 0,
+    });
+    expect(extractConnectionBalance({ quotas })).toBe(1000);
+  });
+
+  it("reports no timed health when only a permanent top-up remains", () => {
+    const quotas = buildQuotas(payload({ permanentTopup: true }), null);
+    expect(extractEarliestPackageExpiry({ quotas })).toBeNull();
+    expect(extractConnectionBalance({ quotas })).toBe(1000);
+  });
+
+  it("keeps an unspent subscription eligible for expiry ordering", () => {
+    const quotas = buildQuotas(payload({ subscriptionUsed: 1000 }), null);
+    expect(extractEarliestPackageExpiry({ quotas })).toMatchObject({
+      name: "订阅·Pro 套餐",
+      expiry: quotas["订阅·Pro 套餐"].resetAt,
+      shortRemainingPct: 75,
+      zone: "green",
+    });
+    expect(extractConnectionBalance({ quotas })).toBe(4000);
+  });
+
+  it("reports zero balance and no live pack when both credits are exhausted", () => {
+    const quotas = buildQuotas(payload({ topupUsed: 1000 }), null);
+    expect(extractEarliestPackageExpiry({ quotas })).toBeNull();
+    expect(extractConnectionBalance({ quotas })).toBe(0);
+  });
+
+  it.each([0, 4000])("preserves the subscription cycle row without adding its credits to the pool twice (used=%s)", (subscriptionUsed) => {
+    const result = payload({ subscriptionUsed });
+    const rows = parseQuotaData("dumate", {
+      quotas: buildQuotas(result, { hasIssued: true, totalTimes: 1 }),
+    });
+    const balance = rows.find((row) => row.isCreditBalance);
+    const subscription = rows.find((row) => row.recurring);
+    expect(balance).toMatchObject({ used: subscriptionUsed, total: 5000, summarizesDetail: true });
+    expect(subscription).toMatchObject({ giftPack: true, total: 4000 });
+    expect(subscription.detailOnly).toBeUndefined();
+    // Keep the subscription available to the card's cycle/compact-window UI.
+    // Its non-monthly recurring row does not join the additive pool.
+    const cardRows = rows.filter((row) => !row.detailOnly);
+    expect(cardRows).toEqual([subscription, balance]);
+    expect(cycleRowLines(cardRows)).toEqual([subscription]);
+    expect(classifyCycleRows(cardRows).monthly).toEqual([]);
+    expect(joinsPackPool(subscription)).toBe(false);
+    expect(cardRows.filter(joinsPackPool)).toEqual([balance]);
+    const details = detailRows(rows);
+    expect(details).toHaveLength(2);
+    expect(details.filter((row) => row.detailOnly).map((row) => row.name)).toEqual(["积分加油包"]);
+    expect(details.reduce((sum, row) => sum + row.total, 0)).toBe(balance.total);
+    expect(details.reduce((sum, row) => sum + row.total - row.used, 0)).toBe(balance.total - balance.used);
   });
 });
 
