@@ -450,6 +450,11 @@ export default function ProviderDetailPage() {
   const authModes = providerInfo?.authModes || [];
   const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
+  // Registry can hide the dashboard-initiated OAuth login button (meoo: the
+  // upstream OAuth app only registers loopback redirect_uri, so the popup
+  // always dies with invalid_redirect_uri — login happens in CreditDaddy and
+  // syncs over, or the user pastes the control-plane key).
+  const oauthLoginHidden = providerInfo?.oauthLoginHidden === true;
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const isCodeBuddy = providerId === "codebuddy-cn";
   // Generic OAuth transfer: every provider whose registry declares an oauth
@@ -2443,7 +2448,7 @@ export default function ProviderDetailPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-text-muted">No connections yet</p>
-                  {hasDualAuthModes && (
+                  {hasDualAuthModes && !oauthLoginHidden && (
                     <p className="text-xs text-text-muted">
                       Choose {oauthConnectionLabel} or {apiKeyConnectionLabel}.
                     </p>
@@ -2453,9 +2458,11 @@ export default function ProviderDetailPage() {
               <div className="flex gap-2">
                 {hasDualAuthModes ? (
                   <>
-                    <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
-                      {oauthConnectionLabel}
-                    </Button>
+                    {!oauthLoginHidden && (
+                      <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
+                        {oauthConnectionLabel}
+                      </Button>
+                    )}
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
@@ -2593,15 +2600,17 @@ export default function ProviderDetailPage() {
                   )}
                   {hasDualAuthModes ? (
                     <>
-                      <Button
-                        size="sm"
-                        icon="lock"
-                        variant="secondary"
-                        onClick={triggerOAuthConnection}
-                        className="w-full sm:w-auto"
-                      >
-                        {oauthConnectionLabel}
-                      </Button>
+                      {!oauthLoginHidden && (
+                        <Button
+                          size="sm"
+                          icon="lock"
+                          variant="secondary"
+                          onClick={triggerOAuthConnection}
+                          className="w-full sm:w-auto"
+                        >
+                          {oauthConnectionLabel}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         icon="key"

@@ -2216,5 +2216,6 @@
   "THX-01 decision model: calibrated answers to typed questions in ~10 ms per request.": "THX-01 决策模型：对给定题型约 10 毫秒给出校准答案。",
   "About Me": "About Me",
   "Chat groups": "交流群",
-  "Meoo chat needs a project service AK — create at least one project on meoo.com (cloud services on) first. Once it exists, the AK is picked up automatically; until then chat returns 401 while balance and check-in keep working.": "Meoo 聊天需要项目服务 AK——请先在 meoo.com 创建至少一个项目（并开启云服务）。项目建好后 AK 会自动解析到位；在那之前聊天会返回 401，但积分与签到不受影响。"
+  "Meoo chat needs a project service AK — create at least one project on meoo.com (cloud services on) first. Once it exists, the AK is picked up automatically; until then chat returns 401 while balance and check-in keep working.": "Meoo 聊天需要项目服务 AK——请先在 meoo.com 创建至少一个项目（并开启云服务）。项目建好后 AK 会自动解析到位；在那之前聊天会返回 401，但积分与签到不受影响。",
+  "Native Meoo authorization": "Meoo 原生授权"
 }

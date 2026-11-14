@@ -39,6 +39,10 @@ function buildProviderEntry(r) {
     ...(r.community ? { community: true } : {}),
     ...(r.hasOAuth ? { hasOAuth: true } : {}),
     ...(r.authModes ? { authModes: r.authModes } : {}),
+    // OAuth 机制在（刷新/传输/回调），但页面上不提供「OAuth 登录」按钮 ——
+    // 上游只注册了回环 redirect_uri，仪表盘发起的授权必然
+    // invalid_redirect_uri（meoo）。登录走 CreditDaddy 同步或粘贴 Key。
+    ...(r.oauthLoginHidden ? { oauthLoginHidden: true } : {}),
     ...(r.authType ? { authType: r.authType } : {}),
     ...(r.authHint ? { authHint: r.authHint } : {}),
   };

@@ -10,6 +10,9 @@ const NATIVE_AUTH_LABELS = {
   loomy: "Native Loomy authorization",
   "minimax-code": "Native MiniMax Code authorization",
   "minimax-code-global": "Native MiniMax Code (Global) authorization",
+  // 2026-11-15 用户定版：meoo 的登录授权放 CreditDaddy（上游 OAuth 应用只
+  // 注册回环 redirect_uri，仪表盘发起必然 invalid_redirect_uri）。
+  meoo: "Native Meoo authorization",
 };
 
 /** 该 provider 的连接行是否渲染 CD Sync / Native 徽章。 */

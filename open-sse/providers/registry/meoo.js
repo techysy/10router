@@ -20,10 +20,17 @@ export default {
   category: "oauth",
   authModes: ["oauth", "apikey"],
   hasOAuth: true,
+  // Meoo's production OAuth app only registers the CLI's loopback
+  // redirect_uri — a dashboard-initiated login ALWAYS dies with
+  // invalid_redirect_uri (2026-11-14/15 真机两踩). The login therefore
+  // happens inside CreditDaddy and syncs over (creditDaddySync), or the
+  // user pastes the control-plane key. authModes keeps "oauth" so
+  // CD-pushed OAuth-token connections still refresh/transfer.
+  oauthLoginHidden: true,
   // API-key mode takes a PROJECT service AK (meoo_project_service_v1.…),
   // issued per project by the control plane — not the meoo_ak_ control key
   // and not an OAuth token (both are rejected by the gateway with 401).
-  authHint: "项目服务 AK (meoo_project_service_v1....) — 在 Meoo 项目的云服务环境中获取，或直接用 OAuth 登录自动解析",
+  authHint: "项目服务 AK (meoo_project_service_v1....) — 在 Meoo 项目的云服务环境中获取，或粘贴控制面 Key 自动解析；登录授权走 CreditDaddy 同步",
   transport: {
     baseUrl: "https://api.meoo.host/meoo-ai/compatible-mode/v1/chat/completions",
     validateUrl: "https://api.meoo.host/meoo-ai/compatible-mode/v1/models",
