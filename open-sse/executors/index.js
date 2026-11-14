@@ -35,6 +35,7 @@ import { ChatGptWebExecutor } from "./chatgpt-web.js";
 import { GeminiWebExecutor } from "./gemini-web.js";
 import { MuseWebExecutor } from "./muse-web.js";
 import { DumateExecutor } from "./dumate.js";
+import { LingxiExecutor } from "./lingxi.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
@@ -88,6 +89,8 @@ const executors = {
   gweb: new GeminiWebExecutor(),
   "muse-web": new MuseWebExecutor(),
   dumate: new DumateExecutor(),
+  lingxi: new LingxiExecutor(),
+  lx: new LingxiExecutor(), // Alias for lingxi
   mu: new MuseWebExecutor(),
 };
 
