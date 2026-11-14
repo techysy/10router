@@ -9,6 +9,10 @@ export default {
     color: "#6C5CE7",
     website: "https://meoo.com",
     notice: {
+      // 聊天 AK 按项目签发（api.meoo.host 401「项目服务 AK 格式非法」的头号
+      // 原因：账号下没有任何项目）。指引直接写在供应商页顶部提示条上，
+      // 用户不用翻日志 —— 2026-11-15 真机踩坑后用户点名要上页面。
+      text: "Meoo chat needs a project service AK — create at least one project on meoo.com (cloud services on) first. Once it exists, the AK is picked up automatically; until then chat returns 401 while balance and check-in keep working.",
       signupUrl: "https://meoo.com",
       apiKeyUrl: "https://meoo.com/?inviteCode=ycDdBjLV",
     },
