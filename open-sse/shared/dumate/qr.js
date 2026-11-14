@@ -170,7 +170,7 @@ async function runQr(s) {
     try { const p = await portrait(kept, s.proxyOptions); account = p && p.username; } catch { /* cosmetic only */ }
     s.creds = serializeCreds(kept, account);
     s.accountKey = passportKey(s.creds);
-    if (!s.connectionId && account) s.connName = `DuMate 百度搭子（${account}）`;
+    if (!s.connectionId && account) s.connName = `DuMate（${account}）`;
     s.status = "authorized";
     log("info", `QR login (http) ok for session ${s.id.slice(0, 6)} (${kept.length} cookies)`);
   } catch (e) {

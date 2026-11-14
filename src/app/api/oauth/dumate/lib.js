@@ -72,7 +72,7 @@ export async function persistDumateCredential({ creds, connectionId, connName, a
     const conn = await createProviderConnection({
       provider: "dumate",
       authType: "cookie",
-      name: connName || "DuMate 百度搭子（扫码）",
+      name: connName || "DuMate（扫码）",
       apiKey: candidateCreds,
       priority: 1,
       testStatus: "unknown",

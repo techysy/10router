@@ -84,7 +84,7 @@ export async function POST(request) {
     const r = await persistDumateCredential({
       creds,
       connectionId,
-      connName: connectionId ? undefined : `DuMate 百度搭子（${acct || "导入"}）`,
+      connName: connectionId ? undefined : `DuMate（${acct || "导入"}）`,
       accountKey,
       proxyOptions,
     });

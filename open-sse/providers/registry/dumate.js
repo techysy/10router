@@ -5,7 +5,7 @@ export default {
   aliases: ["du"],
   uiAlias: "dumate",
   display: {
-    name: "DuMate 百度搭子 (Web)",
+    name: "DuMate",
     icon: "cookie",
     color: "#2932E1",
     textIcon: "DU",
