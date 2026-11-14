@@ -161,6 +161,10 @@ function finitePointsNumber(value) {
  * totalExpired rides along). Dual-namespace like the identity fetch.
  * Fields come back as finite numbers, or null when Meoo did not send a
  * usable value — callers must not invent a balance from a missing field.
+ *
+ * data.activeGrants rides along too (2026-11-14 probe): the per-source live
+ * grant batches — each grantDetails[] entry carries its own expiresDate, so
+ * this is the only place the ledger answers "until when". Absent → [].
  */
 export async function fetchMeooPoints(credential, options = {}) {
   let data;
@@ -175,7 +179,27 @@ export async function fetchMeooPoints(credential, options = {}) {
     totalGranted: finitePointsNumber(account.totalGranted),
     totalConsumed: finitePointsNumber(account.totalConsumed),
     totalExpired: finitePointsNumber(account.totalExpired),
+    activeGrants: normalizeMeooGrants(data?.activeGrants),
   };
+}
+
+function normalizeMeooGrants(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((g) => g && typeof g === "object")
+    .map((g) => ({
+      sourceType: String(g.sourceType || ""),
+      sourceName: String(g.sourceTypeName || g.sourceType || ""),
+      totalInitial: finitePointsNumber(g.totalInitialAmount),
+      totalRemaining: finitePointsNumber(g.totalRemainingAmount),
+      batches: (Array.isArray(g.grantDetails) ? g.grantDetails : [])
+        .filter((b) => b && typeof b === "object")
+        .map((b) => ({
+          remaining: finitePointsNumber(b.remainingAmount),
+          effectiveDate: b.effectiveDate || null,
+          expiresDate: b.expiresDate || null,
+        })),
+    }));
 }
 
 function normalizeMeooProjects(data) {

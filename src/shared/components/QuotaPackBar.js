@@ -635,7 +635,9 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
               denominator (Qoder 100 / 900, the number the bar below measures).
               A settled balance WITH exactly one recurring window (dumate: 余额 +
               订阅窗) puts that window's summary here instead — its own row
-              below was the third repetition of the same two facts. */}
+              below was the third repetition of the same two facts. One whose
+              provider reports an expiring batch (meoo grants) shows the
+              nearest one here — a credit pot should answer "until when". */}
           {compactWindow ? (
             <span
               className={cn(
@@ -646,6 +648,12 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
               {fmt(compactWindow.remainingNum)}
               {"　"}
               {dateWord(isResettingRow(compactWindow), compactWindow.resetAt)}
+            </span>
+          ) : pool[0]?.expiringBatch?.resetAt ? (
+            <span className="inline-flex shrink-0 items-baseline text-[11px] leading-none tabular-nums text-text-muted">
+              {fmt(Math.max(0, Number(pool[0].expiringBatch.remaining || 0)))}
+              {" · "}
+              {dateWord(false, pool[0].expiringBatch.resetAt)}
             </span>
           ) : !poolIsSettledBalance ? (
             <span className="inline-flex shrink-0 items-baseline text-xs leading-none tabular-nums text-text-muted">

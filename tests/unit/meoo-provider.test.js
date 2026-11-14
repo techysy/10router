@@ -669,6 +669,63 @@ describe("getMeooUsage — points ledger → quota window (feature A)", () => {
     expect(auths).toEqual(["Bearer at-oauth-1"]);
   });
 
+  it("maps activeGrants into detail rows and rides the nearest expiry on the headline", async () => {
+    mocks.proxyAwareFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.endsWith("/account/points")) {
+        return jsonResponse(200, {
+          success: true,
+          data: {
+            account: { availableBalance: 12000, totalGranted: 12000, totalConsumed: 0, totalExpired: 0 },
+            activeGrants: [
+              {
+                sourceType: "SUBSCRIPTION",
+                sourceTypeName: "订阅赠送积分",
+                totalInitialAmount: 5000,
+                totalRemainingAmount: 4500,
+                grantDetails: [{ remainingAmount: 4500, effectiveDate: "2026-11-13T00:00:00", expiresDate: "2026-12-13T00:00:00" }],
+              },
+              {
+                sourceType: "DAILY_LOGIN",
+                sourceTypeName: "登录赠送积分",
+                totalInitialAmount: 2000,
+                totalRemainingAmount: 2000,
+                grantDetails: [{ remainingAmount: 2000, effectiveDate: "2026-11-13T09:39:01.333", expiresDate: "2026-11-19T23:59:59" }],
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { getMeooUsage } = await import("../../open-sse/services/usage/meoo.js");
+    const usage = await getMeooUsage("at-grants-1", {}, null);
+    // Headline stays the settled credit pot; the nearest live batch rides
+    // along as metadata, Balance.resetAt stays null (the balance never
+    // expires — batches do).
+    expect(usage.quotas["Balance （积分）"]).toMatchObject({
+      total: 12000,
+      resetAt: null,
+      unlimited: true,
+      expiringBatch: { remaining: 2000, resetAt: "2026-11-19T23:59:59" },
+    });
+    // One detailOnly row per grant source, used = initial − remaining.
+    expect(usage.quotas["订阅赠送积分"]).toEqual({
+      used: 500,
+      total: 5000,
+      resetAt: "2026-12-13T00:00:00",
+      detailOnly: true,
+      recurring: false,
+    });
+    expect(usage.quotas["登录赠送积分"]).toEqual({
+      used: 0,
+      total: 2000,
+      resetAt: "2026-11-19T23:59:59",
+      detailOnly: true,
+      recurring: false,
+    });
+  });
+
   it("falls back to the stored control key for paste-key connections", async () => {
     mockPointsOk();
     const controlKey = "meoo_ak_usage_test_1234567890";
