@@ -950,6 +950,9 @@ export function parseQuotaData(provider, data) {
               // 否则连接卡与推送卡同数据渲染出两种形态
               ...(quota.detailOnly !== undefined ? { detailOnly: quota.detailOnly === true } : {}),
               ...(quota.summarizesDetail !== undefined ? { summarizesDetail: quota.summarizesDetail === true } : {}),
+              // 储值池的最近到期批次（meoo grants）：大数右侧「2,000 · 6d后到期」
+              // 的数据源，不直通就静默消失。
+              ...(quota.expiringBatch !== undefined ? { expiringBatch: quota.expiringBatch } : {}),
               // 只读签到状态（CD#33 方案 B）：字段缺席 = 未知，不显示徽章。
               // 这里必须直通，否则推送行在白名单之后、卡面之前就丢掉了它。
               ...(quota.checkinToday !== undefined ? { checkinToday: quota.checkinToday === true } : {}),

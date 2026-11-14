@@ -81,6 +81,9 @@ export async function getMeooUsage(accessToken = null, providerSpecificData = nu
           remainingPercentage: total > 0 ? 100 : 0,
           resetAt: null,
           unlimited: total > 0,
+          // 聚合行：三笔 grant 批次合计就是它 —— 明细里再印一遍只会渲染出
+          // ∞（unlimited 行形态）或重复的 12,000。与 dumate 积分余额行同款。
+          summarizesDetail: true,
           ...(expiringBatch ? { expiringBatch } : {}),
         },
         ...grantRows,

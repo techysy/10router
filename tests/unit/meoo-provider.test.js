@@ -663,6 +663,7 @@ describe("getMeooUsage — points ledger → quota window (feature A)", () => {
         remainingPercentage: 100,
         resetAt: null,
         unlimited: true,
+        summarizesDetail: true,
       },
     });
     const auths = mocks.proxyAwareFetch.mock.calls.map((c) => c[1]?.headers?.Authorization);
@@ -800,6 +801,7 @@ describe("getMeooUsage — points ledger → quota window (feature A)", () => {
       remainingPercentage: 0,
       resetAt: null,
       unlimited: false,
+      summarizesDetail: true,
     });
   });
 
