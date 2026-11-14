@@ -137,7 +137,10 @@ function buildQuotas(result, bonus) {
     };
   }
 
-  // 余额行：isCreditBalance 让窗口汇总器跳过它，只喂 connection.quotaBalance
+  // 余额行：isCreditBalance 让窗口汇总器跳过它，只喂 connection.quotaBalance。
+  // summarizesDetail 把它排除出逐包明细——卡片大数字 + 名字行就是这一行，
+  // 明细里再列 6,010/6,010 是纯重复（2026-11-14 用户反馈），且「余额」不是包，
+  // 列在包列表里会引发「明细加总变 12,020」的歧义。
   const totalPoints = num(result.totalPoints);
   const usedPoints = num(result.usedPoints);
   quotas["积分余额"] = {
@@ -146,9 +149,12 @@ function buildQuotas(result, bonus) {
     remaining: round2(Math.max(0, totalPoints - usedPoints)),
     isCreditBalance: true,
     displayRemaining: true,
+    summarizesDetail: true,
   };
 
-  // 每日签到：前端在 checkinToday===true 且非 isCreditBalance 时渲染「今日已签到 · 连续 N 天」
+  // 每日签到：前端在 checkinToday===true 且非 isCreditBalance 时渲染「今日已签到 · 连续 N 天」。
+  // 签到是状态推送不是额度包——卡片头徽章已表达，逐包明细里只落成 0/0 红行
+  // （无信息量且误导），summarizesDetail 把它排除出明细，数据仍供徽章读取。
   if (bonus) {
     const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
     const checked = bonus.hasIssued === true || (Array.isArray(bonus.signInDays) && bonus.signInDays.includes(today));
@@ -163,6 +169,7 @@ function buildQuotas(result, bonus) {
           : 0,
       isCreditBalance: false,
       detailOnly: true,
+      summarizesDetail: true,
     };
   }
 

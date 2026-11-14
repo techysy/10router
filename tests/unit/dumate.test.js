@@ -219,6 +219,19 @@ describe("dumate usage (quota_overview -> 10Router quotas)", () => {
     expect(quotas["每日签到"]).toMatchObject({ checkinToday: true, streakDays: 7, detailOnly: true });
   });
 
+  it("keeps the balance and check-in rows out of the per-pack details (summarizesDetail)", () => {
+    const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+    const quotas = buildQuotas(quotaResult, { hasIssued: true, totalTimes: 7, signInDays: [today] });
+    // 2026-11-14 用户反馈：明细里「积分余额 6,010/6,010」与卡片大数字纯重复，
+    // 「每日签到 0/0」红行无信息量（徽章已表达）。两行都排除出逐包明细。
+    expect(quotas["积分余额"].summarizesDetail).toBe(true);
+    expect(quotas["每日签到"].summarizesDetail).toBe(true);
+    // 明细（detailRows 语义）只剩订阅 + 赠送包
+    const detailList = Object.entries(quotas)
+      .filter(([, q]) => q.summarizesDetail !== true && q.detailOnly === true);
+    expect(detailList.map(([n]) => n).sort()).toEqual(["积分加油包", "邀请赠送积分·永久"]);
+  });
+
   it("prefers the boolean hasIssued over the signInDays list", () => {
     const quotas = buildQuotas(quotaResult, { hasIssued: false, totalTimes: 0, signInDays: [] });
     expect(quotas["每日签到"].checkinToday).toBe(false);
