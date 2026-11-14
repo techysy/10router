@@ -62,6 +62,14 @@ describe("daily grant exhaustion is independent of account count", () => {
     expect(connections[0].isActive).toBe(false);
   });
 
+  it("waits for a funded sibling's short model cooldown before midnight", async () => {
+    connections = [account("empty", 0), account("cooling", 4000, { modelLock_model: new Date(Date.now() + 60000).toISOString() })];
+    const result = await getProviderCredentials("loomy", null, "model");
+    expect(result.allRateLimited).toBe(true);
+    expect(Date.parse(result.retryAfter)).toBeLessThan(nextMidnightMs());
+    expect(Date.parse(result.retryAfter)).toBeGreaterThan(Date.now());
+  });
+
   it("preserves forward-only relay handoff after removing spent candidates", async () => {
     connections = [
       account("head", 1000, { priority: 1 }),

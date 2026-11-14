@@ -124,13 +124,30 @@ export function nextMidnightMs(now = Date.now()) {
   return d.getTime();
 }
 
-function dailyGrantUnavailable() {
-  const midnight = new Date(nextMidnightMs()).toISOString();
+function dailyGrantUnavailable(connections = [], model = null, excluded = new Set()) {
+  const now = Date.now();
+  const midnight = nextMidnightMs(now);
+  let retryAt = midnight;
+  // A funded sibling may simply be cooling down. Wait for all of that
+  // account's applicable locks, then choose the first account that can recover.
+  // The daily reset is only the fallback when no sibling recovers sooner.
+  for (const c of connections) {
+    if (c.isActive === false || excluded.has(c.id)) continue;
+    if (Number.isFinite(c.dailyGrantRemaining) && c.dailyGrantRemaining <= 0) continue;
+    const key = model ? `modelLock_${model}` : MODEL_LOCK_ALL;
+    const expiries = [c[key], c[MODEL_LOCK_ALL], isNeedsReauthCooling(c) ? c.needsReauthUntil : null]
+      .filter(Boolean).map((value) => new Date(value).getTime())
+      .filter((time) => Number.isFinite(time) && time > now);
+    if (expiries.length) retryAt = Math.min(retryAt, Math.max(...expiries));
+  }
+  const retryAfter = new Date(retryAt).toISOString();
   return {
     allRateLimited: true,
-    retryAfter: midnight,
-    retryAfterHuman: formatRetryAfter(midnight),
-    lastError: "All daily grants drained (daily-grant-first policy)",
+    retryAfter,
+    retryAfterHuman: formatRetryAfter(retryAfter),
+    lastError: retryAt < midnight
+      ? "Available daily-grant accounts are cooling down"
+      : "All daily grants drained (daily-grant-first policy)",
     lastErrorCode: 429,
   };
 }
@@ -643,7 +660,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       }
       const drainedIds = new Set(drained.map((c) => c.id));
       orderedConnections = orderedConnections.filter((c) => !drainedIds.has(c.id));
-      if (orderedConnections.length === 0) return dailyGrantUnavailable();
+      if (orderedConnections.length === 0) return dailyGrantUnavailable(connections, model, excludeSet);
     }
 
     let connection;
