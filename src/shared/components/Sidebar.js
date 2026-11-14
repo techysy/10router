@@ -37,10 +37,9 @@ const debugItems = [
 ];
 
 // External community entries (anchor, not router Link). Same for every
-// install; kept out of HeaderMenu (was: aggregate menu) since 2026-10 —
-// they read better as a sidebar section of their own.
-// 2026-11-12：GitHub 改指作者主页，补 About Me（个人站）。项目主页 /
-// 提交 Issue 归右上角聚合菜单（HeaderMenu，用户拍板——带 i18n）。
+// install. 2026-10: moved out of HeaderMenu into a sidebar section of their
+// own; 2026-11-14 (user): the 7-row stack took too much sidebar height —
+// collapsed into one accordion row below, same pattern as Media Providers.
 const communityLinks = [
   { label: "Feishu¹", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=629nc6fd-1ce9-4822-8242-239f87f471c3&qr_code=true" },
   { label: "Feishu²", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5" },
@@ -59,6 +58,7 @@ const systemItems = [
 export default function Sidebar({ onClose }) {
   const pathname = usePathname();
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [staleBuild, setStaleBuild] = useState(null);
@@ -402,27 +402,39 @@ export default function Sidebar({ onClose }) {
               </span>
               <span className="text-sm font-medium">Settings</span>
             </Link>
-            {/* Community — external links, anchor tags (new tab) */}
-            <div className="pt-3 mt-2 space-y-0.5">
-              <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
-                {translate("Community")}
-              </p>
-              {communityLinks.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={onClose}
-                  className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
-                >
-                  <span className="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">
-                    {item.icon}
-                  </span>
-                  <span className="text-sm font-medium">{translate(item.label)}</span>
-                </a>
-              ))}
-            </div>
+            {/* Community — external links (anchor tags, new tab) collapsed into
+                one accordion row; expands in place like Media Providers. */}
+            <button
+              onClick={() => setCommunityOpen((v) => !v)}
+              className="w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
+            >
+              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
+                groups
+              </span>
+              <span className="text-sm font-medium flex-1 text-left">{translate("Community")}</span>
+              <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: communityOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                expand_more
+              </span>
+            </button>
+            {communityOpen && (
+              <div className="pl-4">
+                {communityLinks.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
+                  >
+                    <span className="material-symbols-outlined text-[16px] group-hover:text-primary transition-colors">
+                      {item.icon}
+                    </span>
+                    <span className="text-sm">{translate(item.label)}</span>
+                  </a>
+                ))}
+              </div>
+            )}
 
           </div>
         </nav>
