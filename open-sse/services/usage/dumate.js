@@ -115,6 +115,9 @@ function buildQuotas(result, bonus) {
       total: total(pack),
       resetAt: expIso(pack.pointsExpireDate ?? pack.expireDate),
       recurring: true,
+      // A recurring credit grant, not a throughput window: once spent, it must
+      // stop driving expiry/health while incremental credits remain usable.
+      giftPack: true,
     };
   }
 

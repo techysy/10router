@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- DuMate 订阅积分标记为可相加额度，订阅耗尽后仍有加油包余额的账号不再被误判为限流窗口耗尽。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
