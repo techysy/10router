@@ -31,9 +31,27 @@ export function hashApiKey(key) {
   return crypto.createHash("sha256").update(key.trim()).digest("hex");
 }
 
-// Everything the usage log stores about a key, derived from the raw value.
-export function apiKeyIdentity(key) {
-  return { apiKeyMasked: maskApiKey(key), apiKeyHash: hashApiKey(key) };
+// Usage backups carry a digest plus a display mask; older backups carry the
+// plaintext key. Resolve once so dedup, history and daily stats use one identity.
+export function apiKeyIdentity(key, suppliedHash) {
+  const rawKey = typeof key === "string" ? key.trim() : "";
+  let apiKeyHash = null;
+  if (suppliedHash != null && suppliedHash !== "") {
+    if (typeof suppliedHash !== "string" || !/^[a-f0-9]{64}$/i.test(suppliedHash.trim())) {
+      throw new Error("Invalid usage apiKeyHash: expected a SHA-256 hex digest");
+    }
+    apiKeyHash = suppliedHash.trim().toLowerCase();
+    if (rawKey && !isMaskedApiKey(rawKey) && apiKeyHash !== hashApiKey(rawKey)) {
+      throw new Error("Usage apiKeyHash does not match the plaintext apiKey");
+    }
+  } else if (isMaskedApiKey(rawKey)) {
+    // A display mask cannot recover the original key's identity. Hashing it
+    // would invent a different key and corrupt deduplication/name lookup.
+    throw new Error("Masked usage apiKey requires apiKeyHash");
+  } else if (rawKey) {
+    apiKeyHash = hashApiKey(rawKey);
+  }
+  return { apiKeyMasked: isMaskedApiKey(rawKey) ? rawKey : maskApiKey(rawKey), apiKeyHash };
 }
 
 // True when a stored value is already masked (legacy `sk-496f00***` or the
