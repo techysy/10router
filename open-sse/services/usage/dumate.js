@@ -129,6 +129,11 @@ function buildQuotas(result, bonus) {
       resetAt: expIso(pack.pointsExpireDate ?? pack.expireDate),
       recurring: false,
       giftPack: pack.packageType !== "plan_point",
+      // 增量包（赠送/加油包）只是「积分余额」的构成明细：totalPoints 已包含
+      // 它们，卡片级再入池会与余额行双计（2026-11-13 用户截图：顶部 7,020 =
+      // 余额 6,010 + 赠送包 1,010，同一个积分数了两遍）。降为 detailOnly 后
+      // 卡片级只剩「订阅窗口 + 积分余额」两行，逐包明细仍完整列出。
+      detailOnly: true,
     };
   }
 

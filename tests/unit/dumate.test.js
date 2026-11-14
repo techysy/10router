@@ -182,6 +182,17 @@ describe("dumate usage (quota_overview -> 10Router quotas)", () => {
     expect(quotas["积分余额"]).toMatchObject({ used: 120, total: 5000, remaining: 4880, isCreditBalance: true });
   });
 
+  it("keeps incremental packs out of the card pool (detailOnly) — totalPoints already includes them", () => {
+    const quotas = buildQuotas(quotaResult, null);
+    // 双计修复（2026-11-13 用户截图：卡片把赠送包与余额相加成 7,020，而
+    // totalPoints 5,000 本身已含它们）——增量包只留在逐包明细。
+    expect(quotas["积分加油包"].detailOnly).toBe(true);
+    expect(quotas["邀请赠送积分·永久"].detailOnly).toBe(true);
+    // 卡片级（非 detailOnly）只剩订阅窗口 + 余额两行
+    const cardRows = Object.entries(quotas).filter(([, q]) => q.detailOnly !== true);
+    expect(cardRows.map(([n]) => n)).toEqual(["订阅·Pro 套餐", "积分余额"]);
+  });
+
   it("renders the daily check-in chip from loginBonusInfo", () => {
     const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
     const quotas = buildQuotas(quotaResult, { hasIssued: true, totalTimes: 7, signInDays: [today] });
