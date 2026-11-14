@@ -64,6 +64,10 @@ export function stripContinuityFields(body) {
 }
 
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onCredentialsRefreshFailed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking }) {
+  // Preprocessing and translators mutate nested messages, tool results and
+  // media blocks. Each attempt owns its body so a failed model/account cannot
+  // strip input from the next fallback (or another parallel fusion attempt).
+  body = structuredClone(body);
   const { provider, model } = modelInfo;
   // Executors and credential helpers (e.g. qoderModels.js) branch on
   // credentials.provider to pick the right upstream deployment (cn vs global).
