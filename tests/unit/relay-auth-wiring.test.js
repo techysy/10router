@@ -44,6 +44,9 @@ vi.mock("@/sse/utils/logger.js", () => ({ debug: vi.fn(), info: vi.fn(), warn: v
 vi.mock("open-sse/services/usage.js", () => ({ getUsageForProvider: mocks.getUsageForProvider }));
 
 import { getProviderCredentials } from "../../src/sse/services/auth.js";
+import { buildQuotas } from "../../open-sse/services/usage/dumate.js";
+import { extractEarliestPackageExpiry } from "../../open-sse/services/usage/expiryExtractor.js";
+import { extractConnectionBalance } from "../../open-sse/services/usage/balanceExtractor.js";
 
 const inDays = (d) => new Date(Date.now() + d * 86400000).toISOString();
 
@@ -74,6 +77,37 @@ describe("getProviderCredentials — relay carrier under 到期优先调度", ()
     // carrier stamp persisted so the next request sees b as the carrier
     const stamp = mocks.updateProviderConnection.mock.calls.find(([id, patch]) => id === "b" && patch.lastUsedAt);
     expect(stamp).toBeTruthy();
+  });
+
+  it.each([false, true])("keeps a Dumate carrier with a spent subscription and usable top-up (permanent=%s)", async (permanent) => {
+    const expires = Math.floor(Date.now() / 1000) + 86400;
+    const quotas = buildQuotas({
+      totalPoints: 5000,
+      usedPoints: 4000,
+      subscription: [{ packageType: "plan_pro", status: "active", totalPoints: 4000,
+        usedPoints: 4000, pointsExpireDate: expires }],
+      incremental: [{ packageType: "plan_point", status: "active", totalPoints: 1000,
+        usedPoints: 0, pointsExpireDate: permanent ? null : expires + 86400 }],
+    }, null);
+    const health = extractEarliestPackageExpiry({ quotas });
+    const checkedAt = new Date().toISOString();
+    const conns = [
+      { id: "dumate-funded", provider: "dumate", priority: 1, apiKey: "offline-fixture",
+        quotaCheckedAt: checkedAt, lastUsedAt: checkedAt,
+        earliestPackageExpiry: health?.expiry ?? null,
+        shortWindowRemaining: health?.shortRemainingPct ?? null,
+        longWindowRemaining: health?.longRemainingPct ?? null,
+        quotaZone: health?.zone ?? null, quotaBalance: extractConnectionBalance({ quotas }) },
+      { id: "dumate-other", provider: "dumate", priority: 2, quotaCheckedAt: checkedAt,
+        earliestPackageExpiry: inDays(3), shortWindowRemaining: 100, quotaZone: "green" },
+    ];
+    mocks.getProviderConnections.mockResolvedValue(conns);
+    mocks.getSettings.mockResolvedValue({
+      providerStrategies: { dumate: { earliestExpiryFirst: true } },
+    });
+
+    expect(conns[0].quotaBalance).toBe(1000);
+    expect((await getProviderCredentials("dumate")).connectionId).toBe("dumate-funded");
   });
 
   it("steps FORWARD around the ring when the carrier crosses the red zone", async () => {

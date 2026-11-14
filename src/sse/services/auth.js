@@ -124,6 +124,34 @@ export function nextMidnightMs(now = Date.now()) {
   return d.getTime();
 }
 
+function dailyGrantUnavailable(connections = [], model = null, excluded = new Set()) {
+  const now = Date.now();
+  const midnight = nextMidnightMs(now);
+  let retryAt = midnight;
+  // A funded sibling may simply be cooling down. Wait for all of that
+  // account's applicable locks, then choose the first account that can recover.
+  // The daily reset is only the fallback when no sibling recovers sooner.
+  for (const c of connections) {
+    if (c.isActive === false || excluded.has(c.id)) continue;
+    if (Number.isFinite(c.dailyGrantRemaining) && c.dailyGrantRemaining <= 0) continue;
+    const key = model ? `modelLock_${model}` : MODEL_LOCK_ALL;
+    const expiries = [c[key], c[MODEL_LOCK_ALL], isNeedsReauthCooling(c) ? c.needsReauthUntil : null]
+      .filter(Boolean).map((value) => new Date(value).getTime())
+      .filter((time) => Number.isFinite(time) && time > now);
+    if (expiries.length) retryAt = Math.min(retryAt, Math.max(...expiries));
+  }
+  const retryAfter = new Date(retryAt).toISOString();
+  return {
+    allRateLimited: true,
+    retryAfter,
+    retryAfterHuman: formatRetryAfter(retryAfter),
+    lastError: retryAt < midnight
+      ? "Available daily-grant accounts are cooling down"
+      : "All daily grants drained (daily-grant-first policy)",
+    lastErrorCode: 429,
+  };
+}
+
 /**
  * Start delay for one background quota refresh, by queue position. The first
  * scheduled connection fires immediately; each subsequent one is pushed out so
@@ -375,6 +403,15 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
 
     if (connections.length === 0) {
+      // A pool disabled by the daily-grant guard is temporarily spent, not
+      // missing credentials. Keep reporting its retry time on later requests.
+      const settings = await getSettings();
+      if (settings.providerStrategies?.[providerId]?.dailyGrantFirst === true) {
+        const allConnections = await getProviderConnections({ provider: providerId });
+        if (allConnections.some((c) => c.dailyGrantAutoDisabled === true)) {
+          return dailyGrantUnavailable();
+        }
+      }
       log.warn("AUTH", `No credentials for ${provider}`);
       return null;
     }
@@ -482,7 +519,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // info, not debug: this is the one path that silently skips the refresh,
       // and a stale family column on the row is exactly what it causes.
       log.info("AUTH", `${providerId} | channel blocked (${Math.ceil(channelBlockLeftMs / 1000)}s left) — skipping quota refresh`);
-    } else if ((earliestExpiryFirst || dailyGrantFirst) && availableConnections.length > 1) {
+    } else if (dailyGrantFirst || (earliestExpiryFirst && availableConnections.length > 1)) {
       // 两个快照驱动型调度都要新鲜的配额数据：新登录的账号没有持久化的
       // dailyGrantRemaining/earliestPackageExpiry，不触发背景刷新就永远
       // 落在 priority 组（#Loomy-daily-first 实测：新号 5000/5000 不参与排序）。
@@ -607,11 +644,26 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // 排序只决定环形优先级，选择必须走 relay —— 否则每次请求按「每日剩余最多」
     // 重排，负载被平摊到所有账号（雨露均沾），每个账号的每日 5000 都烧一半剩一半。
     // 正解 = 单点烧穿：锁住当前账号直到它的每日赠送积分烧到 0，才沿环形 step 到
-    // 下一个有每日余量的账号；全部耗尽才落回永久积分组。健康谓词与百分比红区
+    // 下一个有每日余量的账号；全部耗尽则暂停至次日。健康谓词与百分比红区
     // 无关 —— Loomy 没有 percent 窗口，「烧完」的判定就是 dailyGrantRemaining <= 0。
     // 健康数据缺失（第一次请求、快照未落）视为健康 —— 绝不因缺数据预切换，
     // 上游 429/锁定仍是兜底。
-    const dailyRelayActive = dailyGrantFirst && poolConnections.length > 1;
+    const dailyRelayActive = dailyGrantFirst;
+    const dailyRelayRing = orderedConnections;
+    if (dailyRelayActive) {
+      // Exhaustion is an eligibility rule, independent of pool size or the
+      // preferred-account pin. Never let the last account spend permanent
+      // credits after all its daily points are gone.
+      const drained = orderedConnections.filter((c) =>
+        Number.isFinite(c.dailyGrantRemaining) && c.dailyGrantRemaining <= 0);
+      for (const c of drained) {
+        await updateProviderConnection(c.id, { isActive: false, dailyGrantAutoDisabled: true });
+        log.info("AUTH", `${provider} | drained account ${c.id?.slice(0, 8)} auto-disabled — reopens at midnight reset`);
+      }
+      const drainedIds = new Set(drained.map((c) => c.id));
+      orderedConnections = orderedConnections.filter((c) => !drainedIds.has(c.id));
+      if (orderedConnections.length === 0) return dailyGrantUnavailable(connections, model, excludeSet);
+    }
 
     let connection;
     // Set once a strategy branch has already emitted its own quota line, so the
@@ -628,7 +680,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
     if (connection) {
       // skip strategy
-    } else if (earliestExpiryFirst && orderedConnections.length > 1) {
+    } else if (earliestExpiryFirst && !dailyRelayActive && orderedConnections.length > 1) {
       // Distinct scheduling philosophy per provider type:
       //
       // 1. Pack Asset Providers (CodeBuddy CN/Intl, Qoder CN/Global):
@@ -675,55 +727,20 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // forward along the dailyGrantFirst ring order. The relay derives "who is
       // carrying" from lastUsedAt — same stateless mechanism as earliest-expiry.
       //
-      // 烧尽即关闭（2026-11-12 用户拍板）：每日赠送是 use-it-or-lose-it，
-      // 烧完后该连接当天不再服务 —— 永久积分不是兜底，是月末资产。烧尽的号
-      // isActive:false 自动关闭（卡片开关视觉可见），0 点由 dailyGrantReset
-      // 调度器统一重开并重置快照。relay 返回烧尽的号 = 全环烧尽 → 当日无可用号。
-      const relay = selectRelayCarrier(orderedConnections, {
-        healthOf: (c) => {
-          const d = typeof c.dailyGrantRemaining === "number" ? c.dailyGrantRemaining : null;
-          return d === null || d > 0; // unknown ⇒ healthy, never pre-switch on missing data
-        },
-      });
-      if (relay && (typeof relay.connection.dailyGrantRemaining !== "number" || relay.connection.dailyGrantRemaining > 0)) {
-        const prevCarrier = relay.stepped ? mostRecentUsedCarrier(orderedConnections, relay.connection) : null;
-        connection = relay.connection;
-        log.info(
-          "AUTH",
-          `${zoneMarker(connection)} ${provider} | daily ${typeof connection.dailyGrantRemaining === "number" ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"}${relay.stepped ? ` | daily grant drained → relay handoff from ${prevCarrier?.id?.slice(0, 8) ?? "?"} (drained account disabled)` : " | single-account burn"}`
-        );
-        quotaLogged = true;
-        // Persist the carrier stamp — relay derives "who is carrying" from
-        // lastUsedAt, the same field round-robin maintains.
-        await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
-        // Handoff 顺手关掉刚烧尽的上一环：isActive=false 让卡片开关与真实可用
-        // 状态一致，防止手动轮换/其他调度路径再把烧尽的号捡回来。
-        // dailyGrantAutoDisabled 是本系统的关闭戳 —— midnight reset 调度器只
-        // 重开带这个戳的号，用户手动关的（无戳）绝不会被它复活。
-        if (relay.stepped && prevCarrier && typeof prevCarrier.dailyGrantRemaining === "number" && prevCarrier.dailyGrantRemaining <= 0) {
-          await updateProviderConnection(prevCarrier.id, { isActive: false, dailyGrantAutoDisabled: true });
-          log.info("AUTH", `${provider} | drained carrier ${prevCarrier.id?.slice(0, 8)} auto-disabled (daily 0/${prevCarrier.dailyGrantTotal ?? "?"}) — reopens at midnight reset`);
-        }
-      } else {
-        // 全环每日额度烧尽（或 relay 不可用）。把所有带快照且烧尽的号关掉，
-        // 然后返回当日限流（重试时间=次日 0 点）—— 永久积分不接客。
-        // allRateLimited 形状让 chat.js 走 503 + retry-after 路径而不是 404。
-        const drained = poolConnections.filter((c) => typeof c.dailyGrantRemaining === "number" && c.dailyGrantRemaining <= 0 && c.isActive !== false);
-        for (const c of drained) {
-          await updateProviderConnection(c.id, { isActive: false, dailyGrantAutoDisabled: true });
-        }
-        if (drained.length > 0) {
-          log.info("AUTH", `${provider} | all daily grants drained (${drained.length} accounts auto-disabled) — reopens at midnight reset; permanent points NOT used (daily-grant-first policy)`);
-        }
-        const midnight = nextMidnightMs();
-        return {
-          allRateLimited: true,
-          retryAfter: midnight,
-          retryAfterHuman: formatRetryAfter(midnight),
-          lastError: "All daily grants drained (daily-grant-first policy)",
-          lastErrorCode: 429,
-        };
-      }
+      // The exhaustion guard above already removed spent accounts, including
+      // a single remaining account. Relay only chooses among eligible carriers.
+      // Preserve the original ring for forward-only handoff; spent accounts
+      // remain ring positions but can no longer be selected.
+      const eligibleIds = new Set(orderedConnections.map((c) => c.id));
+      const relay = selectRelayCarrier(dailyRelayRing, { healthOf: (c) => eligibleIds.has(c.id) });
+      connection = relay.connection;
+      log.info(
+        "AUTH",
+        `${zoneMarker(connection)} ${provider} | daily ${Number.isFinite(connection.dailyGrantRemaining) ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"} | single-account burn`
+      );
+      quotaLogged = true;
+      // Persist the carrier stamp so subsequent requests keep using this account.
+      await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
