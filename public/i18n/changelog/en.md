@@ -2,6 +2,31 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## v1.8.0 (unreleased)
+
+### ✨ New
+
+- **Meoo provider line (new)**: connect via OAuth or by pasting a control-plane key; the per-project service AK resolves itself and self-heals. The quota card shows the full points ledger — balance plus **per-batch expiry** (subscription / daily-login / invite grants each carry their own expiry; daily grants roll on a 6-day window). The Experimental page adds an auto daily-claim toggle (login-equivalent action + ledger delta verdict), model rows carry price-tendency badges (cheap / moderate / pricey / premium, matching the official picker), and the connection test walks the whole chain (control plane → project AK → gateway), telling you exactly how to fix a missing project.
+- **DuMate provider line (new)**: web-cookie sign-in with QR-code login (no spawned browser). The quota card speaks the credit-pool language — subscription window folded beside the balance headline, top-up packs itemised, check-in state off the body. Pack hide-preferences now use a stable composite key so expiring / reordered packs no longer inherit each other's visibility. Display name finalised as "DuMate".
+- **Gemini Decision 1 provider** (#110): System One decision models answering with calibrated probabilities; model and connection tests speak the dedicated dialect (`input` field + `x-goog-api-key`), fake keys no longer pass validation.
+- **Channel-level privacy redaction rules** (#117): beyond the default key / PEM / JWT / credential-assignment scans, opt-in rules now cover emails, database connection strings (credentials embedded in `postgresql://user:pass@host` URLs), private-range IPs (RFC1918 + CGNAT — Tailscale's 100.64/10 included) and CN mobile numbers. The edit dialog gained a rules JSON editor (invalid JSON blocks saving), and toggling the switch no longer wipes configured rules.
+- **CreditDaddy integration deepened**: Meoo sign-in now happens in CreditDaddy (the dashboard's doomed OAuth entry is gone; CD sync + pasted keys remain), account transfer accepts control-key rows (CD-pushed connections are identical to pasted ones), and the Loomy page links CreditDaddy's latest download.
+- **Daily-grant-first scheduling completed**: drained accounts auto-disable and reopen at midnight; exhaustion protection now covers the LAST account — pinned accounts, single-account pools and shrunken pools can no longer burn permanent credits; when a funded sibling is merely cooling down, the retry time follows its lock instead of midnight.
+- **Model picker readability**: human-readable model names on the combos page; compatible nodes expose their live model catalog in the picker.
+- **Community navigation tidy-up**: sidebar community links fold into a single accordion row; Feishu group ² entry; project home / issue filing moved to the top-right menu; the Loomy page explains the CreditDaddy workflow and invite-code support.
+
+### 🐛 Fixed
+
+- **Responses lost content at completion**: reasoning / text / tool calls previously collided on one output_index (upstreams typically emit everything on choice 0), so `response.completed` overwrote earlier items — output positions are now allocated independently in announcement order; Responses-namespace tools expand correctly for Chat upstreams.
+- **Multi-account fallback pollution**: a failed attempt's preprocessing (media stripping for text models, RTK compression) mutated the shared request body, so a vision fallback received truncated input — every attempt now owns its body.
+- **Combined cooldown judgement**: a requested model's unlock time is the LATER of its model lock and the account-wide lock — stale model-lock fields no longer hide a live account lock (GitHub monthly quota).
+- **Usage imports keep the original key identity**: masked keys in backups were re-hashed into a non-existent identity — re-imports neither deduplicated (double counting) nor attributed named keys; digests are now used as-is and masks refuse to derive.
+- **Backup restore keeps combo disabled models**: `disabledModels` survive restore (legacy backups compatible).
+- **DuMate quota card**: incremental-pack double counting fixed; the authoritative balance bar survives an incomplete breakdown; a spent subscription no longer flags accounts with usable top-ups as rate-limited.
+- **fnOS management panel (#97)**: root cause of the frequent panel log crashes (sync throws inside async callbacks escalating to process death) + crash self-healing; scheduled auto-update hardened; overview and update merged into one page; logs now read panel events.
+- **Trae**: FlashX 4001 downgrade handling, Doubao SOLO session re-homing, browser login preflight no longer kills the callback proxy.
+- **Misc**: media-page card dragging no longer hijacked by links; zh-CN/zh-TW dictionary gaps scanned to zero (22 + 129 entries).
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ New

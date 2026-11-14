@@ -2,6 +2,32 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## v1.8.0 (未发布)
+
+### ✨ 新增
+
+- **Meoo 秒悟产品线（全新供应商，multi-account ready）**：OAuth（CLI 同款 PKCE 客户端）与粘贴控制面 Key 双通道接入；项目服务 AK 自动解析 + 失效自愈（refresh 链路重解析 + refresh-ak 手动补取），账号缺项目时供应商页提示条直接给出修法。积分账户完整呈现——余额大数 + `activeGrants` 批次有效期（订阅 / 登录赠送 / 邀请奖励逐包 `expiresDate`，批次级而非聚合级）；实验性页新增「每日自动领积分」开关（`meooCheckin` 调度器：2h tick + 10min 抖动、按日 doneMap、登录等价动作 + `totalGranted` 增量核验，无领取端点的现实下这是唯一正确姿势）；模型行价格倾向徽章（便宜 / 适中 / 较贵 / 超贵三颗点，官网逐一比对）；连接测试 `testMeooConnection` 走通「控制面 → 项目 AK → 网关」全链路（选模型时 1-token 真实探针）。贡献起点：monkey2jack #111（邀请链接 / 官方图标）。
+- **DuMate 百度搭子产品线（全新供应商，web-cookie）**：扫码登录全链路不拉起浏览器（getqrcode → unicast 长轮询 → qrbdusslogin → quickLogin，`isBaiduUrl` SSRF 白名单）；配额卡按积分池语言呈现——订阅窗折叠进余额大数右侧、加油包逐包明细、签到行不占正文；额度包可见性稳定键（kind/packageType/source/总额/有效期 组合，包过期重排不丢隐藏偏好）；显示名定版「DuMate」。贡献：Duseus #113（配额卡 / 官方图标 / 可读模型名）+ #116（cookie 续期与登录持久化加固）。
+- **Gemini Decision 1 供应商**（#110）：System One 决策模型；模型测试与连接测试走 Gemini Decision 专用方言（`input` 字段 + `x-goog-api-key`），System One probe 400 读 body——Google 假 key 不再误放行；AI Studio 官方 logo。
+- **渠道级隐私脱敏规则**（#117 收尾）：`privacy.rules` 透传至 `createRedactionContext`（引擎 `{...DEFAULT_RULES, ...rules}` 早已支持，渠道配置此前静默无效）；四类 opt-in 规则进 `SECRET_PATTERNS` 统一门控——email(MAIL) / connectionStrings(PWD，补 ASSIGNMENT_RE 抓不到的 URL 内嵌凭据) / privateRanges(IPS，RFC1918+CGNAT 含 100.64/10) / cnMobile(TEL，边界断言排时间戳)；编辑弹窗内置规则 JSON 编辑器（校验失败阻断保存），保存不再写死布尔抹掉已配置规则。
+- **CreditDaddy 协同深化**：Meoo 登录授权放 CreditDaddy 完成——上游 OAuth 应用只注册回环 redirect_uri，仪表盘发起必然 invalid_redirect_uri，`oauthLoginHidden` 旗标撤下登录按钮（authModes 保留 oauth，CD 推送凭证照常刷新/传输）；账户传输 `importAccounts` 接收控制面 Key 行（`psd.meooControlKey`，去重以 Key 优先），CD 推送行与手动粘贴行同构；Loomy 供应商页 notice.text + 内联 `textLink`（CreditDaddy 最新版下载）。
+- **每日赠送优先调度完整落地（四连 + 收尾）**：偏好回显修复、烧尽自动关闭（`dailyGrantAutoDisabled` 戳）、0 点 `dailyGrantReset` 调度器自动重开（只重开带戳的号）；烧尽保护改为资格规则——覆盖最后一个账号（钉住 / 单账号 / 池缩减不再绕过），有余额兄弟账号的生效锁参与重试时间；relay 接力语义保留。
+- **模型选择器可读性**：组合页模型名人类可读化；兼容节点 live 目录进选择器。
+- **社区导航收纳**：侧边栏社区入口折叠成单行手风琴（8 行折 1 行）；飞书群²入口；项目主页 / 提交 Issue 归右上角聚合菜单（HeaderMenu）。
+
+### 🐛 修复
+
+- **Responses 终态丢内容（#119 学习合并 + #115）**：choice index 与 tool-call index 是两个命名空间且典型上游全走 choice 0——`response.completed` 按 output_index 装配时互相覆盖。现在按宣告顺序分配独立输出位（reasoning / message / function_call 各自映射），所有 delta/done/终态引用同一对 index/id，id-only 调用先补 added 再完成兜底项；Responses 命名空间工具（`{type:"namespace"}`）对 Chat 上游 flatMap 展开，`_customToolNames` 以 Set 判定。
+- **多账号尝试隔离（#120 学习合并）**：预处理与翻译器原地改写嵌套结构（文本模型剥图、RTK、工具结果压缩），fallback/fusion 共享 body 的嵌套引用会被污染——`stripContinuityFields` 入口 `structuredClone`，每次尝试独立请求体，调用方原始请求不再被改写。
+- **调度锁合并判定（#121 学习合并）**：`getModelLockUntil` 取模型锁与 `modelLock___all` 的更晚失效时间——过期模型字段（惰性清理残留）不再遮蔽有效账号锁（GitHub 月度限额）；重试时间按所请求模型计算。
+- **用量导入保留原始 key 身份（#123 学习合并）**：备份打码 key 重新 hash 会造出不存在的身份（重导不去重 = 重复计数，命名 key 统计归属断线）——`apiKeyIdentity(key, suppliedHash)` 统一解析：摘要校验后直用、打码值拒绝派生、旧明文兼容；批次先验后写；SQLite 读取兼容无 `apiKeyHash` 列的旧库。
+- **备份恢复保留组合禁用状态（#118 学习合并）**：exportDb/importDb 补 `disabledModels` 列，旧备份缺字段持久化为空数组。
+- **DuMate 配额卡三连（#124/#125/#126 学习合并）**：增量包 `detailOnly` 修复双计；订阅行 `giftPack`（烧完后不再驱动到期/健康判定）；`completeQuotaBreakdown` 双和校验（明细不完整时保留权威余额条，status/汇总行剔除，fail-closed）；额度包可见性稳定键（过期重排不丢隐藏偏好，模糊旧键退役）；余额与签到行退出逐包明细。
+- **每日赠送烧尽保护覆盖最后一个账号（#122 学习合并）**：耗尽保护从「relay 仅多账号池激活」改为资格规则——钉住 / 单账号 / 池缩减不再绕过去烧永久积分；`dailyGrantUnavailable` 按兄弟账号生效锁计算最早恢复点，无可恢复才落到次日。
+- **fnOS 管理面板（#97）**：面板日志频繁崩溃根因修复（async 回调同步抛错 → Node unhandledRejection 进程级崩溃；URL parse 移出 try + `.catch()` 包裹 + 崩溃自愈）；定时自动更新健壮化（孤儿 update GC、outcome 记账、开机补跑）；总览与更新合并为单页（EXDEV 跨卷重命名修复、版本缓存）；日志改读面板自身事件、孤儿标签清理、生命周期状态对齐。
+- **Trae**：FlashX 4001 降级处理、豆包 SOLO 归位（#109）、浏览器登录裸 GET 预检不再误杀回调代理。
+- **杂项**：媒体页 DraggableCard 抑制 anchor 拖拽劫持；System One core 输入字段按 authHeader 推导；follow 上游 v0.5.119 四项（CLI 版本自动跟随 / qoder enable:false / gemini-4 计价 / engines 下限）；简繁字典全量扫描清零（translate 字面量 22 条 + TW 镜像 129 条）。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
