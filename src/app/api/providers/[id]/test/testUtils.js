@@ -10,6 +10,7 @@ import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js"
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { fetchMeooPoints, resolveMeooProjectAk, getMeooControlKey } from "open-sse/services/meooAk.js";
 import { QODER_USERINFO_URL, QODER_CN_USERINFO_URL } from "open-sse/shared/qoder/constants.js";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
 import {
@@ -531,6 +532,89 @@ function isTokenExpired(connection) {
 // appear as their own key in the raw /model/list catalog — for these, a
 // non-empty catalog IS the availability check.
 const QODER_VIRTUAL_MODELS = new Set(["auto", "efficient"]);
+
+/**
+ * Meoo: the FULL two-stage chain, because a healthy ledger alone lies —
+ * the control-plane credential (OAuth token or pasted meoo_ak_ key) reads
+ * balance/check-in fine while every chat 401s "项目服务 AK 格式非法"
+ * when the account has no project (2026-11-14/15 真机两踩). The test walks
+ * control plane → project AK → gateway:
+ *   1. points ledger proves the control-plane credential;
+ *   2. resolveMeooProjectAk proves a project exists with cloud services on
+ *      (its MEOO_NO_PROJECT / MEOO_CLOUD_NOT_ENABLED messages ARE the fix);
+ *   3. a selected model sends a 1-token chat through the gateway (points
+ *      cost ≈ nothing; same trade oxion makes) — without one, a GET /models
+ *      with the fresh AK proves the gateway accepts it.
+ */
+async function testMeooConnection(connection, effectiveProxy = null, options = {}) {
+  const psd = connection.providerSpecificData || {};
+  const credential =
+    (typeof connection.accessToken === "string" && connection.accessToken.trim()) ||
+    getMeooControlKey({ providerSpecificData: psd });
+  if (!credential) {
+    return { valid: false, error: "No Meoo control-plane credential (OAuth token or meoo_ak_ key)", refreshed: false };
+  }
+
+  let account;
+  try {
+    account = await fetchMeooPoints(credential, { proxyOptions: effectiveProxy });
+  } catch (err) {
+    return { valid: false, error: `Meoo control plane: ${err.message}`, refreshed: false };
+  }
+  if (!account || typeof account.availableBalance !== "number") {
+    return { valid: false, error: "Meoo control plane returned no points account", refreshed: false };
+  }
+
+  let projectAk;
+  try {
+    projectAk = await resolveMeooProjectAk(credential, {
+      projectUrlId: psd.projectUrlId || "",
+      proxyOptions: effectiveProxy,
+    });
+  } catch (err) {
+    // MEOO_NO_PROJECT / MEOO_CLOUD_NOT_ENABLED messages read as instructions —
+    // surface them verbatim; serverTranslate carries the zh pair.
+    return { valid: false, error: err.message || "Meoo project service AK could not be resolved", refreshed: false };
+  }
+
+  const gatewayUrl = PROVIDERS["meoo"]?.transport?.baseUrl;
+  if (!gatewayUrl) return { valid: true, error: "Gateway URL missing; control plane + project AK verified", refreshed: false };
+
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${projectAk}` };
+  let res;
+  try {
+    if (options.model) {
+      const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
+      const model = stripThinkingSuffix(getModelUpstreamId(connection.provider, options.model));
+      res = await fetchWithConnectionProxy(gatewayUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+      }, effectiveProxy);
+    } else {
+      const modelsUrl = gatewayUrl.replace(/\/chat\/completions$/, "") + "/models";
+      res = await fetchWithConnectionProxy(modelsUrl, { headers }, effectiveProxy);
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      error: "Endpoint unreachable — the provider may be under maintenance, try again later",
+      maintenance: true,
+    };
+  }
+
+  if (res.status === 401 || res.status === 403) return { valid: false, error: "Invalid project service AK" };
+  if (res.status === 429) return { valid: true, error: "Model rate-limited (quota exhausted)" };
+  const bodyText = await res.text().catch(() => "");
+  if (!res.ok) {
+    return {
+      valid: false,
+      error: parseProviderErrorMessage(bodyText, `API returned ${res.status}`),
+      maintenance: res.status >= 500,
+    };
+  }
+  return { valid: true, error: null };
+}
 
 async function testQoderConnection(connection, effectiveProxy = null, options = {}) {
   const { model } = options;
@@ -1584,7 +1668,14 @@ export async function testSingleConnection(id, options = {}) {
   // sk- key → /models, session cookie → Preview model — lives in the apikey
   // path's provider switch. Route xiaomi-mimo there regardless of authType,
   // otherwise the Test button reports "Provider test not supported".
-  if (isKeyLike || connection.provider === "xiaomi-mimo" || connection.provider === "mimo-desktop") {
+  // Meoo routes here regardless of authType: the paste-key import stores
+  // authType "oauth" (line ~101 of import-apikey), but its probe is the
+  // two-stage chain in testMeooConnection, not OAUTH_TEST_CONFIG — which has
+  // no meoo entry and answered "Provider test not supported" for healthy
+  // accounts (2026-11-15 user report).
+  if (connection.provider === "meoo") {
+    result = await testMeooConnection(connection, effectiveProxy, options);
+  } else if (isKeyLike || connection.provider === "xiaomi-mimo" || connection.provider === "mimo-desktop") {
     result = await testApiKeyConnection(connection, effectiveProxy, options);
   } else {
     result = await testOAuthConnection(connection, effectiveProxy, options);

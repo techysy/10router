@@ -32,19 +32,19 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1h, same as the Qoder/Kiro catalogs
 
 // Attested gateway ids + specs (context / max output / vision).
 export const MEOO_STATIC_MODEL_SPECS = {
-  "qwen3.8-flash": { name: "Qwen3.8-Flash", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
-  "qwen3.8-max": { name: "Qwen3.8-Max", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
-  "qwen3.7-max": { name: "Qwen3.7-Max", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false },
-  "qwen3.7-plus": { name: "Qwen3.7-Plus", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
+  "qwen3.8-flash": { name: "Qwen3.8-Flash", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true, priceTier: "cheap" },
+  "qwen3.8-max": { name: "Qwen3.8-Max", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true, priceTier: "premium" },
+  "qwen3.7-max": { name: "Qwen3.7-Max", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false, priceTier: "pricey" },
+  "qwen3.7-plus": { name: "Qwen3.7-Plus", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true, priceTier: "cheap" },
   // The pricing page spells this model "Qwen4-Max-Preview", but the gateway
   // only accepts the all-lowercase id (the capitalized form gets a 400 —
   // verified live 2026-11-13); context/output follow the Qwen-Max pattern.
-  "qwen4-max-preview": { name: "Qwen4-Max-Preview", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true },
-  "deepseek-v4.1-flash-1017": { name: "DeepSeek V4.1 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: true },
-  "deepseek-v4-pro-0813": { name: "DeepSeek V4 Pro", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false },
-  "deepseek-v4-flash-0731": { name: "DeepSeek V4 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false },
-  "glm-5.2-fast-preview": { name: "GLM-5.2-Fast", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false },
-  "glm-5.2": { name: "GLM-5.2", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false },
+  "qwen4-max-preview": { name: "Qwen4-Max-Preview", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: true, priceTier: "premium" },
+  "deepseek-v4.1-flash-1017": { name: "DeepSeek V4.1 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: true, priceTier: "cheap" },
+  "deepseek-v4-pro-0813": { name: "DeepSeek V4 Pro", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false, priceTier: "moderate" },
+  "deepseek-v4-flash-0731": { name: "DeepSeek V4 Flash", contextLength: 1_000_000, maxOutputTokens: 393_216, isVL: false, priceTier: "cheap" },
+  "glm-5.2-fast-preview": { name: "GLM-5.2-Fast", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false, priceTier: "premium" },
+  "glm-5.2": { name: "GLM-5.2", contextLength: 1_000_000, maxOutputTokens: 131_072, isVL: false, priceTier: "pricey" },
 };
 
 const UNKNOWN_MODEL_SPEC = { contextLength: 200_000, maxOutputTokens: 65_536, isVL: false };
@@ -86,6 +86,7 @@ function normalizeModels(body) {
       contextLength: spec.contextLength,
       maxOutputTokens: spec.maxOutputTokens,
       isVL: spec.isVL,
+      priceTier: spec.priceTier,
     });
   }
   return models;

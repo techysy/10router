@@ -4,7 +4,7 @@ export default {
   alias: "meoo",
   uiAlias: "meoo",
   display: {
-    name: "Meoo 秒悟",
+    name: "Meoo",
     icon: "auto_awesome",
     color: "#6C5CE7",
     website: "https://meoo.com",
@@ -51,16 +51,18 @@ export default {
   },
   passthroughModels: true,
   models: [
-    { id: "qwen3.8-max", name: "Qwen3.8-Max" },
-    { id: "qwen3.8-flash", name: "Qwen3.8-Flash" },
-    { id: "qwen4-max-preview", name: "Qwen4-Max-Preview" },
-    { id: "qwen3.7-max", name: "Qwen3.7-Max" },
-    { id: "qwen3.7-plus", name: "Qwen3.7-Plus" },
-    { id: "deepseek-v4.1-flash-1017", name: "DeepSeek V4.1 Flash" },
-    { id: "deepseek-v4-pro-0813", name: "DeepSeek V4 Pro" },
-    { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash" },
-    { id: "glm-5.2", name: "GLM-5.2" },
-    { id: "glm-5.2-fast-preview", name: "GLM-5.2-Fast" },
+    // priceTier: Meoo 官方模型选择器的价格倾向分级（便宜/适中/较贵/超贵），
+    // 2026-11-15 官网逐一比对；官方未展示的模型不标（诚实缺省）。
+    { id: "qwen3.8-max", name: "Qwen3.8-Max", priceTier: "premium" },
+    { id: "qwen3.8-flash", name: "Qwen3.8-Flash", priceTier: "cheap" },
+    { id: "qwen4-max-preview", name: "Qwen4-Max-Preview", priceTier: "premium" },
+    { id: "qwen3.7-max", name: "Qwen3.7-Max", priceTier: "pricey" },
+    { id: "qwen3.7-plus", name: "Qwen3.7-Plus", priceTier: "cheap" },
+    { id: "deepseek-v4.1-flash-1017", name: "DeepSeek V4.1 Flash", priceTier: "cheap" },
+    { id: "deepseek-v4-pro-0813", name: "DeepSeek V4 Pro", priceTier: "moderate" },
+    { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash", priceTier: "cheap" },
+    { id: "glm-5.2", name: "GLM-5.2", priceTier: "pricey" },
+    { id: "glm-5.2-fast-preview", name: "GLM-5.2-Fast", priceTier: "premium" },
   ],
   oauth: {
     // Public OAuth client shipped inside the official CLI

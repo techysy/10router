@@ -6,6 +6,39 @@ import { isPromoFree } from "@/shared/utils/promoFree";
 import { isNightFreeHour } from "@/shared/utils/nightFree";
 import { offPeakStatus, promotionText } from "@/shared/utils/offPeak";
 import { translate, getCurrentLocale } from "@/i18n/runtime";
+import { cn } from "@/shared/utils/cn";
+
+// Meoo 的价格倾向徽章（2026-11-15 官网同款形态）：三颗点，紫点数
+// 0→3 对应 便宜 → 适中 → 较贵 → 超贵；官方未标注的模型不带此字段。
+const PRICE_TIER_BADGES = {
+  cheap: { label: "Cheap", fill: 0 },
+  moderate: { label: "Moderate", fill: 1 },
+  pricey: { label: "Pricey", fill: 2 },
+  premium: { label: "Premium", fill: 3 },
+};
+
+function PriceTierBadge({ tier }) {
+  const spec = PRICE_TIER_BADGES[tier];
+  if (!spec) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1" title={translate(spec.label)}>
+      <span className="flex items-center gap-[2px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={cn("size-[5px] rounded-full", i < spec.fill ? "bg-primary" : "bg-text-muted/25")}
+            aria-hidden="true"
+          />
+        ))}
+      </span>
+      <span className="whitespace-nowrap text-[9px] text-text-muted">{translate(spec.label)}</span>
+    </span>
+  );
+}
+
+PriceTierBadge.propTypes = {
+  tier: PropTypes.oneOf(["cheap", "moderate", "pricey", "premium"]),
+};
 
 // Local hour, re-evaluated every minute so a row crosses the night boundary
 // live without a remount.
@@ -338,6 +371,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <code className="max-w-[72vw] truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px]">{displayModel}</code>
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
+            <PriceTierBadge tier={model.priceTier} />
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
             {/* Paid-tier model (registry `paidTier`): the credit page lists it
                 behind a subscription lock, so whether it answers depends on the

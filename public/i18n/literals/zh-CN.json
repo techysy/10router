@@ -2217,5 +2217,13 @@
   "About Me": "About Me",
   "Chat groups": "交流群",
   "Meoo chat needs a project service AK — create at least one project on meoo.com (cloud services on) first. Once it exists, the AK is picked up automatically; until then chat returns 401 while balance and check-in keep working.": "Meoo 聊天需要项目服务 AK——请先在 meoo.com 创建至少一个项目（并开启云服务）。项目建好后 AK 会自动解析到位；在那之前聊天会返回 401，但积分与签到不受影响。",
-  "Native Meoo authorization": "Meoo 原生授权"
+  "Native Meoo authorization": "Meoo 原生授权",
+  "Cheap": "便宜",
+  "Moderate": "适中",
+  "Pricey": "较贵",
+  "Premium": "超贵",
+  "No Meoo control-plane credential (OAuth token or meoo_ak_ key)": "缺少 Meoo 控制面凭证（OAuth 令牌或 meoo_ak_ 密钥）",
+  "Meoo control plane returned no points account": "Meoo 控制面未返回积分账户数据",
+  "Invalid project service AK": "项目服务 AK 无效",
+  "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 账号还没有项目：先在 meoo.com 创建一个（并开启云服务），AK 会自动解析到位"
 }
