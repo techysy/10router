@@ -509,6 +509,12 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   // aggregate line rather than a QuotaRow, so it has to re-derive the unit
   // QuotaRow would otherwise read for itself.
   const poolUnit = poolIsSettledBalance ? quotaUnitOf(pool[0]?.name) : "";
+  // 订阅窗折叠（2026-11-14 用户）：储值余额池 + 恰好一个滚动窗时，窗摘要并入
+  // 大数右侧小字（「5,000　6d 3h后重置」），不再单独占一行 —— 正文只剩聚合条
+  // 与逐包明细。多窗、或池本身不是储值余额（Qoder 家族等）维持原行：信息密度
+  // 不允许折叠。
+  const compactWindow =
+    poolIsSettledBalance && cycleLines.length === 1 ? cycleLines[0] : null;
 
   // 原生包名展示修正：合集池「资源包」→「资源包 Credits」。
   const displayPackName = (name) => (name === "资源包" ? "资源包 Credits" : name);
@@ -626,12 +632,26 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
           {/* A settled balance has no denominator worth printing — `14.95 / 14.95`
               just reprinted the big number beside it. Everything else keeps it:
               a summing family (CodeBuddy's packs) and a single pool with a real
-              denominator (Qoder 100 / 900, the number the bar below measures). */}
-          {!poolIsSettledBalance && (
+              denominator (Qoder 100 / 900, the number the bar below measures).
+              A settled balance WITH exactly one recurring window (dumate: 余额 +
+              订阅窗) puts that window's summary here instead — its own row
+              below was the third repetition of the same two facts. */}
+          {compactWindow ? (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-baseline text-[11px] leading-none tabular-nums",
+                TONE_TEXT[meterTone(compactWindow, percentOf(compactWindow))],
+              )}
+            >
+              {fmt(compactWindow.remainingNum)}
+              {"　"}
+              {dateWord(isResettingRow(compactWindow), compactWindow.resetAt)}
+            </span>
+          ) : !poolIsSettledBalance ? (
             <span className="inline-flex shrink-0 items-baseline text-xs leading-none tabular-nums text-text-muted">
               {fmt(poolRemaining)} / {fmt(poolTotal)}
             </span>
-          )}
+          ) : null}
         </div>
       )}
       {/* Additive pool bar: family packs + monthly (月度并入聚合，不单独成行).
@@ -759,8 +779,10 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
           render as their own plain bars below it — nothing may vanish. */}
       {ladder.length > 0 && <NestedCycleTrack ladder={ladder} />}
       {/* A family's windows (antigravity "Gemini Models · 5h Window") read as
-          one caption + a row per window, not the family name on every line. */}
-      {groupRowsByFamily(cycleLines).map((group, gi) =>
+          one caption + a row per window, not the family name on every line.
+          compactWindow skips its single window here — it already lives beside
+          the big number above. */}
+      {(compactWindow ? [] : groupRowsByFamily(cycleLines)).map((group, gi) =>
         group.family ? (
           <div key={`${group.family}-${gi}`} className="min-w-0 space-y-1.5">
             <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
