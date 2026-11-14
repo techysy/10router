@@ -30,9 +30,10 @@ export const PARTIAL_PLACEHOLDER_RE =
 export const MAX_TAIL_HOLD = MAX_PLACEHOLDER_LEN - 1;
 
 // Rule defaults. Conservative by design: every rule that adds false positives
-// in coding-agent traffic (entropy, IP literals) is opt-in, because a wrong
-// redaction is lossless on the way back but still burns upstream prompt cache
-// and can confuse the model.
+// in coding-agent traffic (entropy, IP literals, emails, phone numbers) is
+// opt-in per channel (providerSpecificData.privacy.rules — issue #117),
+// because a wrong redaction is lossless on the way back but still burns
+// upstream prompt cache and can confuse the model.
 export const DEFAULT_RULES = {
   apiKeyPatterns: true,        // sk- / ghp_ / github_pat_ / AKIA / AIza / xox / glpat
   privateKeys: true,           // PEM blocks
@@ -40,6 +41,10 @@ export const DEFAULT_RULES = {
   credentialAssignments: true, // token: "…" / password = … / Authorization: Bearer …
   entropyDetection: false,     // opt-in
   ipv4: false,                 // opt-in
+  email: false,                // opt-in
+  connectionStrings: false,    // opt-in
+  privateRanges: false,        // opt-in
+  cnMobile: false,             // opt-in
   customKeywords: [],          // exact-match literals (codenames, internal domains)
 };
 
@@ -55,6 +60,30 @@ export const ENTROPY_THRESHOLD = 4.3;
 export const MAX_SCAN_STR_LEN = 2_000_000;
 export const MAX_SCANNED_STRINGS = 5000;
 export const MAX_WALK_DEPTH = 24;
+
+// ── Opt-in extras (channel privacy.rules, issue #117) ───────────────────────
+// Each rides the standard SECRET_PATTERNS gate (rules[id] decides), so overlap
+// resolution and the placeholder map apply unchanged. Lookbehind/lookahead
+// guards keep timestamps, version strings and long digit runs out.
+
+// Email addresses — leaks cross-locate with context under weak trust.
+export const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+
+// DB connection strings with embedded credentials (postgres/mysql/mongo/redis/
+// amqp/mssql). ASSIGNMENT_RE cannot catch these — the URL shape hides the
+// secret inside an otherwise-innocent host URL.
+export const CONNECTION_STRING_RE = /(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?|mssql):\/\/[^\s:@/]+:[^\s@]+@[^\s"']+/g;
+
+// RFC1918 + CGNAT (100.64/10) reserved ranges only — far fewer false hits than
+// the full ipv4 literal rule (versions, semver-ish runs); Tailscale users get
+// the 100.64-127 range directly.
+export const PRIVATE_RANGE_RE = /(?<!\d)(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3})(?!\d)/g;
+
+// CN mobile numbers. Boundary guards: no 10-digit epoch timestamps, no mid-hit
+// inside 13-digit millisecond stamps. Residual risk: 11-digit QQ/order numbers
+// starting 13-19 (accepted; 座机 deliberately excluded — area-code variants
+// collide with dates/order ids far more often).
+export const CN_MOBILE_RE = /(?<!\d)(?:\+?86)?1[3-9]\d{9}(?!\d)/g;
 
 // Outbound detection packs. Order matters only for overlap resolution, which
 // prefers the earliest-start / longest match (PEM swallows assignments, an
@@ -75,6 +104,12 @@ export const SECRET_PATTERNS = [
     type: "KEY",
     re: /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{16,})/g,
   },
+  // Issue #117 opt-in extras — all default OFF (see DEFAULT_RULES). Labels are
+  // stats-only: the placeholder itself always carries the canonical KEY type.
+  { id: "email", type: "MAIL", re: EMAIL_RE },
+  { id: "connectionStrings", type: "PWD", re: CONNECTION_STRING_RE },
+  { id: "privateRanges", type: "IPS", re: PRIVATE_RANGE_RE },
+  { id: "cnMobile", type: "TEL", re: CN_MOBILE_RE },
 ];
 
 // key[:=] value assignment shapes; capture group 2 is the secret value.

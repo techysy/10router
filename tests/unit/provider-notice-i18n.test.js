@@ -33,7 +33,8 @@ describe("Provider Notice i18n", () => {
       resolve(rootDir, "src/app/(dashboard)/dashboard/providers/[id]/page.js"),
       "utf8",
     );
-    expect(pageSource).toContain("{translate(providerInfo.notice.text)}");
+    // textLink（内联产品名链接）按译文分段，translate 仍作用于整条文本。
+    expect(pageSource).toContain("translate(providerInfo.notice.text)");
     expect(pageSource).toContain('{translate("Get API Key →")}');
   });
 

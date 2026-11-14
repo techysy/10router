@@ -28,7 +28,14 @@ export async function mountPrivacyRedaction(body, credentials, onError = null) {
   let privacyCtx = null;
   if (!privacyEnabledFor(credentials)) return { body, privacyCtx };
   try {
-    privacyCtx = createRedactionContext({ salt: await resolvePrivacySalt() });
+    privacyCtx = createRedactionContext({
+      salt: await resolvePrivacySalt(),
+      // Channel-level rule overrides (issue #117): the engine merges them over
+      // DEFAULT_RULES, so a channel can opt in to email / connectionStrings /
+      // privateRanges / cnMobile / customKeywords per trust tier. Boolean
+      // privacy shapes carry no rules key — backward compatible.
+      rules: credentials?.providerSpecificData?.privacy?.rules,
+    });
     const clone = structuredClone(body);
     scanBody(clone, privacyCtx);
     if (privacyCtx.stats.redacted > 0) {

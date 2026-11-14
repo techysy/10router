@@ -283,3 +283,80 @@ describe("mainline wiring pins (mount points and ordering)", () => {
     expect(sj).toContain('from "../../privacy/streamRestorer.js"');
   });
 });
+
+// ── Channel-level rules passthrough + opt-in extras (issue #117) ────────────
+describe("privacy.rules — channel-level overrides reach the engine (#117)", () => {
+  it("mounts with rules from providerSpecificData.privacy.rules (not just the salt)", async () => {
+    const credentials = {
+      providerSpecificData: {
+        privacy: { enabled: true, rules: { email: true, cnMobile: true } },
+      },
+    };
+    const body = {
+      messages: [
+        { role: "user", content: "contact me at dev@example-corp.com or 13812345678" },
+      ],
+    };
+    const { body: redacted, privacyCtx } = await mountPrivacyRedaction(structuredClone(body), credentials);
+    expect(privacyCtx).toBeTruthy();
+    expect(redacted.messages[0].content).not.toContain("dev@example-corp.com");
+    expect(redacted.messages[0].content).not.toContain("13812345678");
+    expect(privacyCtx.stats.byType.MAIL).toBe(1);
+    expect(privacyCtx.stats.byType.TEL).toBe(1);
+    // The restore leg round-trips both.
+    expect(restoreBody(redacted, privacyCtx.map)).toEqual(body);
+  });
+
+  it("without rules the new extras stay off (conservative default)", async () => {
+    const credentials = { providerSpecificData: { privacy: { enabled: true } } };
+    const body = { messages: [{ role: "user", content: "mail dev@example-corp.com, ip 192.168.1.9, tel 13812345678" }] };
+    const { body: redacted, privacyCtx } = await mountPrivacyRedaction(structuredClone(body), credentials);
+    // Nothing redacted → ctx comes back null (the mount's documented contract).
+    expect(privacyCtx).toBeNull();
+    expect(redacted.messages[0].content).toContain("dev@example-corp.com");
+    expect(redacted.messages[0].content).toContain("192.168.1.9");
+  });
+
+  it("connectionStrings rule catches credentials embedded in DB URLs", async () => {
+    const { createRedactionContext, scanText } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { connectionStrings: true } });
+    const out = scanText("connect with postgresql://admin:s3cr3t-pw@db.internal:5432/app", c);
+    expect(out).not.toContain("s3cr3t-pw");
+    expect(c.stats.byType.PWD).toBe(1);
+  });
+
+  it("privateRanges covers RFC1918 + CGNAT but not public IPs or outside-172 ranges", async () => {
+    const { createRedactionContext, scanText } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { privateRanges: true } });
+    const out = scanText("server at 10.0.0.5, 192.168.3.4 and 100.101.1.2", c);
+    expect(out).not.toContain("10.0.0.5");
+    expect(out).not.toContain("192.168.3.4");
+    expect(out).not.toContain("100.101.1.2");
+    // Public IPs and ranges outside 172.16-31 stay put. Version-shaped
+    // strings that match the private pattern (10.0.0.55) DO redact — greedy
+    // octets absorb trailing digits; that false-positive class is exactly
+    // why the rule is opt-in (same tradeoff as ipv4).
+    const c2 = createRedactionContext({ salt: SALT, rules: { privateRanges: true } });
+    const keep = "public 8.8.8.8 and 172.33.1.9";
+    expect(scanText(keep, c2)).toBe(keep);
+  });
+
+  it("scanBody redacts each opt-in family exactly once per occurrence", async () => {
+    const { createRedactionContext, scanBody } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { email: true, privateRanges: true } });
+    scanBody({ a: "x@a.com", b: "172.20.1.9" }, c);
+    expect(c.stats.byType.MAIL).toBe(1);
+    expect(c.stats.byType.IPS).toBe(1);
+  });
+
+  it("the edit modal preserves privacy.rules across toggle saves (source pin)", () => {
+    const src = read("src/shared/components/EditConnectionModal.js");
+    expect(src).toContain("privacyRulesText");
+    // enabled with rules → object form; disabled with rules → {enabled:false, rules}
+    expect(src).toContain("enabled: true, rules: privacyRules");
+    expect(src).toContain("enabled: false, rules: privacyRules");
+    // The bare boolean write is gone (both branches carry rule-aware shapes).
+    expect(src).toContain("? (privacyRules ? { enabled: true, rules: privacyRules } : true)");
+    expect(src).toContain(": (privacyRules ? { enabled: false, rules: privacyRules } : false)");
+  });
+});

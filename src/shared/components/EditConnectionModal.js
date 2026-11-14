@@ -32,6 +32,10 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const [validationResult, setValidationResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [privacyEnabled, setPrivacyEnabled] = useState(false);
+  // 渠道级规则覆盖（issue #117）：toggle 保存时不得抹掉 psd.privacy.rules ——
+  // 旧实现写死 privacy: 布尔，配置过的规则会被静默清空。文本态按 JSON 编辑。
+  const [privacyRulesText, setPrivacyRulesText] = useState("");
+  const [privacyError, setPrivacyError] = useState("");
 
   useEffect(() => {
     if (connection) {
@@ -53,9 +57,16 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         setCloudflareData({ accountId: connection.providerSpecificData.accountId || "" });
       }
       // Privacy opt-in (issue #90 phase 3): same truth table as the engine's
-      // privacyEnabledFor — true | {enabled:true} count as on.
+      // privacyEnabledFor — true | {enabled:true} count as on. Rules ride the
+      // object form and must round-trip the edit session untouched.
       const psd = connection.providerSpecificData || {};
       setPrivacyEnabled(psd.privacy === true || psd.privacy?.enabled === true);
+      setPrivacyRulesText(
+        psd.privacy && typeof psd.privacy === "object" && psd.privacy.rules
+          ? JSON.stringify(psd.privacy.rules, null, 2)
+          : "",
+      );
+      setPrivacyError("");
       // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
@@ -205,10 +216,27 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
 
       // Privacy opt-in (issue #90 phase 3): sent as a partial patch — the PUT
       // route deep-merges providerSpecificData, so other stored keys (phone,
-      // credentialSource, proxyPoolId…) survive the roundtrip.
+      // credentialSource, proxyPoolId…) survive the roundtrip. Rules JSON is
+      // validated BEFORE any write, and the object form is written whenever
+      // rules exist — writing a bare `privacy: false` over a configured object
+      // would wipe them in the merge (disable → save → re-enable = rules gone).
+      let privacyRules = null;
+      if (privacyRulesText.trim()) {
+        try {
+          const parsed = JSON.parse(privacyRulesText);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+          privacyRules = parsed;
+        } catch (err) {
+          setPrivacyError(`Privacy rules JSON invalid: ${err.message}`);
+          setSaving(false);
+          return;
+        }
+      }
       updates.providerSpecificData = {
         ...(updates.providerSpecificData || {}),
-        privacy: privacyEnabled,
+        privacy: privacyEnabled
+          ? (privacyRules ? { enabled: true, rules: privacyRules } : true)
+          : (privacyRules ? { enabled: false, rules: privacyRules } : false),
       };
 
       await onSave(updates);
@@ -340,10 +368,31 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         <div className="bg-sidebar/50 p-3 rounded-lg border border-accent/10">
           <Toggle
             checked={privacyEnabled}
-            onChange={setPrivacyEnabled}
+            onChange={(v) => { setPrivacyEnabled(v); setPrivacyError(""); }}
             label={translate("Privacy redaction (experimental)")}
             description={translate("Redact API keys and secrets in the outbound request body, restore them in the model response. Enable only for untrusted upstreams.")}
           />
+          {privacyEnabled && (
+            <div className="mt-2 flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-text-muted">
+                {translate("Extra rules (JSON, opt-in)")}
+              </label>
+              <textarea
+                value={privacyRulesText}
+                onChange={(e) => { setPrivacyRulesText(e.target.value); setPrivacyError(""); }}
+                rows={5}
+                spellCheck={false}
+                placeholder={'{\n  "email": true,\n  "connectionStrings": true,\n  "privateRanges": true,\n  "cnMobile": true,\n  "customKeywords": ["代号", "内网域名"]\n}'}
+                className="w-full rounded-lg border border-border bg-bg px-2 py-1.5 font-mono text-[11px] text-text outline-none transition-colors focus:border-primary/50"
+              />
+              <p className="text-[10px] leading-relaxed text-text-muted/80">
+                {translate("Opt-in rules on top of the default key/PEM/JWT scans: email, connectionStrings, privateRanges, cnMobile (booleans) and customKeywords (exact literals). Invalid JSON blocks saving; disabling the toggle keeps the rules.")}
+              </p>
+              {privacyError && (
+                <p className="text-[11px] text-red-500">{privacyError}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {!isCompatible && !isAzure && !isCloudflareAi && (
