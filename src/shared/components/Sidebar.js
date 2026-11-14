@@ -37,14 +37,18 @@ const debugItems = [
 ];
 
 // External community entries (anchor, not router Link). Same for every
-// install. 2026-10: moved out of HeaderMenu into a sidebar section of their
-// own; 2026-11-14 (user): the 7-row stack took too much sidebar height —
-// collapsed into one accordion row below, same pattern as Media Providers.
-const communityLinks = [
+// install. 2026-11-14 (user): only the chat-group entries (Feishu¹/²,
+// Discord, Telegram) collapse into one accordion row — the social-platform
+// links (X / GitHub / About Me) stay as direct rows, labels intentionally
+// English (no i18n for platform names).
+const chatGroupLinks = [
   { label: "Feishu¹", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=629nc6fd-1ce9-4822-8242-239f87f471c3&qr_code=true" },
   { label: "Feishu²", icon: "groups", href: "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5" },
   { label: "Discord", icon: "forum", href: "https://discord.gg/zDWT6YKav" },
   { label: "Telegram", icon: "send", href: "https://t.me/techysy" },
+];
+
+const socialLinks = [
   { label: "X", icon: "alternate_email", href: "https://x.com/techysy_ai" },
   { label: "GitHub", icon: "code", href: "https://github.com/techysy" },
   { label: "About Me", icon: "info", href: "https://shiyangyu.com/about/" },
@@ -402,39 +406,61 @@ export default function Sidebar({ onClose }) {
               </span>
               <span className="text-sm font-medium">Settings</span>
             </Link>
-            {/* Community — external links (anchor tags, new tab) collapsed into
-                one accordion row; expands in place like Media Providers. */}
-            <button
-              onClick={() => setCommunityOpen((v) => !v)}
-              className="w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
-            >
-              <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
-                groups
-              </span>
-              <span className="text-sm font-medium flex-1 text-left">{translate("Community")}</span>
-              <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: communityOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                expand_more
-              </span>
-            </button>
-            {communityOpen && (
-              <div className="pl-4">
-                {communityLinks.map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={onClose}
-                    className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  >
-                    <span className="material-symbols-outlined text-[16px] group-hover:text-primary transition-colors">
-                      {item.icon}
-                    </span>
-                    <span className="text-sm">{translate(item.label)}</span>
-                  </a>
-                ))}
-              </div>
-            )}
+            {/* Community — section title stays; only the chat-group entries
+                collapse into one accordion row beneath it (2026-11-14 user),
+                social-platform links remain direct rows. All external,
+                anchor tags (new tab). */}
+            <div className="pt-3 mt-2 space-y-0.5">
+              <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
+                {translate("Community")}
+              </p>
+              <button
+                onClick={() => setCommunityOpen((v) => !v)}
+                className="w-full flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
+              >
+                <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
+                  groups
+                </span>
+                <span className="text-sm font-medium flex-1 text-left">{translate("Chat groups")}</span>
+                <span className="material-symbols-outlined text-[14px] transition-transform" style={{ transform: communityOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                  expand_more
+                </span>
+              </button>
+              {communityOpen && (
+                <div className="pl-4">
+                  {chatGroupLinks.map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={onClose}
+                      className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    >
+                      <span className="material-symbols-outlined text-[16px] group-hover:text-primary transition-colors">
+                        {item.icon}
+                      </span>
+                      <span className="text-sm">{translate(item.label)}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+              {socialLinks.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onClose}
+                  className="flex items-center gap-3 px-3 py-1 rounded-lg transition-all group text-text-muted hover:bg-surface-2 hover:text-text-main"
+                >
+                  <span className="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">
+                    {item.icon}
+                  </span>
+                  <span className="text-sm font-medium">{translate(item.label)}</span>
+                </a>
+              ))}
+            </div>
 
           </div>
         </nav>

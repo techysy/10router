@@ -1139,5 +1139,6 @@
   "— tries models in order (next on failure)": "— 按順序嘗試模型（失敗時切換到下一個）",
   "↑ New version available:": "檢測到新版本：",
   "✓ Copied — shutting down...": "✓ 已複製 — 正在關閉…",
-  "About Me": "About Me"
+  "About Me": "About Me",
+  "Chat groups": "交流群組"
 }
