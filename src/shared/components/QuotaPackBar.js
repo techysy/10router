@@ -24,6 +24,7 @@ import {
   quotaUnitOf,
 } from "@/shared/utils/quotaRows";
 import { cn } from "@/shared/utils/cn";
+import { completeQuotaBreakdown } from "@/shared/utils/quotaBreakdown";
 import QuotaMeter, {
   MeterTrack,
   METER_RADIUS,
@@ -388,13 +389,6 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   );
   if (rows.length === 0) return null;
 
-  // The per-campaign breakdown of a charted total (Qoder's addOn packs). Never
-  // summed — the total already counts them — but it is what the bar segments
-  // and the pack-count line describe when the pool is that single total.
-  const breakdown = (packs || [])
-    .filter((p) => p && typeof p === "object" && p.detailOnly === true)
-    .map((p) => ({ ...p, totalNum: Number(p.total || 0), remainingNum: remainingOf(p) }));
-
   const withNums = rows.map((p) => {
     const totalNum = Number(p.total || 0);
     return { ...p, totalNum, remainingNum: remainingOf(p) };
@@ -520,9 +514,10 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   const displayPackName = (name) => (name === "资源包" ? "资源包 Credits" : name);
 
   const hasFamily = families.length > 0;
-  // A one-row pool that has an itemised breakdown is drawn and counted BY that
-  // breakdown — the same segments + "N 个资源包" line a CodeBuddy card gets.
-  const byBreakdown = isPoolFullyRepresented && breakdown.length > 0;
+  // A partial breakdown must not replace the full balance: DuMate may expose
+  // only top-ups here, and its check-in status is not a credit segment at all.
+  const breakdown = isPoolFullyRepresented ? completeQuotaBreakdown(packs, pool) : [];
+  const byBreakdown = breakdown.length > 0;
   const barPacks = byBreakdown ? breakdown : pool;
   // A pool whose rows carry an expiry is never the "one settled pool" shape —
   // it is packs that will run out, and the meta line's pack-count + nearest
