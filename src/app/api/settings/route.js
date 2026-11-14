@@ -198,6 +198,19 @@ export async function PATCH(request) {
       }
     }
 
+    // Auto daily credit claim for Meoo (login-equivalent action + ledger verdict)
+    if (Object.prototype.hasOwnProperty.call(body, "meooCheckin")) {
+      if (settings.meooCheckin === true) {
+        import("@/sse/services/meooCheckin.js")
+          .then(({ startMeooCheckin }) => startMeooCheckin())
+          .catch((error) => console.warn("[MeooCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/meooCheckin.js")
+          .then(({ stopMeooCheckin }) => stopMeooCheckin())
+          .catch((error) => console.warn("[MeooCheckin] stop failed:", error.message));
+      }
+    }
+
     // Daily-grant midnight reset (每日赠送积分优先 policy). Keyed off the
     // providerStrategies patch: any change that leaves at least one provider
     // with dailyGrantFirst=true starts the scheduler, none stops it. An

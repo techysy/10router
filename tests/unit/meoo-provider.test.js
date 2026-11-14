@@ -948,13 +948,17 @@ describe("Provider page ConnectionRow — meoo daily claim button (feature B)", 
     expect(pageSource).toContain("<ConnectionRow");
   });
 
-  it("gates the button to meoo, non-external connections — the ProviderLimits condition", () => {
+  it("gates the button to meoo, non-external connections — on the provider-page connection card", () => {
     expect(rowSource).toContain('connection.provider === "meoo" && !connection.external');
     expect(rowSource).toContain("{showMeooDailyClaim && (");
-    expect(limitsSource).toContain('conn.provider === "meoo" && !conn.external');
+    // 2026-11-14: the QUOTA-CARD button moved out — claiming is automated via
+    // the experimental meooCheckin scheduler; the manual trigger stays only on
+    // the provider-page connection card.
+    expect(limitsSource).not.toContain("handleMeooDailyClaim");
+    expect(limitsSource).not.toContain("meoo-daily-claim");
   });
 
-  it("posts to the same daily-claim endpoint as the quota card", () => {
+  it("posts to the daily-claim endpoint from the connection card", () => {
     expect(rowSource).toContain("/api/usage/${connection.id}/meoo-daily-claim");
     expect(rowSource).toContain('method: "POST"');
   });
@@ -973,8 +977,14 @@ describe("Provider page ConnectionRow — meoo daily claim button (feature B)", 
     expect(rowSource).toContain("余额 ${meooClaimResult.balance} 积分");
   });
 
-  it("leaves the quota-card button in place (both surfaces share the route)", () => {
-    expect(limitsSource).toContain("handleMeooDailyClaim");
-    expect(limitsSource).toContain("meoo-daily-claim");
+  it("points auto-claiming at the experimental meooCheckin scheduler", () => {
+    const experimentalSource = readFileSync(
+      resolve(__dirname, "../../src/app/(dashboard)/dashboard/experimental/ExperimentalClient.js"),
+      "utf8",
+    );
+    expect(experimentalSource).toContain("meooCheckin");
+    // The scheduler reuses the same route implementation (no logic fork).
+    const schedulerSource = readFileSync(resolve(__dirname, "../../src/sse/services/meooCheckin.js"), "utf8");
+    expect(schedulerSource).toContain("claimMeooDailyPoints");
   });
 });

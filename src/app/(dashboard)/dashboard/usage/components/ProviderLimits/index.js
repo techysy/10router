@@ -217,8 +217,6 @@ export default function ProviderLimits() {
   const [resettingLimitId, setResettingLimitId] = useState(null);
   const [resetConfirmState, setResetConfirmState] = useState(null);
   const [resetCreditsState, setResetCreditsState] = useState(null);
-  const [meooClaimingId, setMeooClaimingId] = useState(null);
-  const [meooClaimResults, setMeooClaimResults] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
@@ -631,34 +629,6 @@ export default function ProviderLimits() {
       }
     },
     [fetchQuota, resettingLimitId, quotaData],
-  );
-
-  // Meoo 每日登录积分：无领取接口，服务端做一次登录等价动作后以账面
-  // 差值核验（claimed 才算领到）。结果行内展示，并强制刷新一次配额，
-  // 让 Balance （积分）行同步到最新余额。
-  const handleMeooDailyClaim = useCallback(
-    async (connectionId) => {
-      if (meooClaimingId) return;
-      setMeooClaimingId(connectionId);
-      try {
-        const response = await fetch(`/api/usage/${connectionId}/meoo-daily-claim`, { method: "POST" });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(result.error || result.message || "领取失败，请稍后重试");
-        }
-        setMeooClaimResults((prev) => ({ ...prev, [connectionId]: result }));
-        await fetchQuota(connectionId, "meoo", { force: true });
-        setLastUpdated(new Date());
-      } catch (error) {
-        setMeooClaimResults((prev) => ({
-          ...prev,
-          [connectionId]: { claimed: false, balance: null, message: error.message || "领取失败，请稍后重试" },
-        }));
-      } finally {
-        setMeooClaimingId(null);
-      }
-    },
-    [fetchQuota, meooClaimingId],
   );
 
   // Claude grants already arrive with the usage read; no extra fetch
@@ -1617,22 +1587,9 @@ export default function ProviderLimits() {
                         </Tooltip>
                       </>
                     )}
-                    {conn.provider === "meoo" && !conn.external && (
-                      <Tooltip text="每日首次登录 Meoo 自动赠送 2000 积分 — 点击触发登录动作并核验到账">
-                        <button
-                          type="button"
-                          onClick={() => handleMeooDailyClaim(conn.id)}
-                          disabled={meooClaimingId === conn.id || isLoading || isRefreshing || rowBusy}
-                          aria-label="每日领积分"
-                          className="flex h-8 items-center justify-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <span className={`material-symbols-outlined text-[15px] ${meooClaimingId === conn.id ? "animate-spin" : ""}`}>
-                            {meooClaimingId === conn.id ? "progress_activity" : "redeem"}
-                          </span>
-                          <span>每日领积分</span>
-                        </button>
-                      </Tooltip>
-                    )}
+                    {/* Meoo 每日领积分：额度卡不再放手动按钮（与 dumate 卡对齐，
+                        2026-11-14 用户反馈）——领取入口在实验性页的自动领取
+                        开关（meooCheckin 调度器），供应商详情页连接卡保留手动触发。 */}
                     {AUTO_PING_SETTINGS_KEYS[conn.provider] && conn.authType === "oauth" && (() => {
                       const cfg = autoPingConfigs[conn.provider] || {};
                       const isReactive = cfg.connections?.[conn.id] === true;
@@ -1771,24 +1728,6 @@ export default function ProviderLimits() {
                 {error && quota && (
                   <p className="px-1 pb-1 text-[11px] text-red-500/80">
                     {translate("Update failed, showing last known")} · {error}
-                  </p>
-                )}
-                {meooClaimResults[conn.id] && (
-                  <p
-                    className={`flex items-center gap-1 px-1 pb-1 text-[11px] ${
-                      meooClaimResults[conn.id].claimed
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-text-muted"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined shrink-0 text-[12px]">
-                      {meooClaimResults[conn.id].claimed ? "check_circle" : "info"}
-                    </span>
-                    <span>
-                      {meooClaimResults[conn.id].message}
-                      {typeof meooClaimResults[conn.id].balance === "number" &&
-                        ` · 余额 ${meooClaimResults[conn.id].balance} 积分`}
-                    </span>
                   </p>
                 )}
                 {isLoading ? (

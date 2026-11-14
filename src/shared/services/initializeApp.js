@@ -174,6 +174,13 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[TraeCheckin] scheduler start failed:", e.message));
   }
 
+  // Auto daily credit claim for Meoo (login-equivalent action + ledger verdict).
+  if (settings.meooCheckin === true) {
+    import("@/sse/services/meooCheckin.js")
+      .then(({ startMeooCheckin }) => startMeooCheckin())
+      .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
+  }
+
   // Daily-grant midnight reset (每日赠送积分优先 policy, 2026-11-12): reopens
   // connections auto-disabled by the drain guard in auth.js once their daily
   // grant refreshes. The scheduler self-gates per tick on providerStrategies
