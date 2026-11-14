@@ -235,14 +235,25 @@ export function getModelLockKey(model) {
 }
 
 /**
- * Check if a model lock on a connection is still active.
- * Reads flat field `modelLock_${model}` (or `modelLock___all` when model=null).
+ * The requested model is available only after BOTH its own lock and the
+ * account-wide lock expire. Stale model fields are cleaned lazily and must
+ * never hide a live account lock (for example GitHub's monthly quota lock).
  */
+export function getModelLockUntil(connection, model) {
+  const now = Date.now();
+  let until = 0;
+  for (const key of [getModelLockKey(model), MODEL_LOCK_ALL]) {
+    const expiry = connection?.[key];
+    if (!expiry) continue;
+    const time = new Date(expiry).getTime();
+    if (Number.isFinite(time) && time > now) until = Math.max(until, time);
+  }
+  return until ? new Date(until).toISOString() : null;
+}
+
+/** Whether either lock affecting the requested model is still active. */
 export function isModelLockActive(connection, model) {
-  const key = getModelLockKey(model);
-  const expiry = connection[key] || connection[MODEL_LOCK_ALL];
-  if (!expiry) return false;
-  return new Date(expiry).getTime() > Date.now();
+  return getModelLockUntil(connection, model) !== null;
 }
 
 /**

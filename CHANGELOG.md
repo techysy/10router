@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- 同时检查模型与全账号冷却，过期模型锁不再遮蔽有效账号锁；重试时间按所请求模型的有效锁计算。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
