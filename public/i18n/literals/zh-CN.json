@@ -2214,5 +2214,5 @@
   "Drex decision models on the System One protocol (noul / choice / score questions, calibrated probabilities). drex-max also accepts a top-level `images` array; drex-v2.0 is text-only. Paste a console.nace.ai API key (sent as a Bearer token).": "基于 System One 协议的 Drex 决策模型（noul / choice / score 题型，输出校准概率）。drex-max 还支持顶层 images 数组；drex-v2.0 仅支持文本。粘贴 console.nace.ai 的 API Key（以 Bearer Token 发送）。",
   "Prepaid USD-credit OpenAI-compatible aggregator. Keys and balance live in the web dashboard (no billing API). Third-party reseller — treat as untrusted for sensitive traffic.": "预付美元额度的 OpenAI 兼容聚合网关。Key 与余额在网页控制台管理（无计费 API）。第三方转售商——敏感流量请勿信任。",
   "THX-01 decision model: calibrated answers to typed questions in ~10 ms per request.": "THX-01 决策模型：对给定题型约 10 毫秒给出校准答案。",
-  "About Me": "关于我"
+  "About Me": "About Me"
 }
