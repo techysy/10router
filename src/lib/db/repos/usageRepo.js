@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
-import { maskApiKey, hashApiKey } from "../crypto/apiKeyIdentity.js";
+import { maskApiKey, hashApiKey, apiKeyIdentity } from "../crypto/apiKeyIdentity.js";
 import { APP_CONFIG } from "../../../shared/constants/config.js";
 // 展示层映射（kmodel_latest → Kimi-K3.1-Pro 等）：只服务 dashboard 读取路径，
 // 存储与请求链路仍用注册表原始 id —— 上游照收 kmodel_latest，健康度缓存键
@@ -60,7 +60,7 @@ function addToCounter(target, key, values) {
   if (values.meta) Object.assign(target[key], values.meta);
 }
 
-function aggregateEntryToDay(day, entry) {
+function aggregateEntryToDay(day, entry, identity = { apiKeyHash: hashApiKey(entry.apiKey), apiKeyMasked: maskApiKey(entry.apiKey) }) {
   const promptTokens = entry.tokens?.prompt_tokens || entry.tokens?.input_tokens || 0;
   const completionTokens = entry.tokens?.completion_tokens || entry.tokens?.output_tokens || 0;
   const cachedTokens = entry.tokens?.cached_tokens || entry.tokens?.cache_read_input_tokens || 0;
@@ -88,12 +88,11 @@ function aggregateEntryToDay(day, entry) {
     addToCounter(day.byAccount, entry.connectionId, { ...vals, meta: { rawModel: entry.model, provider: entry.provider } });
   }
 
-  const apiKeyVal = entry.apiKey && typeof entry.apiKey === "string" ? entry.apiKey : "local-no-key";
   // The counter KEY used to embed the raw key, and the aggregate it builds is
   // persisted in usageDaily — so the key had to change too, not just the meta.
   // Nothing outside this module reads these keys (the UI reads the assembled
   // `stats.byApiKey`, whose entries carry keyName/apiKeyMasked).
-  const apiKeyHash = hashApiKey(entry.apiKey);
+  const { apiKeyHash, apiKeyMasked } = identity;
   const akModelKey = `${apiKeyHash || "local-no-key"}|${entry.model}|${entry.provider || "unknown"}`;
   // The per-day aggregate ends up in the database too (usageDaily.data), so it
   // carries the same identity as a row: a digest for grouping and lookup, a
@@ -104,7 +103,7 @@ function aggregateEntryToDay(day, entry) {
       rawModel: entry.model,
       provider: entry.provider,
       apiKeyHash,
-      apiKeyMasked: maskApiKey(entry.apiKey),
+      apiKeyMasked,
     },
   });
 
@@ -675,7 +674,7 @@ export async function getUsageStats(period = "all") {
         if (new Date(r.timestamp) > new Date(stats.byAccount[accountKey].lastUsed)) stats.byAccount[accountKey].lastUsed = r.timestamp;
       }
 
-      if (r.apiKey && typeof r.apiKey === "string") {
+      if ((r.apiKey && typeof r.apiKey === "string") || r.apiKeyHash) {
         const apiKeyHash = r.apiKeyHash || hashApiKey(r.apiKey);
         const keyInfo = apiKeyHash ? apiKeyMap[apiKeyHash] : null;
         const apiKeyMasked = maskApiKey(r.apiKey);
@@ -1453,6 +1452,9 @@ function applyDailyCostDelta(db, histRow, delta) {
 
 export async function importUsageRows(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return { imported: 0, skipped: 0 };
+  // Validate the entire batch before any writes, including direct repo callers.
+  // Never derive a new digest from a backup's display mask.
+  const identities = rows.map((entry) => apiKeyIdentity(entry.apiKey, entry.apiKeyHash));
   const db = await getAdapter();
 
   // Imported rows only carry the cost the SOURCE instance assigned them. A
@@ -1479,16 +1481,15 @@ export async function importUsageRows(rows) {
   let costRepaired = false;
 
   db.transaction(() => {
-    for (const entry of rows) {
+    for (const [index, entry] of rows.entries()) {
+      const identity = identities[index];
       const tokens = entry.tokens || {};
       const promptTokens = tokens.prompt_tokens || tokens.input_tokens || entry.promptTokens || 0;
       const completionTokens = tokens.completion_tokens || tokens.output_tokens || entry.completionTokens || 0;
       const ts = entry.timestamp || new Date().toISOString();
 
-      // Dedup: same signature as live writes.
-      // Imported backups may already carry a masked value (this build's export)
-      // or a raw one (older exports); the identity is derived the same way either
-      // way, so dedup stays consistent within the file being imported.
+      // Dedup: same signature as live writes, using the validated original
+      // digest for current backups and a derived digest for legacy raw keys.
       const existing = db.get(
         `SELECT id, meta, cost, timestamp, provider, model, connectionId, apiKeyHash, endpoint FROM usageHistory
          WHERE timestamp = ?
@@ -1499,7 +1500,7 @@ export async function importUsageRows(rows) {
            AND promptTokens = ?
            AND completionTokens = ?
          ORDER BY id DESC LIMIT 1`,
-        [ts, entry.provider || null, entry.model || null, entry.connectionId || null, hashApiKey(entry.apiKey), promptTokens, completionTokens]
+        [ts, entry.provider || null, entry.model || null, entry.connectionId || null, identity.apiKeyHash, promptTokens, completionTokens]
       );
       if (existing) {
         // A dedup hit during an import proves the row itself came from an
@@ -1527,7 +1528,7 @@ export async function importUsageRows(rows) {
         `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, apiKeyHash, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           ts, entry.provider || null, entry.model || null,
-          entry.connectionId || null, maskApiKey(entry.apiKey), hashApiKey(entry.apiKey), entry.endpoint || null,
+          entry.connectionId || null, identity.apiKeyMasked, identity.apiKeyHash, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
           stringifyJson(tokens), stringifyJson({ imported: true, ...(entry.meta || {}) }),
         ]
@@ -1540,7 +1541,7 @@ export async function importUsageRows(rows) {
         requests: 0, promptTokens: 0, completionTokens: 0, cost: 0,
         byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
       };
-      aggregateEntryToDay(day, entry);
+      aggregateEntryToDay(day, entry, identity);
       db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
 
       const cur = db.get(`SELECT value FROM _meta WHERE key = 'totalRequestsLifetime'`);

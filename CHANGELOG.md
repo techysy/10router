@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- 用量导入保留原始 API key 摘要，修复当前 JSON/SQLite 备份重导导致重复计数和命名 key 统计归属丢失。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
