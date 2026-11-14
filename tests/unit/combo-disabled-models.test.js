@@ -110,6 +110,52 @@ describe("SQLite persistence (migration 007 + combosRepo)", () => {
   });
 });
 
+describe("combo backup restore with real SQLite", () => {
+  const models = ["openai/gpt-4o", "gemini/gemini-2.5-pro", "deepseek/deepseek-chat"];
+
+  it.each([
+    ["one disabled", [models[0]], models.slice(1)],
+    ["all disabled", models, []],
+  ])("preserves %s through export/import and routing expansion", async (label, disabledModels, activeModels) => {
+    const combo = await db.createCombo({
+      name: `backup-${label}`,
+      kind: "fallback",
+      models,
+      disabledModels,
+    });
+    const { getComboModels } = await import("@/sse/services/model.js");
+    const { getAdapter } = await import("@/lib/db/driver.js");
+    expect(await getComboModels(combo.name)).toEqual(activeModels);
+
+    const backup = JSON.parse(JSON.stringify(await db.exportDb()));
+    expect(backup.combos.find((c) => c.id === combo.id)).toEqual(combo);
+    await db.updateCombo(combo.id, { models: [...models].reverse(), disabledModels: [] });
+    await db.importDb(backup);
+
+    expect(await db.getComboById(combo.id)).toEqual(combo);
+    const stored = (await getAdapter()).get("SELECT disabledModels FROM combos WHERE id = ?", [combo.id]);
+    expect(JSON.parse(stored.disabledModels)).toEqual(disabledModels);
+    expect(await getComboModels(combo.name)).toEqual(activeModels);
+    expect((await db.exportDb()).combos.find((c) => c.id === combo.id)).toEqual(combo);
+  });
+
+  it("defaults a legacy backup without disabledModels to an empty persisted list", async () => {
+    const combo = await db.createCombo({ name: "backup-legacy", models, disabledModels: models });
+    const backup = JSON.parse(JSON.stringify(await db.exportDb()));
+    delete backup.combos.find((c) => c.id === combo.id).disabledModels;
+
+    await db.importDb(backup);
+
+    const { getComboModels } = await import("@/sse/services/model.js");
+    const { getAdapter } = await import("@/lib/db/driver.js");
+    expect((await db.getComboById(combo.id)).disabledModels).toEqual([]);
+    expect((await getAdapter()).get("SELECT disabledModels FROM combos WHERE id = ?", [combo.id]).disabledModels).toBe("[]");
+    expect(await getComboModels(combo.name)).toEqual(models);
+    expect((await db.exportDb()).combos.find((c) => c.id === combo.id).disabledModels).toEqual([]);
+  });
+
+});
+
 describe("UI wiring pins (两个 ComboFormModal 都接了 Toggle)", () => {
   const read = (rel) => fs.readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 
