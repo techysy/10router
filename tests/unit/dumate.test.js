@@ -7,6 +7,8 @@ import {
   keepCookie,
   serializeCreds,
   bare,
+  isConsoleCookie,
+  isStorableCookie,
 } from "../../open-sse/shared/dumate/cookies.js";
 import {
   issueImportToken,
@@ -126,6 +128,24 @@ describe("dumate import tokens", () => {
     // second consume fails (single-use)
     expect(takeImportToken(ot)).toBeNull();
     expect(takeImportToken("nonexistent")).toBeNull();
+  });
+
+  it("binds bookmark tokens to the target connection", () => {
+    const ot = issueImportToken("owner-a", "conn-1");
+    expect(takeImportToken(ot, "conn-2")).toBeNull();
+    expect(takeImportToken(ot, "conn-1")).toBe("owner-a");
+  });
+});
+
+describe("dumate cookie storage boundaries", () => {
+  it("keeps only console and supported passport cookies", () => {
+    expect(isConsoleCookie({ name: "bce-sessionid", domain: "console.bce.baidu.com" })).toBe(true);
+    expect(isConsoleCookie({ name: "bce-login-type", domain: ".bce.baidu.com" })).toBe(false);
+    expect(isStorableCookie({ name: "BDUSS", domain: ".baidu.com", value: "x" })).toBe(true);
+    expect(isStorableCookie({ name: "UNRELATED", domain: ".baidu.com", value: "x" })).toBe(false);
+    expect(isStorableCookie({ name: "UNRELATED", domain: ".evil.example", value: "x" })).toBe(false);
+    expect(isStorableCookie({ name: "bce-sessionid", domain: ".evil.example", value: "x" })).toBe(false);
+    expect(passportCookies('[{"name":"UNRELATED","value":"x","domain":".baidu.com"}]')).toEqual([]);
   });
 });
 

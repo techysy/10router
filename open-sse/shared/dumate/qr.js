@@ -41,10 +41,10 @@
  * should persist+test it, then finish(s,"success").
  */
 
-import https from "node:https";
 import { randomBytes, createHash } from "node:crypto";
-import { Jar, keepCookie, serializeCreds, slimCookie, bare, parseCookies, passportCookies, PASSPORT_NAMES } from "./cookies.js";
-import { quickLogin, portrait, CONSOLE_URL, UA } from "./session.js";
+import { Jar, keepCookie, serializeCreds, slimCookie, bare, parseCookies, passportCookies, passportKey, PASSPORT_NAMES, isStorableCookie } from "./cookies.js";
+import { quickLogin, portrait, CONSOLE_URL } from "./session.js";
+import { httpGet, isBaiduUrl } from "./http.js";
 
 const QR_TTL_MS = 10 * 60_000; // Baidu QR codes live about 10 minutes
 const SESSION_KEEP_MS = 15 * 60_000;
@@ -52,36 +52,19 @@ const SESSION_KEEP_MS = 15 * 60_000;
 const log = (lvl, msg) => { try { console[lvl === "warn" ? "warn" : "log"](`[dumate-qr] ${msg}`); } catch { /* noop */ } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function httpsGet(url, jar, timeoutMs, s) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const r = https.request(
-      {
-        host: u.host,
-        path: u.pathname + u.search,
-        method: "GET",
-        timeout: timeoutMs,
-        headers: { "User-Agent": UA, Accept: "*/*", Referer: "https://login.bce.baidu.com/", Cookie: jar ? jar.header(u.hostname) : "" },
-      },
-      (res) => {
-        if (jar) jar.addSetCookie(res.headers["set-cookie"], u.hostname);
-        const ch = [];
-        res.on("data", (d) => ch.push(d));
-        res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(ch) }));
-      },
-    );
-    if (s) s.req = r;
-    r.on("timeout", () => r.destroy(new Error("timeout")));
-    r.on("error", (e) => { if (s && s.cancelled) return resolve({ status: 0, headers: {}, body: Buffer.alloc(0) }); reject(e); });
-    r.end();
-  });
+async function httpsGet(url, jar, timeoutMs, s) {
+  return httpGet(url, { jar, timeoutMs, signal: s?.abortController?.signal, proxyOptions: s?.proxyOptions });
 }
 
 const unjsonp = (t) => { const m = /^[^(]*\(([\s\S]*)\)\s*;?\s*$/.exec(t); return JSON.parse(m ? m[1] : t); };
 // qrbdusslogin answers with a JS object literal ('data': single-quoted key) —
 // strict JSON.parse throws, so fields get a regex fallback.
-const jsoNo = (t) => { const m = /"no"\s*:\s*"?\s*(-?\d+)/.exec(t); return m ? +m[1] : null; };
-const jsoU = (t) => { const m = /"u"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(t); return m ? m[1].replace(/\\\//g, "/").replace(/\\\\/g, "\\") : null; };
+const quotedField = (t, key) => {
+  const m = new RegExp("[\\\"']" + key + "[\\\"']\\s*:\\s*([\\\"'])((?:[^\\\\]|\\\\.)*?)\\1").exec(t);
+  return m ? m[2].replace(/\\\//g, "/").replace(/\\\\/g, "\\") : null;
+};
+const jsoNo = (t) => { const m = /["']no["']\s*:\s*["']?\s*(-?\d+)/.exec(t); return m ? +m[1] : null; };
+const jsoU = (t) => quotedField(t, "u");
 const guid = () => [7, 4, 4, 4, 12].map((n) => randomBytes(8).toString("hex").toUpperCase().slice(0, n)).join("-");
 const logPage = () => encodeURIComponent(`traceId:pc_loginv5_${Math.floor(Date.now() / 1000)},logPage:loginv5`);
 
@@ -102,6 +85,7 @@ async function runQr(s) {
     const imgUrl =
       "https://" + String(j1.imgurl || "passport.baidu.com/v2/api/qrcode?sign=" + sign).replace(/^https?:\/\//, "") +
       `&lp=pc&qrloginfrom=pc&logPage=${LP}`;
+    if (!isBaiduUrl(imgUrl)) throw new Error("QR image returned an unexpected host");
     const r2 = await httpsGet(imgUrl, jar, 20_000, s);
     if (s.cancelled) return;
     if (r2.status !== 200 || !/image/.test(String(r2.headers["content-type"] || ""))) {
@@ -158,6 +142,7 @@ async function runQr(s) {
     if (ret) {
       let url = ret;
       for (let hop = 0; hop < 10; hop++) {
+        if (!isBaiduUrl(url)) throw new Error("QR return URL returned an unexpected host");
         const rr = await httpsGet(url, jar, 20_000, s);
         if (s.cancelled) return;
         const loc = rr.headers.location;
@@ -170,7 +155,7 @@ async function runQr(s) {
     if (!jar.has("bce-sessionid")) {
       const pp = jar.all().filter((c) => PASSPORT_NAMES.includes(c.name));
       if (pp.some((c) => c.name === "BDUSS" || c.name === "BDUSS_BFESS")) {
-        const out = await quickLogin(pp);
+        const out = await quickLogin(pp, s.proxyOptions);
         for (const c of out.cookies) jar.add(c.name, c.value, c.domain);
       }
     }
@@ -182,8 +167,9 @@ async function runQr(s) {
       log("warn", "QR login without BDUSS cookie: silent renewal will not be possible");
     }
     let account;
-    try { const p = await portrait(kept); account = p && p.username; } catch { /* cosmetic only */ }
+    try { const p = await portrait(kept, s.proxyOptions); account = p && p.username; } catch { /* cosmetic only */ }
     s.creds = serializeCreds(kept, account);
+    s.accountKey = passportKey(s.creds);
     if (!s.connectionId && account) s.connName = `DuMate 百度搭子（${account}）`;
     s.status = "authorized";
     log("info", `QR login (http) ok for session ${s.id.slice(0, 6)} (${kept.length} cookies)`);
@@ -233,16 +219,17 @@ export function getSession(sid, owner) {
 }
 
 /** Start a new QR session; any still-open session owned by the same caller is cancelled. */
-export function startSession({ connectionId = null, owner }) {
+export function startSession({ connectionId = null, owner, proxyOptions = null }) {
   gc();
   for (const s of sessions.values()) {
     if (s.owner === owner && !s.doneAt) {
       s.cancelled = true;
+      try { s.abortController?.abort(); } catch { /* noop */ }
       finish(s, "cancelled");
       if (s.req) try { s.req.destroy(); } catch { /* noop */ }
     }
   }
-  const s = { id: randomBytes(12).toString("hex"), owner, connectionId, status: "starting", startedAt: Date.now() };
+  const s = { id: randomBytes(12).toString("hex"), owner, connectionId, proxyOptions, status: "starting", startedAt: Date.now(), abortController: new AbortController() };
   sessions.set(s.id, s);
   runQr(s); // async — progresses via status polling
   return s;
@@ -251,6 +238,7 @@ export function startSession({ connectionId = null, owner }) {
 export function cancelSession(s) {
   if (!s.doneAt && s.status !== "saving") {
     s.cancelled = true;
+    try { s.abortController?.abort(); } catch { /* noop */ }
     finish(s, "cancelled");
     if (s.req) try { s.req.destroy(); } catch { /* noop */ }
   }
@@ -262,16 +250,16 @@ export function cancelSession(s) {
  * *.baidu.com cannot carry it. import-init (session-authed) mints a one-shot
  * token the bookmarklet replays instead. */
 const importTokens = new Map(); // ot -> {owner, exp}
-export function issueImportToken(owner) {
+export function issueImportToken(owner, connectionId = null) {
   for (const [k, v] of importTokens) if (v.exp < Date.now()) importTokens.delete(k);
   const ot = randomBytes(16).toString("hex");
-  importTokens.set(ot, { owner, exp: Date.now() + 10 * 60 * 1000 });
+  importTokens.set(ot, { owner, connectionId: connectionId || null, exp: Date.now() + 10 * 60 * 1000 });
   return ot;
 }
 /** Consume a token (single-use). Returns the owner it was issued to, or null. */
-export function takeImportToken(ot) {
+export function takeImportToken(ot, connectionId = null) {
   const t = importTokens.get(String(ot || ""));
-  if (!t || t.exp < Date.now()) return null;
+  if (!t || t.exp < Date.now() || t.connectionId !== (connectionId || null)) return null;
   importTokens.delete(String(ot));
   return t.owner;
 }
@@ -281,7 +269,7 @@ export function takeImportToken(ot) {
  * holds a console session (bce-sessionid) -> validated by the caller's token
  * exchange. Path 2: passport cookies only -> quickLogin bootstraps the console
  * session first. Returns {creds, account} or throws with a user-facing message. */
-export async function importCookies(rawIn) {
+export async function importCookies(rawIn, proxyOptions = null) {
   const parsed = parseCookies(rawIn);
   if (!parsed.length) throw new Error("no cookies parsed — paste `BDUSS=xx; BAIDUID=yy` or an exported cookies JSON");
 
@@ -289,8 +277,9 @@ export async function importCookies(rawIn) {
   if (parsed.some((c) => c.name === "bce-sessionid" && c.value)) {
     const { exchangeToken } = await import("./token.js");
     try {
-      await exchangeToken(rawIn);
-      return { creds: serializeCreds(parsed, undefined, "dumate-import"), account: undefined };
+      await exchangeToken(rawIn, { proxyOptions });
+      const creds = serializeCreds(parsed.filter(isStorableCookie), undefined, "dumate-import");
+      return { creds, account: undefined, accountKey: passportKey(creds) };
     } catch { /* fall through to passport path */ }
   }
 
@@ -302,11 +291,12 @@ export async function importCookies(rawIn) {
   if (!pp.some((c) => /^STOKEN|^PTOKEN|^UBI/.test(c.name))) {
     throw new Error("BDUSS alone is not enough: STOKEN, PTOKEN and UBI are also required — export the full cookie set");
   }
-  const out = await quickLogin(pp);
+  const out = await quickLogin(pp, proxyOptions);
   const kept = out.cookies.filter(keepCookie);
   const names = new Set(kept.map((c) => c.name + "@" + bare(c.domain)));
-  for (const c of pp) if (!names.has(c.name + "@" + bare(c.domain))) kept.push(slimCookie(c));
-  return { creds: serializeCreds(kept, out.account, "dumate-import"), account: out.account };
+  for (const c of pp) if (!names.has(c.name + "@" + bare(c.domain)) && isStorableCookie(c)) kept.push(slimCookie(c));
+  const creds = serializeCreds(kept, out.account, "dumate-import");
+  return { creds, account: out.account, accountKey: passportKey(creds) };
 }
 
 export const _sessions = sessions;

@@ -1,5 +1,6 @@
 import { getProviderConnectionById } from "@/models";
-import { startSession, pub, ownerHash } from "open-sse/shared/dumate/qr.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { startSession, pub } from "open-sse/shared/dumate/qr.js";
 import { ownerOf, json } from "../lib.js";
 
 /**
@@ -10,12 +11,21 @@ import { ownerOf, json } from "../lib.js";
 export async function POST(request) {
   try {
     const connectionId = new URL(request.url).searchParams.get("connectionId") || null;
+    let proxyOptions = null;
     if (connectionId) {
       const conn = await getProviderConnectionById(connectionId);
       if (!conn) return json({ error: "Connection not found" }, 404);
       if (conn.provider !== "dumate") return json({ error: "Not a DuMate connection" }, 400);
+      const p = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
+      proxyOptions = {
+        connectionProxyEnabled: p.connectionProxyEnabled === true,
+        connectionProxyUrl: p.connectionProxyUrl || "",
+        connectionNoProxy: p.connectionNoProxy || "",
+        vercelRelayUrl: p.vercelRelayUrl || "",
+        strictProxy: p.strictProxy === true,
+      };
     }
-    const s = startSession({ connectionId, owner: ownerOf(request) });
+    const s = startSession({ connectionId, owner: ownerOf(request), proxyOptions });
     return json(pub(s));
   } catch (e) {
     return json({ error: String(e.message || e).slice(0, 200) }, 500);

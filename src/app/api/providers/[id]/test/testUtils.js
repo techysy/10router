@@ -1182,7 +1182,7 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         // persisted here since the request-path refresh can't reach this row.
         try {
           const { tokenFor } = await import("open-sse/shared/dumate/token.js");
-          const r = await tokenFor(connection.apiKey, { force: true });
+          const r = await tokenFor(connection.apiKey, { force: true, proxyOptions: effectiveProxy });
           const patch = { accessToken: r.token, expiresAt: new Date(r.exp).toISOString() };
           if (r.raw !== connection.apiKey) patch.apiKey = r.raw;
           await updateProviderConnection(connection.id, patch);

@@ -21,44 +21,13 @@
  * Never logs cookie/token values.
  */
 
-import https from "node:https";
 import { Jar } from "./cookies.js";
+import { httpGet, isBaiduUrl } from "./http.js";
 
 export const CONSOLE_URL = "https://console.bce.baidu.com/dumate/channel";
 const WAP_URL = "https://login.bce.baidu.com/postlogin/passport/wap";
 export const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-
-function get(url, cookieHeader, headers) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const r = https.request(
-      {
-        host: u.host,
-        path: u.pathname + u.search,
-        method: "GET",
-        timeout: 20_000,
-        headers: {
-          "User-Agent": UA,
-          Accept: "text/html,application/json,*/*",
-          Referer: "https://login.bce.baidu.com/",
-          Cookie: cookieHeader,
-          ...(headers || {}),
-        },
-      },
-      (res) => {
-        const ch = [];
-        res.on("data", (d) => ch.push(d));
-        res.on("end", () =>
-          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(ch).toString("utf8") }),
-        );
-      },
-    );
-    r.on("timeout", () => r.destroy(new Error("timeout")));
-    r.on("error", reject);
-    r.end();
-  });
-}
 
 function b64urlJson(o) {
   return Buffer.from(JSON.stringify(o), "utf8")
@@ -71,10 +40,12 @@ function b64urlJson(o) {
 const reauthError = (msg) => Object.assign(new Error(msg), { reauth: true });
 
 /** Validate the passport and fetch the account name. Returns {username, portraitUrl} or null. */
-export async function portrait(pp) {
+export async function portrait(pp, proxyOptions = null) {
   const jar = new Jar();
   for (const c of pp) jar.add(c.name, c.value, c.domain || ".baidu.com");
-  const r = await get("https://login.bce.baidu.com/passport-portrait", jar.header("login.bce.baidu.com"));
+  const r = await httpGet("https://login.bce.baidu.com/passport-portrait", {
+    jar, proxyOptions, headers: { Accept: "text/html,application/json,*/*" },
+  });
   try {
     const j = JSON.parse(r.body);
     if (j && j.success && j.result && j.result.username) return j.result;
@@ -87,7 +58,7 @@ export async function portrait(pp) {
  * session jar. Returns {cookies:[{name,value,domain}], account}.
  * Throws .reauth errors when the passport itself is rejected.
  */
-export async function quickLogin(pp) {
+export async function quickLogin(pp, proxyOptions = null) {
   if (!pp.some((c) => c.name === "BDUSS" || c.name === "BDUSS_BFESS")) {
     throw reauthError("no Baidu passport cookie (BDUSS) — cannot log in");
   }
@@ -105,7 +76,7 @@ export async function quickLogin(pp) {
     jar.add(n, v, ".bce.baidu.com");
   }
 
-  const pf = await portrait(pp).catch(() => null);
+  const pf = await portrait(pp, proxyOptions);
   if (!pf) throw reauthError("Baidu passport session rejected (BDUSS not accepted) — re-login required");
 
   let url =
@@ -113,10 +84,9 @@ export async function quickLogin(pp) {
     "&ocpcContext=" + b64urlJson({ portraitUrl: pf.portraitUrl || "", username: pf.username });
 
   for (let hop = 0; hop < 10; hop++) {
-    const host = new URL(url).hostname;
-    const r = await get(url, jar.header(host));
-    jar.addSetCookie(r.headers["set-cookie"], host);
+    const r = await httpGet(url, { jar, proxyOptions, headers: { Accept: "text/html,application/json,*/*" } });
     const loc = r.headers.location;
+    if (loc && !isBaiduUrl(new URL(loc, url).href)) throw reauthError("quick-login returned an unexpected redirect");
     if (!loc) {
       const onConsole = /^https:\/\/console\.bce\.baidu\.com\//.test(url);
       const hasSess = jar.all().some((c) => c.name === "bce-sessionid" && c.value);
