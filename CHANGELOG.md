@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- 配置备份与恢复保留组合的 disabledModels，避免恢复备份后重新启用已禁用的模型；兼容缺少该字段的旧备份。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
