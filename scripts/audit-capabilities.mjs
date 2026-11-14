@@ -156,6 +156,15 @@ export const ALLOWLIST = {
   "dumate/dm-auto-model/text.L2": "aggregator",
   "dumate/dm-auto-model/text.L1": "aggregator",
   "dumate/dm-auto-model/text.L0": "aggregator",
+
+  // WPS 灵犀 (web 会话线): "auto" 让服务端按请求挑真实模型（plans 目录的
+  // aggregator 性质）; plan_pro/plan_max 是计费档位选择器，不是具体模型——
+  // 同 cursor/default 的 aggregator 口径。doubao_seed_2_1_pro_260628 的
+  // 日期后缀 id 无 models.dev 条目，规格只能以 plans 接口为准，保留地板值。
+  "lingxi/auto": "aggregator",
+  "lingxi/plan_pro": "aggregator",
+  "lingxi/plan_max": "aggregator",
+  "lingxi/doubao_seed_2_1_pro_260628": "no-models-dev-entry",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from

@@ -1151,6 +1151,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > lingxi → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > llm7 → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2576,6 +2595,13 @@ exports[`GOLDEN buildUrl (default executor providers) > kimi → url (stream + n
 {
   "nonStream": "https://api.kimi.com/coding/v1/messages?beta=true",
   "stream": "https://api.kimi.com/coding/v1/messages?beta=true",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > lingxi → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://lingxi.kdocs.cn/solution/api/aigc/v3/assistant/sessions",
+  "stream": "https://lingxi.kdocs.cn/solution/api/aigc/v3/assistant/sessions",
 }
 `;
 
