@@ -509,4 +509,44 @@ describe("accountTransfer: Qoder web-session probe at import (issue #44)", () =>
     expect(res.webSessions).toMatchObject({ checked: 1, ok: 0, failed: 1 });
     expect(res.webSessions.failures[0].reason).toBe("proxy unreachable");
   });
+
+  // Meoo control-key lines (CreditDaddy sync): the credential rides in
+  // providerSpecificData.meooControlKey — no OAuth token to demand. Same
+  // shape the paste-key import writes, so CD-pushed and pasted rows are
+  // identical to every consumer.
+  it("meoo control-key line imports without any token", async () => {
+    const res = await mod.importAccounts("meoo", [
+      {
+        name: "余师洋",
+        authType: "oauth",
+        providerSpecificData: { meooControlKey: "meoo_ak_cdline_1234567890", creditDaddySync: true },
+      },
+    ]);
+    expect(res.imported).toBe(1);
+    expect(res.failed).toBe(0);
+    const { getProviderConnections } = await import("@/lib/db/repos/connectionsRepo.js");
+    const rows = await getProviderConnections({ provider: "meoo" });
+    const row = rows.find((c) => c.providerSpecificData?.meooControlKey === "meoo_ak_cdline_1234567890");
+    expect(row).toBeTruthy();
+    expect(row.authType).toBe("oauth");
+    expect(row.accessToken).toBeFalsy();
+    expect(row.providerSpecificData.creditDaddySync).toBe(true);
+  });
+
+  it("meoo control-key line re-imports dedup onto the same row", async () => {
+    const res = await mod.importAccounts("meoo", [
+      {
+        name: "余师洋 renamed",
+        providerSpecificData: { meooControlKey: "meoo_ak_cdline_1234567890", creditDaddySync: true },
+      },
+    ]);
+    expect(res.updated).toBe(1);
+    expect(res.imported).toBe(0);
+  });
+
+  it("meoo without any credential still fails loudly", async () => {
+    const res = await mod.importAccounts("meoo", [{ name: "No key" }]);
+    expect(res.failed).toBe(1);
+    expect(res.results[0].error).toContain("Missing accessToken");
+  });
 });

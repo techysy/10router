@@ -97,11 +97,21 @@ export async function importAccounts(provider, accounts) {
         throw new Error("Item is not an object");
       }
       const accessToken = item.accessToken || item.access_token;
-      if (!accessToken || typeof accessToken !== "string") {
+      // Meoo control-key lines (CreditDaddy sync): the credential is the
+      // account-level API key riding in providerSpecificData.meooControlKey —
+      // there is no OAuth token to demand. Same shape the paste-key import
+      // writes (authType "oauth" + psd.meooControlKey), so a CD-pushed row and
+      // a pasted row are identical to every consumer (provider-routed test,
+      // refresh-by-control-key, usage).
+      const meooControlKey =
+        provider === "meoo" && !accessToken
+          ? String(item.providerSpecificData?.meooControlKey || "").trim()
+          : "";
+      if (!accessToken && !meooControlKey) {
         throw new Error("Missing accessToken");
       }
 
-      const claims = decodeJwt(accessToken);
+      const claims = accessToken ? decodeJwt(accessToken) : null;
       const nickname = item.name || item.nickname || claims?.nickname || claims?.preferred_username || null;
       const refreshToken = item.refreshToken || item.refresh_token || null;
 
@@ -137,7 +147,12 @@ export async function importAccounts(provider, accounts) {
       // there, not in accessToken) → refreshToken → email → name.
       const sub = claims?.sub || null;
       let match = null;
-      if (sub) {
+      if (meooControlKey) {
+        // Control-key identity: a row holding the same meoo_ak_ key IS the
+        // same account — before any token/email fallback, which a key-less
+        // row could otherwise satisfy via its name.
+        match = existing.find((c) => c.providerSpecificData?.meooControlKey === meooControlKey) || null;
+      } else if (sub) {
         match = existing.find((c) => decodeJwt(c.accessToken)?.sub === sub) || null;
       }
       if (!match) {
@@ -164,8 +179,8 @@ export async function importAccounts(provider, accounts) {
       const payload = {
         provider,
         authType: item.authType || "oauth",
-        accessToken,
-        ...(isApiKeyType ? { apiKey: accessToken } : {}),
+        ...(accessToken ? { accessToken } : {}),
+        ...(isApiKeyType && accessToken ? { apiKey: accessToken } : {}),
         refreshToken,
         name: nickname || undefined,
         email: item.email || undefined,
