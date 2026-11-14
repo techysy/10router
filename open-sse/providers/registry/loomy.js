@@ -14,6 +14,9 @@ export default {
       // 会话 token：本机客户端登录后由 CreditDaddy「本机导入 / 手机直登」捕获，
       // 或直接粘贴 session。chat 认 Bearer；/models 只认自定义 token 头（见
       // PROVIDER_MODELS_CONFIG.loomy）。session 约 14 天有效，客户端退出不影响。
+      // 2026-11-15 用户点名：页面上要点明 CreditDaddy 的多账号管理 + 邀请码
+      // 复制/填写能力 —— 多账号是 Loomy 的主用法，不写出来用户不知道去哪管理。
+      text: "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.",
       apiKeyUrl: "https://loomy.xunfei.cn",
     },
   },

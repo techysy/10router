@@ -2225,5 +2225,6 @@
   "No Meoo control-plane credential (OAuth token or meoo_ak_ key)": "缺少 Meoo 控制面凭证（OAuth 令牌或 meoo_ak_ 密钥）",
   "Meoo control plane returned no points account": "Meoo 控制面未返回积分账户数据",
   "Invalid project service AK": "项目服务 AK 无效",
-  "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 账号还没有项目：先在 meoo.com 创建一个（并开启云服务），AK 会自动解析到位"
+  "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 账号还没有项目：先在 meoo.com 创建一个（并开启云服务），AK 会自动解析到位",
+  "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多账号推荐用 CreditDaddy 管理：一键复制 / 填写邀请码，余额自动同步到 10Router。"
 }
