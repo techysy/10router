@@ -928,8 +928,15 @@ export function parseQuotaData(provider, data) {
         // Generic fallback for unknown providers
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
+            const modelKey = typeof quota.modelKey === "string" || (typeof quota.modelKey === "number" && Number.isFinite(quota.modelKey))
+              ? String(quota.modelKey).trim()
+              : "";
             normalizedQuotas.push({
               name,
+              // Pack names can be renumbered as siblings expire (Dumate).
+              // Retire ambiguous legacy name-based hides instead of applying
+              // them to another pack; non-pack rows still use their names.
+              ...(modelKey ? { modelKey } : {}),
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,

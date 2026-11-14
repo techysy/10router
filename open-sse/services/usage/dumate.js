@@ -100,6 +100,23 @@ function packLabel(pack, idx, isSub) {
   return permanent && !isSub ? `${base}·永久` : base;
 }
 
+// The documented quota_overview pack fields do not establish a stable pack ID.
+// Key the entitlement by its kind, allowance and validity instead of its
+// position among active packs. Usage/status/auto-renew can change in place and
+// must not move a hide preference. Identical tuples are indistinguishable and
+// intentionally share a visibility key; adding an ordinal would reintroduce
+// the expiry/reordering bug. A new allowance cycle gets a new key.
+function packVisibilityKey(pack, kind) {
+  return `dumate-pack:v1:${JSON.stringify([
+    kind,
+    String(pack.packageType ?? ""),
+    String(pack.source ?? ""),
+    num(pack.totalPoints),
+    num(pack.pointsExpireDate) || null,
+    num(pack.expireDate) || null,
+  ])}`;
+}
+
 function buildQuotas(result, bonus) {
   const quotas = {};
   const used = (o) => round2(num(o.usedPoints));
@@ -111,6 +128,7 @@ function buildQuotas(result, bonus) {
     let name = `订阅·${packLabel(pack, i++, true)}`;
     while (quotas[name]) name += "·2";
     quotas[name] = {
+      modelKey: packVisibilityKey(pack, "subscription"),
       used: used(pack),
       total: total(pack),
       resetAt: expIso(pack.pointsExpireDate ?? pack.expireDate),
@@ -124,6 +142,7 @@ function buildQuotas(result, bonus) {
     let name = packLabel(pack, i++, false);
     while (quotas[name]) name += "·2";
     quotas[name] = {
+      modelKey: packVisibilityKey(pack, "incremental"),
       used: used(pack),
       total: total(pack),
       resetAt: expIso(pack.pointsExpireDate ?? pack.expireDate),

@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased
+
+### 修复
+
+- DuMate 额度包使用稳定的额度与有效期组合键保存可见性，避免包过期或排序变化时隐藏偏好转移到其他包。
+
 ## v1.7.1 (2026-11-11)
 
 ### ✨ 新增
