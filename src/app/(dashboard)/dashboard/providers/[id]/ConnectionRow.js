@@ -26,7 +26,7 @@ function formatExpiry(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null, onReauth = null, reauthIcon = "qr_code_2", reauthTitle = null }) {
+export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null, onReauth = null, reauthIcon = "qr_code_2", reauthTitle = null, reauthLabel = null }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const proxyDropdownRef = useRef(null);
@@ -538,8 +538,8 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               title={reauthTitle ? translate(reauthTitle) : translate("Re-login (QR code)")}
               className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
             >
-              <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
-              <span className="text-[10px] leading-tight">{translate("Re-login")}</span>
+              <span className="material-symbols-outlined text-[18px]">{reauthIcon}</span>
+              <span className="text-[10px] leading-tight">{translate(reauthLabel || "Re-login")}</span>
             </button>
           )}
           <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
@@ -606,4 +606,7 @@ ConnectionRow.propTypes = {
     onConfigure: PropTypes.func,
   }),
   onReauth: PropTypes.func,
+  reauthIcon: PropTypes.string,
+  reauthTitle: PropTypes.string,
+  reauthLabel: PropTypes.string,
 };

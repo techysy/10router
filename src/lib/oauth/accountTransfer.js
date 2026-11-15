@@ -172,10 +172,13 @@ export async function importAccounts(provider, accounts) {
       }
 
       // API-key compatible nodes (opencode-go etc.) keep the credential in the
-      // `apiKey` field — that is what the runtime reads for them. Write it
-      // there IN ADDITION to accessToken (which stays for the identity/dedup
-      // paths); OAuth rows keep the accessToken-only shape.
-      const isApiKeyType = String(item.authType || "").toLowerCase() === "apikey";
+      // `apiKey` field — that is what the runtime reads for them. Web-cookie
+      // providers (dumate / lingxi …) are the same shape: their executor reads
+      // `apiKey` (the pasted Cookie jar). Write it there IN ADDITION to
+      // accessToken (which stays for the identity/dedup paths); OAuth rows
+      // keep the accessToken-only shape.
+      const rowAuthType = String(item.authType || "").toLowerCase();
+      const isApiKeyType = rowAuthType === "apikey" || rowAuthType === "cookie";
       const payload = {
         provider,
         authType: item.authType || "oauth",
