@@ -25,6 +25,7 @@ import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
 import DumateQrModal from "../components/DumateQrModal";
+import LingxiCaptureModal from "../components/LingxiCaptureModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -87,6 +88,8 @@ export default function ProviderDetailPage() {
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
   const [showDumateQrModal, setShowDumateQrModal] = useState(false);
   const [dumateQrConnectionId, setDumateQrConnectionId] = useState(null);
+  const [showLingxiCaptureModal, setShowLingxiCaptureModal] = useState(false);
+  const [lingxiCaptureConnectionId, setLingxiCaptureConnectionId] = useState(null);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
@@ -1662,6 +1665,9 @@ export default function ProviderDetailPage() {
                 onReauth={providerId === "dumate" ? () => {
                   setDumateQrConnectionId(conn.id);
                   setShowDumateQrModal(true);
+                } : providerId === "lingxi" ? () => {
+                  setLingxiCaptureConnectionId(conn.id);
+                  setShowLingxiCaptureModal(true);
                 } : null}
                 onDelete={() => handleDelete(conn.id)}
                 oneByOneStatus={oneByOneResults[conn.id] || null}
@@ -2505,6 +2511,11 @@ export default function ProviderDetailPage() {
                         {translate("QR Login")}
                       </Button>
                     )}
+                    {!isCompatible && providerId === "lingxi" && (
+                      <Button size="sm" icon="cookie" variant="secondary" onClick={() => { setLingxiCaptureConnectionId(null); setShowLingxiCaptureModal(true); }}>
+                        {translate("Capture Session")}
+                      </Button>
+                    )}
                     {/* No connections yet: do not show check-in / claim credits */}
                     {providerId === "codex" && (
                       <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
@@ -2596,6 +2607,18 @@ export default function ProviderDetailPage() {
                       className="w-full sm:w-auto"
                     >
                       {translate("QR Login")}
+                    </Button>
+                  )}
+                  {providerId === "lingxi" && (
+                    <Button
+                      size="sm"
+                      icon="cookie"
+                      variant="secondary"
+                      onClick={() => { setLingxiCaptureConnectionId(null); setShowLingxiCaptureModal(true); }}
+                      title={translate("Capture the WPS session cookie from a logged-in lingxi.kdocs.cn browser (no browser is spawned)")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Capture Session")}
                     </Button>
                   )}
                   {providerId === "codex" && (
@@ -2830,6 +2853,14 @@ export default function ProviderDetailPage() {
           connectionId={dumateQrConnectionId}
           onSuccess={refreshAfterConnectionChange}
           onClose={() => setShowDumateQrModal(false)}
+        />
+      )}
+      {providerId === "lingxi" && showLingxiCaptureModal && (
+        <LingxiCaptureModal
+          isOpen
+          connectionId={lingxiCaptureConnectionId}
+          onSuccess={refreshAfterConnectionChange}
+          onClose={() => setShowLingxiCaptureModal(false)}
         />
       )}
       <AddApiKeyModal

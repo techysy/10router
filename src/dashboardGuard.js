@@ -484,6 +484,17 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  // WPS 灵犀 bookmarklet session-capture: same one-time-ot pattern as the
+  // DuMate branch above — the cross-site POST from lingxi.kdocs.cn replays the
+  // ot minted by /api/oauth/lingxi/import-init, and the route consumes it.
+  if (
+    pathname === "/api/oauth/lingxi/import" &&
+    (request.method === "OPTIONS" ||
+      (request.method === "POST" && new URL(request.url).searchParams.get("ot")))
+  ) {
+    return NextResponse.next();
+  }
+
   // Deny-by-default for /api/* — public allow-list bypasses, everything else requires auth.
   if (pathname.startsWith("/api/")) {
     if (isPublicApi(pathname)) return NextResponse.next();
