@@ -211,6 +211,19 @@ export async function PATCH(request) {
       }
     }
 
+    // Auto daily check-in for Lingxi connections (daily_check_in claim)
+    if (Object.prototype.hasOwnProperty.call(body, "lingxiCheckin")) {
+      if (settings.lingxiCheckin === true) {
+        import("@/sse/services/lingxiCheckin.js")
+          .then(({ startLingxiCheckin }) => startLingxiCheckin())
+          .catch((error) => console.warn("[LingxiCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/lingxiCheckin.js")
+          .then(({ stopLingxiCheckin }) => stopLingxiCheckin())
+          .catch((error) => console.warn("[LingxiCheckin] stop failed:", error.message));
+      }
+    }
+
     // Daily-grant midnight reset (每日赠送积分优先 policy). Keyed off the
     // providerStrategies patch: any change that leaves at least one provider
     // with dailyGrantFirst=true starts the scheduler, none stops it. An

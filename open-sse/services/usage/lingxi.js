@@ -161,6 +161,33 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
   const data = payload?.data;
   if (!data) return { message: "灵犀配额接口返回异常" };
 
+  // 每日签到状态（dumate 同款）：checkinToday 推给卡片头徽章「今日已签到 ·
+  // 连续 N 天」。任务面板旁路查询——失败不推翻余额，拿不到就不出行。
+  let checkin = null;
+  try {
+    const { fetchLingxiTasks } = await import("../lingxiCheckin.js");
+    const tasks = await fetchLingxiTasks(cookie, { proxyOptions });
+    if (tasks.auth && typeof tasks.checkedIn === "boolean") {
+      checkin = {
+        checkinToday: tasks.checkedIn,
+        streakDays: Number.isInteger(tasks.streakDays) ? tasks.streakDays : 0,
+      };
+    }
+  } catch {
+    // 任务面板拿不到不阻断余额卡
+  }
+  const checkinRow = checkin
+    ? {
+        used: 0,
+        total: 0,
+        checkinToday: checkin.checkinToday,
+        streakDays: checkin.streakDays,
+        isCreditBalance: false,
+        detailOnly: true,
+        summarizesDetail: true,
+      }
+    : null;
+
   const packs = [
     ...(Array.isArray(data.bonus_credits) ? data.bonus_credits : []),
     ...(Array.isArray(data.purchased_credits) ? data.purchased_credits : []),
@@ -193,6 +220,7 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
           displayRemaining: true,
           recurring: true,
         },
+        ...(checkinRow ? { 每日签到: checkinRow } : {}),
       },
     };
   }
@@ -233,6 +261,7 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
     const row = bucketRow(b);
     quotas[row.name] = row;
   }
+  if (checkinRow) quotas["每日签到"] = checkinRow;
 
   return { plan: "智点余额", exceeded: sumBalance <= 0, quotas };
 }

@@ -181,6 +181,15 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
+  // Auto daily check-in for Lingxi connections (daily_check_in claim, ported
+  // from CreditDaddy lingxiClient). Cookie-jar connections; tasks-state gate
+  // never blind-fires the claim.
+  if (settings.lingxiCheckin === true) {
+    import("@/sse/services/lingxiCheckin.js")
+      .then(({ startLingxiCheckin }) => startLingxiCheckin())
+      .catch((e) => console.log("[LingxiCheckin] scheduler start failed:", e.message));
+  }
+
   // Daily-grant midnight reset (每日赠送积分优先 policy, 2026-11-12): reopens
   // connections auto-disabled by the drain guard in auth.js once their daily
   // grant refreshes. The scheduler self-gates per tick on providerStrategies
