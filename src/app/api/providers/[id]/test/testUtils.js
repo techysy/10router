@@ -1234,7 +1234,7 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const res = await fetchWithConnectionProxy("https://lingxi.kdocs.cn/api/public/v1/tasks", {
           method: "GET",
           headers: {
-            Cookie: connection.apiKey,
+            Cookie: connection.apiKey || connection.accessToken,
             Referer: "https://lingxi.kdocs.cn/",
             Accept: "application/json, text/plain, */*",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
