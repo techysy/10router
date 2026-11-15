@@ -43,5 +43,11 @@ export default {
     { id: "plan_pro", name: "Pro 模式" },
     { id: "plan_max", name: "Max 模式" },
   ],
+  // 配额卡：智点余额 + 到期桶（usage/lingxi.js）。凭据是连接上的 Cookie，
+  // usageCookie 让配额页的 cookie-auth 分支放行。
+  features: {
+    usage: true,
+    usageCookie: true,
+  },
   passthroughModels: true,
 };
