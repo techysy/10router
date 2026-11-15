@@ -51,6 +51,8 @@ const STALL_WATCHDOG_MS = 60 * 1000;      // 60s 无新字节 = 半死连接
 const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 const HEALTH_POLL_MS = 2 * 1000;
 const HEALTH_TIMEOUT_MS = 180 * 1000;
+const DRAIN_POLL_MS = 5 * 1000;            // 排水探测轮询间隔（/api/health activeRequests）
+const DRAIN_MAX_WAIT_MS = 120 * 1000;      // 排水窗口上限：swap 前等在途请求排空的最长时间
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000; // 失败 2h 后重试
 const MAX_ATTEMPTS_PER_DAY = 3;
 const MIN_FREE_KB = 1024 * 1024;           // 磁盘预检：1GB（tgz + 解包双份余量）
@@ -329,6 +331,23 @@ function mainVersion(timeoutMs = 3000) {
   });
 }
 
+// 主应用 /api/health 的完整 body —— 排水探测读 activeRequests（在途请求数,
+// usageRepo 注册表的内存计数）。旧版主应用无此字段 → body.activeRequests
+// undefined,排水决策按 0 处理(向后兼容,不阻塞更新)。
+function mainHealthBody(timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    const req = http.get({ host: "127.0.0.1", port: MAIN_PORT, path: "/api/health", timeout: timeoutMs }, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
 function mainUptimeSeconds(pid) {
   return new Promise((resolve) => {
     execFile("ps", ["-o", "etimes=", "-p", String(pid)], (err, stdout) => {
@@ -559,6 +578,42 @@ async function performUpdate({ trigger }) {
     if (payloadVersion && payloadVersion !== target) {
       plog("update", `payload version ${payloadVersion} differs from registry ${target}; trusting payload`);
     }
+
+    // ── 排水探测（issue #97 收尾）────────────────────────────────────────
+    // restart 会掐断在途/流式请求。swap 前轮询主应用 /api/health 的
+    // activeRequests（usageRepo 在途注册表的内存计数，健康端点零 IO 透出；
+    // 旧版主应用无此字段 → 按 0 处理，向后兼容不阻塞更新）。排空或到窗：
+    // 手动轮等满窗后照做（用户指令优先）；定时轮排不空则整轮延后 —— 抛
+    // DRAIN_DEFERRED 走既有重试记账，此时 backupDir 尚为 null 不会触发回滚。
+    setStage("draining", { key: "drainWait", args: ["0"] });
+    const drainStartedAt = Date.now();
+    for (;;) {
+      const healthBody = await mainHealthBody(2000);
+      const active = healthBody && Number.isFinite(Number(healthBody.activeRequests))
+        ? Number(healthBody.activeRequests)
+        : 0;
+      const decision = lib.drainDecision({
+        active,
+        waitedMs: Date.now() - drainStartedAt,
+        maxWaitMs: DRAIN_MAX_WAIT_MS,
+        trigger,
+      });
+      if (decision === "proceed") {
+        if (active > 0) setStage("draining", { key: "drainTimeout", args: [String(active)] });
+        break;
+      }
+      if (decision === "defer") {
+        plog("update", `drain deferred: ${active} active request(s) after ${Math.round((Date.now() - drainStartedAt) / 1000)}s — retry scheduled`);
+        const deferred = Object.assign(
+          new Error(`活跃请求未排空（${active} 个），本轮自动更新延后重试`),
+          { code: "DRAIN_DEFERRED", stageMessage: { key: "drainDeferred", args: [String(active)] } },
+        );
+        throw deferred;
+      }
+      setStage("draining", { key: "drainWait", args: [String(active)] });
+      await new Promise((r) => setTimeout(r, DRAIN_POLL_MS));
+    }
+
     setStage("swapping", { key: "swapping" });
     backupDir = await swapServerDir(payload, target);
     fs.rmSync(extractDir, { recursive: true, force: true });
@@ -580,8 +635,10 @@ async function performUpdate({ trigger }) {
   } catch (e) {
     plog("update", `FAILED: ${e.message}`);
     if (backupDir) await rollback(backupDir);
-    setStage("failed", e.message);
-    finishUpdate(false, e.message);
+    // 排水延后（DRAIN_DEFERRED）带 {key,args} 语义对 —— UI 端按语言渲染，
+    // 不是真失败文案；其余错误原文照旧。
+    setStage("failed", e.stageMessage || e.message);
+    finishUpdate(false, e.stageMessage || e.message);
     throw e;
   }
 }
@@ -1296,9 +1353,11 @@ const I18N = {
     saved: "定时更新已保存", proxySaved: "出站代理已保存", copied: "已复制到剪贴板",
     stage_starting: "准备中", stage_checking: "检查 npm latest", stage_downloading: "下载中",
     stage_extracting: "解包", stage_swapping: "热覆盖 server 产物", stage_restarting: "重启主应用",
-    stage_health: "健康检查", stage_done: "完成", stage_failed: "失败",
+    stage_health: "健康检查", stage_done: "完成", stage_failed: "失败", stage_draining: "排水探测",
     dlAria: "aria2c 分段下载 {0}", dlNode: "Node 原生下载",
     extracting: "解包（{0}）", swapping: "热覆盖 server 产物{1}",
+    drainWait: "排水中：{0} 个活跃请求", drainDeferred: "活跃请求未排空（{0} 个），本轮更新延后重试",
+    drainTimeout: "等待超时仍有 {0} 个活跃请求，按你的指令继续",
     restarting: "重启主应用", healthCheck: "等待健康检查",
     upToDateWith: "已是最新（{0}）", updatedTo: "已更新 {0} → {1}", installedTo: "已安装 {0} → {1}",
     restartSent: "重启指令已发送…", pickFirst: "先选择 tgz 文件", uploading: "上传中… 正在写入 NAS",
@@ -1348,9 +1407,11 @@ const I18N = {
     saved: "Auto-update saved", proxySaved: "Proxy saved", copied: "Copied to clipboard",
     stage_starting: "Preparing", stage_checking: "Checking npm latest", stage_downloading: "Downloading",
     stage_extracting: "Extracting", stage_swapping: "Overlaying server build", stage_restarting: "Restarting main app",
-    stage_health: "Health check", stage_done: "Done", stage_failed: "Failed",
+    stage_health: "Health check", stage_done: "Done", stage_failed: "Failed", stage_draining: "Draining",
     dlAria: "aria2c segmented download {0}", dlNode: "Node native download",
     extracting: "Extracting ({0})", swapping: "Overlaying server build{1}",
+    drainWait: "Draining: {0} active request(s)", drainDeferred: "Active requests not drained ({0}) — this round is deferred for retry",
+    drainTimeout: "Still {0} active request(s) after the window — proceeding as requested",
     restarting: "Restarting main app", healthCheck: "Waiting for health check",
     upToDateWith: "Already latest ({0})", updatedTo: "Updated {0} → {1}", installedTo: "Installed {0} → {1}",
     restartSent: "Restart command sent…", pickFirst: "Pick a tgz file first", uploading: "Uploading… writing to NAS",

@@ -26,6 +26,24 @@ function redactDriverError(message) {
     .replace(/\\\\[^\s'"]*/g, "<path>");
 }
 
+/**
+ * In-flight relay request total — the drain signal the fnOS panel's
+ * auto-update reads (issue #97 收尾:重启前等在途请求排空). Reads the live
+ * registry global (`usageRepo` owns the shape; `pendingRequests.byAccount`
+ * counts per account/model) DIRECTLY so health stays import-free of the DB
+ * layer — a probe that opens SQLite is its own outage.
+ */
+export function sumPendingRequests(byAccount) {
+  let total = 0;
+  for (const models of Object.values(byAccount || {})) {
+    for (const count of Object.values(models || {})) {
+      const n = Number(count);
+      if (Number.isFinite(n) && n > 0) total += n;
+    }
+  }
+  return total;
+}
+
 export async function GET() {
   // Read-only on purpose: /api/health must never initialise the DB (a health
   // probe that opens SQLite is its own outage). Report what the driver layer
@@ -35,11 +53,22 @@ export async function GET() {
   //                      better-sqlite3 in the global tree), else null. Paths
   //                      are redacted: see redactDriverError.
   const dbState = global._dbAdapter;
+  // Drain signal (issue #97): total in-flight relay requests. The registry
+  // global is absent until the first request pipeline module loads — absent
+  // field means "unknown", the panel's drain probe treats it as 0.
+  let activeRequests;
+  try {
+    const total = sumPendingRequests(global._pendingRequests?.byAccount);
+    if (Number.isFinite(total)) activeRequests = total;
+  } catch {
+    // Absent field — panel treats as 0 (旧版主应用同口径,向后兼容).
+  }
   return NextResponse.json(
     {
       ok: true,
       driver: dbState?.instance?.driver ?? null,
       lastDriverError: redactDriverError(dbState?.lastDriverError),
+      ...(activeRequests === undefined ? {} : { activeRequests }),
     },
     { headers: CORS_HEADERS },
   );

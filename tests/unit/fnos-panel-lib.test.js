@@ -200,3 +200,29 @@ describe("孤儿更新清场（reclaimOrphanUpdate，2026-11-13 健壮性补丁�
       .toBeGreaterThanOrEqual(45 * 60 * 1000);
   });
 });
+
+describe("drainDecision（排水探测决策,issue #97 收尾）", () => {
+  const base = { waitedMs: 0, maxWaitMs: 120000, trigger: "schedule" };
+
+  it("无活跃请求 / 字段缺失（旧版主应用）/ 非数值 → 立即 proceed", () => {
+    expect(lib.drainDecision({ ...base, active: 0 })).toBe("proceed");
+    expect(lib.drainDecision({ ...base, active: undefined })).toBe("proceed");
+    expect(lib.drainDecision({ ...base, active: "abc" })).toBe("proceed");
+    expect(lib.drainDecision({ ...base, active: -3 })).toBe("proceed");
+  });
+
+  it("有活跃请求且窗口未到 → keep-waiting", () => {
+    expect(lib.drainDecision({ ...base, active: 2, waitedMs: 0 })).toBe("keep-waiting");
+    expect(lib.drainDecision({ ...base, active: 1, waitedMs: 119000 })).toBe("keep-waiting");
+  });
+
+  it("窗口耗尽:定时轮 defer、手动轮 proceed(用户指令优先)", () => {
+    expect(lib.drainDecision({ ...base, active: 3, waitedMs: 120000 })).toBe("defer");
+    expect(lib.drainDecision({ ...base, active: 3, waitedMs: 500000 })).toBe("defer");
+    expect(lib.drainDecision({ ...base, active: 3, waitedMs: 120000, trigger: "manual" })).toBe("proceed");
+  });
+
+  it("maxWaitMs 缺失/非法按 0 处理 —— 窗口立即耗尽", () => {
+    expect(lib.drainDecision({ trigger: "schedule", active: 1, waitedMs: 0, maxWaitMs: undefined })).toBe("defer");
+  });
+});

@@ -134,6 +134,19 @@ function scheduleSlotMs(sched, nowMs) {
   return { slot, due, valid: true };
 }
 
+// 排水探测决策（issue #97 收尾）：自动更新重启会掐断在途/流式请求。
+//   active <= 0（或字段缺失/非数值 = 旧版主应用） → 立即 proceed；
+//   有活跃请求且窗口未到 → keep-waiting（轮询方继续等）；
+//   窗口耗尽：定时轮 defer（走既有重试记账），手动轮 proceed（用户指令优先）。
+function drainDecision({ active, waitedMs, maxWaitMs, trigger }) {
+  const busy = Number.isFinite(Number(active)) && Number(active) > 0;
+  if (!busy) return "proceed";
+  const waited = Number.isFinite(waitedMs) ? waitedMs : 0;
+  const max = Number.isFinite(maxWaitMs) && maxWaitMs > 0 ? maxWaitMs : 0;
+  if (waited < max) return "keep-waiting";
+  return trigger === "schedule" ? "defer" : "proceed";
+}
+
 // 每周档的触发判定：今天 == weekday && 槽点已过 && 今天没跑过。
 // 复用 daily 的日期键去重——上周同 weekday 不影响本周判定。
 function shouldRunSchedule(sched, nowMs, lastRunAtMs) {
@@ -275,4 +288,5 @@ module.exports = {
   readPayloadVersion,
   npmLatestUrl,
   npmTarballUrl,
+  drainDecision,
 };
