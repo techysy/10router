@@ -296,31 +296,88 @@ export async function fetchMeooProjectEnvironmentWithInit(credential, urlId, opt
 
 /**
  * Resolve the project service AK for an access token.
- * Project choice: explicit projectUrlId → else first project in the list.
+ * Project choice: explicit projectUrlId binding first, then the list —
+ * read-only pass over every project before any cloud-init POST, because a
+ * sibling project may already hold the (single) cloud instance.
  * Throws MeooApiError with code MEOO_NO_PROJECT / MEOO_CLOUD_NOT_ENABLED /
  * MEOO_PROJECT_AK_MISSING for the states the CLI surfaces separately
- * (NO_PROJECT_BOUND; environment.enabled === false).
+ * (NO_PROJECT_BOUND; environment.enabled === false). Every failure past the
+ * projects leg carries `akLeg: true` — the credential itself was accepted.
  */
 export async function resolveMeooProjectAk(credential, { projectUrlId = "", proxyOptions = null, signal = null } = {}) {
   const options = { proxyOptions, signal };
   const projects = await fetchMeooProjects(credential, options);
   if (projects.length === 0) {
-    throw new MeooApiError(0, "MEOO_NO_PROJECT", "Meoo account has no project; create one in Meoo first, then re-resolve the project AK");
+    const err = new MeooApiError(0, "MEOO_NO_PROJECT", "Meoo account has no project; create one in Meoo first, then re-resolve the project AK");
+    err.akLeg = true;
+    throw err;
   }
-  const project = (projectUrlId && projects.find((p) => p.urlId === projectUrlId)) || projects[0];
-  const environment = await fetchMeooProjectEnvironmentWithInit(credential, project.urlId, options);
-  if (environment?.enabled === false) {
-    throw new MeooApiError(0, "MEOO_CLOUD_NOT_ENABLED", `Meoo project ${project.urlId} has cloud services disabled; enable cloud services for the project, then re-resolve the project AK`);
+  // Stored binding first, then the rest in list order. A project without a
+  // usable cloud environment must not fail the whole resolution when a
+  // SIBLING project carries one: free tier allows a single cloud instance,
+  // and a freshly created project's init is quota-blocked while the older
+  // project still holds the slot (2026-11-16 real account: two projects,
+  // 云服务 1/1 — newest init → QUOTA_EXCEEDED, oldest → usable AK).
+  const ordered = [
+    ...(projectUrlId ? projects.filter((p) => p.urlId === projectUrlId) : []),
+    ...projects.filter((p) => p.urlId !== projectUrlId),
+  ];
+  const usable = (environment) =>
+    environment &&
+    environment.enabled !== false &&
+    typeof environment.meooProjectApiKey === "string" &&
+    environment.meooProjectApiKey;
+  const cloudNotEnabled = (urlId) =>
+    new MeooApiError(0, "MEOO_CLOUD_NOT_ENABLED", `Meoo project ${urlId} has cloud services disabled; enable cloud services for the project, then re-resolve the project AK`);
+  const akMissing = (urlId) =>
+    new MeooApiError(0, "MEOO_PROJECT_AK_MISSING", `Meoo project ${urlId} environment returned no meooProjectApiKey`);
+  let lastError = null;
+
+  // Pass 1 — read-only: a project whose environment already reports an AK
+  // wins without any cloud-init POST (Meoo warns against repeated /cloud
+  // calls; only a fully cloud-less account reaches pass 2).
+  for (const project of ordered) {
+    try {
+      const environment = await fetchMeooProjectEnvironment(credential, project.urlId, options);
+      if (usable(environment)) {
+        return {
+          projectApiKey: environment.meooProjectApiKey,
+          projectUrlId: project.urlId,
+          projectName: project.name || "",
+        };
+      }
+      lastError = environment?.enabled === false ? cloudNotEnabled(project.urlId) : akMissing(project.urlId);
+    } catch (err) {
+      lastError = err;
+    }
   }
-  const projectApiKey = environment?.meooProjectApiKey;
-  if (typeof projectApiKey !== "string" || !projectApiKey) {
-    throw new MeooApiError(0, "MEOO_PROJECT_AK_MISSING", `Meoo project ${project.urlId} environment returned no meooProjectApiKey`);
+
+  // Pass 2 — one-shot init on the preferred order: a brand-new project may
+  // never have had its cloud initialised (console 云服务 0/1); POST once and
+  // re-read, then give up with the most informative error.
+  for (const project of ordered) {
+    try {
+      const environment = await fetchMeooProjectEnvironmentWithInit(credential, project.urlId, options);
+      if (usable(environment)) {
+        return {
+          projectApiKey: environment.meooProjectApiKey,
+          projectUrlId: project.urlId,
+          projectName: project.name || "",
+        };
+      }
+      lastError = environment?.enabled === false ? cloudNotEnabled(project.urlId) : akMissing(project.urlId);
+    } catch (err) {
+      lastError = err;
+    }
   }
-  return {
-    projectApiKey,
-    projectUrlId: project.urlId,
-    projectName: project.name || "",
-  };
+  if (lastError) {
+    // Everything thrown past the projects leg is an AK-side failure — tag it
+    // so import paths can distinguish "key accepted, no AK yet" from a
+    // genuine credential rejection (akLeg; see oauth/services/meoo.js).
+    if (lastError instanceof MeooApiError) lastError.akLeg = true;
+    throw lastError;
+  }
+  throw new MeooApiError(0, "MEOO_PROJECT_AK_MISSING", "No Meoo project produced a service AK");
 }
 
 /**

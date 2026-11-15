@@ -76,11 +76,17 @@ export class MeooService {
       extra.projectName = ak.projectName;
       extra.akStatus = "ok";
     } catch (err) {
+      // akLeg = the failure happened PAST the projects leg (environment /
+      // cloud-init): the credential itself was accepted, the account just has
+      // no AK yet. The concrete case that forced this open: cloud-init
+      // QUOTA_EXCEEDED — 共享云服务 is a PRO/MAX feature, a free account with
+      // its single instance held by another project can never init a new one
+      // (2026-11-16 实机)。Balance/check-in keep working on the control key;
+      // refresh-ak picks the AK up if a slot ever frees up.
       const acceptedButNoAk =
         err instanceof MeooApiError &&
-        err.status === 0 &&
-        typeof err.code === "string" &&
-        err.code.startsWith("MEOO_");
+        (err.akLeg === true ||
+          (err.status === 0 && typeof err.code === "string" && err.code.startsWith("MEOO_")));
       if (!acceptedButNoAk) throw err;
       extra.akStatus = "error";
       extra.akError = err.message;
