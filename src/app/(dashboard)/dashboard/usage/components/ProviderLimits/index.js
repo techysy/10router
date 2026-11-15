@@ -195,6 +195,7 @@ const KNOWN_PROVIDER_NAMES = {
   "minimax-cn": "MiniMax CN",
   "glm-cn": "GLM CN",
   "kimi-cn": "Kimi CN",
+  "lingxi": "WPS 灵犀",
 };
 
 export default function ProviderLimits() {
