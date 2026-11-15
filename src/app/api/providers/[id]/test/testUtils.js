@@ -1227,6 +1227,22 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const res = await fetchWithConnectionProxy("https://llm.chutes.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "lingxi": {
+        // Live check = the tasks endpoint (same liveness probe CreditDaddy's
+        // lingxi line uses; it carries the full WPS session jar and answers
+        // 200 with data.tasks[] when the session is alive, 401/403 when dead).
+        const res = await fetchWithConnectionProxy("https://lingxi.kdocs.cn/api/public/v1/tasks", {
+          method: "GET",
+          headers: {
+            Cookie: connection.apiKey,
+            Referer: "https://lingxi.kdocs.cn/",
+            Accept: "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+          },
+        }, effectiveProxy);
+        const valid = res.status === 200;
+        return { valid, error: valid ? null : "WPS session expired — re-capture from a logged-in lingxi.kdocs.cn browser" };
+      }
       case "grok-web": {
         const token = connection.apiKey.startsWith("sso=") ? connection.apiKey.slice(4) : connection.apiKey;
         const randomHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
