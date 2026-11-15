@@ -444,10 +444,14 @@ export default function ProvidersPage() {
     // show up where users expect an interactive login flow. dumate has QR
     // login; lingxi takes a pasted WPS session cookie (CreditDaddy sync).
     // The dedicated Web Cookie section stays collapsed below.
+    // loomy likewise (2026-11-15 用户定版): its credential is a login session
+    // captured interactively (CreditDaddy 本机导入/手机直登 or pasted session),
+    // not a "free-tier API key" — surface it with the OAuth group.
     Object.entries({
       ...OAUTH_PROVIDERS,
       ...(WEB_COOKIE_PROVIDERS.dumate ? { dumate: WEB_COOKIE_PROVIDERS.dumate } : {}),
       ...(WEB_COOKIE_PROVIDERS.lingxi ? { lingxi: WEB_COOKIE_PROVIDERS.lingxi } : {}),
+      ...(FREE_TIER_PROVIDERS.loomy ? { loomy: FREE_TIER_PROVIDERS.loomy } : {}),
     }).filter(([, info]) => !info.hidden && matchSearch(info.name)),
   ).filter(([key, info]) => matchesStatusFilter(getProviderStats(key, dualAuthTypes(info, key)), info, key));
   // Merge free (noAuth/connectionless) and free-tier (api-key) providers into
@@ -466,7 +470,10 @@ export default function ProvidersPage() {
       .map(([k, info]) => ({ key: k, info, stats: getProviderStats(k, dualAuthTypes(info, k)), isFreeTier: false })),
     ...Object.entries(FREE_TIER_PROVIDERS)
       .filter(
-        ([, info]) =>
+        ([k, info]) =>
+          // loomy surfaces in the OAuth group (session-credential semantics) —
+          // excluded here or it would render twice.
+          k !== "loomy" &&
           !info.hidden &&
           !(info.community && !showCommunityProviders) &&
           matchSearch(info.name) &&
