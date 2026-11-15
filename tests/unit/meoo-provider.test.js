@@ -394,6 +394,131 @@ describe("Meoo AK re-resolution with only a control key (route B)", () => {
   });
 });
 
+describe("Meoo project walk — cloud quota on one sibling must not sink the resolution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Real shape (2026-11-16): two projects, 云服务 1/1 — the newest project has
+  // NO cloud (its init would be quota-refused), the older one carries the AK.
+  function mockQuotaSplitProjects() {
+    let envGets = 0;
+    let cloudPosts = 0;
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/projects?")) {
+        return jsonResponse(200, {
+          success: true,
+          data: {
+            list: [
+              { url_id: "proj-new", name: "New App", status: "active" },
+              { url_id: "proj-old", name: "Old App", status: "active" },
+            ],
+            total: 2,
+          },
+        });
+      }
+      if (u.endsWith("/cloud") && (opts?.method || "GET") === "POST") {
+        cloudPosts += 1;
+        return jsonResponse(403, { errCode: "quota_exceeded", message: "云服务实例数已达上限" });
+      }
+      if (u.includes("/cloud/environment")) {
+        envGets += 1;
+        if (u.includes("proj-new")) {
+          return jsonResponse(200, { success: true, data: { enabled: false, instance: null } });
+        }
+        return jsonResponse(200, { success: true, data: { enabled: true, meooProjectApiKey: PROJECT_AK } });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    return { getEnvGets: () => envGets, getCloudPosts: () => cloudPosts };
+  }
+
+  it("resolves the AK from the sibling project and never fires cloud-init", async () => {
+    const counters = mockQuotaSplitProjects();
+    const { resolveMeooProjectAk } = await import("../../open-sse/services/meooAk.js");
+    const resolved = await resolveMeooProjectAk("meoo_ak_walk_test_1234567890");
+    expect(resolved.projectUrlId).toBe("proj-old");
+    expect(resolved.projectApiKey).toBe(PROJECT_AK);
+    // Pass 1 is read-only: a usable sibling means zero /cloud POSTs (Meoo
+    // warns against repeated init calls).
+    expect(counters.getCloudPosts()).toBe(0);
+    expect(counters.getEnvGets()).toBe(2);
+  });
+
+  it("tags AK-leg failures with akLeg so imports can tell them from key rejections", async () => {
+    // Both projects cloudless: proj-new enabled:false; proj-old env 404 and
+    // its cloud init is quota-refused (shared cloud is a PRO/MAX feature).
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/projects?")) {
+        return jsonResponse(200, {
+          success: true,
+          data: { list: [{ url_id: "proj-new", status: "active" }, { url_id: "proj-old", status: "active" }], total: 2 },
+        });
+      }
+      if (u.endsWith("/cloud") && (opts?.method || "GET") === "POST") {
+        return jsonResponse(403, { errCode: "quota_exceeded", message: "云服务实例数已达上限" });
+      }
+      if (u.includes("proj-new") && u.includes("/cloud/environment")) {
+        return jsonResponse(200, { success: true, data: { enabled: false, instance: null } });
+      }
+      if (u.includes("/cloud/environment")) {
+        return jsonResponse(404, { errCode: "not_found", message: "cloud environment not found" });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { resolveMeooProjectAk } = await import("../../open-sse/services/meooAk.js");
+    const err = await resolveMeooProjectAk("meoo_ak_walk_test_1234567890").catch((e) => e);
+    expect(err.status).toBe(403);
+    expect(err.code).toBe("quota_exceeded");
+    expect(err.akLeg).toBe(true);
+  });
+
+  it("resolveControlKeyImport accepts a key whose cloud is quota-blocked (connection without AK)", async () => {
+    // Both projects cloudless + init quota-refused: the shared-cloud wall is
+    // a PRO/MAX feature — the KEY is valid, so the import still lands.
+    mocks.proxyAwareFetch.mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.endsWith("/account/identity")) {
+        return jsonResponse(200, { success: true, data: { user: { id: "u-1", name: "alice", email: "alice@example.com" } } });
+      }
+      if (u.includes("/projects?")) {
+        return jsonResponse(200, {
+          success: true,
+          data: { list: [{ url_id: "proj-new", status: "active" }, { url_id: "proj-old", status: "active" }], total: 2 },
+        });
+      }
+      if (u.endsWith("/cloud") && (opts?.method || "GET") === "POST") {
+        return jsonResponse(403, { errCode: "quota_exceeded", message: "云服务实例数已达上限" });
+      }
+      if (u.includes("proj-new") && u.includes("/cloud/environment")) {
+        return jsonResponse(200, { success: true, data: { enabled: false, instance: null } });
+      }
+      if (u.includes("/cloud/environment")) {
+        return jsonResponse(404, { errCode: "not_found", message: "cloud environment not found" });
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    const { default: MeooService } = await import("../../src/lib/oauth/services/meoo.js");
+    const extra = await new MeooService().resolveControlKeyImport("meoo_ak_quota_test_1234567890");
+    expect(extra.akStatus).toBe("error");
+    expect(extra.akError).toContain("云服务实例数已达上限");
+    expect(extra.projectApiKey).toBe("");
+    // The control key itself rides along — balance/check-in still work.
+    expect(extra.identity?.username).toBe("alice");
+  });
+
+  it("still rethrows a key the projects leg refuses (invalid key ≠ no-AK)", async () => {
+    mockControlPlane({ projectsStatus: 401 });
+    const { default: MeooService } = await import("../../src/lib/oauth/services/meoo.js");
+    await expect(new MeooService().resolveControlKeyImport("meoo_ak_bad_test_1234567890")).rejects.toMatchObject({
+      status: 401,
+      code: "invalid_token",
+    });
+  });
+});
+
 describe("POST /api/oauth/meoo/import-apikey (route B)", () => {
   const controlKey = "meoo_ak_import_test_1234567890";
 
