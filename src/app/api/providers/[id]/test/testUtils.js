@@ -577,7 +577,10 @@ async function testMeooConnection(connection, effectiveProxy = null, options = {
     return { valid: false, error: err.message || "Meoo project service AK could not be resolved", refreshed: false };
   }
 
-  const gatewayUrl = PROVIDERS["meoo"]?.transport?.baseUrl;
+  // config/providers.js 的 meoo 条目是顶层 baseUrl（无 transport 子对象）——
+  // 读 transport.baseUrl 恒为 undefined，逐个测试永远走「Gateway URL missing」
+  // 假成功分支（valid:true + error 文案 → 红字挂成功徽章，2026-11-15 用户报告）。
+  const gatewayUrl = PROVIDERS["meoo"]?.baseUrl;
   if (!gatewayUrl) return { valid: true, error: "Gateway URL missing; control plane + project AK verified", refreshed: false };
 
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${projectAk}` };
