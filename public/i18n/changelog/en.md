@@ -25,7 +25,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Usage imports keep the original key identity**: masked keys in backups were re-hashed into a non-existent identity — re-imports neither deduplicated (double counting) nor attributed named keys; digests are now used as-is and masks refuse to derive.
 - **Backup restore keeps combo disabled models**: `disabledModels` survive restore (legacy backups compatible).
 - **DuMate quota card**: incremental-pack double counting fixed; the authoritative balance bar survives an incomplete breakdown; a spent subscription no longer flags accounts with usable top-ups as rate-limited.
-- **fnOS management panel (#97)**: root cause of the frequent panel log crashes (sync throws inside async callbacks escalating to process death) + crash self-healing; scheduled auto-update hardened; overview and update merged into one page; logs now read panel events.
+- **fnOS management panel (#97)**: root cause of the frequent panel log crashes (sync throws inside async callbacks escalating to process death) + crash self-healing; scheduled auto-update hardened; **auto-updates now drain active/streaming requests before restarting** (a busy round defers and retries instead of killing in-flight chats); overview and update merged into one page; logs now read panel events.
 - **Trae**: FlashX 4001 downgrade handling, Doubao SOLO session re-homing, browser login preflight no longer kills the callback proxy.
 - **Misc**: media-page card dragging no longer hijacked by links; zh-CN/zh-TW dictionary gaps scanned to zero (22 + 129 entries).
 

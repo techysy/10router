@@ -27,7 +27,7 @@
 - **备份恢复保留组合禁用状态（#118 学习合并）**：exportDb/importDb 补 `disabledModels` 列，旧备份缺字段持久化为空数组。
 - **DuMate 配额卡三连（#124/#125/#126 学习合并）**：增量包 `detailOnly` 修复双计；订阅行 `giftPack`（烧完后不再驱动到期/健康判定）；`completeQuotaBreakdown` 双和校验（明细不完整时保留权威余额条，status/汇总行剔除，fail-closed）；额度包可见性稳定键（过期重排不丢隐藏偏好，模糊旧键退役）；余额与签到行退出逐包明细。
 - **每日赠送烧尽保护覆盖最后一个账号（#122 学习合并）**：耗尽保护从「relay 仅多账号池激活」改为资格规则——钉住 / 单账号 / 池缩减不再绕过去烧永久积分；`dailyGrantUnavailable` 按兄弟账号生效锁计算最早恢复点，无可恢复才落到次日。
-- **fnOS 管理面板（#97）**：面板日志频繁崩溃根因修复（async 回调同步抛错 → Node unhandledRejection 进程级崩溃；URL parse 移出 try + `.catch()` 包裹 + 崩溃自愈）；定时自动更新健壮化（孤儿 update GC、outcome 记账、开机补跑）；总览与更新合并为单页（EXDEV 跨卷重命名修复、版本缓存）；日志改读面板自身事件、孤儿标签清理、生命周期状态对齐。
+- **fnOS 管理面板（#97）**：面板日志频繁崩溃根因修复（async 回调同步抛错 → Node unhandledRejection 进程级崩溃；URL parse 移出 try + `.catch()` 包裹 + 崩溃自愈）；定时自动更新健壮化（孤儿 update GC、outcome 记账、开机补跑）+ **重启前排水探测**——`/api/health` 透出 `activeRequests`（在途 relay 请求总数，零 IO 直读注册表 global），面板 swap 前轮询等排空：定时轮排不空整轮延后走既有重试、手动轮等满窗后按用户指令继续；总览与更新合并为单页（EXDEV 跨卷重命名修复、版本缓存）；日志改读面板自身事件、孤儿标签清理、生命周期状态对齐。
 - **Trae**：FlashX 4001 降级处理、豆包 SOLO 归位（#109）、浏览器登录裸 GET 预检不再误杀回调代理。
 - **杂项**：媒体页 DraggableCard 抑制 anchor 拖拽劫持；System One core 输入字段按 authHeader 推导；follow 上游 v0.5.119 四项（CLI 版本自动跟随 / qoder enable:false / gemini-4 计价 / engines 下限）；简繁字典全量扫描清零（translate 字面量 22 条 + TW 镜像 129 条）。
 
