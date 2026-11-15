@@ -423,6 +423,9 @@ export default function ProvidersPage() {
     // dumate is a webCookie provider surfaced in the OAuth group (QR login) —
     // its connections carry authType "cookie", so count that alongside "oauth".
     if (key === "dumate") return ["cookie", "oauth"];
+    // lingxi likewise: pasted WPS session cookie (authType "cookie"), synced
+    // from CreditDaddy or captured in a browser session — no OAuth flow.
+    if (key === "lingxi") return ["cookie"];
     const modes = info?.authModes;
     // Free-tier and API-key providers default to supporting apikey even when the
     // registry entry omits authModes (e.g. cloudflare-ai, byteplus, ollama,
@@ -437,12 +440,14 @@ export default function ProvidersPage() {
   };
 
   const oauthEntries = sortByPriority(
-    // Merge the QR-login webCookie providers into the OAuth group so they show
-    // up where users expect an interactive login flow (DuMate is today the
-    // only one — the dedicated Web Cookie section stays collapsed below).
+    // Merge the cookie-login webCookie providers into the OAuth group so they
+    // show up where users expect an interactive login flow. dumate has QR
+    // login; lingxi takes a pasted WPS session cookie (CreditDaddy sync).
+    // The dedicated Web Cookie section stays collapsed below.
     Object.entries({
       ...OAUTH_PROVIDERS,
       ...(WEB_COOKIE_PROVIDERS.dumate ? { dumate: WEB_COOKIE_PROVIDERS.dumate } : {}),
+      ...(WEB_COOKIE_PROVIDERS.lingxi ? { lingxi: WEB_COOKIE_PROVIDERS.lingxi } : {}),
     }).filter(([, info]) => !info.hidden && matchSearch(info.name)),
   ).filter(([key, info]) => matchesStatusFilter(getProviderStats(key, dualAuthTypes(info, key)), info, key));
   // Merge free (noAuth/connectionless) and free-tier (api-key) providers into
