@@ -5,10 +5,10 @@ export default {
   aliases: ["lx", "wps-lingxi"],
   uiAlias: "lingxi",
   display: {
-    name: "WPS 灵犀",
+    name: "Lingxi",
     icon: "auto_awesome",
     color: "#E34D3F",
-    textIcon: "灵犀",
+    textIcon: "LX",
     website: "https://lingxi.kdocs.cn",
   },
   category: "webCookie",

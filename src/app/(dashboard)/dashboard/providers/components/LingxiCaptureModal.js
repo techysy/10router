@@ -93,7 +93,7 @@ export default function LingxiCaptureModal({ isOpen, onClose, connectionId, onSu
   };
 
   return (
-    <Modal isOpen={isOpen} title={cid ? "重新捕获 WPS 灵犀会话" : "捕获 WPS 灵犀会话（新建连接）"} onClose={close}>
+    <Modal isOpen={isOpen} title={cid ? "重新捕获 Lingxi 会话" : "捕获 Lingxi 会话（新建连接）"} onClose={close}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 text-sm">
           <p>
