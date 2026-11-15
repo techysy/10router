@@ -89,7 +89,9 @@ const USAGE_HANDLERS = {
     }),
   // 灵犀的智点账本在 lingxi.kdocs.cn（公开 API，无签名），凭据是连接上的 WPS
   // Cookie 罐（自捕获/CD 同步同一形状）。到期桶见 usage/lingxi.js。
-  lingxi: (c) => getLingxiUsage({ apiKey: c.apiKey, proxyOptions: c.proxyOptions }),
+  // apiKey || accessToken：#129 之前 CD transfer 同步的存量行把 Cookie 罐落在
+  // accessToken（oauth 形态），与 executor 的读取口径保持一致。
+  lingxi: (c) => getLingxiUsage({ apiKey: c.apiKey || c.accessToken, proxyOptions: c.proxyOptions }),
   "opencode-go": (c) => getOpencodeGoUsage(c.apiKey, c.proxyOptions),
   "opencode-zen": (c) => getOpenCodeZenUsage(c.apiKey, c.proxyOptions),
   // The cloud card bills through the plan / API at formal rates and owns NO
