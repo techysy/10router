@@ -2499,6 +2499,14 @@ export default function ProviderDetailPage() {
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
+                    {/* meoo 的 meoo_ak_ 粘贴走专用导入弹窗（控制面 Key ≠ 项目
+                        AK）——0 连接时双 auth 分支此前没有这个入口，用户删光
+                        失败连接后就找不到粘贴 meoo_ak_ 的地方了。 */}
+                    {providerId === "meoo" && (
+                      <Button size="sm" icon="key" variant="secondary" onClick={() => setShowMeooImportApikey(true)}>
+                        {translate("Paste API Key")}
+                      </Button>
+                    )}
                     {renderOAuthTransferButtons()}
                     {/* No connections yet: do not show check-in / claim credits */}
                   </>
