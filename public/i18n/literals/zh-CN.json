@@ -2201,6 +2201,8 @@
   "Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)": "到期优先调度生效期间禁用（到期优先调度优先于轮询）",
   "Re-login (QR code)": "重新登录（扫码）",
   "Re-login": "重新登录",
+  "Re-capture": "重新捕获",
+  "Re-capture the WPS session cookie": "重新捕获 WPS 会话 Cookie",
   "Connect Meoo with API Key": "通过 API Key 连接 Meoo",
   "Project": "项目",
   "QR Login": "扫码登录",
