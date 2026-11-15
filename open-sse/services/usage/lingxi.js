@@ -195,6 +195,12 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
   }
 
   const sumBalance = active.reduce((s, p) => s + p.balance, 0);
+  // 卡片大字区的倒计时 = 最新（最早）过期包的到期日——FIFO 下这是整笔余额的
+  // 实际死线（CD 面板旧卡「至 YYYY-MM-DD 到期」同口径）。
+  const earliestExpire = active
+    .map((p) => p.expire_time)
+    .filter(Boolean)
+    .sort()[0] || null;
   const sumTotal = active.reduce((s, p) => s + p.value, 0);
   const sumUsed = active.reduce((s, p) => s + p.consumed, 0);
 
@@ -208,6 +214,9 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
       isCreditBalance: true,
       displayRemaining: true,
       summarizesDetail: true,
+      // 倒计时措辞用 Expires（硬到期），不是滚动窗口的 Reset
+      resetAt: earliestExpire || undefined,
+      recurring: false,
     },
   };
   for (const b of bucketByExpiry(active)) {

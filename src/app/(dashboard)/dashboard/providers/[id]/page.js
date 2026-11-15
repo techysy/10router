@@ -1669,6 +1669,8 @@ export default function ProviderDetailPage() {
                   setLingxiCaptureConnectionId(conn.id);
                   setShowLingxiCaptureModal(true);
                 } : null}
+                reauthIcon={providerId === "lingxi" ? "cookie" : undefined}
+                reauthTitle={providerId === "lingxi" ? "Re-capture the WPS session cookie" : undefined}
                 onDelete={() => handleDelete(conn.id)}
                 oneByOneStatus={oneByOneResults[conn.id] || null}
               />
