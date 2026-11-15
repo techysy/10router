@@ -565,9 +565,9 @@ async function testMeooConnection(connection, effectiveProxy = null, options = {
     return { valid: false, error: "Meoo control plane returned no points account", refreshed: false };
   }
 
-  let projectAk;
+  let resolved;
   try {
-    projectAk = await resolveMeooProjectAk(credential, {
+    resolved = await resolveMeooProjectAk(credential, {
       projectUrlId: psd.projectUrlId || "",
       proxyOptions: effectiveProxy,
     });
@@ -576,6 +576,12 @@ async function testMeooConnection(connection, effectiveProxy = null, options = {
     // surface them verbatim; serverTranslate carries the zh pair.
     return { valid: false, error: err.message || "Meoo project service AK could not be resolved", refreshed: false };
   }
+  // resolveMeooProjectAk returns the OBJECT { projectApiKey, projectUrlId,
+  // projectName } — interpolating it into Bearer rendered "[object Object]"
+  // and the gateway 401'd「项目服务 AK 无效」. That gateway leg was dead code
+  // until the baseUrl fix above activated it (2026-11-15 真机直连 AK 探测
+  // 200 全通——账号本身没问题，纯粹是这里没用 .projectApiKey）。
+  const projectAk = resolved.projectApiKey;
 
   // config/providers.js 的 meoo 条目是顶层 baseUrl（无 transport 子对象）——
   // 读 transport.baseUrl 恒为 undefined，逐个测试永远走「Gateway URL missing」
