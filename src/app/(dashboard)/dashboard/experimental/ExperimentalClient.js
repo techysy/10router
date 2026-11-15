@@ -169,6 +169,21 @@ export default function ExperimentalClient() {
               }
             />
 
+            {/* Lingxi auto daily check-in — daily_check_in claim (ported from
+                CreditDaddy lingxiClient). The tasks-state gate never blind-fires
+                the claim; checked-in/already accounts are memoized for the day. */}
+            <CheckinCard
+              title={translate("Lingxi auto daily check-in")}
+              desc={translate("Automatically claim the daily check-in credits for Lingxi connections (100 a day, 200 on the seventh) — retries all day until today's claim is confirmed")}
+              checked={settings.lingxiCheckin === true}
+              onToggle={() =>
+                patch(
+                  { lingxiCheckin: !(settings.lingxiCheckin === true) },
+                  "Error toggling Lingxi auto check-in:"
+                )
+              }
+            />
+
             {/* CodeBuddy CN auto daily check-in (shares the UI slot with import/export) */}
             <CheckinCard
               title={translate("CodeBuddy CN auto daily check-in")}

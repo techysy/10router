@@ -296,6 +296,29 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
     }
   };
 
+  // Lingxi 每日签到（每日灵点领取）：手动触发与自动调度走同一协议
+  // （任务状态门控，绝不盲打 claim）。渲染条件与配额卡对齐：lingxi 且非 external 行。
+  const [lingxiCheckingIn, setLingxiCheckingIn] = useState(false);
+  const [lingxiCheckinResult, setLingxiCheckinResult] = useState(null);
+  const showLingxiCheckin = connection.provider === "lingxi" && !connection.external;
+
+  const handleLingxiCheckin = async () => {
+    if (lingxiCheckingIn) return;
+    setLingxiCheckingIn(true);
+    try {
+      const response = await fetch(`/api/usage/${connection.id}/lingxi-checkin`, { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || result.message || "签到失败，请稍后重试");
+      }
+      setLingxiCheckinResult(result);
+    } catch (error) {
+      setLingxiCheckinResult({ claimed: false, message: error.message || "签到失败，请稍后重试" });
+    } finally {
+      setLingxiCheckingIn(false);
+    }
+  };
+
   const getStatusVariant = () => getConnectionStatusVariant(connection.isActive, effectiveStatus);
 
   const getOneByOneVariant = () => {
@@ -529,6 +552,27 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                   {meooClaiming ? "progress_activity" : "redeem"}
                 </span>
                 <span className="text-[10px] leading-tight">每日领积分</span>
+              </button>
+            </Tooltip>
+          )}
+          {showLingxiCheckin && (
+            <Tooltip
+              text={
+                lingxiCheckinResult?.message ||
+                "每日签到领灵点（任务状态门控，已签直接返回不重复打 claim）"
+              }
+            >
+              <button
+                type="button"
+                onClick={handleLingxiCheckin}
+                disabled={lingxiCheckingIn}
+                aria-label="每日签到"
+                className="flex w-full flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className={`material-symbols-outlined text-[18px] ${lingxiCheckingIn ? "animate-spin" : ""}`}>
+                  {lingxiCheckingIn ? "progress_activity" : "task_alt"}
+                </span>
+                <span className="text-[10px] leading-tight">每日签到</span>
               </button>
             </Tooltip>
           )}
