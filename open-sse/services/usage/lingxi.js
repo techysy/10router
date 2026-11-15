@@ -108,7 +108,10 @@ function bucketRow(b) {
     total: b.total || b.balance,
     remaining: b.balance,
     resetAt: b.expireAt || undefined,
-    isCreditBalance: true,
+    // 不标 isCreditBalance：那是「无到期日的永久余额」语义（expiryExtractor
+    // isPerpetual 直接跳过），而桶是硬到期的一次性包——标了它连接行的
+    // 「最早到期」徽标（extractEarliestPackageExpiry）就永远写不进去。
+    // 储值语义只在智点余额汇总行上。明细渲染走 displayRemaining，不受影响。
     displayRemaining: true,
     detailOnly: true,
     ...(b.grant ? { giftPack: true } : {}),
@@ -204,6 +207,7 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
   const sumTotal = active.reduce((s, p) => s + p.value, 0);
   const sumUsed = active.reduce((s, p) => s + p.consumed, 0);
 
+  const buckets = bucketByExpiry(active);
   const quotas = {
     // 余额行（大数字）：summarizesDetail 把它排除出逐包明细——桶是它的构成，
     // 明细再列一遍同数是纯重复（dumate 2026-11-14 同款双计教训）。
@@ -217,9 +221,15 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
       // 倒计时措辞用 Expires（硬到期），不是滚动窗口的 Reset
       resetAt: earliestExpire || undefined,
       recurring: false,
+      // QuotaPackBar 头部右侧小字（meoo expiringBatch 同款通道）：储值池卡片
+      // 大数右侧默认留空，但「一罐积分该回答『到什么时候』」——给出最早到期
+      // 桶的余额与日期，头部即渲染 "900 · 至12-10到期"。
+      ...(earliestExpire
+        ? { expiringBatch: { remaining: buckets[0]?.balance ?? sumBalance, resetAt: earliestExpire } }
+        : {}),
     },
   };
-  for (const b of bucketByExpiry(active)) {
+  for (const b of buckets) {
     const row = bucketRow(b);
     quotas[row.name] = row;
   }
@@ -229,6 +239,7 @@ export async function getLingxiUsage({ apiKey, proxyOptions = null } = {}) {
 
 export const __test__ = {
   bucketByExpiry,
+  bucketRow,
   expiryKey,
   isAuthFailure,
   MAX_BUCKETS,

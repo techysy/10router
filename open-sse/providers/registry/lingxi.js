@@ -10,6 +10,16 @@ export default {
     color: "#E34D3F",
     textIcon: "LX",
     website: "https://lingxi.kdocs.cn",
+    notice: {
+      // 2026-11-15 用户点名：Lingxi 页面同 Loomy —— 点明 CreditDaddy 是
+      // Cookie 收割的主通道（网页会话捕获 + 每日签到 + 自动同步到 10Router），
+      // 产品名渲染成内联链接（最新 Release 页），用户看到就知道去哪下载。
+      text: "Harvest & refresh Lingxi session cookies with CreditDaddy — daily check-in keeps 灵点 credits flowing, balances auto-synced to 10Router.",
+      textLink: {
+        term: "CreditDaddy",
+        href: "https://github.com/techysy/CreditDaddy/releases/latest",
+      },
+    },
   },
   category: "webCookie",
   authType: "cookie",

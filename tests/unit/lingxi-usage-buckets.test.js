@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bucketByExpiry, expiryKey, isAuthFailure, MAX_BUCKETS } from "../../open-sse/services/usage/lingxi.js";
+import { bucketByExpiry, expiryKey, isAuthFailure, MAX_BUCKETS, __test__ } from "../../open-sse/services/usage/lingxi.js";
+import { extractEarliestPackageExpiry } from "../../open-sse/services/usage/expiryExtractor.js";
+
+const { bucketRow } = __test__;
 
 // 官方智点详情口径（2026-11-15 截图）：逐包「任务奖励 / 生效 / 到期 / 已用-总量」，
 // 一天一包 30 天有效。桶 = 同日到期并格，先到期先显示。
@@ -83,6 +86,63 @@ describe("lingxi bucketByExpiry", () => {
     expect(rows[0].balance).toBe(0);
     expect(rows[0].total).toBe(0);
     expect(rows[0].consumed).toBe(0);
+  });
+});
+
+describe("lingxi usage shape feeds the earliest-expiry badge", () => {
+  // 连接行「最早到期」徽标由 extractEarliestPackageExpiry(usage) 写进
+  // connection.earliestPackageExpiry（测试后台 / usage 路由两条路）。
+  // 它把 isCreditBalance 行当永久余额跳过——桶行一旦带这个标志徽标就
+  // 永远是 null（2026-11-15 用户报告：连接卡没做到期积分）。
+  const buildUsage = (packs) => {
+    const buckets = bucketByExpiry(packs);
+    const quotas = {
+      智点余额: {
+        used: 0,
+        total: 1000,
+        remaining: 1000,
+        isCreditBalance: true,
+        displayRemaining: true,
+        summarizesDetail: true,
+        resetAt: buckets[0]?.expireAt || undefined,
+        recurring: false,
+        ...(buckets[0]?.expireAt
+          ? { expiringBatch: { remaining: buckets[0].balance, resetAt: buckets[0].expireAt } }
+          : {}),
+      },
+    };
+    for (const b of buckets) {
+      const row = bucketRow(b);
+      quotas[row.name] = row;
+    }
+    return { quotas };
+  };
+
+  it("bucket rows carry no isCreditBalance and yield the earliest expiry", () => {
+    const usage = buildUsage([
+      pack({ expire_time: "2026-12-20T00:00:00+08:00" }),
+      pack({ expire_time: "2026-12-10T00:00:00+08:00", balance: 900, value: 900 }),
+    ]);
+    for (const [name, quota] of Object.entries(usage.quotas)) {
+      if (name === "智点余额") continue;
+      expect(quota.isCreditBalance).not.toBe(true);
+    }
+    const info = extractEarliestPackageExpiry(usage);
+    expect(info?.expiry).toBe("2026-12-10T00:00:00+08:00");
+    expect(info?.name).toBe("12-10 到期");
+  });
+
+  it("summary row keeps the stored-value semantics and the headline expiringBatch", () => {
+    const usage = buildUsage([pack({ expire_time: "2026-12-10T00:00:00+08:00", balance: 900, value: 900 })]);
+    const summary = usage.quotas["智点余额"];
+    expect(summary.isCreditBalance).toBe(true);
+    expect(summary.expiringBatch).toEqual({ remaining: 900, resetAt: "2026-12-10T00:00:00+08:00" });
+  });
+
+  it("no expiry anywhere → no expiringBatch, extractor returns null", () => {
+    const usage = buildUsage([pack({ expire_time: null })]);
+    expect(usage.quotas["智点余额"].expiringBatch).toBeUndefined();
+    expect(extractEarliestPackageExpiry(usage)).toBeNull();
   });
 });
 
