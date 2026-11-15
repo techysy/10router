@@ -14,6 +14,7 @@
 - **CreditDaddy 协同深化**：Meoo 登录授权放 CreditDaddy 完成——上游 OAuth 应用只注册回环 redirect_uri，仪表盘发起必然 invalid_redirect_uri，`oauthLoginHidden` 旗标撤下登录按钮（authModes 保留 oauth，CD 推送凭证照常刷新/传输）；账户传输 `importAccounts` 接收控制面 Key 行（`psd.meooControlKey`，去重以 Key 优先），CD 推送行与手动粘贴行同构；Loomy 供应商页 notice.text + 内联 `textLink`（CreditDaddy 最新版下载）。
 - **每日赠送优先调度完整落地（四连 + 收尾）**：偏好回显修复、烧尽自动关闭（`dailyGrantAutoDisabled` 戳）、0 点 `dailyGrantReset` 调度器自动重开（只重开带戳的号）；烧尽保护改为资格规则——覆盖最后一个账号（钉住 / 单账号 / 池缩减不再绕过），有余额兄弟账号的生效锁参与重试时间；relay 接力语义保留。
 - **模型选择器可读性**：组合页模型名人类可读化；兼容节点 live 目录进选择器。
+- **Antigravity 模型目录跟进**（IDE 2026-11-16 清单）：Gemini 4 Hydrogen 分档家族收录（High/Medium/Low，`*gemini-4*` 通配自动带齐能力/思维档位）；Orchestrator 与 Carbon 缺上游实体 id 证据 / 官方标记不可用，暂缓收录。
 - **社区导航收纳**：侧边栏社区入口折叠成单行手风琴（8 行折 1 行）；飞书群²入口；项目主页 / 提交 Issue 归右上角聚合菜单（HeaderMenu）。
 - **供应商墙分组**：Loomy 移入 OAuth 提供商组（会话凭据语义——CreditDaddy 本机导入 / 手机直登 / 粘贴 session，与「免费档 Key」不同类；2026-11-15 用户定版）。
 
