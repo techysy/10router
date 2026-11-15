@@ -33,7 +33,7 @@ function NextResponseJson(obj, status = 200, headers) {
 /** Label for a fresh connection: masked uid when we have it. */
 export function lingxiConnectionName(cookieHeader) {
   const uid = lingxiUidFromCookie(cookieHeader);
-  return uid ? `WPS 灵犀（${maskLingxiUid(uid)}）` : "WPS 灵犀（导入）";
+  return uid ? `Lingxi（${maskLingxiUid(uid)}）` : "Lingxi（导入）";
 }
 
 /**
