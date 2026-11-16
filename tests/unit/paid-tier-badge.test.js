@@ -30,7 +30,7 @@ describe("paidTier registry flag", () => {
   it("does not mark the models the client shows without the Pro-Only badge", () => {
     // The flag means "subscription-gated", not "unverified". 无徽章行 = 所有
     // 档位可用，标记它们会让用户去追一个不存在的锁。
-    for (const id of ["auto", "glm-5.3", "glm-5.3-flash", "kimi-k3", "minimax-m3.1-flash", "hy4-preview", "hy3"]) {
+    for (const id of ["auto", "glm-5.3", "glm-5.3-flash", "kimi-k3", "minimax-m3.1-flash", "hy4-preview"]) {
       expect([id, byId[id]?.paidTier]).toEqual([id, undefined]);
     }
   });

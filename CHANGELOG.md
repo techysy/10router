@@ -4,7 +4,9 @@
 
 ## Unreleased（随 v1.8.1 发布）
 
-### 📄 许可证
+### 🧹 目录校准
+
+- **CodeBuddy 国际版目录第四版（11-16 客户端截图，三张拼全）**：Hy3 从客户端模型选择器消失，按「客户端清单为准」下架（`codebuddy-intl` 撤行 + `codebuddy-intl-models.test.js` 断言撤行 + 加入 client-dropped 名册）。**证据等级辨析**：11-05 kimi-k2.7 错撤的教训是「积分页缺席 ≠ 下线」（积分页按订阅档位过滤）；本版撤行依据是**客户端模型选择器本身**——它是客户端目录的直接呈现，证据等级高于积分页。现网 11102 与否待凭据恢复后补记。Hy4 限免窗口续期：卡片文案「Nov 16-30: Receive a daily free allowance」→ `promoFreeUntil` 11-15 → 11-30、note 同步（`promo-free-badge.test.js` 边界断言改 11-29/11-30）。Kimi-K3.1-Pro-Highspeed 拼写经客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed），摘掉 11-05 版的「待现网复核」。客户端新上的 **Max（1.33x，独立列表项）** 与 **Hy4 flash（new + Free now + 0.00x，卡片 300K）** 暂不收录——Max 是路由型目标（11-05 Auto 教训：五次探测全落 glm-5.2，无稳定能力行与计费口径不建行）；hy4-flash 的 id 拼写未经现网探测（hy4 本名 9-30 曾 11102，flash 后缀成立与否未知）。两者待探测后另行处理。三语用户日志同步。
 
 - **MIT → AGPL-3.0（自 v1.8.1 起）**：v1.8.0 及更早的已发布版本永远维持 MIT（不可溯及）；自 v1.8.1 起本仓库整体改为 **GNU Affero General Public License v3.0**。动机：协议逆向 / 指纹对齐 / 签到链路 / executor 接入等真机调试成果（#57 复盘确认竞品以 AGPL 护同类资产）要求任何二次利用——**含网络服务形态（AGPL §13）**——同样开源，防止被闭源拿走；同时 AGPL→MIT 单向不可行，上游主线（decolua/9router 仍为 MIT）不能再吸收我们的实现，而我们吸收上游依旧合法。上游派生部分的 MIT 声明按其条款原文保留于 LICENSE 头部。程序层配套随 1.8.1 累计：root/`cli/`/`desktop/` 三处 `package.json` license 字段、fnOS fpk 安装向导协议步骤（`fnos-packaging/wizard/install`）、桌面安装器协议页、`license` npm 元数据。
 

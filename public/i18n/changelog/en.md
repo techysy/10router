@@ -4,6 +4,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## Unreleased (ships with next release)
 
+### 🧹 Catalog recalibration
+
+- **CodeBuddy international catalog, 4th edition** (Nov 16 client screenshots): Hy3 has disappeared from the client's model picker and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); the Kimi-K3.1-Pro-Highspeed spelling is confirmed by the client tooltip. Two client-side newcomers stay unlisted for now — Max (1.33x, a routing-style target with no stable capability row or billing semantics) and Hy4 flash (new / Free now / 0.00x, id spelling unverified live) — both pending a live probe.
+
 ### 📄 License
 
 - **License change: starting with the next release (v1.8.1), this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.
