@@ -20,15 +20,6 @@
       "link": "https://github.com/techysy/10router/blob/main/LICENSE"
     },
     {
-      "id": "2026-11-16-antigravity-identity-fingerprint",
-      "date": "2026-11-16",
-      "level": "warning",
-      "title": "Antigravity：Google 新增按身份句拦截（Codex CLI / pi），10Router 已自动改写",
-      "body": "自 11-16 傍晚起，Google 按系统提示词里的客户端身份句拒绝 Codex CLI 与 pi（报假 429「额度耗尽」，并非真没额度；Hermes / OpenCode 此前已中招）。10Router 已补齐改写：四家开场句自动归一为中性描述，健康账号不再被误冷却；客户端指纹同步对齐官方 IDE 2.32.1。无需任何配置，升级即生效。",
-      "titleEn": "Antigravity: Google now blocks by identity sentence (Codex CLI / pi) — 10Router rewrites automatically",
-      "bodyEn": "Since Nov 16 evening, Google rejects Codex CLI and pi clients by their system-prompt identity sentences (a fake 429 quota-exhausted, not a real quota limit; Hermes / OpenCode were already affected). 10Router now rewrites all four openers into neutral descriptions, so healthy accounts stop getting cooldowns; the client fingerprint also aligns with the official IDE 2.32.1. No configuration needed — just update."
-    },
-    {
       "id": "2026-11-11-qoder-queue-throttle",
       "date": "2026-11-11",
       "level": "info",
