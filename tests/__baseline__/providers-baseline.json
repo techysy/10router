@@ -1497,5 +1497,20 @@
       "url": "https://cloud.zed.dev/client/users/me"
     },
     "modelsUrl": "https://cloud.zed.dev/models"
+  },
+  "deepai": {
+    "baseUrl": "https://api.deepai.org/deepai_code/chat/completions",
+    "validateUrl": "https://api.deepai.org/deepai_code/models",
+    "auth": {
+      "combined": true,
+      "header": "api-key",
+      "scheme": "raw"
+    },
+    "headers": {
+      "X-DeepAI-Code-Theos": "4",
+      "User-Agent": "10router-deepai/1.0"
+    },
+    "timeoutMs": 120000,
+    "format": "openai"
   }
 }

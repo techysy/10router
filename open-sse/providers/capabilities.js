@@ -848,6 +848,35 @@ export const PROVIDER_CAPABILITIES = {
   "meoo": {
     "deepseek-v4.1-flash-1017": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 393216 },
   },
+  "deepai": {
+    "glm-5.3-flash": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "deepseek-v4.1-flash": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "mimo-2.6-flash": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "qwen-3.8-flash": { vision: true, reasoning: true, contextWindow: 991000, maxOutput: 128000 },
+    "minimax-m3.1-flash": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "muse-ember": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "solar-mini-4": { vision: false, reasoning: true, contextWindow: 524288, maxOutput: 131072 },
+    "gpt-6-luna": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 128000 },
+    "mimo-2.6-pro": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "glyph-cluster": { vision: false, reasoning: true, contextWindow: 256000, maxOutput: 131072 },
+    "deepai-cyber": { vision: false, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "minimax-m3": { vision: false, reasoning: true, contextWindow: 512000, maxOutput: 131000 },
+    "gpt-6.1-sol": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 128000 },
+    "gemini-4-argon": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "glm-5.3": { vision: false, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "kimi-k3": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "kimi-k3.1-pro": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 131072 },
+    "gpt-6.1-terra": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 128000 },
+    "muse-spark-1.3": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "gemini-4-hydrogen": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 131072 },
+    "gemini-4-carbon": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 131072 },
+    "claude-sonnet-5-5": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 64000 },
+    "claude-opus-5-5": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 64000 },
+    "muse-wonder": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 131072 },
+    "qwen-3.8-max-prime": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 131072 },
+    "claude-fable-5-2": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 64000 },
+    "gpt-6-astra": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 128000 }
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6

@@ -172,6 +172,7 @@ import p169 from "./xquik.js";
 import p170 from "./youcom.js";
 import p171 from "./zcode-free.js";
 import p172 from "./zed.js";
+import p173 from "./deepai.js";
 
 export default [
   p0,
@@ -347,4 +348,5 @@ export default [
   p170,
   p171,
   p172,
+  p173,
 ];

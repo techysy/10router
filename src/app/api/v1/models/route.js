@@ -14,6 +14,7 @@ import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveMeooModels } from "open-sse/services/meooModels.js";
+import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
 
 // This GET reads live connection/registry state — without it Next may serve a
@@ -78,6 +79,17 @@ const LIVE_MODEL_RESOLVERS = {
         });
       },
     });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  deepai: async (conn) => {
+    const result = await resolveDeepaiModels({
+      connectionId: conn.id,
+      apiKey: conn.apiKey,
+      providerSpecificData: conn.providerSpecificData || {}
+    }, { log: console });
     if (!result?.models?.length) return null;
     return {
       models: result.models.map((m) => ({ id: m.id, name: m.name })),

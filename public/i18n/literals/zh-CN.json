@@ -1,4 +1,20 @@
 {
+  "Save key": "保存 Key",
+  "Paste your DeepAI API key (UUID)": "粘贴 DeepAI API Key (UUID)",
+  "Already have an API key? Paste it instead": "已有 API Key？直接粘贴",
+  "Connecting…": "连接中…",
+  "Finish connection": "完成连接",
+  "Connection name (optional)": "连接名（可不填）",
+  "Paste the callback address (or just the code)": "粘贴回调地址（或只粘 code）",
+  "After signing in, the browser jumps to an address that cannot load (127.0.0.1) — that is expected. Copy the whole address from the address bar and paste it here.": "登录后浏览器会跳到一个打不开的地址（127.0.0.1），这是正常的。把地址栏里整串地址复制下来，粘贴到这里。",
+  "2. Paste the callback address": "2. 粘贴回调地址",
+  "Open sign-in page": "打开登录页",
+  "1. Open the DeepAI sign-in page": "1. 打开 DeepAI 登录页",
+  "Sign in with Google or Apple in your browser — no desktop app, no key to copy.": "在浏览器里用 Google 或 Apple 登录——不用装桌面版、不用抄钥匙。",
+  "Connect DeepAI Code": "连接 DeepAI Code",
+  "Quota": "配额",
+  "Unmetered, does not spend Theos": "免费不计量——不消耗 Theos",
+  "charged against the daily Theos grant": "从每日发放的 Theos 配额里扣",
   "10Router (Entry)": "10Router（入口）",
   "($/1M tokens). Example: An input rate of 2.50 means $2.50 per 1,000,000 input tokens.": "（$/100 万 Token）。示例：输入费率 2.50 表示每 1,000,000 个输入 Token 需 2.50 美元。",
   "($/1M tokens). Example: Input rate of 2.50 means $2.50 per 1,000,000 input tokens.": "（$/100 万 Token）。示例：输入费率 2.50 表示每 1,000,000 个输入 Token 需 2.50 美元。",
@@ -2231,5 +2247,6 @@
   "Meoo control plane returned no points account": "Meoo 控制面未返回积分账户数据",
   "Invalid project service AK": "项目服务 AK 无效",
   "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 账号还没有项目：先在 meoo.com 创建一个（并开启云服务），AK 会自动解析到位",
-  "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多账号推荐用 CreditDaddy 管理：一键复制 / 填写邀请码，余额自动同步到 10Router。"
+  "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多账号推荐用 CreditDaddy 管理：一键复制 / 填写邀请码，余额自动同步到 10Router。",
+  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置"
 }

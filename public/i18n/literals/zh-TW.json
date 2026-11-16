@@ -1,4 +1,20 @@
 {
+  "Save key": "保存 Key",
+  "Paste your DeepAI API key (UUID)": "貼上 DeepAI API Key (UUID)",
+  "Already have an API key? Paste it instead": "已有 API Key？直接貼上",
+  "Connecting…": "連接中…",
+  "Finish connection": "完成連接",
+  "Connection name (optional)": "連接名（可不填）",
+  "Paste the callback address (or just the code)": "貼上回調地址（或只貼 code）",
+  "After signing in, the browser jumps to an address that cannot load (127.0.0.1) — that is expected. Copy the whole address from the address bar and paste it here.": "登入後瀏覽器會跳到一個打不開的地址（127.0.0.1），這是正常的。把網址列裡整串地址複製下來，貼到這裡。",
+  "2. Paste the callback address": "2. 貼上回調地址",
+  "Open sign-in page": "開啟登入頁",
+  "1. Open the DeepAI sign-in page": "1. 開啟 DeepAI 登入頁",
+  "Sign in with Google or Apple in your browser — no desktop app, no key to copy.": "在瀏覽器裡用 Google 或 Apple 登入——不用裝桌面版、不用抄金鑰。",
+  "Connect DeepAI Code": "連接 DeepAI Code",
+  "Quota": "配額",
+  "Unmetered, does not spend Theos": "免費不計量——不消耗 Theos",
+  "charged against the daily Theos grant": "從每日發放的 Theos 配額裡扣",
   "Disabled — scheduler skips this entry (click to enable)": "已停用——排程器將跳過該條目（點擊啟用）",
   "Enabled (click to disable without removing)": "已啟用（點擊停用，無需移除）",
   "Loomy SMS Login": "Loomy 手機簡訊登入",
@@ -1156,5 +1172,6 @@
   "Meoo control plane returned no points account": "Meoo 控制面未回傳積分帳戶資料",
   "Invalid project service AK": "專案服務 AK 無效",
   "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 帳號還沒有專案：先在 meoo.com 建立一個（並開啟雲端服務），AK 會自動解析到位",
-  "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多帳號推薦用 CreditDaddy 管理：一鍵複製 / 填寫邀請碼，餘額自動同步到 10Router。"
+  "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多帳號推薦用 CreditDaddy 管理：一鍵複製 / 填寫邀請碼，餘額自動同步到 10Router。",
+  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple賬戶登錄後，進入儀表盤，複製API Key添加至下方指定位置"
 }

@@ -11,6 +11,7 @@ import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveMimoModels } from "open-sse/services/mimoModels.js";
 import { resolveMeooModels } from "open-sse/services/meooModels.js";
+import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
@@ -496,6 +497,42 @@ const PROVIDER_MODELS_CONFIG = {
         console.log("Failed to fetch Meoo models dynamically, falling back to static:", error.message);
       }
       return { models: getStaticProviderModels("meoo"), warning };
+    },
+  },
+  // DeepAI Code: the desktop account API key is long-lived (issued once
+  // at app sign-in, no refresh path); resolveDeepaiModels fetches the
+  // live catalog whose rows carry their own specs. Live ids pass through
+  // verbatim with the resolver's fallback spec, so models DeepAI adds
+  // later surface here without a registry update.
+  deepai: {
+    customResolver: async (connection) => {
+      let warning;
+      try {
+        const result = await resolveDeepaiModels({
+          connectionId: connection.id,
+          apiKey: connection.apiKey,
+        }, {
+          forceRefresh: true,
+          log: console,
+        });
+        if (result?.models?.length) {
+          return {
+            models: result.models.map((m) => ({
+              id: m.id,
+              name: m.name,
+              contextLength: m.contextLength,
+              maxOutputTokens: m.maxOutputTokens,
+              isVL: m.isVL,
+              theosPerRequest: m.theosPerRequest,
+            })),
+          };
+        }
+        warning = "DeepAI returned no models; falling back to static catalog.";
+      } catch (error) {
+        warning = `Failed to fetch DeepAI models: ${error.message}`;
+        console.log("Failed to fetch DeepAI models dynamically, falling back to static:", error.message);
+      }
+      return { models: getStaticProviderModels("deepai"), warning };
     },
   },
   // MiMo: official public catalog (api.xiaomimimo.com/v1/models). Powers the

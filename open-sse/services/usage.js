@@ -15,6 +15,7 @@ import { getGrokCliUsage } from "./usage/grok-cli.js";
 import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
 import { getMeooUsage } from "./usage/meoo.js";
+import { getDeepaiUsage } from "./usage/deepai.js";
 import { getLoomyUsage } from "./usage/loomy.js";
 import { getDumateUsage } from "./usage/dumate.js";
 import { getLingxiUsage } from "./usage/lingxi.js";
@@ -73,6 +74,9 @@ const USAGE_HANDLERS = {
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   kimi: (c) => getKimiUsage(c.accessToken, c.apiKey, c.proxyOptions, c.providerSpecificData),
   deepseek: (c) => getDeepseekUsage(c.apiKey, c.proxyOptions),
+  // DeepAI Code's Theos ledger sits on the same API host as inference and
+  // reads with the connection's desktop account API key (Api-Key header).
+  deepai: (c) => getDeepaiUsage(c.apiKey, c.proxyOptions),
   // Meoo's points ledger sits on the control plane: OAuth access token
   // first, stored control key (psd.meooControlKey) as the fallback inside
   // the handler — the project AK in c.apiKey cannot read it.
