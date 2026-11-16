@@ -696,10 +696,18 @@ export const PROVIDER_CAPABILITIES = {
     // on by default"; canDisableThinking means "it CAN be turned off". glm-5.3
     // and glm-5.3-flash are onlyReasoning:true BUT canDisableThinking:true, so
     // their thinking is switchable; the hy* models are forced always-on.
-    "hy3":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 192000, maxOutput: 64000 },
+    // hy3 随 2026-11-16 第四版客户端下架移除（registry 同步撤行）。
     // Hy4 正式版（客户端 2026-11-05 新上，红色 new 标签）。预览版 hy4-preview
     // 仍可用但不再是注册表项。
     "hy4":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    // Hy4 flash（客户端 2026-11-16 正式发布，日常主力档）：卡片 960K 上下文，
+    // 与 hy4 的 1M 不同窗。Hy 同族思考强制常开；vision/reasoning 暂按 Hy 同档
+    // 声明（「Agent 任务又快又省」官方定位，待服务端 product-config 校准）。
+    "hy4-flash":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
+    // Hy4 flash（客户端 2026-11-16 正式发布，日常主力档）：卡片 960K 上下文，
+    // 与 hy4 的 1M 不同窗。Hy 同族思考强制常开；vision/reasoning 暂按 Hy 同档
+    // 声明（「Agent 任务又快又省」官方定位，待服务端 product-config 校准）。
+    "hy4-flash":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
     // Space-Bunny（官方应用 2026-10-02 上架）：原生多模态输入 → vision:true；
     // 思考"极致"档与 Hy 系同族（强制常开，canDisable:false 待服务端
     // product-config 回来后校准）；1M 输入，输出上限暂取 Hy 同档 64000。

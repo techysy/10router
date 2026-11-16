@@ -54,12 +54,24 @@ describe("codebuddy intl Hy4 free-now promo", () => {
     expect(entry.promoFreeUntil).toBeUndefined();
   });
 
-  it("CN Hy3/Hy4 keep their own dated promo (independent rate cards)", () => {
-    for (const [id, rate] of [["hy3", 0.05], ["hy4", 0.29]]) {
-      const m = cn.models.find((x) => x.id === id);
-      expect(m.rateMultiplier).toBe(rate);
-      expect(m.promoFreeUntil).toBe("2026-11-15T00:00:00+08:00");
-    }
+  it("CN Hy4 keeps its own renewed dated promo; Hy3 retired CN-side too (4th edition)", () => {
+    // 2026-11-16 第四版：CN 客户端同样撤下 Hy3、Hy4 限免续窗 11-30——两侧同日
+    // 同口径。原价口径不变（限免结束后按 rateMultiplier 计）。
+    expect(cn.models.find((x) => x.id === "hy3")).toBeUndefined();
+    const hy4 = cn.models.find((x) => x.id === "hy4");
+    expect(hy4.rateMultiplier).toBe(0.29);
+    expect(hy4.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+  });
+
+  it("CN hy4-flash: new daily-grant promo row (id spelling pending live probe)", () => {
+    // 与 intl 侧同款同窗（11-16 至 11-30）；rateMultiplier 0 交 promoFree 表达
+    // 免费窗，窗口结束前需现网复核回填原价。
+    const m = cn.models.find((x) => x.id === "hy4-flash");
+    expect(m.rateMultiplier).toBe(0);
+    expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(m.promoFreeNote).toMatch(/每日赠送/);
+    expect(isPromoFree(m, Date.parse("2026-11-29T00:00:00+08:00"))).toBe(true);
+    expect(isPromoFree(m, Date.parse("2026-11-30T00:00:01+08:00"))).toBe(false);
   });
 });
 

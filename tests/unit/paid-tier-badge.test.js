@@ -75,17 +75,19 @@ describe("subPriority registry flag", () => {
   const intlById = Object.fromEntries(intl.models.map((m) => [m.id, m]));
 
   it("marks exactly the rows the client tags 订阅优先", () => {
-    // 2026-11-05 目录换代：GLM-5.3 / GLM-5.3-Flash / Kimi-K2.8-Preview(CN) 带
-    // 订阅优先标签（intl 的 K2.8-Preview 已下架）。Step-5-Preview 第三版不再
-    // 带标签。排队属性与价格/档位无关。
+    // 2026-11-16 第四版：CN 侧 GLM-5.3 / GLM-5.3-Flash / Kimi-K2.8-Preview /
+    // Kimi-K3.1-Pro 带订阅优先（K3.1-Pro 标签为本版新见）；intl 侧无一行带标。
+    // Step-5-Preview 第三版起不再带标签。排队属性与价格/档位无关。
     expect(cnById["glm-5.3"].subPriority).toBe(true);
     expect(cnById["glm-5.3-flash"].subPriority).toBe(true);
     expect(cnById["kimi-k2.8-preview"].subPriority).toBe(true);
+    expect(cnById["kimi-k3.1-pro"].subPriority).toBe(true);
     const tagged = [...cn.models, ...intl.models].filter((m) => m.subPriority);
     expect(tagged.map((m) => `${m.id}`).sort()).toEqual([
       "glm-5.3",
       "glm-5.3-flash",
       "kimi-k2.8-preview",
+      "kimi-k3.1-pro",
     ]);
   });
 

@@ -138,9 +138,9 @@ describe("CodeBuddy international static model catalog", () => {
     const cnById = Object.fromEntries(cnEntry.models.map((model) => [model.id, model]));
     expect(entry.models.find((m) => m.id === "glm-5.3").rateMultiplier).toBe(0.69);
     expect(cnById["glm-5.3"].rateMultiplier).toBe(0.69);
-    // hy3：intl 已随第四版客户端清单下架，CN 仍保留（0.05 原价 + 独立窗口）——
-    // 两侧目录独立演化，一侧撤行不牵动另一侧。
+    // hy3：2026-11-16 第四版两侧客户端同日撤下（intl 选择器 + CN 选择器均不
+    // 再列出）——独立演化原则不变，这次是巧合级同步。
     expect(entry.models.find((m) => m.id === "hy3")).toBeUndefined();
-    expect(cnById.hy3.rateMultiplier).toBe(0.05);
+    expect(cnById.hy3).toBeUndefined();
   });
 });

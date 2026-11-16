@@ -6,7 +6,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🧹 Catalog recalibration
 
-- **CodeBuddy international catalog, 4th edition** (Nov 16 client screenshots): Hy3 has disappeared from the client's model picker and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); the Kimi-K3.1-Pro-Highspeed spelling is confirmed by the client tooltip. Two client-side newcomers stay unlisted for now — Max (1.33x, a routing-style target with no stable capability row or billing semantics) and Hy4 flash (new / Free now / 0.00x, id spelling unverified live) — both pending a live probe.
+- **CodeBuddy catalog, 4th edition (CN + international, Nov 16 client screenshots)**: both sides rotated the same day — Hy3 has disappeared from the client pickers and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); CN gains Hy4 flash (official release, free-now 0.00x, 960K context card; id spelling pending a live probe); CN's Kimi-K3.1-Pro now carries the subscriber-priority tag. On the international side Max (1.33x) stays unlisted for now (a routing-style target with no stable capability row or billing semantics).
 
 ### 📄 License
 
