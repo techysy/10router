@@ -751,6 +751,28 @@ exports[`GOLDEN buildHeaders (default executor providers) > cohere → headers (
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > deepai → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Content-Type": "application/json",
+    "X-DeepAI-Code-Theos": "2",
+    "api-key": "<CRED>",
+  },
+  "nonStream": {
+    "Content-Type": "application/json",
+    "X-DeepAI-Code-Theos": "2",
+    "api-key": "<CRED>",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Content-Type": "application/json",
+    "X-DeepAI-Code-Theos": "2",
+    "api-key": "<CRED>",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > deepgram → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2462,6 +2484,13 @@ exports[`GOLDEN buildUrl (default executor providers) > cohere → url (stream +
 {
   "nonStream": "https://api.cohere.ai/v1/chat/completions",
   "stream": "https://api.cohere.ai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > deepai → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.deepai.org/deepai_code/chat/completions",
+  "stream": "https://api.deepai.org/deepai_code/chat/completions",
 }
 `;
 
