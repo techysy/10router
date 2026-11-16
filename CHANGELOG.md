@@ -4,6 +4,10 @@
 
 ## Unreleased（随 v1.8.1 发布）
 
+### ✨ 新增
+
+- **MiniMax Code 算力币到期桶出卡**（11-17 实测收口）：配额卡此前的 Credits 行只有一笔裸余额（membership 接口仅回 total/purchased/free 三个汇总数，无到期字段）——「到期包」的逐包明细在另一个端点上：MiniMax 官方客户端「积分明细」页读的 `GET /minimax-cloud/api/v1/credit/details`（分页 page_number/page_size/include_expired，逐包 credit_type 1=购买 / 2=签到赠送、granted/consumed/remaining_amount 千分位字符串、granted_at_ms/expire_at_ms）。四账号实测逐包 remaining 求和与 membership 汇总吻合到分位（#187 连 2000 的购买包都齐），账本即余额构成。落地形态与灵犀到期桶同款：同日到期并格（`Credits · 12-16` / `· 2 packs`）、升序 FIFO、耗尽/过期包剔除；Credits 储值行挂 `summarizesDetail` + `expiringBatch`（大数右侧「最早批次余额 · Xd后到期」通道），桶行 `detailOnly` 进逐包明细、`recurring:false` 一次性包语义（驱动连接行「最早到期」徽标与到期优先调度）；账本不可达时维持原储值单值卡（fail-soft）。签名走既有 signedAccountRequest（新增路径 query 合并不覆盖 mcode 参数）；测试 `minimax-code-credit-ledger.test.js` 14 例（解析容错 / 并格排序 / 分页拉全 / 404 收缩 / 出卡形状 / 徽标接线 / parseQuotaData 直通）。
+
 ### 🧹 目录校准
 
 - **CodeBuddy 目录第四版（CN + 国际，11-16 客户端截图，六张拼全）**：Hy3 从客户端模型选择器消失，按「客户端清单为准」下架（`codebuddy-intl` 撤行 + `codebuddy-intl-models.test.js` 断言撤行 + 加入 client-dropped 名册）。**证据等级辨析**：11-05 kimi-k2.7 错撤的教训是「积分页缺席 ≠ 下线」（积分页按订阅档位过滤）；本版撤行依据是**客户端模型选择器本身**——它是客户端目录的直接呈现，证据等级高于积分页。现网 11102 与否待凭据恢复后补记。Hy4 限免窗口续期：卡片文案「Nov 16-30: Receive a daily free allowance」→ `promoFreeUntil` 11-15 → 11-30、note 同步（`promo-free-badge.test.js` 边界断言改 11-29/11-30）。Kimi-K3.1-Pro-Highspeed 拼写经客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed），摘掉 11-05 版的「待现网复核」。客户端新上的 **Max（1.33x，独立列表项）** 与 **Hy4 flash（new + Free now + 0.00x，卡片 300K）** 暂不收录——Max 是路由型目标（11-05 Auto 教训：五次探测全落 glm-5.2，无稳定能力行与计费口径不建行）；hy4-flash 的 id 拼写未经现网探测（hy4 本名 9-30 曾 11102，flash 后缀成立与否未知）。两者待探测后另行处理。三语用户日志同步。
