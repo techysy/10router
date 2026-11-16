@@ -10,8 +10,6 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## v1.8.0 (2026-11-16)
 
-- DeepAI Code: the provider card now sits under Free Tier Providers (its free plan runs on a daily Theos grant).
-- DeepAI Code: provider hint now uses the owner-approved wording; the Theos quota feeds the Quota Tracker automatically once a connection exists (balance plus daily-grant detail).
 ### ✨ New
 
 - **WPS Lingxi provider line (new)**: paste a WPS session cookie and go — the provider page walks you through Capture Session (bookmarklet or direct paste), or sync one from CreditDaddy's web sessions. The quota card speaks the credit language: a balance headline plus **per-day expiry buckets** (same-day packs merge, soonest first, far-out packs collapse into a "further expiry" row) and a countdown to the earliest expiry; connection rows carry an earliest-expiry badge and one-click re-capture (🍪). **Native daily check-in** — flip the Experimental toggle and every Lingxi connection claims its daily credits automatically (100/day, 200 on day seven); manual check-in lives on the connection row, and the quota card shows "Checked in today · N-day streak". Free-tier chat does not deduct credits.
