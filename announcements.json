@@ -10,6 +10,16 @@
   "updatedAt": "2026-11-16",
   "items": [
     {
+      "id": "2026-11-16-license-agpl-notice",
+      "date": "2026-11-16",
+      "level": "warning",
+      "title": "许可证变更预告：自 v1.8.1 起改为 AGPL-3.0（此前为 MIT）",
+      "body": "为保护本项目的真机调试成果（协议逆向、指纹对齐、签到链路等）不被闭源拿走，自 v1.8.1 起本仓库改用 AGPL-3.0。v1.8.0 及更早的已发布版本维持 MIT 不变。日常使用、自部署完全不受影响；AGPL 仅要求任何二次利用（含以网络服务形式提供）同样开源。",
+      "titleEn": "License change notice: AGPL-3.0 starting with v1.8.1 (previously MIT)",
+      "bodyEn": "To protect this project's reverse-engineering work (protocol reverse-ing, fingerprint alignment, check-in chains) from being taken closed-source, the repository adopts AGPL-3.0 starting with v1.8.1. Released versions up to v1.8.0 remain MIT. Everyday use and self-hosting are unaffected; AGPL only requires any reuse — including offering it as a network service — to be released under the same license.",
+      "link": "https://github.com/techysy/10router/blob/main/LICENSE"
+    },
+    {
       "id": "2026-11-16-antigravity-identity-fingerprint",
       "date": "2026-11-16",
       "level": "warning",
