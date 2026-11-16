@@ -11,6 +11,7 @@
 
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { DEEPAI_THEOS_URL, buildDeepaiHeaders } from "../../shared/deepai/constants.js";
+import { formatDeepaiQuotaError } from "../../shared/deepai/errors.js";
 import { toFiniteNumber } from "./shared.js";
 
 const FETCH_TIMEOUT_MS = 15_000;
@@ -22,8 +23,7 @@ const FETCH_TIMEOUT_MS = 15_000;
 export async function getDeepaiUsage(apiKey = null, proxyOptions = null) {
   if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
     return {
-      message:
-        "DeepAI Code 的 Theos 余额需要连接上的桌面端 API Key 才能读取；当前连接没有可用凭证，请重新粘贴 DeepAI Code 应用写入的 apiKey。",
+      message: "当前连接没有可用的 DeepAI API Key，请通过浏览器登录或手动添加 Key。",
     };
   }
 
@@ -37,14 +37,12 @@ export async function getDeepaiUsage(apiKey = null, proxyOptions = null) {
       },
       proxyOptions,
     );
-    if (response.status === 401 || response.status === 403) {
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
       return {
         plan: "DeepAI Code",
-        message: `DeepAI 拒绝了这把 API Key（${response.status}）——多半是在桌面端退出登录或换号后旧 Key 失效，请从 deepai-account.bin 重新复制当前账号的 apiKey。`,
+        message: formatDeepaiQuotaError(response.status, payload, apiKey.trim()),
       };
-    }
-    if (!response.ok) {
-      return { plan: "DeepAI Code", message: `DeepAI Theos 查询失败：HTTP ${response.status}` };
     }
     const data = await response.json().catch(() => null);
     if (!data || data.balance === undefined) {

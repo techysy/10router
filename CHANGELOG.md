@@ -8,6 +8,10 @@
 
 - **MIT → AGPL-3.0（自 v1.8.1 起）**：v1.8.0 及更早的已发布版本永远维持 MIT（不可溯及）；自 v1.8.1 起本仓库整体改为 **GNU Affero General Public License v3.0**。动机：协议逆向 / 指纹对齐 / 签到链路 / executor 接入等真机调试成果（#57 复盘确认竞品以 AGPL 护同类资产）要求任何二次利用——**含网络服务形态（AGPL §13）**——同样开源，防止被闭源拿走；同时 AGPL→MIT 单向不可行，上游主线（decolua/9router 仍为 MIT）不能再吸收我们的实现，而我们吸收上游依旧合法。上游派生部分的 MIT 声明按其条款原文保留于 LICENSE 头部。程序层配套随 1.8.1 累计：root/`cli/`/`desktop/` 三处 `package.json` license 字段、fnOS fpk 安装向导协议步骤（`fnos-packaging/wizard/install`）、桌面安装器协议页、`license` npm 元数据。
 
+### 🐛 修复
+
+- **DeepAI 登录与 Theos 查询**：余额接口受限时仍保存浏览器登录已兑换的 Key，不再把 `machine_required` 误报成凭据失效；额度、模型目录与推理请求补齐真实系统设备标识的 SHA-256 请求头。同机所有账号共用设备身份，不随机生成或按账号轮换；设备标识不可读取时省略请求头。保留上游真实零余额，不自动签到或重复领取额度。
+
 ## v1.8.0 (2026-11-16)
 
 ### ✨ 新增

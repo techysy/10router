@@ -8,6 +8,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **License change: starting with the next release (v1.8.1), this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.
 
+### 🐛 Fixed
+
+- **DeepAI sign-in and Theos**: keep a successfully exchanged key when quota checks are restricted, distinguish device eligibility from invalid credentials, and send the real host's hashed system identity on quota, catalog and inference requests. Accounts on the same host share that identity; no randomized devices, automatic check-in or extra daily grants are introduced.
+
 ## v1.8.0 (2026-11-16)
 
 ### ✨ New

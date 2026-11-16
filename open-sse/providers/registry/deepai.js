@@ -34,7 +34,7 @@ export default {
   transport: {
     baseUrl: "https://api.deepai.org/deepai_code/chat/completions",
     validateUrl: "https://api.deepai.org/deepai_code/models",
-    auth: { combined: true, header: "api-key", scheme: "raw" },
+    auth: { combined: true, header: "api-key", scheme: "raw", hooks: ["deepaiMachineHeaders"] },
     headers: {
       "X-DeepAI-Code-Theos": "4",
       // Upstream 400s the Node/fetch default UA on chat; send our own.

@@ -5,6 +5,7 @@ import {
   exchangeDeepaiCode,
 } from "open-sse/shared/deepai/auth.js";
 import { buildDeepaiHeaders, DEEPAI_THEOS_URL } from "open-sse/shared/deepai/constants.js";
+import { formatDeepaiQuotaError } from "open-sse/shared/deepai/errors.js";
 
 /**
  * POST /api/oauth/deepai/exchange
@@ -12,8 +13,9 @@ import { buildDeepaiHeaders, DEEPAI_THEOS_URL } from "open-sse/shared/deepai/con
  * Panel-native DeepAI Code sign-in (no desktop app): the user's browser
  * completed the desktop_auth sign-in and landed on a dead 127.0.0.1
  * callback URL; the dashboard sends that URL (or the bare code) here.
- * The server exchanges the code for the account's long-lived API key,
- * validates it against /theos, and stores the connection.
+ * The server exchanges the code for the account's long-lived API key
+ * and stores the connection. A best-effort /theos probe supplies a warning;
+ * quota access is separate from sign-in and must not discard an issued key.
  *
  * Body: { code: "<callback URL or bare code>", name?: string }
  */
@@ -38,22 +40,23 @@ export async function POST(request) {
       );
     }
 
-    // Validate the issued key before storing it (the exchange already
-    // proves ownership; /theos proves the key is live for inference).
+    // The one-time exchange proves ownership. The quota endpoint can reject
+    // access for account restrictions, rate limits or a gateway challenge;
+    // none of those undo the successful exchange. Preserve the issued key
+    // and show a warning instead of consuming the code without a connection.
+    let warning = null;
     try {
       const res = await fetch(DEEPAI_THEOS_URL, {
         headers: buildDeepaiHeaders(cred.apiKey),
         redirect: "error",
+        signal: AbortSignal.timeout(10_000),
       });
-      if (res.status === 401 || res.status === 403) {
-        return NextResponse.json(
-          { error: "DeepAI rejected the issued key — please run the browser sign-in again." },
-          { status: 400 },
-        );
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        warning = `登录已完成，API Key 已保存；${formatDeepaiQuotaError(res.status, payload, cred.apiKey)}`;
       }
     } catch {
-      // Network hiccup while validating must not block a key the
-      // exchange just issued; the connection test will surface problems.
+      warning = "登录已完成，API Key 已保存；额度查询暂时无法完成，请稍后运行连接测试。";
     }
 
     const name =
@@ -64,20 +67,21 @@ export async function POST(request) {
       provider: "deepai",
       authType: "apikey",
       name,
-            apiKey: cred.apiKey,
+      apiKey: cred.apiKey,
       priority: 1,
       globalPriority: null,
       defaultModel: null,
       providerSpecificData: {},
       isActive: true,
       testStatus: "unknown",
+      ...(warning ? { lastError: warning, lastErrorAt: new Date().toISOString() } : {}),
       allowOverwrite: false,
     });
 
     const result = { ...connection };
     delete result.apiKey;
     return NextResponse.json(
-      { connection: result, username: cred.username, isPro: cred.isPro },
+      { connection: result, username: cred.username, isPro: cred.isPro, ...(warning ? { warning } : {}) },
       { status: 201 },
     );
   } catch (error) {
