@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip, Tooltip } from "@/shared/components";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, DeepaiAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip, Tooltip } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { mergeQoderLivePricing } from "@/shared/utils/qoderLivePricing";
@@ -85,6 +85,7 @@ export default function ProviderDetailPage() {
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
+  const [showDeepaiAuthModal, setShowDeepaiAuthModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
   const [showDumateQrModal, setShowDumateQrModal] = useState(false);
   const [dumateQrConnectionId, setDumateQrConnectionId] = useState(null);
@@ -183,6 +184,13 @@ export default function ProviderDetailPage() {
   };
 
   const triggerApiKeyConnection = () => {
+    // DeepAI Code connects through its panel-native browser sign-in modal
+    // (desktop_auth exchange), not the generic paste-a-key form — the
+    // modal still offers manual key paste as a secondary path.
+    if (providerId === "deepai") {
+      setShowDeepaiAuthModal(true);
+      return;
+    }
     setAddConnectionError("");
     setShowAddApiKeyModal(true);
   };
@@ -2849,6 +2857,16 @@ export default function ProviderDetailPage() {
           isOpen={showXiaomiMimoModal}
           onSuccess={handleOAuthSuccess}
           onClose={() => setShowXiaomiMimoModal(false)}
+        />
+      )}
+      {providerId === "deepai" && (
+        <DeepaiAuthModal
+          isOpen={showDeepaiAuthModal}
+          onSuccess={() => {
+            setShowDeepaiAuthModal(false);
+            refreshAfterConnectionChange();
+          }}
+          onClose={() => setShowDeepaiAuthModal(false)}
         />
       )}
       {providerId === "iflow" && (

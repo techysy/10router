@@ -208,3 +208,76 @@ describe("DeepAI free/quota labeling + notice i18n", () => {
     expect(zhCN["Free"]).toBe("免费");
   });
 });
+
+describe("DeepAI panel-native browser sign-in", () => {
+  it("builds the desktop_auth URL the sign-in page accepts", async () => {
+    const { buildDeepaiAuthUrl } = await import("../../open-sse/shared/deepai/auth.js");
+    const url = buildDeepaiAuthUrl("0123456789abcdef0123456789abcdef", 23456);
+    expect(url).toBe(
+      "https://api.deepai.org/deepai_code/desktop_auth/?state=0123456789abcdef0123456789abcdef&port=23456",
+    );
+  });
+
+  it("extracts the code from a callback URL, a query fragment, or a bare code", async () => {
+    const { parseDeepaiCallbackCode } = await import("../../open-sse/shared/deepai/auth.js");
+    expect(
+      parseDeepaiCallbackCode("http://127.0.0.1:23456/auth-callback?code=abc123XYZ&state=zz"),
+    ).toBe("abc123XYZ");
+    expect(parseDeepaiCallbackCode("?code=deadbeef42")).toBe("deadbeef42");
+    expect(parseDeepaiCallbackCode("deadbeef42")).toBe("deadbeef42");
+    expect(parseDeepaiCallbackCode("not a code at all")).toBe("");
+    expect(parseDeepaiCallbackCode("")).toBe("");
+    expect(parseDeepaiCallbackCode("http://127.0.0.1:9/auth-callback?state=only")).toBe("");
+  });
+
+  it("exchanges a code for the account key and maps the response", async () => {
+    const { exchangeDeepaiCode } = await import("../../open-sse/shared/deepai/auth.js");
+    const fetchImpl = async (url, init) => {
+      expect(url).toBe("https://api.deepai.org/deepai_code/desktop_auth/exchange/");
+      expect(JSON.parse(init.body)).toEqual({ code: "good-code" });
+      expect(init.headers["User-Agent"]).toBe("10router-deepai/1.0");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ api_key: "uuid-key-1", username: "someone", is_pro: false }),
+      };
+    };
+    await expect(exchangeDeepaiCode("good-code", { fetchImpl })).resolves.toEqual({
+      apiKey: "uuid-key-1",
+      username: "someone",
+      isPro: false,
+    });
+  });
+
+  it("surfaces the upstream error when the exchange rejects the code", async () => {
+    const { exchangeDeepaiCode } = await import("../../open-sse/shared/deepai/auth.js");
+    const fetchImpl = async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "invalid code" }),
+    });
+    await expect(exchangeDeepaiCode("bogus", { fetchImpl })).rejects.toThrow("invalid code");
+  });
+
+  it("wires the modal, the exchange route, and the provider page together", () => {
+    const modal = readFileSync(
+      resolve(__dirname, "../../src/shared/components/DeepaiAuthModal.js"),
+      "utf8",
+    );
+    expect(modal).toContain("desktop_auth/?state=");
+    expect(modal).toContain("/api/oauth/deepai/exchange");
+    const route = readFileSync(
+      resolve(__dirname, "../../src/app/api/oauth/deepai/exchange/route.js"),
+      "utf8",
+    );
+    expect(route).toContain("createProviderConnection");
+    expect(route).toContain("parseDeepaiCallbackCode");
+    expect(route).toContain('provider: "deepai"');
+    const page = readFileSync(
+      resolve(__dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/page.js"),
+      "utf8",
+    );
+    expect(page).toContain("DeepaiAuthModal");
+    expect(page).toContain('providerId === "deepai"');
+  });
+});
