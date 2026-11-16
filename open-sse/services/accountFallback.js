@@ -539,6 +539,33 @@ export function withRealnameHint(message, provider) {
   return `${message}\n\n提示：${note}`;
 }
 
+// ─── Google 免费层 0 配额模型 ──────────────────────────────────────────────
+// upstream 429 body 带逐项配额明细（"* Quota exceeded for metric: ...
+// generate_content_free_tier_requests, limit: 0, model: gemini-4-argon"）。
+// limit 恒为 0 = 免费层不开放该模型，等重置也不会好；与「暂时超限」是两种
+// 世界，提示要给出路（绑付费计费）而不是「稍候重试」。真相源在 ERROR_RULES
+// 的 "limit: 0" 条目（cooldown 0 立即穿透，不锁账号）。
+
+/** True when the message is a Google free-tier zero-quota rejection. */
+export function isZeroQuotaText(message) {
+  return /limit:\s*0\b/i.test(String(message || "")) && /free.?tier|quota/i.test(String(message || ""));
+}
+
+/**
+ * Append a paid-billing pathway note to a message that IS a zero-quota
+ * rejection. Non-matching messages pass through untouched — apply
+ * unconditionally alongside withRateLimitHint.
+ * @param {string} message - upstream/client-facing message
+ */
+export function withZeroQuotaHint(message) {
+  if (!isZeroQuotaText(message)) return message;
+  return (
+    `${message}\n\n` +
+    `提示：该模型的免费层配额为 0（limit: 0）——不是暂时超限，等多久都不会恢复；` +
+    `出路是在 AI Studio 绑定付费计费（Billing）后调用，或改用免费层开放的模型。`
+  );
+}
+
 /**
  * Filter available accounts (not in cooldown)
  */

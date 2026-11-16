@@ -42,9 +42,16 @@ export default {
     // Carbon 带 Pro 档升级墙）。Hydrogen 是官方「日常帮助」默认档；思考等级
     // 低/中/高三档与 gemini-level thinkingFormat 对齐。能力走 *gemini-4*
     // 通配（vision/pdf/reasoning/search/1M/1M），不另建精确行。
+    // 2026-11-16 现网实测（NAS 真账号）：gemini-4-argon 免费层三项配额**恒为
+    // 0**（generate_content_free_tier_input_token_count / _requests 的 RPM 与
+    // RPD 全部 limit: 0）——不是「暂时超限」，是免费层根本不开放，付费专用。
+    // Carbon 官方 UI 直接挂 Pro 升级墙（SGD 139.99/月）。两行 paidTier 同义：
+    // 免费账号请求必然 429，等多久都不会好，出路是绑付费计费。
+    // Hydrogen 免费层配额未实测（0 命中日志），先不标——官方把它当默认档，
+    // 大概率免费可用，待真机 429 证据再定。
     { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen" },
-    { id: "gemini-4-carbon", name: "Gemini 4 Carbon" },
-    { id: "gemini-4-argon", name: "Gemini 4 Argon" },
+    { id: "gemini-4-carbon", name: "Gemini 4 Carbon", paidTier: true, proOnly: true },
+    { id: "gemini-4-argon", name: "Gemini 4 Argon", paidTier: true },
     { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
     { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash" },
     { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash" },

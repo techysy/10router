@@ -154,6 +154,12 @@ export const ERROR_RULES = [
   { text: "quota exceeded",           backoff: true },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
+  // Google 免费层 0 配额模型（2026-11-16 NAS 实测 gemini-4-argon：三项
+  // generate_content_free_tier_* 配额全部 limit: 0）。这不是「暂时超限」——
+  // limit 恒为 0 意味着等多久都不会好，出路是绑付费计费。cooldown 0 立即穿透
+  // 与 real-name 同族：反复重试只会反复撞墙，冷却反而掩盖真实原因（upstream
+  // 原文自带 "Free Tier" + limit: 0 细节行，透传即可自行定位）。
+  { text: "limit: 0",                 cooldownMs: 0 },
 
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },
