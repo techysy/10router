@@ -756,18 +756,21 @@ exports[`GOLDEN buildHeaders (default executor providers) > deepai → headers (
   "apiKey": {
     "Accept": "text/event-stream",
     "Content-Type": "application/json",
-    "X-DeepAI-Code-Theos": "2",
+    "User-Agent": "10router-deepai/1.0",
+    "X-DeepAI-Code-Theos": "4",
     "api-key": "<CRED>",
   },
   "nonStream": {
     "Content-Type": "application/json",
-    "X-DeepAI-Code-Theos": "2",
+    "User-Agent": "10router-deepai/1.0",
+    "X-DeepAI-Code-Theos": "4",
     "api-key": "<CRED>",
   },
   "oauth": {
     "Accept": "text/event-stream",
     "Content-Type": "application/json",
-    "X-DeepAI-Code-Theos": "2",
+    "User-Agent": "10router-deepai/1.0",
+    "X-DeepAI-Code-Theos": "4",
     "api-key": "<CRED>",
   },
 }

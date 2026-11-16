@@ -1,4 +1,8 @@
 {
+  "No desktop app needed: run the deepai-auth helper once — it opens your browser, you sign in with Google or Apple, and it prints the API key. (A signed-in desktop app stores the same key in ~/.deepai-code/userdata/secrets/deepai-account.bin.) Paste the key here. Email-registered accounts cannot call inference (403 social_login_required). Frontier models spend the daily Theos grant; the 11 free models are unmetered.": "無需安裝桌面版：執行 deepai-auth 授權小工具一次即可——它會開啟瀏覽器，你用 Google 或 Apple 登入後，它就把 API 金鑰印出來。（已登入的桌面版裡存的是同一把金鑰：~/.deepai-code/userdata/secrets/deepai-account.bin。）把金鑰貼到這裡。信箱註冊的帳號不能呼叫推理介面（403 social_login_required）。前沿模型消耗每日發放的 Theos 配額；11 個免費模型不計量。",
+  "Quota": "配額",
+  "Unmetered, does not spend Theos": "免費不計量——不消耗 Theos",
+  "charged against the daily Theos grant": "從每日發放的 Theos 配額裡扣",
   "Disabled — scheduler skips this entry (click to enable)": "已停用——排程器將跳過該條目（點擊啟用）",
   "Enabled (click to disable without removing)": "已啟用（點擊停用，無需移除）",
   "Loomy SMS Login": "Loomy 手機簡訊登入",

@@ -372,6 +372,31 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
             <PriceTierBadge tier={model.priceTier} />
+            {/* DeepAI Code models carry a per-request Theos price (registry /
+                resolver `theosPerRequest`): 0 = the unmetered free tier,
+                N = spends N Theos from the account's daily grant per
+                request. Same badge posture as paidTier/subPriority below. */}
+            {typeof model.theosPerRequest === "number" && (
+              <Tooltip
+                text={
+                  model.theosPerRequest === 0
+                    ? translate("Unmetered, does not spend Theos")
+                    : `${translate("Quota")}: ${model.theosPerRequest} Theos — ` +
+                      translate("charged against the daily Theos grant")
+                }
+              >
+                <Badge
+                  size="xs"
+                  variant={model.theosPerRequest === 0 ? "success" : "warning"}
+                  icon={model.theosPerRequest === 0 ? "redeem" : "toll"}
+                  className="shrink-0 cursor-help leading-none"
+                >
+                  {model.theosPerRequest === 0
+                    ? translate("Free")
+                    : `${translate("Quota")} ${model.theosPerRequest}`}
+                </Badge>
+              </Tooltip>
+            )}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
             {/* Paid-tier model (registry `paidTier`): the credit page lists it
                 behind a subscription lock, so whether it answers depends on the

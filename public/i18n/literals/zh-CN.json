@@ -1,4 +1,8 @@
 {
+  "No desktop app needed: run the deepai-auth helper once — it opens your browser, you sign in with Google or Apple, and it prints the API key. (A signed-in desktop app stores the same key in ~/.deepai-code/userdata/secrets/deepai-account.bin.) Paste the key here. Email-registered accounts cannot call inference (403 social_login_required). Frontier models spend the daily Theos grant; the 11 free models are unmetered.": "无需安装桌面版：运行 deepai-auth 授权小工具一次即可——它会打开浏览器，你用 Google 或 Apple 登录后，它就把 API 密钥打印出来。（已登录的桌面版里存的是同一把密钥：~/.deepai-code/userdata/secrets/deepai-account.bin。）把密钥粘贴到这里。邮箱注册的账号不能调用推理接口（403 social_login_required）。前沿模型消耗每日发放的 Theos 配额；11 个免费模型不计量。",
+  "Quota": "配额",
+  "Unmetered, does not spend Theos": "免费不计量——不消耗 Theos",
+  "charged against the daily Theos grant": "从每日发放的 Theos 配额里扣",
   "10Router (Entry)": "10Router（入口）",
   "($/1M tokens). Example: An input rate of 2.50 means $2.50 per 1,000,000 input tokens.": "（$/100 万 Token）。示例：输入费率 2.50 表示每 1,000,000 个输入 Token 需 2.50 美元。",
   "($/1M tokens). Example: Input rate of 2.50 means $2.50 per 1,000,000 input tokens.": "（$/100 万 Token）。示例：输入费率 2.50 表示每 1,000,000 个输入 Token 需 2.50 美元。",

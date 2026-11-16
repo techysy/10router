@@ -71,11 +71,12 @@ describe("DeepAI provider registry", () => {
       header: "api-key",
       scheme: "raw",
     });
-    expect(entry.transport.headers["X-DeepAI-Code-Theos"]).toBe("2");
+    expect(entry.transport.headers["X-DeepAI-Code-Theos"]).toBe("4");
     expect(buildDeepaiHeaders("uuid-key")).toEqual({
       Accept: "application/json",
+      "User-Agent": "10router-deepai/1.0",
       "Api-Key": "uuid-key",
-      "X-DeepAI-Code-Theos": "2",
+      "X-DeepAI-Code-Theos": "4",
     });
     expect(DEEPAI_MODELS_URL).toBe("https://api.deepai.org/deepai_code/models");
     expect(DEEPAI_THEOS_URL).toBe("https://api.deepai.org/deepai_code/theos");
@@ -162,5 +163,48 @@ describe("normalizeDeepaiModels", () => {
     expect(normalizeDeepaiModels(null)).toEqual([]);
     expect(normalizeDeepaiModels({})).toEqual([]);
     expect(normalizeDeepaiModels({ models: [{ name: "no id" }] })).toEqual([]);
+  });
+});
+
+describe("DeepAI free/quota labeling + notice i18n", () => {
+  const entry = REGISTRY.find((e) => e.id === "deepai");
+
+  it("labels every registry model with its Theos price (11 free / 16 quota)", () => {
+    const models = entry.models || [];
+    expect(models.length).toBe(27);
+    for (const m of models) {
+      expect(typeof m.theosPerRequest, `theos for ${m.id}`).toBe("number");
+      expect(m.theosPerRequest).toBe(DEEPAI_STATIC_MODEL_SPECS[m.id].theosPerRequest);
+    }
+    expect(models.filter((m) => m.theosPerRequest === 0).length).toBe(11);
+    expect(models.filter((m) => m.theosPerRequest > 0).length).toBe(16);
+  });
+
+  it("renders the free/quota badge on model rows", () => {
+    const rowSource = readFileSync(
+      resolve(__dirname, "../../src/app/(dashboard)/dashboard/providers/[id]/ModelRow.js"),
+      "utf8",
+    );
+    expect(rowSource).toContain('typeof model.theosPerRequest === "number"');
+    expect(rowSource).toContain('translate("Free")');
+    expect(rowSource).toContain('translate("Quota")');
+  });
+
+  it("ships zh-CN/zh-TW translations for the notice and badge strings", () => {
+    const notice = entry.display.notice.text;
+    for (const loc of ["zh-CN", "zh-TW"]) {
+      const literals = JSON.parse(
+        readFileSync(resolve(__dirname, `../../public/i18n/literals/${loc}.json`), "utf8"),
+      );
+      expect(typeof literals[notice], `${loc} notice`).toBe("string");
+      expect(literals[notice].length).toBeGreaterThan(20);
+      expect(typeof literals["Quota"], `${loc} Quota`).toBe("string");
+      expect(typeof literals["Unmetered, does not spend Theos"]).toBe("string");
+    }
+    const zhCN = JSON.parse(
+      readFileSync(resolve(__dirname, "../../public/i18n/literals/zh-CN.json"), "utf8"),
+    );
+    expect(zhCN["Quota"]).toBe("配额");
+    expect(zhCN["Free"]).toBe("免费");
   });
 });

@@ -62,7 +62,7 @@ export async function getDeepaiUsage(apiKey = null, proxyOptions = null) {
         // balance; never set absolute `remaining` (QuotaTable treats it
         // as a 0–100 percentage). The row name starts with "Balance" so
         // balanceExtractor claims it as the connection's quotaBalance.
-        "Balance (Theos)": {
+        "Balance （Theos)": {
           used: 0,
           total: balance,
           remainingPercentage: balance > 0 ? 100 : 0,
