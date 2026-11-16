@@ -13,7 +13,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Ftechysy%2F10router-blue?logo=docker)](https://github.com/techysy/10router/pkgs/container/10router)
 [![Platform](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20fnOS%20%7C%20Docker-6b7280)](#下载)
 [![Node](https://img.shields.io/badge/Node.js-%E2%89%A5%2018-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License](https://img.shields.io/github/license/techysy/10router?label=%E8%AE%B8%E5%8F%AF&color=f59e0b)](LICENSE)
+[![License](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-AGPL--3.0%20(v1.8.1%E8%B5%B7)-a3552d)](LICENSE)
 [![Star](https://img.shields.io/github/stars/techysy/10router?style=flat&logo=github&label=Star&color=%23000)](https://github.com/techysy/10router)
 [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-AiFaDian-7c3aed)](https://ifdian.net/a/10router)
 
@@ -326,4 +326,8 @@ npx vitest run --dir tests
 
 ## 📄 许可证
 
-[MIT](LICENSE) — 与 [decolua/9router](https://github.com/decolua/9router) 保持一致
+**AGPL-3.0**（自 v1.8.1 起）— 本项目在 v1.8.0 及更早版本使用 [MIT](https://github.com/techysy/10router/blob/v1.8.0/LICENSE)；自 v1.8.1 起改用 **GNU Affero General Public License v3.0**。
+
+- **为什么**：本仓库的大量实现（协议逆向、指纹对齐、签到链路、executor 接入等）是真机调试的成果。AGPL 要求任何二次利用——包括网络服务形态——必须同样开源，防止这些成果被闭源拿走；而已发布的 MIT 版本不受影响。
+- **方向不变**：[decolua/9router](https://github.com/decolua/9router) 为 MIT，吸收上游实现始终合法；反向（我们的实现被吸收回 MIT 主线）自 v1.8.1 起不再可行。上游派生部分的 MIT 声明按其条款保留在 [LICENSE](LICENSE) 中。
+- 对完整 LICENSE 的任何疑问或商业授权需求，请提 issue。
