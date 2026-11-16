@@ -281,3 +281,46 @@ describe("DeepAI panel-native browser sign-in", () => {
     expect(page).toContain('providerId === "deepai"');
   });
 });
+
+describe("DeepAI quota tracker wiring", () => {
+  it("is usage-eligible, so connections land in the Quota Tracker automatically", async () => {
+    const { USAGE_SUPPORTED_PROVIDERS, USAGE_APIKEY_PROVIDERS } = await import(
+      "../../src/shared/constants/providers.js"
+    );
+    expect(USAGE_SUPPORTED_PROVIDERS).toContain("deepai");
+    expect(USAGE_APIKEY_PROVIDERS).toContain("deepai");
+    const { isUsageEligible } = await import("../../src/shared/utils/usageEligibility.js");
+    expect(isUsageEligible({ provider: "deepai", authType: "apikey" })).toBe(true);
+  });
+
+  it("normalizes the Theos usage body into quota tracker rows", async () => {
+    const { parseQuotaData } = await import(
+      "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js"
+    );
+    const rows = parseQuotaData("deepai", {
+      plan: "DeepAI Code",
+      quotas: {
+        "Balance （Theos)": {
+          used: 0,
+          total: 52,
+          remainingPercentage: 100,
+          resetAt: "2026-11-17T10:22:00+08:00",
+          unlimited: true,
+          summarizesDetail: true,
+        },
+        "Daily grant （每日发放）": {
+          used: 0,
+          total: 52,
+          resetAt: "2026-11-17T10:22:00+08:00",
+          detailOnly: true,
+          recurring: true,
+        },
+      },
+    });
+    const balance = rows.find((r) => r.name.startsWith("Balance"));
+    expect(balance?.total).toBe(52);
+    const grant = rows.find((r) => r.name.startsWith("Daily grant"));
+    expect(grant?.total).toBe(52);
+    expect(grant?.detailOnly).toBe(true);
+  });
+});

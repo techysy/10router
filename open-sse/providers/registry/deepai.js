@@ -22,7 +22,7 @@ export default {
     textIcon: "DA",
     website: "https://deepai.org",
     notice: {
-      text: "Connect in the panel: Add connection -> browser sign-in with Google or Apple — the server exchanges the key and creates the connection for you. No desktop app, no key copying. Email-registered accounts cannot call inference (403 social_login_required). Frontier models spend the daily Theos grant; the 11 free models are unmetered.",
+      text: "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置",
       signupUrl: "https://deepai.org",
       apiKeyUrl: "https://deepai.org",
     },
@@ -30,7 +30,7 @@ export default {
   category: "apikey",
   authType: "apikey",
   authModes: ["apikey"],
-  authHint: "DeepAI Code API Key (UUID) — 在「添加连接」里用浏览器授权自动取得；手动粘贴时，从已登录的桌面版 ~/.deepai-code/userdata/secrets/deepai-account.bin 复制 apiKey 字段",
+  authHint: "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置",
   transport: {
     baseUrl: "https://api.deepai.org/deepai_code/chat/completions",
     validateUrl: "https://api.deepai.org/deepai_code/models",
