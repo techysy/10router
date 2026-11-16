@@ -128,8 +128,12 @@ const DOTTED_ID = REGISTRY.flatMap((entry) =>
 describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
   // 2026-11-10: trae intl 目录对齐官方客户端清单后也带此 id（paidTier 行）。
   // 2026-11-15: lingxi（WPS 灵犀）plans 目录同样带此 id（web 会话线）。
+  // 2026-11-16: deepai（DeepAI Code）实时目录的免费档同样开出此 id
+  // ——它走自己的 provider 行（deepai 段），不吃 canonical 的 deepseek
+  // 思维形态，vision/reasoning 与本表一致。用例名保持原样：基线按
+  // `file :: fullName` 记账，改名会被回归门当成 MISSING。
   it("is offered by apinex, opencode-go, opencode-zen, both CodeBuddy gateways, trae-cn, trae intl and lingxi", () => {
-    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "deepseek", "lingxi", "opencode-go", "opencode-zen", "trae", "trae-cn", "trae-free"]);
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "deepai", "deepseek", "lingxi", "opencode-go", "opencode-zen", "trae", "trae-cn", "trae-free"]);
   });
 
   it("resolves from the canonical row where the provider has no override", () => {
