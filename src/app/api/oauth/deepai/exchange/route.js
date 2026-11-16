@@ -32,8 +32,15 @@ export async function POST(request) {
     try {
       cred = await exchangeDeepaiCode(code);
     } catch (err) {
+      // 2026-11-16 实测:上游两种失败语义不可区分地回 "invalid code"/"invalid or
+      // expired code"——code 是一次性的且寿命极短(用户从复制到点完成连接隔几分钟
+      // 就会撞),瞎编 code 同答。原文透传 + 补时效提示,别让用户以为是输入错了。
+      const raw = String(err?.message || err);
+      const hint = /invalid|expired/i.test(raw)
+        ? "——回调 code 是一次性的且有效期极短（几分钟内失效）。回到登录页重新走一遍，登录完成后立刻粘贴回调地址，不要再等。"
+        : "";
       return NextResponse.json(
-        { error: `DeepAI sign-in exchange failed: ${err?.message || err}` },
+        { error: `DeepAI sign-in exchange failed: ${raw}${hint}` },
         { status: 400 },
       );
     }
@@ -46,8 +53,16 @@ export async function POST(request) {
         redirect: "error",
       });
       if (res.status === 401 || res.status === 403) {
+        // 2026-11-16 用户实测:exchange 成功换出的 key 也可能被 /theos 判
+        // auth_required——key 的有效期/绑定语义上游未文档化。把上游 body
+        // 带回给用户(判别 "Sign in to DeepAI" = 会话绑定的 key 即刻失效),
+        // 并留下 exchange 响应形状日志供排查;key 不入库(存了也是死的)。
+        const bodyText = await res.text().catch(() => "");
+        console.error(`[deepai-exchange] issued key rejected by /theos: status=${res.status} body=${bodyText.slice(0, 300)} username=${cred.username || "-"}`);
         return NextResponse.json(
-          { error: "DeepAI rejected the issued key — please run the browser sign-in again." },
+          {
+            error: `DeepAI 拒绝了换出的 API Key（${res.status}）：上游回「${bodyText.slice(0, 160) || "no body"}」。这不是粘贴错误——浏览器登录流签出的 key 被上游判未登录，请改用官方桌面端登录后从 deepai-account.bin 复制 key 手动粘贴（同弹窗「已有 API Key？直接粘贴」）。`,
+          },
           { status: 400 },
         );
       }
