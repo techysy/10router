@@ -36,6 +36,14 @@ export default {
     },
   },
   models: [
+    // 2026-11-16（gemini.google.com 官方模型选择器）：Hydrogen 与 Carbon 加入
+    // Gemini API 一线 —— 官方 UI 语义（快速解答=3.5 Flash-Lite / 日常帮助=
+    // 4 Hydrogen / 深度研究=3.1 Pro / 代码与分析=4 Argon / 高难任务=4 Carbon，
+    // Carbon 带 Pro 档升级墙）。Hydrogen 是官方「日常帮助」默认档；思考等级
+    // 低/中/高三档与 gemini-level thinkingFormat 对齐。能力走 *gemini-4*
+    // 通配（vision/pdf/reasoning/search/1M/1M），不另建精确行。
+    { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen" },
+    { id: "gemini-4-carbon", name: "Gemini 4 Carbon" },
     { id: "gemini-4-argon", name: "Gemini 4 Argon" },
     { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
     { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash" },
