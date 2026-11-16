@@ -4,6 +4,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## v1.8.0 (2026-11-16)
 
+- DeepAI Code: the provider card now sits under Free Tier Providers (its free plan runs on a daily Theos grant).
 - DeepAI Code: provider hint now uses the owner-approved wording; the Theos quota feeds the Quota Tracker automatically once a connection exists (balance plus daily-grant detail).
 ### ✨ New
 

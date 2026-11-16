@@ -55,7 +55,7 @@ describe("DeepAI provider registry", () => {
 
   it("is registered as an API-key provider on the OpenAI-shaped endpoint", () => {
     expect(entry).toBeDefined();
-    expect(entry.category).toBe("apikey");
+    expect(entry.category).toBe("freeTier");
     expect(entry.authModes).toEqual(["apikey"]);
     expect(entry.hasOAuth).toBeFalsy();
     expect(PROVIDERS["deepai"]).toBeDefined();

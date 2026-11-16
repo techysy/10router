@@ -27,7 +27,7 @@ export default {
       apiKeyUrl: "https://deepai.org",
     },
   },
-  category: "apikey",
+  category: "freeTier",
   authType: "apikey",
   authModes: ["apikey"],
   authHint: "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置",
