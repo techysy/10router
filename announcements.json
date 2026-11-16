@@ -83,6 +83,15 @@
       "body": "System One 决策模型新增 Gemini Decision 1（Google DeepMind）：typed questions 进、校准概率出，与 Drex 协议同构但支持文本/图片/音频/视频/PDF 五模态（Drex 只有文本/图片）。API Key 从 Google AI Studio 创建，免费层 200 请求/分钟。决策 lane 可按模态路由：文本/图片走 Drex，音/视频/PDF 走 Gemini。",
       "titleEn": "Gemini Decision 1 provider: multimodal decision lane alongside Drex",
       "bodyEn": "The System One decision lane gains Gemini Decision 1 (Google DeepMind): typed questions in, calibrated probabilities out — protocol-aligned with Drex but natively multimodal (text/image/audio/video/PDF vs Drex's text/image). API keys come from Google AI Studio; free tier is 200 requests/min. Route by modality: text/images via Drex, audio/video/PDF via Gemini."
+    },
+    {
+      "id": "2026-11-16-music-category-overview",
+      "date": "2026-11-16",
+      "level": "feature",
+      "title": "音乐生成分类：ACE Music 出整曲、StepFun 限免、两个 Web 工作台",
+      "body": "侧栏「媒体提供商 → 音乐」一栏汇总全部音乐能力：ACE Music（托管 ACE-Step）一行描述出整曲 MP3，带播放器与下载按钮；StepFun StepAudio 3 Music 限时免费——多行文字直接当歌词唱；另有 Miya（歌曲+MV，免费 beta）与 Flow Music 两个 Web 工作台一键直达。模型、连接、Prompt 在示例卡现场切换即试。",
+      "titleEn": "Music category: ACE Music full songs, StepFun limited-free, two web studios",
+      "bodyEn": "The sidebar Music section under Media Providers gathers every music capability: ACE Music (hosted ACE-Step) turns one description line into a full MP3 with a built-in player and download button; StepFun StepAudio 3 Music is free for a limited time — multi-line text is sung as-is; plus one-click shortcuts to two web studios, Miya (song + MV, free beta) and Flow Music. Switch model, connection and prompt live on the example card."
     }
   ]
 }
