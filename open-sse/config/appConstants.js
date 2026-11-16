@@ -89,6 +89,17 @@ export const ANTIGRAVITY_PROMPT_REWRITES = [
   // substring rules below so no "intelligent AI assistant" tail survives.
   { from: /You are Hermes(?: Agent)?(?:,\s*(?:an intelligent AI assistant|an AI assistant|an AI agent))?(?:,?\s*(?:built|created)\s+by\s+Nous Research)?\./gi, to: "You are an AI assistant." },
   { from: /opencode/gi, to: (m) => (m === "OpenCode" ? "Antigravity" : m === "OPENCODE" ? "ANTIGRAVITY" : "antigravity") },
+  // Codex CLI identity opener (2026-11-16: Google added Codex CLI to the
+  // identity-sentence blocklist, mirroring Hermes/OpenCode above). Normalize
+  // the opener to a neutral line BEFORE the generic rename so no "GPT-5"
+  // lineage survives next to the harness name; remaining "Codex CLI" harness
+  // sections rename case-preserving like opencode.
+  { from: /You are Codex(?:, based on GPT-5)?\. You are running as a coding agent in (?:the )?Codex CLI(?: on a user'?s computer)?\./gi, to: "You are an AI assistant running as a coding agent in the Antigravity CLI on the user's computer." },
+  { from: /codex/gi, to: (m) => (m === "Codex" ? "Antigravity" : m === "CODEX" ? "ANTIGRAVITY" : "antigravity") },
+  // pi (earendil-works/pi) opener — identity-sentence only. A word-level
+  // rename is deliberately NOT added: bare "pi" collides with API/pip/prose
+  // (and Raspberry Pi), so anything outside the opener stays untouched.
+  { from: /You are a coding assistant running inside pi(?:, a coding agent harness)?\./gi, to: "You are an AI assistant." },
   // Hermes / Nous Research identity reaches Antigravity verbatim (no client-side sanitization on this
   // path — hermes-agent only renames for Anthropic/Claude), so Google's competitor/client sniffing
   // flags it with a fake 429 Quota Exhausted. Rename to Antigravity branding, mirroring opencode above

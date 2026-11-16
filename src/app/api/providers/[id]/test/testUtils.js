@@ -5,6 +5,7 @@ import { geoRedirectNote } from "open-sse/utils/error.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel, getModelUpstreamId } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
+import { ANTIGRAVITY_IDE_USER_AGENT } from "open-sse/providers/shared.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
@@ -295,7 +296,7 @@ async function resolveCloudCodeProjectId(connection, accessToken, effectiveProxy
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "User-Agent": connection.provider === "antigravity"
-          ? "antigravity/ide/2.22.0 darwin/arm64"
+          ? ANTIGRAVITY_IDE_USER_AGENT
           : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0",
       },
       body: JSON.stringify({ metadata: { ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" } }),

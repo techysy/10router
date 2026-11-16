@@ -74,7 +74,7 @@
     "format": "antigravity",
     "strictProxy": true,
     "headers": {
-      "User-Agent": "antigravity/ide/2.29.0 darwin/arm64"
+      "User-Agent": "antigravity/ide/2.32.1 darwin/arm64"
     },
     "retry": {
       "429": {

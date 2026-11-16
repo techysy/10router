@@ -68,6 +68,49 @@ describe("ANTIGRAVITY_PROMPT_REWRITES", () => {
     expect(out).toMatch(/You are Antigravity, running in an ANTIGRAVITY session with the antigravity CLI\./);
   });
 
+  it("cloaks the Codex CLI opening identity declaration (2026-11-16 blocklist)", () => {
+    // Exact opener from Codex CLI / open-sse/config/codexInstructions.js
+    const sys = "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer. Be direct.";
+    const out = cloakSystemInstruction(sys);
+    expect(out).not.toMatch(/Codex/);
+    expect(out).not.toMatch(/GPT-5/);
+    expect(out).toBe("You are an AI assistant running as a coding agent in the Antigravity CLI on the user's computer. Be direct.");
+  });
+
+  it("cloaks variant Codex openers (no lineage suffix, harness-only form)", () => {
+    const out1 = cloakSystemInstruction("You are Codex. You are running as a coding agent in Codex CLI.");
+    expect(out1).not.toMatch(/Codex/i);
+    expect(out1).toBe("You are an AI assistant running as a coding agent in the Antigravity CLI on the user's computer.");
+    // Older builds drop the "on a user's computer" tail
+    const out2 = cloakSystemInstruction("You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI.");
+    expect(out2).toBe("You are an AI assistant running as a coding agent in the Antigravity CLI on the user's computer.");
+  });
+
+  it("renames residual Codex harness sections case-preserving (no opener match)", () => {
+    const sys = "## Codex CLI harness, sandboxing, and approvals\nThe Codex CLI harness supports several configurations. Run codex exec to retry.";
+    const out = cloakSystemInstruction(sys);
+    expect(out).toBe("## Antigravity CLI harness, sandboxing, and approvals\nThe Antigravity CLI harness supports several configurations. Run antigravity exec to retry.");
+  });
+
+  it("cloaks the pi opening identity declaration (identity-sentence only)", () => {
+    // Exact opener from earendil-works/pi packages/coding-agent/src/core/system-prompt.ts
+    const sys = "You are a coding assistant running inside pi, a coding agent harness. Help users inspect files.";
+    const out = cloakSystemInstruction(sys);
+    expect(out).not.toMatch(/inside pi/i);
+    expect(out).toBe("You are an AI assistant. Help users inspect files.");
+  });
+
+  it("pi variant without the harness clause also normalizes", () => {
+    const out = cloakSystemInstruction("You are a coding assistant running inside pi. Be concise.");
+    expect(out).toBe("You are an AI assistant. Be concise.");
+  });
+
+  it("does NOT rename bare pi words (API/pip/prose collisions stay intact)", () => {
+    const sys = "Call the REST API endpoint, then pip install the package. Pi day is March 14. API keys stay secret.";
+    const out = cloakSystemInstruction(sys);
+    expect(out).toBe(sys);
+  });
+
   it("leaves non-brand content intact", () => {
     const sys = "Help the user write clean, efficient code. Keep replies brief.";
     expect(cloakSystemInstruction(sys)).toBe(sys);
