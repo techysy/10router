@@ -107,5 +107,8 @@ export async function exchangeDeepaiCode(code, { fetchImpl = fetch, state = "" }
     apiKey,
     username: String(payload?.username ?? "").trim(),
     isPro: Boolean(payload?.is_pro),
+    // 2026-11-17:machine_required 排查期——exchange 原始响应整体透出,
+    // route 落日志判别是否内嵌机器注册挑战(check_in / machine 字段)。
+    raw: payload,
   };
 }

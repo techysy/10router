@@ -53,12 +53,22 @@ export async function POST(request) {
         redirect: "error",
       });
       if (res.status === 401 || res.status === 403) {
-        // 2026-11-16 用户实测:exchange 成功换出的 key 也可能被 /theos 判
-        // auth_required——key 的有效期/绑定语义上游未文档化。把上游 body
-        // 带回给用户(判别 "Sign in to DeepAI" = 会话绑定的 key 即刻失效),
-        // 并留下 exchange 响应形状日志供排查;key 不入库(存了也是死的)。
+        // 2026-11-16/17 两轮实测:401 auth_required = key 无效;403
+        // machine_required + check_in{nonce,seconds:600} = key 有效但免费
+        // 每日 Theos 要求「已注册机器」——nonce 就是机器注册挑战(官方桌面端
+        // "Restart to try again" 干的就是这件事)。完整落日志(含 exchange
+        // 原始响应,判别机器注册端点形态),key 暂不入库。
         const bodyText = await res.text().catch(() => "");
-        console.error(`[deepai-exchange] issued key rejected by /theos: status=${res.status} body=${bodyText.slice(0, 300)} username=${cred.username || "-"}`);
+        console.error(`[deepai-exchange] issued key rejected by /theos: status=${res.status} body=${bodyText} exchangeRaw=${JSON.stringify(cred.raw || {}).slice(0, 500)} username=${cred.username || "-"}`);
+        const parsed = (() => { try { return JSON.parse(bodyText); } catch { return null; } })();
+        if (parsed?.error?.code === "machine_required" && parsed?.check_in?.nonce) {
+          return NextResponse.json(
+            {
+              error: `Key 已签发但免费 Theos 需要「机器注册」（machine_required）。上游给了注册挑战（nonce ${parsed.check_in.nonce.slice(0, 8)}…，${parsed.check_in.seconds}s 内有效）——10Router 正在实现这个 check-in，下个测试包可用；或先用官方桌面端完成一次登录注册机器后再走手动粘贴。`,
+            },
+            { status: 400 },
+          );
+        }
         return NextResponse.json(
           {
             error: `DeepAI 拒绝了换出的 API Key（${res.status}）：上游回「${bodyText.slice(0, 160) || "no body"}」。这不是粘贴错误——浏览器登录流签出的 key 被上游判未登录，请改用官方桌面端登录后从 deepai-account.bin 复制 key 手动粘贴（同弹窗「已有 API Key？直接粘贴」）。`,

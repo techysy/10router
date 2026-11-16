@@ -258,6 +258,8 @@ describe("DeepAI panel-native browser sign-in", () => {
       apiKey: "uuid-key-1",
       username: "someone",
       isPro: false,
+      // machine_required 排查期:exchange 原始响应整体透出(route 落日志)
+      raw: { api_key: "uuid-key-1", username: "someone", is_pro: false },
     });
   });
 
