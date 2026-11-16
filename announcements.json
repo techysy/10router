@@ -47,6 +47,51 @@
       "titleEn": "Loomy model pool tightened: 3 models retired, MiMo V2.5 added",
       "bodyEn": "iFlytek tightened the pool: Qwen 3.8 Max / MiniMax M3 / Kimi K2.6 are retired (update combos referencing them); MiMo V2.5 added (omni-modal, x3.3). Credit multipliers are now labeled on model rows (Spark-X2.6 official is free for a limited time, x0.0). Invite codes for multiple accounts can be quickly filled/obtained via CreditDaddy.",
       "link": "https://loomy.xunfei.cn"
+    },
+    {
+      "id": "2026-11-16-deepai-code-provider",
+      "date": "2026-11-16",
+      "level": "feature",
+      "title": "DeepAI Code 供应商：27 模型免费档，面板内直接登录",
+      "body": "免费额度区新增 DeepAI Code（deepai.org 桌面编程 agent）：11 个免费不计量模型 + 16 个按次花每日 Theos（GPT-6.1 Sol / Gemini 4 Hydrogen / Claude Fable 5.2 等都有）。添加连接在面板内完成 Google/Apple 浏览器登录——回调地址粘回即建连，本机不装任何东西；已有 API Key 也可直接粘贴。模型行亮「免费」/「配额 N」徽章，Theos 余额自动进配额页。",
+      "titleEn": "DeepAI Code provider: 27 models free-tier, panel-native sign-in",
+      "bodyEn": "DeepAI Code (deepai.org desktop coding agent) joins the free-tier section: 11 unmetered free models plus 16 metered against the daily Theos grant (GPT-6.1 Sol / Gemini 4 Hydrogen / Claude Fable 5.2 included). Adding a connection runs the Google/Apple browser sign-in inside the panel — paste the callback URL back and the connection is created, nothing to install. Existing API keys can be pasted directly. Model rows carry Free / Quota N badges; the Theos balance lands in the quota page automatically."
+    },
+    {
+      "id": "2026-11-16-wps-lingxi-provider",
+      "date": "2026-11-16",
+      "level": "feature",
+      "title": "WPS 灵犀供应商：粘贴 Cookie 即用，原生签到与到期桶",
+      "body": "全新供应商「灵犀」（WPS）：供应商页 Capture Session 三步引导（书签签 / 直接粘贴）或从 CreditDaddy 一键同步。配额卡按智点口径呈现——余额 + 逐包到期桶 + 最早到期倒计时；实验性页开关打开后自动领每日灵点（100/天、第七天 200），配额卡头显示「今日已签到 · 连续 N 天」。免费档日常对话不扣灵点。",
+      "titleEn": "WPS Lingxi provider: paste a cookie to start, native check-in and expiry buckets",
+      "bodyEn": "A new provider line, Lingxi (WPS): the provider page walks you through Capture Session (bookmarklet or direct paste), or sync from CreditDaddy. The quota card speaks the credit language — balance + per-batch expiry buckets + earliest-expiry countdown. Flip the Experimental toggle for native daily check-in (100/day, 200 on day seven) with a streak badge on the quota card. Free-tier chat costs no credits."
+    },
+    {
+      "id": "2026-11-15-meoo-provider",
+      "date": "2026-11-15",
+      "level": "feature",
+      "title": "Meoo 秒悟供应商：OAuth 登录 / 控制面 Key 双通道",
+      "body": "全新供应商「秒悟」：OAuth（CLI 同款 PKCE）或粘贴控制面 Key 双通道接入；项目服务 AK 自动解析、失效自愈。积分账户完整呈现——余额 + 批次有效期（订阅 / 登录赠送 / 邀请奖励逐包到期）；实验性页新增「每日自动领积分」开关；模型行带价格倾向徽章（便宜 / 适中 / 较贵 / 超贵，官网同款）。",
+      "titleEn": "Meoo provider: OAuth or control-plane key, full points ledger",
+      "bodyEn": "A new provider, Meoo: connect via OAuth (CLI-style PKCE) or pasting a control-plane key; the per-project service AK resolves itself and self-heals. The points ledger shows balance + per-batch expiry (subscription / daily-login / invite grants each carry their own dates). The Experimental page adds an auto daily-claim toggle; model rows carry price-tendency badges matching the official picker."
+    },
+    {
+      "id": "2026-11-14-dumate-provider",
+      "date": "2026-11-14",
+      "level": "feature",
+      "title": "DuMate 百度搭子供应商：扫码登录，全程不拉起浏览器",
+      "body": "全新供应商「DuMate」（百度）：扫码登录全链路面板内完成（getqrcode → 长轮询 → 快捷登录，内置 SSRF 白名单）。配额卡按积分池语言呈现——订阅窗折叠进余额大数右侧、加油包逐包明细；额度包隐藏偏好改用稳定组合键，包过期重排后不再错位。",
+      "titleEn": "DuMate (Baidu) provider: QR-code login without spawning a browser",
+      "bodyEn": "A new provider, DuMate (Baidu): QR-code login runs entirely in the panel (getqrcode → long-poll → quick login, with an SSRF allowlist). The quota card speaks the credit-pool language — the subscription window folds beside the balance headline and top-up packs are itemised; pack hide-preferences use a stable composite key so expiring packs no longer shuffle."
+    },
+    {
+      "id": "2026-11-12-gemini-decision-provider",
+      "date": "2026-11-12",
+      "level": "feature",
+      "title": "Gemini Decision 1 供应商：System One 决策 lane 补齐多模态",
+      "body": "System One 决策模型新增 Gemini Decision 1（Google DeepMind）：typed questions 进、校准概率出，与 Drex 协议同构但支持文本/图片/音频/视频/PDF 五模态（Drex 只有文本/图片）。API Key 从 Google AI Studio 创建，免费层 200 请求/分钟。决策 lane 可按模态路由：文本/图片走 Drex，音/视频/PDF 走 Gemini。",
+      "titleEn": "Gemini Decision 1 provider: multimodal decision lane alongside Drex",
+      "bodyEn": "The System One decision lane gains Gemini Decision 1 (Google DeepMind): typed questions in, calibrated probabilities out — protocol-aligned with Drex but natively multimodal (text/image/audio/video/PDF vs Drex's text/image). API keys come from Google AI Studio; free tier is 200 requests/min. Route by modality: text/images via Drex, audio/video/PDF via Gemini."
     }
   ]
 }
