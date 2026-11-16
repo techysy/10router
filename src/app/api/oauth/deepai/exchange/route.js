@@ -21,7 +21,7 @@ export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const code = parseDeepaiCallbackCode(body?.code);
-    if (!code) {
+    if (!code.code) {
       return NextResponse.json(
         { error: "No authorization code found — paste the full callback address from the browser's address bar." },
         { status: 400 },
@@ -30,7 +30,7 @@ export async function POST(request) {
 
     let cred;
     try {
-      cred = await exchangeDeepaiCode(code);
+      cred = await exchangeDeepaiCode(code.code, { state: code.state });
     } catch (err) {
       // 2026-11-16 实测:上游两种失败语义不可区分地回 "invalid code"/"invalid or
       // expired code"——code 是一次性的且寿命极短(用户从复制到点完成连接隔几分钟
