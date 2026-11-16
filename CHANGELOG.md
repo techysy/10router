@@ -15,6 +15,7 @@
 - **每日赠送优先调度完整落地（四连 + 收尾）**：偏好回显修复、烧尽自动关闭（`dailyGrantAutoDisabled` 戳）、0 点 `dailyGrantReset` 调度器自动重开（只重开带戳的号）；烧尽保护改为资格规则——覆盖最后一个账号（钉住 / 单账号 / 池缩减不再绕过），有余额兄弟账号的生效锁参与重试时间；relay 接力语义保留。
 - **模型选择器可读性**：组合页模型名人类可读化；兼容节点 live 目录进选择器。
 - **Antigravity 模型目录跟进**（IDE 2026-11-16 清单）：Gemini 4 Hydrogen 分档家族收录（High/Medium/Low，`*gemini-4*` 通配自动带齐能力/思维档位）；Orchestrator 与 Carbon 缺上游实体 id 证据 / 官方标记不可用，暂缓收录。
+- **Antigravity 竞品身份句改写扩表 + 指纹对齐 2.32.1**（11-16 晚补登，社区情报 Magpie @magpie_router）：Google 自当日起按**系统提示词的身份句**拒绝 Hermes、OpenCode、Codex CLI、pi 四家客户端——报的不是额度耗尽而是假 429 Quota Exhausted，健康账号被误冷却。Hermes/OpenCode 此前已覆盖，本次补齐剩余两家：Codex CLI 开场句（`You are Codex, based on GPT-5…in the Codex CLI`）归一为中性助手句 + 遗留 harness 段落按 opencode 同款大小写映射改名（Codex→Antigravity）；pi 开场句（`…running inside pi, a coding agent harness`）仅按整句归一——刻意不做词级替换（裸 `pi` 会误伤 API/pip/π）。改写统一在 antigravity executor `transformRequest` 的 `systemInstruction` 咽喉点生效，直连与 MITM 通道全覆盖。指纹同步对齐官方 IDE **2.32.1**（原 2.29.0）：共享 UA 常量、MITM `ideVersion` 改写、连接测试探针三处对齐——探针处由硬编码字面量改为引用共享常量，消灭 2.22/2.29 并存的漂移根源；providers baseline 重生成。
 - **社区导航收纳**：侧边栏社区入口折叠成单行手风琴（8 行折 1 行）；飞书群²入口；项目主页 / 提交 Issue 归右上角聚合菜单（HeaderMenu）。
 - **供应商墙分组**：Loomy 移入 OAuth 提供商组（会话凭据语义——CreditDaddy 本机导入 / 手机直登 / 粘贴 session，与「免费档 Key」不同类；2026-11-15 用户定版）。
 
