@@ -68,7 +68,6 @@ export async function POST(request) {
         console.error(`[deepai-exchange] /theos probe warning: status=${res.status} body=${bodyText.slice(0, 300)} username=${cred.username || "-"}`);
         warning = `登录已完成，API Key 已保存；${formatDeepaiQuotaError(res.status, payload, cred.apiKey)}`;
       }
-      }
     } catch {
       warning = "登录已完成，API Key 已保存；额度查询暂时无法完成，请稍后运行连接测试。";
     }
