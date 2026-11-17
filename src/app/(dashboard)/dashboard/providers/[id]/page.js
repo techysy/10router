@@ -875,17 +875,28 @@ export default function ProviderDetailPage() {
 
   const handleBalanceStrategyChange = (value) => {
     setBalanceStrategy(value);
-    if (value === "daily-grant") {
+    if (value === "earliest-expiry") {
+      // 到期优先:auth.js 排序序 earliestExpiryFirst 先于 balanceStrategy,
+      // balanceStrategy 归 priority(不写 override)——与 ConnectionsCard 同语义。
+      // 与 daily-grant 互斥,与 round-robin 也互斥(轮询臂会把它翻回 false)。
+      setEarliestExpiryFirst(true);
+      setDailyGrantFirst(false);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, true, "priority", false);
+    } else if (value === "daily-grant") {
       // Daily Grant First（Loomy）：与 balanceStrategy 互斥——走独立的排序分支
+      setEarliestExpiryFirst(false);
       setDailyGrantFirst(true);
       setProviderStrategy(null);
       saveProviderStrategy(null, providerStickyLimit, false, "priority", true);
     } else if (value === "round-robin") {
+      setEarliestExpiryFirst(false);
       setDailyGrantFirst(false);
       setProviderStrategy("round-robin");
       if (!providerStickyLimit) setProviderStickyLimit("1");
       saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value, false);
     } else {
+      setEarliestExpiryFirst(false);
       setDailyGrantFirst(false);
       setProviderStrategy(null);
       saveProviderStrategy(null, providerStickyLimit, false, value, false);
@@ -2397,6 +2408,12 @@ export default function ProviderDetailPage() {
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
                   // 长文案放工具栏外（见下方独立提示行），不挤占同一行
                   const dailyGrantAllowed = DAILY_GRANT_PROVIDERS.has(providerId);
+                  // 到期优先是一等选项:auth.js 排序序 earliestExpiryFirst 先于
+                  // balanceStrategy,回显时 earliestExpiryFirst 压过 balanceStrategy
+                  // (保存时 balanceStrategy 归 priority,不写 override)。
+                  const currentValue = earliestExpiryFirst
+                    ? "earliest-expiry"
+                    : (dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy));
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2404,10 +2421,11 @@ export default function ProviderDetailPage() {
                           {translate("Scheduling Preference")}
                         </span>
                         <Select
-                          value={dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy)}
+                          value={currentValue}
                           onChange={(e) => handleBalanceStrategyChange(e.target.value)}
                           options={[
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                            { value: "earliest-expiry", label: translate("Earliest Expiry First") },
                             { value: "lowest-first", label: translate("Lowest Balance First") },
                             { value: "highest-first", label: translate("Highest Balance First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
