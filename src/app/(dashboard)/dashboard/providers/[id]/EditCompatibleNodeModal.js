@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
+import { translate } from "@/i18n/runtime";
 
 export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
   const [formData, setFormData] = useState({
@@ -42,13 +43,13 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     try {
       parsed = JSON.parse(text);
     } catch {
-      throw new Error("自定义请求头不是合法 JSON");
+      throw new Error(translate("Custom headers is not valid JSON"));
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("自定义请求头必须是 {\"头名\": \"值\"} 对象");
+      throw new Error(translate("Custom headers must be a {\"header\": \"value\"} object"));
     }
     for (const [k, v] of Object.entries(parsed)) {
-      if (!k.trim() || typeof v !== "string") throw new Error(`请求头 "${k}" 的值必须是字符串`);
+      if (!k.trim() || typeof v !== "string") throw new Error(translate("Custom header values must be strings"));
     }
     return parsed;
   };
@@ -142,47 +143,47 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   if (!node) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Edit ${isAnthropic ? "Anthropic" : "OpenAI"} Compatible`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={translate(isAnthropic ? "Edit Anthropic Compatible" : "Edit OpenAI Compatible")} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <Input
-          label="Name"
+          label={translate("Name")}
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={`${isAnthropic ? "Anthropic" : "OpenAI"} Compatible (Prod)`}
-          hint="Required. A friendly label for this node."
+          hint={translate("Required. A friendly label for this node.")}
         />
         <Input
-          label="Prefix"
+          label={translate("Prefix")}
           value={formData.prefix}
           onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
           placeholder={isAnthropic ? "ac-prod" : "oc-prod"}
-          hint="Required. Used as the provider prefix for model IDs."
+          hint={translate("Required. Used as the provider prefix for model IDs.")}
         />
         {!isAnthropic && (
           <Select
-            label="API Type"
+            label={translate("API Type")}
             options={apiTypeOptions}
             value={formData.apiType}
             onChange={(e) => setFormData({ ...formData, apiType: e.target.value })}
           />
         )}
         <Input
-          label="Base URL"
+          label={translate("Base URL")}
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
-          hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
+          hint={translate("Use the base URL (ending in /v1) for your {family}-compatible API.").replace("{family}", isAnthropic ? "Anthropic" : "OpenAI")}
         />
         <Input
-          label="官网地址 (Website, optional)"
+          label={translate("Website (optional)")}
           value={formData.website}
           onChange={(e) => setFormData({ ...formData, website: e.target.value })}
           placeholder="https://provider.example.com"
-          hint="Optional. Used to fetch the provider logo (favicon) and show the console link on the detail page."
+          hint={translate("Optional. Used to fetch the provider logo (favicon) and show a console link on the detail page.")}
         />
         <div className="flex gap-2">
           <Input
-            label="API Key (for Check)"
+            label={translate("API Key (for Check)")}
             type="password"
             value={checkKey}
             onChange={(e) => setCheckKey(e.target.value)}
@@ -190,16 +191,16 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           />
           <div className="pt-6">
             <Button onClick={handleValidate} disabled={!checkKey || validating || !formData.baseUrl.trim()} variant="secondary">
-              {validating ? "Checking..." : "Check"}
+              {validating ? translate("Checking...") : translate("Check")}
             </Button>
           </div>
         </div>
         <Input
-          label="Model ID (optional)"
+          label={translate("Model ID (optional)")}
           value={checkModelId}
           onChange={(e) => setCheckModelId(e.target.value)}
           placeholder="e.g. my-model-id"
-          hint="If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead."
+          hint={translate("If provider lacks /models endpoint, enter a model ID to validate via chat/completions instead.")}
         />
 
         {/* Issue #92: Advanced Custom Auth Headers (e.g. for Loomy token: {apiKey}) */}
@@ -209,7 +210,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex w-full items-center justify-between text-xs font-medium text-text-muted hover:text-text-main"
           >
-            <span>Advanced / Custom Headers</span>
+            <span>{translate("Advanced / Custom Headers")}</span>
             <span className="material-symbols-outlined text-[16px]">
               {showAdvanced ? "expand_less" : "expand_more"}
             </span>
@@ -217,24 +218,24 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           {showAdvanced && (
             <div className="mt-3 flex flex-col gap-2 pt-2 border-t border-border/40">
               <span className="text-[11px] text-text-muted">
-                Custom Header for /models Discovery (e.g. iFlytek Loomy requires &apos;token: &#123;apiKey&#125;&apos;)
+                {translate("Custom Header for /models Discovery (e.g. iFlytek Loomy requires 'token: {apiKey}')")}
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <Input
-                  label="Header Name"
+                  label={translate("Header Name")}
                   placeholder="e.g. token"
                   value={modelsHeaderName}
                   onChange={(e) => setModelsHeaderName(e.target.value)}
                 />
                 <Input
-                  label="Header Value Template"
+                  label={translate("Header Value Template")}
                   placeholder="{apiKey}"
                   value={modelsHeaderValue}
                   onChange={(e) => setModelsHeaderValue(e.target.value)}
                 />
               </div>
               <span className="text-[11px] text-text-muted pt-1 border-t border-border/40">
-                #149 每请求自定义请求头（JSON 对象，可选）：随该端点的每个请求发送，可覆盖默认鉴权头；host / content-length / connection 等结构头会被忽略。
+                {translate("Per-request custom headers (JSON object, optional): sent with every request to this endpoint, and can override the default auth header. Structural headers like host / content-length / connection are ignored.")}
               </span>
               <textarea
                 value={customHeadersText}
@@ -252,15 +253,15 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
 
         {validationResult && (
           <Badge variant={validationResult === "success" ? "success" : "error"}>
-            {validationResult === "success" ? "Valid" : "Invalid"}
+            {validationResult === "success" ? translate("Valid") : translate("Invalid")}
           </Badge>
         )}
         <div className="flex gap-2">
           <Button onClick={handleSubmit} fullWidth disabled={!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim() || saving}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? translate("Saving...") : translate("Save")}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>
-            Cancel
+            {translate("Cancel")}
           </Button>
         </div>
       </div>
