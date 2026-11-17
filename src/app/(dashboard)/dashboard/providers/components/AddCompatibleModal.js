@@ -41,6 +41,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     prefix: "",
     ...(config.hasApiType ? { apiType: "chat" } : {}),
     baseUrl: config.defaultBaseUrl,
+    website: "",
   });
 
   const [formData, setFormData] = useState(initialFormData);
@@ -53,6 +54,8 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [modelsHeaderName, setModelsHeaderName] = useState("");
   const [modelsHeaderValue, setModelsHeaderValue] = useState("{apiKey}");
+  const [customHeadersText, setCustomHeadersText] = useState("");
+  const [customHeadersError, setCustomHeadersError] = useState("");
 
   const buildAuthHeaders = () => {
     if (modelsHeaderName.trim()) {
@@ -63,6 +66,25 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
       };
     }
     return undefined;
+  };
+
+  // #149: per-request custom headers, opt-in JSON. Empty text = no headers.
+  const buildCustomHeaders = () => {
+    const text = customHeadersText.trim();
+    if (!text) return undefined;
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error("自定义请求头不是合法 JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("自定义请求头必须是 {\"头名\": \"值\"} 对象");
+    }
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!k.trim() || typeof v !== "string") throw new Error(`请求头 "${k}" 的值必须是字符串`);
+    }
+    return parsed;
   };
 
   // openai: reset baseUrl when apiType changes; anthropic: reset checks when opened
@@ -83,6 +105,15 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
 
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim()) return;
+    let customHeaders;
+    try {
+      customHeaders = buildCustomHeaders();
+      setCustomHeadersError("");
+    } catch (err) {
+      setSubmitError(err.message);
+      setShowAdvanced(true);
+      return;
+    }
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -95,7 +126,9 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           ...(config.hasApiType ? { apiType: formData.apiType } : {}),
           baseUrl: formData.baseUrl,
           type: config.type,
+          website: formData.website.trim(),
           authHeaders: buildAuthHeaders(),
+          ...(customHeaders ? { customHeaders } : {}),
         }),
       });
       const data = await res.json();
@@ -108,6 +141,8 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
         setShowAdvanced(false);
         setModelsHeaderName("");
         setModelsHeaderValue("{apiKey}");
+        setCustomHeadersText("");
+        setCustomHeadersError("");
       } else {
         setSubmitError(data?.error || "Failed to create provider");
       }
@@ -196,6 +231,13 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           hint={config.baseUrlHint}
         />
         <Input
+          label="官网地址 (Website, optional)"
+          value={formData.website}
+          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+          placeholder="https://provider.example.com"
+          hint="Optional. Used to fetch the provider logo (favicon) and show the console link on the detail page."
+        />
+        <Input
           label="API Key (for Check)"
           type="password"
           value={checkKey}
@@ -240,6 +282,19 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
                   onChange={(e) => setModelsHeaderValue(e.target.value)}
                 />
               </div>
+              <span className="text-[11px] text-text-muted pt-1 border-t border-border/40">
+                #149 每请求自定义请求头（JSON 对象，可选）：随该端点的每个请求发送，可覆盖默认鉴权头；host / content-length / connection 等结构头会被忽略。
+              </span>
+              <textarea
+                value={customHeadersText}
+                onChange={(e) => setCustomHeadersText(e.target.value)}
+                placeholder={'{\n  "x-gateway-token": "abc"\n}'}
+                rows={4}
+                className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs focus:outline-none focus:border-primary"
+              />
+              {customHeadersError && (
+                <span className="text-[11px] text-red-500">{customHeadersError}</span>
+              )}
             </div>
           )}
         </div>

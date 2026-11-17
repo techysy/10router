@@ -456,6 +456,7 @@ export default function ProviderDetailPage() {
         apiType: providerNode.apiType,
         baseUrl: providerNode.baseUrl,
         type: providerNode.type,
+        website: providerNode.website,
       }
     : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
   const authModes = providerInfo?.authModes || [];
@@ -2068,8 +2069,11 @@ export default function ProviderDetailPage() {
     );
   }
 
-  // Determine icon path: OpenAI Compatible providers use specialized icons
+  // Determine icon path: OpenAI Compatible providers use specialized icons;
+  // a node with 官网地址 shows the site favicon instead (real brand logo).
   const getHeaderIconPath = () => {
+    const favicon = getCompatibleNodeFaviconSrc(providerNode?.website);
+    if (favicon) return favicon;
     if (isOpenAICompatible && providerInfo.apiType) {
       return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
     }
@@ -2078,6 +2082,8 @@ export default function ProviderDetailPage() {
     }
     return getProviderIconSrc(providerInfo.id);
   };
+  const headerIconPath = getHeaderIconPath();
+  const headerIconIsRemote = typeof headerIconPath === "string" && headerIconPath.startsWith("http");
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
@@ -2095,13 +2101,29 @@ export default function ProviderDetailPage() {
             className="flex size-12 shrink-0 items-center justify-center rounded-lg"
             style={{ backgroundColor: `${providerInfo.color}15` }}
           >
-            {headerImgError || !getHeaderIconPath() ? (
+            {headerImgError || !headerIconPath ? (
               <span className="text-sm font-bold" style={{ color: providerInfo.color }}>
                 {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
               </span>
+            ) : headerIconIsRemote ? (
+              // Remote favicon — plain img: next/image would need remotePatterns
+              // per customer site, which a user-entered URL can't predeclare.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={headerIconPath}
+                alt={providerInfo.name}
+                width={48}
+                height={48}
+                className="max-h-12 max-w-12 rounded-lg object-contain bg-white/60 p-1"
+                onError={() => {
+                  setHeaderImgError(true);
+                }}
+                loading="lazy"
+                decoding="async"
+              />
             ) : (
               <Image
-                src={getHeaderIconPath()}
+                src={headerIconPath}
                 alt={providerInfo.name}
                 width={48}
                 height={48}

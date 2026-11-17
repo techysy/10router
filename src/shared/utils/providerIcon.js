@@ -82,3 +82,19 @@ export function markProviderIconMissing(providerId) {
   const aliased = ICON_ALIASES[id];
   if (aliased) failedIds.add(aliased);
 }
+
+/**
+ * Compatible nodes (openai/anthropic-compatible) can declare 官网地址 — derive
+ * the site favicon so a custom endpoint shows its real brand instead of the
+ * generic oai/anthropic glyph. Null when the URL is unusable.
+ */
+export function getCompatibleNodeFaviconSrc(website) {
+  if (typeof website !== "string" || !website.trim()) return null;
+  try {
+    const u = new URL(website.trim());
+    if (!/^https?:$/.test(u.protocol)) return null;
+    return `${u.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
+}

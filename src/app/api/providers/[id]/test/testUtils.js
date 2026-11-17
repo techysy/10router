@@ -1,6 +1,7 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
+import { applyNodeCustomHeaders } from "open-sse/executors/base.js";
 import { geoRedirectNote } from "open-sse/utils/error.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel, getModelUpstreamId } from "open-sse/config/providerModels.js";
@@ -914,7 +915,10 @@ export async function probeOpenAIModelsEndpoint(connection, effectiveProxy, opti
     try {
       res = await fetchWithConnectionProxy(config.baseUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+        headers: applyNodeCustomHeaders(
+          { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          connection,
+        ),
         body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
       }, effectiveProxy);
     } catch (err) {
@@ -949,7 +953,7 @@ export async function probeOpenAIModelsEndpoint(connection, effectiveProxy, opti
   let res;
   try {
     res = await fetchWithConnectionProxy(validateUrl, {
-      headers: { Authorization: `Bearer ${connection.apiKey}` },
+      headers: applyNodeCustomHeaders({ Authorization: `Bearer ${connection.apiKey}` }, connection),
     }, effectiveProxy);
   } catch (err) {
     // Network-level failure (DNS, timeout, TLS, connection reset) — the
@@ -991,7 +995,7 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
     if (!modelsBase) return { valid: false, error: "Missing base URL" };
     try {
       const res = await fetchWithConnectionProxy(`${modelsBase.replace(/\/$/, "")}/models`, {
-        headers: { "Authorization": `Bearer ${connection.apiKey}` },
+        headers: applyNodeCustomHeaders({ "Authorization": `Bearer ${connection.apiKey}` }, connection),
       }, effectiveProxy);
       return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
     } catch (err) {
@@ -1011,12 +1015,12 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
       const probeModel = model || connection.defaultModel || "claude-3-haiku-20240307";
       const res = await fetchWithConnectionProxy(messagesUrl, {
         method: "POST",
-        headers: {
+        headers: applyNodeCustomHeaders({
           "x-api-key": connection.apiKey,
           "anthropic-version": "2023-06-01",
           "content-type": "application/json",
           "Authorization": `Bearer ${connection.apiKey}`,
-        },
+        }, connection),
         body: JSON.stringify({
           model: probeModel,
           max_tokens: 1,

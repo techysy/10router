@@ -67,6 +67,7 @@ import { ConfirmModal, EditConnectionModal, Modal } from "@/shared/components";
 import AutoPingScheduleModal from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 import { USAGE_SUPPORTED_PROVIDERS, getProviderPagePath } from "@/shared/constants/providers";
+import { getCompatibleNodeFaviconSrc } from "@/shared/utils/providerIcon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Maps the stored providerSpecificData.authMethod to a human label for Kiro.
@@ -1428,15 +1429,13 @@ export default function ProviderLimits() {
                     {/* 图标点击 → 仪表盘内该供应商的管理详情页(/dashboard/providers/[id]):
                         账号/模型/调度都在那里管。官网/控制台外链保留在详情页头部
                         (Web console / Get API Key),不在配额卡片重复出口。解析不到
-                        详情页的 provider(自定义推送卡)保持纯图标,不渲染链接。 */}
-                    {providerPagePath ? (
-                      <Link
-                        href={providerPagePath}
-                        title={translate("Open provider page")}
-                        className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-                      >
+                        详情页的 provider(自定义推送卡)保持纯图标,不渲染链接。
+                        compatible 连接带官网地址 → 站点 favicon 当 logo。 */}
+                    {(() => {
+                      const favicon = getCompatibleNodeFaviconSrc(conn.providerSpecificData?.website);
+                      const iconEl = (
                         <ProviderIcon
-                          src={`/providers/${conn.provider}.png`}
+                          src={favicon || `/providers/${conn.provider}.png`}
                           alt={conn.provider}
                           size={32}
                           className="object-contain"
@@ -1444,20 +1443,24 @@ export default function ProviderLimits() {
                             conn.provider?.slice(0, 2).toUpperCase() || "PR"
                           }
                         />
-                      </Link>
-                    ) : (
-                      <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
-                        <ProviderIcon
-                          src={`/providers/${conn.provider}.png`}
-                          alt={conn.provider}
-                          size={32}
-                          className="object-contain"
-                          fallbackText={
-                            conn.provider?.slice(0, 2).toUpperCase() || "PR"
-                          }
-                        />
-                      </div>
-                    )}
+                      );
+                      if (providerPagePath) {
+                        return (
+                          <Link
+                            href={providerPagePath}
+                            title={translate("Open provider page")}
+                            className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                          >
+                            {iconEl}
+                          </Link>
+                        );
+                      }
+                      return (
+                        <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
+                          {iconEl}
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-text truncate">
                         {KNOWN_PROVIDER_NAMES[conn.provider] || (

@@ -29,11 +29,29 @@ export async function GET() {
   }
 }
 
+// #149/#—: customHeaders rides per request (see executors/base.js), website is
+// display-only (favicon logo + detail-page console link).
+function sanitizeCustomHeaders(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const clean = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof k === "string" && k.trim() && typeof v === "string") clean[k.trim()] = v;
+  }
+  return Object.keys(clean).length > 0 ? clean : undefined;
+}
+
+function sanitizeWebsite(value) {
+  const s = typeof value === "string" ? value.trim() : "";
+  return /^https?:\/\//i.test(s) ? s : undefined;
+}
+
 // POST /api/provider-nodes - Create provider node
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl, type, authHeaders } = body;
+    const { name, prefix, apiType, baseUrl, type, authHeaders, customHeaders, website } = body;
+    const cleanCustomHeaders = sanitizeCustomHeaders(customHeaders);
+    const cleanWebsite = sanitizeWebsite(website);
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -71,6 +89,8 @@ export async function POST(request) {
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
         authHeaders: authHeaders && typeof authHeaders === "object" ? authHeaders : undefined,
+        ...(cleanCustomHeaders ? { customHeaders: cleanCustomHeaders } : {}),
+        ...(cleanWebsite ? { website: cleanWebsite } : {}),
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -107,6 +127,8 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
         authHeaders: authHeaders && typeof authHeaders === "object" ? authHeaders : undefined,
+        ...(cleanCustomHeaders ? { customHeaders: cleanCustomHeaders } : {}),
+        ...(cleanWebsite ? { website: cleanWebsite } : {}),
       });
       return NextResponse.json({ node }, { status: 201 });
     }

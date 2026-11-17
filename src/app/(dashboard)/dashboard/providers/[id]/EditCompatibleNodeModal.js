@@ -10,6 +10,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     prefix: "",
     apiType: "chat",
     baseUrl: "https://api.openai.com/v1",
+    website: "",
   });
   const [saving, setSaving] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -19,6 +20,8 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [modelsHeaderName, setModelsHeaderName] = useState("");
   const [modelsHeaderValue, setModelsHeaderValue] = useState("{apiKey}");
+  const [customHeadersText, setCustomHeadersText] = useState("");
+  const [customHeadersError, setCustomHeadersError] = useState("");
 
   const buildAuthHeaders = () => {
     if (modelsHeaderName.trim()) {
@@ -31,6 +34,25 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     return null;
   };
 
+  // #149: per-request custom headers, opt-in JSON. Empty text = no headers.
+  const buildCustomHeaders = () => {
+    const text = customHeadersText.trim();
+    if (!text) return undefined;
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error("自定义请求头不是合法 JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("自定义请求头必须是 {\"头名\": \"值\"} 对象");
+    }
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!k.trim() || typeof v !== "string") throw new Error(`请求头 "${k}" 的值必须是字符串`);
+    }
+    return parsed;
+  };
+
   useEffect(() => {
     if (node) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -39,6 +61,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
+        website: node.website || "",
       });
       const modelsHeader = node.authHeaders?.models;
       if (modelsHeader && typeof modelsHeader === "object") {
@@ -51,6 +74,9 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         setModelsHeaderValue("{apiKey}");
         setShowAdvanced(false);
       }
+      const hasCustom = node.customHeaders && Object.keys(node.customHeaders).length > 0;
+      setCustomHeadersText(hasCustom ? JSON.stringify(node.customHeaders, null, 2) : "");
+      setCustomHeadersError("");
     }
   }, [node, isAnthropic]);
 
@@ -61,13 +87,25 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
 
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim()) return;
+    let customHeaders;
+    try {
+      customHeaders = buildCustomHeaders();
+      setCustomHeadersError("");
+    } catch (err) {
+      setCustomHeadersError(err.message);
+      setShowAdvanced(true);
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
+        website: formData.website.trim(),
         authHeaders: buildAuthHeaders(),
+        // Empty text → null, so the route clears a removed header list.
+        ...(customHeaders ? { customHeaders } : { customHeaders: null }),
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -135,6 +173,13 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
           hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
         />
+        <Input
+          label="官网地址 (Website, optional)"
+          value={formData.website}
+          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+          placeholder="https://provider.example.com"
+          hint="Optional. Used to fetch the provider logo (favicon) and show the console link on the detail page."
+        />
         <div className="flex gap-2">
           <Input
             label="API Key (for Check)"
@@ -188,6 +233,19 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
                   onChange={(e) => setModelsHeaderValue(e.target.value)}
                 />
               </div>
+              <span className="text-[11px] text-text-muted pt-1 border-t border-border/40">
+                #149 每请求自定义请求头（JSON 对象，可选）：随该端点的每个请求发送，可覆盖默认鉴权头；host / content-length / connection 等结构头会被忽略。
+              </span>
+              <textarea
+                value={customHeadersText}
+                onChange={(e) => setCustomHeadersText(e.target.value)}
+                placeholder={'{\n  "x-gateway-token": "abc"\n}'}
+                rows={4}
+                className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs focus:outline-none focus:border-primary"
+              />
+              {customHeadersError && (
+                <span className="text-[11px] text-red-500">{customHeadersError}</span>
+              )}
             </div>
           )}
         </div>
@@ -218,6 +276,8 @@ EditCompatibleNodeModal.propTypes = {
     prefix: PropTypes.string,
     apiType: PropTypes.string,
     baseUrl: PropTypes.string,
+    website: PropTypes.string,
+    customHeaders: PropTypes.object,
   }),
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,

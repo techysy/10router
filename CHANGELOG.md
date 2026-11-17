@@ -6,6 +6,9 @@
 
 ### ✨ 新增
 
+- **compatible 节点 per-endpoint 自定义请求头（#149）**：节点可配 opt-in 的 `customHeaders`（JSON），随该端点的**每个请求**发送——chat 路径 `buildHeaders` 末尾合并（自定义可覆盖默认鉴权头，x-api-key/Authorization/token 都行），连接测试路径（testApiKeyConnection 两分支 + 通用探针）同源合并，保证测试与真实请求同构。host / content-length / connection / transfer-encoding / expect 五个结构头拒绝；节点新建/编辑弹窗给 JSON 编辑器（非法 JSON/非字符串值阻断保存），POST/PUT 路由收纳并同步进连接 psd，编辑弹窗清空即解除。
+- **compatible 节点官网地址 → favicon logo + 控制台链接**：节点可填 website——详情页头部亮站点 favicon（远程 URL 走普通 img，绕开 next/image remotePatterns 配置），标题旁自动出现「注册 / 了解更多」外链；供应商墙卡片与配额页卡图标同源取 favicon（favicon 404 自动回落原图标/字标），建行与节点编辑同步 psd.website。
+
 - **MiniMax Code 算力币到期桶出卡**（11-17 实测收口）：配额卡此前的 Credits 行只有一笔裸余额（membership 接口仅回 total/purchased/free 三个汇总数，无到期字段）——「到期包」的逐包明细在另一个端点上：MiniMax 官方客户端「积分明细」页读的 `GET /minimax-cloud/api/v1/credit/details`（分页 page_number/page_size/include_expired，逐包 credit_type 1=购买 / 2=签到赠送、granted/consumed/remaining_amount 千分位字符串、granted_at_ms/expire_at_ms）。四账号实测逐包 remaining 求和与 membership 汇总吻合到分位（#187 连 2000 的购买包都齐），账本即余额构成。落地形态与灵犀到期桶同款：同日到期并格（`Credits · 12-16` / `· 2 packs`）、升序 FIFO、耗尽/过期包剔除；Credits 储值行挂 `summarizesDetail` + `expiringBatch`（大数右侧「最早批次余额 · Xd后到期」通道），桶行 `detailOnly` 进逐包明细、`recurring:false` 一次性包语义（驱动连接行「最早到期」徽标与到期优先调度）；账本不可达时维持原储值单值卡（fail-soft）。签名走既有 signedAccountRequest（新增路径 query 合并不覆盖 mcode 参数）；测试 `minimax-code-credit-ledger.test.js` 14 例（解析容错 / 并格排序 / 分页拉全 / 404 收缩 / 出卡形状 / 徽标接线 / parseQuotaData 直通）。
 
 ### 🎨 界面

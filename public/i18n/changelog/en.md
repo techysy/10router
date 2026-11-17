@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **Custom headers + website logo for compatible nodes**: OpenAI/Anthropic-compatible nodes can configure per-request custom headers (optional JSON — overrides the default auth header, structural headers ignored), so gateway endpoints that demand an extra token header finally work, and the connection test exercises the same headers as real traffic. A node can also declare its website: the providers wall, detail page and quota cards show the site's favicon as its logo (falling back to the generic glyph if it 404s), and the detail page gains a console link.
+
 - **MiniMax Code credit expiry detail**: the quota card now shows per-batch expiries beside the Credits balance — buckets merged by expiry day (e.g. "12-05 · used 796 / of 1000"), with the earliest expiring batch's remaining and countdown beside the headline number; the connection row's earliest-expiry badge and earliest-expiry-first routing pick the signal up too. When your daily check-in credits (valid about a month) lapse is now visible at a glance.
 
 ### 🧹 Catalog recalibration

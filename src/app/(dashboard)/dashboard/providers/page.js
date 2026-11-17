@@ -12,7 +12,7 @@ import {
   MenuItem,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleNodeFaviconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -396,6 +396,7 @@ export default function ProvidersPage() {
       color: "#10A37F",
       textIcon: "OC",
       apiType: node.apiType,
+      website: node.website,
     }))
     .filter((p) => matchSearch(p.name));
 
@@ -406,6 +407,7 @@ export default function ProvidersPage() {
       name: node.name || "Anthropic Compatible",
       color: "#D97757",
       textIcon: "AC",
+      website: node.website,
     }))
     .filter((p) => matchSearch(p.name));
 
@@ -1192,6 +1194,9 @@ function ApiKeyProviderCard({
   };
 
   const getIconPath = () => {
+    // 官网地址 → 站点 favicon,自定义端点也能亮出真实品牌(#—用户 11-18 口径)
+    const favicon = getCompatibleNodeFaviconSrc(provider.website);
+    if (favicon) return favicon;
     if (isCompatible && provider.apiType)
       return provider.apiType === "responses"
         ? "/providers/oai-r.png"
