@@ -9,14 +9,17 @@ tests/unit/db-benchmark.test.js :: [suite-level failure]
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety 100 parallel saveRequestUsage → no count loss
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety daily summary aggregates correctly under parallel writes
 tests/unit/db-concurrent.test.js :: DB Concurrency — atomic safety mixed concurrent: usage + details + connections + aliases
+tests/unit/deepai-exchange-route.test.js :: [suite-level failure]
+tests/unit/deepai-provider.test.js :: DeepAI provider registry authenticates with the custom Api-Key header plus the Theos lane header
+tests/unit/deepai-usage.test.js :: DeepAI quota error classification distinguishes the live machine_required response from a rejected API key
 tests/unit/embeddings.cloud.test.js :: [suite-level failure]
 tests/unit/executor-const-guard.test.js :: antigravity retry (intentional change: 429=6, 503=3) 429 attempts = 6
 tests/unit/image-fetch-hardening.test.js :: fetchImageAsBase64 hardening accepts valid PNG from public host
 tests/unit/kimchi.test.js :: kimchi registry entry is an oauth provider auto-listed via byCategory
 tests/unit/kiro-terminal-integrity.test.js :: Kiro terminal integrity recovery bounds the retry HTTP error body
 tests/unit/kiro-terminal-integrity.test.js :: Kiro terminal integrity recovery surfaces retry HTTP failures as SSE after heartbeat commits headers
-tests/unit/mimo-free.live.test.js :: MiMo Free bootstrap (live) bootstrap returns 200 with JWT
 tests/unit/mimo-free.live.test.js :: MiMo Free anti-abuse gate (live) chat WITH Chrome User-Agent → 200
+tests/unit/mimo-free.live.test.js :: MiMo Free bootstrap (live) bootstrap returns 200 with JWT
 tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import extracts tokens using exact keys
 tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import falls back to fuzzy key matching on macOS when exact keys are missing
 tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import linux uses single hardcoded path and original error message
@@ -26,8 +29,11 @@ tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import
 tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import unsupported platform returns 400
 tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import unwraps JSON-encoded string values
 tests/unit/openai-to-claude.test.js :: openaiToClaudeResponse omits empty Read pages tool argument before emitting Claude input deltas
+tests/unit/reexport-local-binding-guard.test.js :: no module uses a name it only re-exports app/api/oauth/deepai/exchange/route.js has no re-export shadowed by a local read
 tests/unit/request-details-tab.test.js :: getDistinctProviders — providers route (no full-row parse) returns unique provider list without parsing data blobs
 tests/unit/request-details-tab.test.js :: request details — tab crash-risk cases oversized field → stored truncated + reparseable (no circular)
+tests/unit/trae-proxy-bare-get.test.js :: Trae proxy bare-GET guard error 回调（用户取消）也进 exchange 流程并报告错误
+tests/unit/trae-proxy-bare-get.test.js :: Trae proxy bare-GET guard 带授权参数（authCodeInfo）仍进 exchange 流程
 tests/unit/translator-helpers-edge.test.js :: normalizeClaudePassthrough — haiku adaptive thinking (docs 11 §1) hoists mid-conversation system messages into top-level system
 tests/unit/translator-request-normalization.test.js :: request normalization claudeToOpenAIRequest flattens text-only content arrays into string
 tests/unit/translator-request-normalization.test.js :: request normalization filterToOpenAIFormat flattens text-only arrays to string
@@ -36,3 +42,5 @@ tests/unit/translator-request-normalization.test.js :: request normalization tra
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class PROVIDERS.windsurf baseUrl is the chat endpoint (registry in sync)
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class buildUrl returns the GetChatMessage endpoint
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class constructor wires config from PROVIDERS.windsurf
+tests/unit/xai-oauth-service.test.js :: xai/oauth service exchanges dashboard codes against the discovered xAI token endpoint
+tests/unit/xai-oauth-service.test.js :: xai/oauth service generates dashboard auth data with CLIProxyAPI PKCE size and discovered endpoints
