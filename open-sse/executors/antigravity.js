@@ -284,8 +284,7 @@ export class AntigravityExecutor extends BaseExecutor {
       const sysParts = requestWithoutTools.systemInstruction.parts;
       const originalSysText = sysParts
         .map((p) => (typeof p.text === "string" ? p.text : ""))
-        .join("
-")
+        .join("\n")
         .trim();
       if (originalSysText) {
         // 搬家后的文本仍过一遍身份句替换(双保险——user 消息虽然放行,身份句改写
