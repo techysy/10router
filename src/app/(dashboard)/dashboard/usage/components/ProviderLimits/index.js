@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaPackBar from "@/shared/components/QuotaPackBar";
 import QuotaToolbar from "./QuotaToolbar";
@@ -65,7 +66,7 @@ import { translate } from "@/i18n/runtime";
 import { ConfirmModal, EditConnectionModal, Modal } from "@/shared/components";
 import AutoPingScheduleModal from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
-import { USAGE_SUPPORTED_PROVIDERS, getProviderWebsite } from "@/shared/constants/providers";
+import { USAGE_SUPPORTED_PROVIDERS, getProviderPagePath } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Maps the stored providerSpecificData.authMethod to a human label for Kiro.
@@ -1370,7 +1371,7 @@ export default function ProviderLimits() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {renderConnections.map((conn) => {
           const quota = quotaData[conn.id];
-          const providerWebsite = getProviderWebsite(conn.provider);
+          const providerPagePath = getProviderPagePath(conn.provider);
           // Spinner only while a card has NOTHING to show; with cached numbers
           // it keeps them and only the header refresh icon spins.
           const isRefreshing = Boolean(loading[conn.id]);
@@ -1424,15 +1425,14 @@ export default function ProviderLimits() {
               <div className="px-3 py-2 border-b border-black/10 dark:border-white/10">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    {/* 图标点击跳转供应商官网/控制台(注册表 display.website 等,
-                        与 providers/[id] 详情页同一回退链)。解析不到 URL 的
-                        provider(自定义连接)保持纯图标,不渲染链接。 */}
-                    {providerWebsite ? (
-                      <a
-                        href={providerWebsite}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`${translate("Open provider site")} — ${providerWebsite.replace(/^https?:\/\//, "")}`}
+                    {/* 图标点击 → 仪表盘内该供应商的管理详情页(/dashboard/providers/[id]):
+                        账号/模型/调度都在那里管。官网/控制台外链保留在详情页头部
+                        (Web console / Get API Key),不在配额卡片重复出口。解析不到
+                        详情页的 provider(自定义推送卡)保持纯图标,不渲染链接。 */}
+                    {providerPagePath ? (
+                      <Link
+                        href={providerPagePath}
+                        title={translate("Open provider page")}
                         className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
                       >
                         <ProviderIcon
@@ -1444,7 +1444,7 @@ export default function ProviderLimits() {
                             conn.provider?.slice(0, 2).toUpperCase() || "PR"
                           }
                         />
-                      </a>
+                      </Link>
                     ) : (
                       <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
                         <ProviderIcon

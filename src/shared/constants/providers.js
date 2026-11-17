@@ -194,3 +194,19 @@ export function getProviderWebsite(providerIdOrAlias) {
   if (!p) return null;
   return p.notice?.webUrl || p.notice?.apiKeyUrl || p.notice?.signupUrl || p.website || null;
 }
+
+// 供应商管理详情页路径(/dashboard/providers/[id]),供 UI 内部跳转(配额卡片
+// 图标等)。与 getProviderWebsite 同一归一口径:接受 id 或别名;注册表认识这个
+// provider(或它是 OpenAI/Anthropic 兼容节点,详情页走 providerNode 渲染)时
+// 返回页内路径,否则返回 null — 调用方据此不渲染链接,而不是链到一个
+// "Provider not found" 页。官网/控制台外链不在这里:详情页头部已有同一
+// notice.* 回退链的外链(Web console / Get API Key),配额卡片不重复出口。
+export function getProviderPagePath(providerIdOrAlias) {
+  if (!providerIdOrAlias || typeof providerIdOrAlias !== "string") return null;
+  if (isOpenAICompatibleProvider(providerIdOrAlias) || isAnthropicCompatibleProvider(providerIdOrAlias)) {
+    return `/dashboard/providers/${providerIdOrAlias}`;
+  }
+  const p =
+    AI_PROVIDERS[providerIdOrAlias] || AI_PROVIDERS[resolveProviderId(providerIdOrAlias)];
+  return p ? `/dashboard/providers/${p.id}` : null;
+}
