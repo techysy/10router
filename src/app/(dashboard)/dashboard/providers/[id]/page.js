@@ -486,7 +486,6 @@ export default function ProviderDetailPage() {
   // provider 无关的（buildExportAccounts/importAccounts 对 apiKey 行与 OAuth
   // 行同一套加密封装 + 去重合并），此前只认 oauth authMode 把这类卡排除在
   // 跨机迁移/CD 同步之外（用户实测 loomy 无导入导出按钮）。
-  const supportsTransfer = providerInfo?.authModes?.includes("oauth") || providerInfo?.authModes?.includes("apikey");
   // apikey 型（loomy 等免费档）默认启用导入导出——这是它们与 CD 双向同步的
   // 唯一通道，不该藏在 Experimental 开关后；OAuth 型保持原开关语义。
   const oauthTransferOn = supportsTransfer && (isOAuth ? oauthTransferEnabled : true);
