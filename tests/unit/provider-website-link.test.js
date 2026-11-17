@@ -83,9 +83,9 @@ describe("ProviderLimits card wires the icon to the in-dashboard detail page", (
 
   it("renders an in-app Link when the page resolves, plain icon otherwise", () => {
     expect(src).toContain("href={providerPagePath}");
-    // 无详情页时退回纯 <div>,不渲染假链接
+    // 无详情页时退回纯 <div>,不渲染假链接(图标块是 IIFE,favicon 兜底在其内)
     const fallbackMatch = src.match(
-      /: \(\s*<div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">\s*<ProviderIcon/
+      /return \(\s*<div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">\s*\{iconEl\}/
     );
     expect(fallbackMatch, "providerPagePath 为 null 时应渲染不可点的纯图标").not.toBeNull();
     // 旧官网跳转必须退场:图标不再链 <a href={providerWebsite} target=_blank>
