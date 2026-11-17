@@ -20,6 +20,10 @@
 
 - **MIT → AGPL-3.0（自 v1.8.1 起）**：v1.8.0 及更早的已发布版本永远维持 MIT（不可溯及）；自 v1.8.1 起本仓库整体改为 **GNU Affero General Public License v3.0**。动机：协议逆向 / 指纹对齐 / 签到链路 / executor 接入等真机调试成果（#57 复盘确认竞品以 AGPL 护同类资产）要求任何二次利用——**含网络服务形态（AGPL §13）**——同样开源，防止被闭源拿走；同时 AGPL→MIT 单向不可行，上游主线（decolua/9router 仍为 MIT）不能再吸收我们的实现，而我们吸收上游依旧合法。上游派生部分的 MIT 声明按其条款原文保留于 LICENSE 头部。程序层配套随 1.8.1 累计：root/`cli/`/`desktop/` 三处 `package.json` license 字段、fnOS fpk 安装向导协议步骤（`fnos-packaging/wizard/install`）、桌面安装器协议页、`license` npm 元数据。
 
+### 🐛 修复
+
+- **MiniMax Code 调度偏好「到期优先调度」补到供应商详情页本体**：上一笔补漏（385384906）把选项加进了 ConnectionsCard——但供应商详情页的连接表是 page.js 自建（ConnectionRow 直拼），ConnectionsCard 只被 media-providers 详情页引用，用户在 MiniMax Code 页看到的下拉仍是四档（11-17 用户截图实测）。本笔把 earliest-expiry 补进 page.js 的 PURE_BALANCE 下拉（排在手动优先之后），`handleBalanceStrategyChange` 增到期优先臂（earliestExpiryFirst=true + balanceStrategy 归 priority 不写 override，与 ConnectionsCard 同语义），其余各臂显式清 earliestExpiryFirst；回显链 earliestExpiryFirst 压过 balanceStrategy，重进页面不再打回「手动优先」。顺带 browser-probe 默认 `--no-proxy-server`（本机 clash 系统代理吞 127.0.0.1，探针被 RST）+ 新增调度偏好下拉 DOM 探针（scripts/probes/provider-strategy-dropdown.js）。
+
 ## v1.8.0 (2026-11-16)
 
 ### ✨ 新增
