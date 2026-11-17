@@ -298,11 +298,7 @@ export class AntigravityExecutor extends BaseExecutor {
         // 拼进第一条 user 消息最前(guardTurns 归一后第一条必是 user;找不到就
         // 造一条纯文本 user——内容与角色同源,语义不丢)。
         const firstUser = contents?.find((c) => c.role === "user");
-        const wrapped = `<system-instructions>
-${relocated}
-</system-instructions>
-
-`;
+        const wrapped = `<system-instructions>\n${relocated}\n</system-instructions>\n\n`;
         if (firstUser && Array.isArray(firstUser.parts) && typeof firstUser.parts[0]?.text === "string") {
           firstUser.parts[0] = { ...firstUser.parts[0], text: wrapped + firstUser.parts[0].text };
         } else if (firstUser) {
