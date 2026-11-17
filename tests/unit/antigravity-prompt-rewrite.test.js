@@ -32,6 +32,53 @@ function cloakSystemInstruction(text) {
   return parts[0].text;
 }
 
+// 2026-11-17 sysprompt 搬家(社区情报「北哥」+ CPA 反代社区同款方案):上游关键词
+// 过滤只卡 systemInstruction 字段,user 消息完全放行——executor 把整段 sysprompt
+// 用 <system-instructions> 包住拼进第一条 user 消息,systemInstruction 清成中性
+// 一句。下面用与 executor 相同的规则表钉死搬家产物的三要素。
+describe("antigravity sysprompt relocation (2026-11-17)", () => {
+  const relocate = (sysText, userText) => {
+    let relocated = sysText;
+    for (const { from, to } of ANTIGRAVITY_PROMPT_REWRITES) {
+      relocated = relocated.replaceAll(from, to);
+    }
+    relocated = relocated.trim();
+    return {
+      newUserText: `<system-instructions>
+${relocated}
+</system-instructions>
+
+${userText}`,
+      newSystemInstruction: "You are an AI assistant integrated into the Antigravity IDE.",
+    };
+  };
+
+  it("wraps the relocated sysprompt in <system-instructions> and prepends it to the first user message", () => {
+    const { newUserText } = relocate(
+      "You are a Claude agent, built on Anthropic's Claude Agent SDK.\nYou MUST read files before editing.",
+      "list the files",
+    );
+    expect(newUserText.startsWith("<system-instructions>\n")).toBe(true);
+    expect(newUserText).toContain("</system-instructions>\n\nlist the files");
+    // 身份句在搬家文本上仍被替换(双保险)
+    expect(newUserText).not.toContain("Claude Agent SDK");
+    expect(newUserText).toContain("You MUST read files before editing.");
+  });
+
+  it("the replacement systemInstruction is a single neutral line", () => {
+    const { newSystemInstruction } = relocate("anything", "x");
+    expect(newSystemInstruction).toBe("You are an AI assistant integrated into the Antigravity IDE.");
+    expect(newSystemInstruction).not.toMatch(/Claude|Codex|Hermes|pi/);
+  });
+
+  it("the relocated text keeps MUST/REQUIRED rules intact (user lane is not filtered)", () => {
+    const rules = "You MUST always run tests. It is REQUIRED that you never skip lint.";
+    const { newUserText } = relocate(rules, "go");
+    expect(newUserText).toContain("You MUST always run tests.");
+    expect(newUserText).toContain("It is REQUIRED that you never skip lint.");
+  });
+});
+
 describe("ANTIGRAVITY_PROMPT_REWRITES", () => {
   it("cloaks the Hermes opening identity declaration", () => {
     const sys = "You are Hermes Agent, built by Nous Research. Be direct.";
