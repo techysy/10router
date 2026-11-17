@@ -28,14 +28,16 @@ const INTL_ONLY_FAMILY = [
 ];
 
 describe("CodeBuddy CN static model catalog", () => {
-  it("lists exactly the models the CN client publishes (2026-11-05 screenshot)", () => {
-    // 以 CN 客户端「内置模型」列表为准：旧一代（glm-5v-turbo / glm-5.3-flashx /
-    // glm-5.1 / kimi-k2.7 / kimi-k2.6 / minimax-m3）已从客户端下线，静态目录
-    // 同步移除。新增 id 全部经现网探测确认返回 200（见下方 probe 用例注释）。
+  it("lists exactly the models the CN client publishes (2026-11-16 screenshots, 4th edition)", () => {
+    // 以 CN 客户端「内置模型」列表为准（2026-11-16 三张截图拼全）：第四版变化
+    // —— Hy3 从选择器消失（下架）、新增 Hy4 flash（正式发布 banner + 限免 +
+    // 960K 卡）。hy4-flash 的 id 按命名惯例推断（与 intl 同款同窗），现网
+    // 200/11102 待凭据恢复后复核。旧一代（glm-5v-turbo / glm-5.3-flashx /
+    // glm-5.1 / kimi-k2.7 / kimi-k2.6 / minimax-m3）维持下线。
     expect(cn.models.map((model) => model.id)).toEqual([
       "auto",
       "hy4",
-      "hy3",
+      "hy4-flash",
       "space-bunny",
       "glm-5.3",
       "glm-5.3-flash",
@@ -52,13 +54,15 @@ describe("CodeBuddy CN static model catalog", () => {
   });
 
   it("carries the client's published credit multiplier on every model", () => {
-    // 倍率取自 CN 客户端卡片「消耗速度」一栏（2026-11-05 截图）。
+    // 倍率取自 CN 客户端卡片「消耗速度」一栏（2026-11-16 截图）。
     // 带限时免费/夜间折扣的模型，rateMultiplier 记的是**原价**，折扣由
-    // promoFreeUntil / nightFree 表达（0 会变成「永久免费」，见 promoFree.js）。
+    // promoFreeUntil / nightFree 表达（0 会变成「永久免费」，见 promoFree.js）
+    // —— hy4-flash 例外：限免期内卡面 0.00x、原价未知，暂记 0 交 promoFree
+    // 表达免费窗，窗口结束前现网复核回填。
     const rates = Object.fromEntries(cn.models.map((m) => [m.id, m.rateMultiplier]));
     expect(rates).toEqual({
       "hy4": 0.29,
-      hy3: 0.05,
+      "hy4-flash": 0,
       "space-bunny": 0.08,
       "glm-5.3": 0.69,
       "glm-5.3-flash": 0.08,
@@ -76,17 +80,17 @@ describe("CodeBuddy CN static model catalog", () => {
   });
 
   it("marks the promo windows and discount rules the client shows", () => {
-    // 「限时免费」：Hy3 / Hy4 都到 11 月 15 日为止，且是**每日赠送额度**
-    // （promoFreeNote 携带该口径，tooltip 可见）。
-    for (const id of ["hy3", "hy4"]) {
+    // 「限时免费」：Hy4 续窗到 11 月 30 日（卡片「11月16日-11月30日，每日赠送
+    // 免费额度」），hy4-flash 同窗；原价口径不变（每日赠送额度，非整段免费）。
+    for (const id of ["hy4", "hy4-flash"]) {
       const m = cn.models.find((x) => x.id === id);
-      expect(m.promoFreeUntil).toBe("2026-11-15T00:00:00+08:00");
-      expect(m.promoFreeNote).toBe("每日赠送免费额度");
-      // 原价必须仍是正数 —— 写成 0 会永久显示 free。
-      expect(m.rateMultiplier).toBeGreaterThan(0);
+      expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+      expect(m.promoFreeNote).toMatch(/每日赠送/);
     }
+    // hy4 原价必须仍是正数 —— 写成 0 会永久显示 free（hy4-flash 例外，见上）。
+    expect(cn.models.find((x) => x.id === "hy4").rateMultiplier).toBeGreaterThan(0);
     // 「订阅优先」
-    for (const id of ["glm-5.3", "glm-5.3-flash", "kimi-k2.8-preview"]) {
+    for (const id of ["glm-5.3", "glm-5.3-flash", "kimi-k2.8-preview", "kimi-k3.1-pro"]) {
       expect(cn.models.find((m) => m.id === id).subPriority).toBe(true);
     }
     // 「夜间折扣」是**立减**不是免费 —— 不允许用 nightFree（徽章会亮 free 夸大），
@@ -99,10 +103,9 @@ describe("CodeBuddy CN static model catalog", () => {
   });
 
   it("does not assume intl shares CN's credit rates", () => {
-    // 两侧是**独立**的计费与目录，用户 2026-11-05 明确说明。CN 的 hy3 从此表
-    // 原价 0.05x（带限时免费窗口），intl 的 hy3 仍是 0（走免费额度）——
-    // 旧断言「重叠 id 倍率必须相等」在这个事实上不成立，已移除。
-    // 保留这一条只是提醒：不要再按 intl 反推 CN 的倍率。
+    // 两侧是**独立**的计费与目录，用户 2026-11-05 明确说明。旧例证 hy3（CN
+    // 0.05 原价 / intl 0 免费额度）已随第四版两侧同撤；保留这一条只是提醒：
+    // 不要再按 intl 反推 CN 的倍率（hy4 0.29 两侧同值属巧合级一致）。
     expect(cn.models.some((m) => m.rateMultiplier > 0)).toBe(true);
   });
 
@@ -122,9 +125,11 @@ describe("CodeBuddy CN static model catalog", () => {
   it("does not carry retired or spurious ids", () => {
     const ids = cn.models.map((model) => model.id);
     // kimi-k3-1 was a spurious duplicate slot; deepseek-v4-flash is superseded
-    // by deepseek-v4.1-flash.
+    // by deepseek-v4.1-flash. hy3 retired with the 4th-edition client picker
+    // (2026-11-16) — both sides same day.
     expect(ids).not.toContain("kimi-k3-1");
     expect(ids).not.toContain("deepseek-v4-flash");
+    expect(ids).not.toContain("hy3");
   });
 
   it("carries DeepSeek-V4.1-Flash's published capabilities", () => {

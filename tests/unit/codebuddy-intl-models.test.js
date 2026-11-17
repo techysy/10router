@@ -2,16 +2,17 @@ import { describe, expect, it } from "vitest";
 import entry from "../../open-sse/providers/registry/codebuddy-intl.js";
 import cnEntry from "../../open-sse/providers/registry/codebuddy-cn.js";
 
-// 2026-11-05（第三版）：以带徽章的客户端清单为准（用户截图）。
+// 2026-11-16（第四版）：以带徽章的客户端清单为准（用户三张截图拼全）。
 // 徽章语义：Free now = 限时免费窗口（每日赠送额度）；Pro Only = 仅 Pro 订阅
-// 可用；无徽章 = 所有人可用。同日早先那版「无徽章网页版截图」（5.5/5.4/
-// 5.3-Codex 等仍在）被这一版取代。
+// 可用；无徽章 = 所有人可用。较第三版（11-05）：Hy3 下架撤行、Hy4 限免续窗
+// 11-30；Highspeed 拼写经 tooltip 印证。Max（1.33x）与 Hy4 flash（0.00x new
+// Free now）在清单上但暂不收录 —— Max 是路由型目标（11-05 Auto 教训），
+// hy4-flash 的 id 拼写未经现网探测，两者待探测后另行处理。
 describe("CodeBuddy international static model catalog", () => {
-  it("lists exactly the models the client publishes (2026-11-05 badged screenshot)", () => {
+  it("lists exactly the models the client publishes (2026-11-16 badged screenshots)", () => {
     expect(entry.models.map((model) => model.id)).toEqual([
       "auto",
       "hy4-preview",
-      "hy3",
       "deepseek-v4.1-flash",
       "gpt-6-astra",
       "gpt-6.1-sol",
@@ -36,7 +37,6 @@ describe("CodeBuddy international static model catalog", () => {
     expect(rates).toEqual({
       auto: 0.15,
       "hy4-preview": 0,
-      hy3: 0,
       "deepseek-v4.1-flash": 0.11,
       "gpt-6-astra": 6.67,
       "gpt-6.1-sol": 1.33,
@@ -56,14 +56,19 @@ describe("CodeBuddy international static model catalog", () => {
     });
   });
 
-  it("marks the Free-now windows on Hy4/Hy3 with the daily-allowance note", () => {
+  it("marks the Free-now window on Hy4 with the daily-allowance note (renewed to Nov 16-30)", () => {
     // 「Free now」是限时免费（每日赠送额度），不是永久 0 —— 原价 0 但窗口与
-    // 口径必须可见。Hy4 窗口 Nov 4-15，Hy3 是 Jul 6 起至 Nov 15。
-    for (const id of ["hy4-preview", "hy3"]) {
-      const m = entry.models.find((x) => x.id === id);
-      expect(m.promoFreeUntil).toBe("2026-11-15T00:00:00+08:00");
-      expect(m.promoFreeNote).toMatch(/每日赠送/);
-    }
+    // 口径必须可见。第四版卡片文案「Nov 16-30: Receive a daily free
+    // allowance」—— 窗口从 11-05 版的 Nov 4-15 续期。
+    const m = entry.models.find((x) => x.id === "hy4-preview");
+    expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(m.promoFreeNote).toMatch(/每日赠送/);
+  });
+
+  it("retires Hy3 — the client picker no longer lists it (4th edition)", () => {
+    // 「没有的就下掉」口径：这次证据是客户端模型选择器本身（不是积分页——
+    // 那种缺席曾被 kimi-k2.7 教训证明不构成下线依据）。现网 11102 与否待复核。
+    expect(entry.models.find((m) => m.id === "hy3")).toBeUndefined();
   });
 
   it("flags the Pro-Only models", () => {
@@ -82,7 +87,7 @@ describe("CodeBuddy international static model catalog", () => {
       "kimi-k3.1-pro-highspeed",
     ]);
     // 无徽章模型不得带 proOnly。
-    for (const id of ["auto", "hy4-preview", "hy3", "deepseek-v4.1-flash", "glm-5.3", "glm-5.3-flash", "kimi-k3", "minimax-m3.1-flash"]) {
+    for (const id of ["auto", "hy4-preview", "deepseek-v4.1-flash", "glm-5.3", "glm-5.3-flash", "kimi-k3", "minimax-m3.1-flash"]) {
       expect(entry.models.find((m) => m.id === id).proOnly).toBeUndefined();
     }
   });
@@ -110,6 +115,7 @@ describe("CodeBuddy international static model catalog", () => {
       "glm-5v-turbo",
       "claude-opus-5.5",
       "claude-sonnet-4.6",
+      "hy3",
     ]) {
       expect(ids, retired).not.toContain(retired);
     }
@@ -132,8 +138,9 @@ describe("CodeBuddy international static model catalog", () => {
     const cnById = Object.fromEntries(cnEntry.models.map((model) => [model.id, model]));
     expect(entry.models.find((m) => m.id === "glm-5.3").rateMultiplier).toBe(0.69);
     expect(cnById["glm-5.3"].rateMultiplier).toBe(0.69);
-    // hy3：intl 永久免费口径（0 + Free now 窗口），CN 是 0.05 原价 + 同期窗口。
-    expect(entry.models.find((m) => m.id === "hy3").rateMultiplier).toBe(0);
-    expect(cnById.hy3.rateMultiplier).toBe(0.05);
+    // hy3：2026-11-16 第四版两侧客户端同日撤下（intl 选择器 + CN 选择器均不
+    // 再列出）——独立演化原则不变，这次是巧合级同步。
+    expect(entry.models.find((m) => m.id === "hy3")).toBeUndefined();
+    expect(cnById.hy3).toBeUndefined();
   });
 });

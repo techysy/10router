@@ -235,16 +235,27 @@ describe("DeepAI panel-native browser sign-in", () => {
     );
   });
 
-  it("extracts the code from a callback URL, a query fragment, or a bare code", async () => {
+  it("extracts the {code, state} pair from a callback URL, a query fragment, or a bare code", async () => {
+    // 2026-11-16 协议修正(桌面版截图证实):官方回调 code 与 state 成对,
+    // exchange 必须同时携带 —— parse 升级为返回对象。
     const { parseDeepaiCallbackCode } = await import("../../open-sse/shared/deepai/auth.js");
     expect(
       parseDeepaiCallbackCode("http://127.0.0.1:23456/auth-callback?code=abc123XYZ&state=zz"),
-    ).toBe("abc123XYZ");
-    expect(parseDeepaiCallbackCode("?code=deadbeef42")).toBe("deadbeef42");
-    expect(parseDeepaiCallbackCode("deadbeef42")).toBe("deadbeef42");
-    expect(parseDeepaiCallbackCode("not a code at all")).toBe("");
-    expect(parseDeepaiCallbackCode("")).toBe("");
-    expect(parseDeepaiCallbackCode("http://127.0.0.1:9/auth-callback?state=only")).toBe("");
+    ).toEqual({ code: "abc123XYZ", state: "zz" });
+    // 官方桌面版真实形态:code 带下划线(30 字符)+ state 64 hex
+    expect(
+      parseDeepaiCallbackCode(
+        "http://127.0.0.1:6620/auth-callback?code=Fnjado5G59bJbOVOs_rviaVq0ogCZwU04AlTdCEmU&state=02196b40d8396ef4bfaf44c5404c50c588d314532a24c30cc996ae20132d8f18",
+      ),
+    ).toEqual({
+      code: "Fnjado5G59bJbOVOs_rviaVq0ogCZwU04AlTdCEmU",
+      state: "02196b40d8396ef4bfaf44c5404c50c588d314532a24c30cc996ae20132d8f18",
+    });
+    expect(parseDeepaiCallbackCode("?code=deadbeef42")).toEqual({ code: "deadbeef42", state: "" });
+    expect(parseDeepaiCallbackCode("deadbeef42")).toEqual({ code: "deadbeef42", state: "" });
+    expect(parseDeepaiCallbackCode("not a code at all")).toEqual({ code: "", state: "" });
+    expect(parseDeepaiCallbackCode("")).toEqual({ code: "", state: "" });
+    expect(parseDeepaiCallbackCode("http://127.0.0.1:9/auth-callback?state=only")).toEqual({ code: "", state: "" });
   });
 
   it("exchanges a code for the account key and maps the response", async () => {
@@ -252,6 +263,7 @@ describe("DeepAI panel-native browser sign-in", () => {
     const fetchImpl = async (url, init) => {
       expect(url).toBe("https://api.deepai.org/deepai_code/desktop_auth/exchange/");
       expect(JSON.parse(init.body)).toEqual({ code: "good-code" });
+      // 2026-11-16: exchange 只在 state 存在时附带(bare-code 调用兼容)
       expect(init.headers["User-Agent"]).toBe("10router-deepai/1.0");
       return {
         ok: true,
@@ -263,6 +275,8 @@ describe("DeepAI panel-native browser sign-in", () => {
       apiKey: "uuid-key-1",
       username: "someone",
       isPro: false,
+      // machine_required 排查期:exchange 原始响应整体透出(route 落日志)
+      raw: { api_key: "uuid-key-1", username: "someone", is_pro: false },
     });
   });
 

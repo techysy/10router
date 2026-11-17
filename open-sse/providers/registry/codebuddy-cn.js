@@ -86,21 +86,31 @@ export default {
   //   · 订阅优先 —— subPriority
   models: [
     { id: "auto", name: "Auto" },
-    // ⚠️ 命名口径：客户端卡片上的「300K / 1M」（上下文窗口档位）与 High / Max /
-    // Medium（思考档位展示）是**卡片 UI 的一部分，不是模型名**——name 只抄型号
-    // 本体（如 Hy4、GLM-5.3）。11-05 对齐时曾把整串文案抄进 name（
+    // ⚠️ 命名口径：客户端卡片上的「300K / 1M / 960K」（上下文窗口档位）与 High /
+    // Max / Medium（思考档位展示）是**卡片 UI 的一部分，不是模型名**——name 只抄
+    // 型号本体（如 Hy4、GLM-5.3）。11-05 对齐时曾把整串文案抄进 name（
     // "GLM-5.3 300K High"），连 /v1/models 的显示名都带上 300K，已纠正。
     // Hy4：客户端卡片「Hy4 300K High」+ 红色 `new` 标签（标签也不是名字的一部分）。
     // 用**正式 id `hy4`**而不是过渡期的 `hy4-preview`：预览版仍在应答，但注册表
     // 只跟随客户端的当前型号（2026-11-05 现网探测两者均 200，取新版）。
     // 同屏 0.00x（限时免费）与 0.29x（原价），故保留原价 + 限免窗口。
     // 客户端已不再显示 23:00–08:00 夜间免费，故不再带 nightFree。
-    { id: "hy4", name: "Hy4", rateMultiplier: 0.29, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "每日赠送免费额度" },
+    // 2026-11-16 第四版：限免续窗 11-15 → 11-30（卡片「11月16日-11月30日，
+    // 每日赠送免费额度」）。
+    { id: "hy4", name: "Hy4", rateMultiplier: 0.29, promoFreeUntil: "2026-11-30T00:00:00+08:00", promoFreeNote: "每日赠送免费额度" },
+    // Hy4 flash（客户端 2026-11-16 正式发布，「Agent 任务又快又省！限时免费体验」
+    // banner）：日常主力档，卡片 960K 上下文（与 hy4 的 300K 档不同窗）+ 限免
+    // 0.00x（同 11-16 至 11-30 每日赠送口径）。id 按命名惯例 hy4-flash 推断——
+    // 与 intl 侧同日同款，⚠️ 现网 200/11102 待凭据恢复后复核。原价未知（限免期
+    // 内卡面 0.00x），rateMultiplier 暂记 0 交 promoFree 表达免费窗（与 intl
+    // hy4-preview 同型）；窗口结束前需现网复核回填原价。
+    { id: "hy4-flash", name: "Hy4 flash", rateMultiplier: 0, promoFreeUntil: "2026-11-30T00:00:00+08:00", promoFreeNote: "每日赠送免费额度（11月16日-11月30日）" },
     // Hy3：卡片文案「7月6日-11月15日，每日赠送免费额度」——是**每日赠送额度**，
     // 用完后按 0.05x 计费，不是整段免费。故带 promoFreeUntil 让 badge 在窗口内
     // 显示 free，同时保留 0.05x 作为原价；promoFreeNote 把「每日赠送」这层
     // 额度口径带到悬停提示里，避免被读成整段无限免费。
-    { id: "hy3", name: "Hy3", rateMultiplier: 0.05, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "每日赠送免费额度" },
+    // 2026-11-16 下架：客户端第四版模型选择器不再列出 Hy3（intl 侧同日同口径
+    // 撤行）。「没有的就下掉」——客户端清单是目录权威来源。
     // Space-Bunny：官方应用（WorkBuddy 工作台）上架的"匿名大模型"，原生多模态
     // 输入、1M 上下文、编码向。0.03x 是首周折扣，2026-10-08 积分页回填正式价 0.08。
     { id: "space-bunny", name: "Space-Bunny", rateMultiplier: 0.08 },
@@ -114,7 +124,7 @@ export default {
     // 2026-10-08 现网探测：hy5-preview / glm-5.4 / kimi-k2.7-code / muse-spark-1.3
     // 回 11102。minimax-m2.7 当日曾按「返回 200 且回显自身 id」短窗收录，
     // 2026-10-10 撤下——从不在服务端公布列表、倍率从未公布、使用量近乎零。
-    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97 },
+    { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", rateMultiplier: 0.97, subPriority: true },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.62 },
     // 2026-10-08 积分页列出 Kimi-K2.8-Preview 0.77x，现网探测答 200（kimi-k2.8
     // 与 kimi-k2-8-preview 都是 11102，id 带 .8-preview）。国际线同样有该 id。
@@ -141,6 +151,15 @@ export default {
     // (codebuddy.ai) ONLY — copilot.tencent.com never published them, and the
     // CN capabilities map below has no entry for them either. Do not re-add
     // them here; they live in registry/codebuddy-intl.js.
+  ],
+  // 客户端预设档（2026-11-16 卡面）：快速 0.15 / 均衡 0.50 / 极致 1.00。与 intl
+  // 侧同性质——预设不是模型 id（此前 intl 侧 20 种拼写全 11102，聊天应用发送前
+  // 自行解析），只作倍率参考数据，不建模型行。与 intl 的 fast/balanced/primary
+  // 数值不同——两侧独立计价的又一例证。
+  presets: [
+    { id: "fast", label: "快速", rateMultiplier: 0.15 },
+    { id: "balanced", label: "均衡", rateMultiplier: 0.5 },
+    { id: "extreme", label: "极致", rateMultiplier: 1.0 },
   ],
   oauth: {
     baseUrl: "https://copilot.tencent.com",

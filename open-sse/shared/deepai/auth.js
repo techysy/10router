@@ -32,37 +32,61 @@ export function buildDeepaiAuthUrl(state, port) {
  * Pull the one-time code out of whatever the user pasted: the full
  * 127.0.0.1 callback URL, a bare query string, or the code itself.
  * Returns "" when nothing code-shaped is present.
+ *
+ * 2026-11-16 协议修正(用户桌面版截图证实):官方回调是
+ * `127.0.0.1:<port>/auth-callback?code=<30字符带下划线>&state=<64 hex>` ——
+ * **code 与 state 成对**,exchange 必须同时携带(见 exchangeDeepaiCode)。
+ * 本函数升级为返回 {code, state} 对象;state 缺省 ""(旧 12 字符纯 code 场景)。
  */
 export function parseDeepaiCallbackCode(input) {
   const raw = String(input ?? "").trim();
-  if (!raw) return "";
+  if (!raw) return { code: "", state: "" };
   try {
     const url = new URL(raw);
     const code = url.searchParams.get("code");
-    if (code) return code.trim();
+    if (code) return { code: code.trim(), state: (url.searchParams.get("state") || "").trim() };
   } catch {
     // not a URL — fall through
   }
   const m = raw.match(/[?&#]code=([^&\s]+)/);
   if (m) {
+    let code;
     try {
-      return decodeURIComponent(m[1]).trim();
+      code = decodeURIComponent(m[1]).trim();
     } catch {
-      return m[1].trim();
+      code = m[1].trim();
     }
+    const sm = raw.match(/[?&#]state=([^&\s]+)/);
+    let state = "";
+    if (sm) {
+      try {
+        state = decodeURIComponent(sm[1]).trim();
+      } catch {
+        state = sm[1].trim();
+      }
+    }
+    return { code, state };
   }
   // A bare code carries no spaces and no URL punctuation.
-  if (/^[A-Za-z0-9._~-]{8,}$/.test(raw)) return raw;
-  return "";
+  if (/^[A-Za-z0-9._~-]{8,}$/.test(raw)) return { code: raw, state: "" };
+  return { code: "", state: "" };
 }
 
 /**
  * Exchange a desktop_auth code for the account's long-lived API key.
  * Throws an Error carrying the upstream message on failure.
+ *
+ * 2026-11-16 协议修正:官方桌面端回调同时携带 code 与 state(64 hex),
+ * exchange 发 {code, state} —— 只发 {code} 会被上游判 invalid(此前浏览器
+ * 流换出的 key 被 /theos 判 auth_required 的另一可疑根因)。旧单参调用
+ * (state 为空)仍兼容:仅在有 state 时附带。
  */
-export async function exchangeDeepaiCode(code, { fetchImpl = fetch } = {}) {
+export async function exchangeDeepaiCode(code, { fetchImpl = fetch, state = "" } = {}) {
   const value = String(code ?? "").trim();
   if (!value) throw new Error("empty-code");
+  const payloadBody = { code: value };
+  const stateValue = String(state ?? "").trim();
+  if (stateValue) payloadBody.state = stateValue;
   const res = await fetchImpl(`${DEEPAI_API_BASE}/desktop_auth/exchange/`, {
     method: "POST",
     headers: {
@@ -70,7 +94,7 @@ export async function exchangeDeepaiCode(code, { fetchImpl = fetch } = {}) {
       Accept: "application/json",
       "User-Agent": DEEPAI_USER_AGENT,
     },
-    body: JSON.stringify({ code: value }),
+    body: JSON.stringify(payloadBody),
     redirect: "error",
   });
   const payload = await res.json().catch(() => ({}));
@@ -83,5 +107,8 @@ export async function exchangeDeepaiCode(code, { fetchImpl = fetch } = {}) {
     apiKey,
     username: String(payload?.username ?? "").trim(),
     isPro: Boolean(payload?.is_pro),
+    // 2026-11-17:machine_required 排查期——exchange 原始响应整体透出,
+    // route 落日志判别是否内嵌机器注册挑战(check_in / machine 字段)。
+    raw: payload,
   };
 }

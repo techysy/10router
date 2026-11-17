@@ -106,14 +106,29 @@ export default {
   //     Astra 仍是实测 6.67）；5.5 / 5.4 / 5.3-Codex / Gemini-3.5-Flash / GLM-5.2 /
   //     Kimi-K2.6 消失；GLM-5.3 与 CN 同步降到 0.69；glm-5.3-flash 0.08 回归；
   //     新增 Kimi-K3.1-Pro(0.97) 与 -Highspeed(1.56，id 拼写按命名惯例推断，
-  //     ⚠️ 待凭据恢复后现网复核)、MiniMax-M3.1-Flash(0.08)、DeepSeek-V4.1-Flash(0.11)。
+  //     后经 tooltip 印证)、MiniMax-M3.1-Flash(0.08)、DeepSeek-V4.1-Flash(0.11)。
   //   · 徽章三类：Free now（Hy4 11月4-15 / Hy3 7月6-11月15，每日赠送免费额度，
   //     订阅用户更高额度）、Pro Only（模型仅向 Pro 用户开放）、无徽章（人人可用）。
+  // 2026-11-16（第四版）：用户从 WorkBuddy 国际版客户端取得**带徽章**完整清单
+  // （三张截图拼全）。与本版（11-05）的关键差异：
+  //   · Hy3 从客户端清单消失 —— 按「没有的就下掉」口径撤行（客户端清单是
+  //     本目录的唯一权威来源；此前 kimi-k2.7 因「积分页缺席≠下线」被错撤的
+  //     教训不适用于本版：那次错在拿**积分页**当依据，这次是**客户端模型
+  //     选择器**直接不列出，两者证据等级不同）。现网未复核，11102 与否待
+  //     凭据恢复后补记。
+  //   · Hy4 限免窗口续期：卡片文案「Nov 16-30: Receive a daily free
+  //     allowance」—— promoFreeUntil 11-15 → 11-30，note 同步。
+  //   · 新增 Hy4 flash（new + Free now + 0.00x，卡片 300K）：id 按命名惯例
+  //     推断为 hy4-flash（⚠️ 待现网复核——hy4 本名 9-30 曾 11102，flash 后缀
+  //     是否成立未知）；Max（独立列表项 1.33x，非既有 preset 五档之一）暂不
+  //     收录——11-05 的 Auto 教训：路由型目标探测全落 glm-5.2，无稳定能力
+  //     行与计费口径不建行。两者待现网探测后另行处理。
+  //   · Kimi-K3.1-Pro-Highspeed 拼写经客户端 tooltip 印证（Kimi-K3.1-Pro-
+  //     Highspeed），摘掉 11-05 版的「待现网复核」标注。
   models: [
     { id: "auto", name: "自动", rateMultiplier: 0.15 },
     // 「Free now」= 限时免费窗口（每日赠送额度，非无限量）。
-    { id: "hy4-preview", name: "Hy4", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Nov 4-15 每日赠送免费额度，订阅用户更高额度" },
-    { id: "hy3", name: "Hy3", rateMultiplier: 0, promoFreeUntil: "2026-11-15T00:00:00+08:00", promoFreeNote: "Jul 6–Nov 15 每日赠送免费额度，订阅用户更高额度" },
+    { id: "hy4-preview", name: "Hy4", rateMultiplier: 0, promoFreeUntil: "2026-11-30T00:00:00+08:00", promoFreeNote: "Nov 16-30 每日赠送免费额度，订阅用户更高额度" },
     { id: "deepseek-v4.1-flash", name: "Deepseek-V4.1-Flash", rateMultiplier: 0.11 },
     // 「Pro Only」= 模型仅向 Pro 订阅开放，免费账号请求会被拒。这就是旧
     // paidTier（订阅锁）的后继语义 —— ModelRow 的锁徽章消费的是 paidTier

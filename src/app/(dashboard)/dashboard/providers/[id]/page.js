@@ -461,6 +461,17 @@ export default function ProviderDetailPage() {
   const authModes = providerInfo?.authModes || [];
   const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
+  // 2026-11-17 全局普查收口:transfer(导入/导出)端点与数据层都是 provider
+  // 无关的——export 取 `accessToken || apiKey`(webCookie 供应商的凭据就在
+  // apiKey=Cookie 罐),import 按 authType apikey/cookie 落回 apiKey 字段。
+  // UI 侧判定此前只认 oauth+apikey 双 auth 组合,漏掉了三类「凭据可迁移但
+  // authModes 不含双 auth」的供应商:webCookie(dumate/lingxi,凭据=Cookie 罐)、
+  // apikey 型(deepai 的桌面登录 key、gemini-decision 的 AI Studio key)、
+  // 纯 OAuth 无 apikey 档(trae/trae-cn/mimo-desktop/minimax-code*)——
+  // OAuth token 本身就是迁移物。三者并入 transfer 可见判定。
+  const supportsTransfer = isOAuth || supportsApiKeyAuth
+    || !!WEB_COOKIE_PROVIDERS[providerId]
+    || (!!FREE_TIER_PROVIDERS[providerId] && authModes.includes("apikey"));
   // Registry can hide the dashboard-initiated OAuth login button (meoo: the
   // upstream OAuth app only registers loopback redirect_uri, so the popup
   // always dies with invalid_redirect_uri — login happens in CreditDaddy and
@@ -475,7 +486,6 @@ export default function ProviderDetailPage() {
   // provider 无关的（buildExportAccounts/importAccounts 对 apiKey 行与 OAuth
   // 行同一套加密封装 + 去重合并），此前只认 oauth authMode 把这类卡排除在
   // 跨机迁移/CD 同步之外（用户实测 loomy 无导入导出按钮）。
-  const supportsTransfer = providerInfo?.authModes?.includes("oauth") || providerInfo?.authModes?.includes("apikey");
   // apikey 型（loomy 等免费档）默认启用导入导出——这是它们与 CD 双向同步的
   // 唯一通道，不该藏在 Experimental 开关后；OAuth 型保持原开关语义。
   const oauthTransferOn = supportsTransfer && (isOAuth ? oauthTransferEnabled : true);
@@ -496,7 +506,7 @@ export default function ProviderDetailPage() {
    * all. The helper is the only place the pair is rendered now.
    */
   const renderOAuthTransferButtons = (className) =>
-    oauthTransferOn && !codeBuddyCheckinOn ? (
+    oauthTransferOn && !codeBuddyCheckinOn && supportsTransfer ? (
       <>
         <Button size="sm" icon="file_download" variant="secondary" onClick={() => openCbPassword("export")} className={className}>
           {translate("Export")}

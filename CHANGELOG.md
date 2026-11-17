@@ -4,7 +4,15 @@
 
 ## Unreleased（随 v1.8.1 发布）
 
-### 📄 许可证
+### ✨ 新增
+
+- **MiniMax Code 算力币到期桶出卡**（11-17 实测收口）：配额卡此前的 Credits 行只有一笔裸余额（membership 接口仅回 total/purchased/free 三个汇总数，无到期字段）——「到期包」的逐包明细在另一个端点上：MiniMax 官方客户端「积分明细」页读的 `GET /minimax-cloud/api/v1/credit/details`（分页 page_number/page_size/include_expired，逐包 credit_type 1=购买 / 2=签到赠送、granted/consumed/remaining_amount 千分位字符串、granted_at_ms/expire_at_ms）。四账号实测逐包 remaining 求和与 membership 汇总吻合到分位（#187 连 2000 的购买包都齐），账本即余额构成。落地形态与灵犀到期桶同款：同日到期并格（`Credits · 12-16` / `· 2 packs`）、升序 FIFO、耗尽/过期包剔除；Credits 储值行挂 `summarizesDetail` + `expiringBatch`（大数右侧「最早批次余额 · Xd后到期」通道），桶行 `detailOnly` 进逐包明细、`recurring:false` 一次性包语义（驱动连接行「最早到期」徽标与到期优先调度）；账本不可达时维持原储值单值卡（fail-soft）。签名走既有 signedAccountRequest（新增路径 query 合并不覆盖 mcode 参数）；测试 `minimax-code-credit-ledger.test.js` 14 例（解析容错 / 并格排序 / 分页拉全 / 404 收缩 / 出卡形状 / 徽标接线 / parseQuotaData 直通）。
+
+### 🧹 目录校准
+
+- **CodeBuddy 目录第四版（CN + 国际，11-16 客户端截图，六张拼全）**：Hy3 从客户端模型选择器消失，按「客户端清单为准」下架（`codebuddy-intl` 撤行 + `codebuddy-intl-models.test.js` 断言撤行 + 加入 client-dropped 名册）。**证据等级辨析**：11-05 kimi-k2.7 错撤的教训是「积分页缺席 ≠ 下线」（积分页按订阅档位过滤）；本版撤行依据是**客户端模型选择器本身**——它是客户端目录的直接呈现，证据等级高于积分页。现网 11102 与否待凭据恢复后补记。Hy4 限免窗口续期：卡片文案「Nov 16-30: Receive a daily free allowance」→ `promoFreeUntil` 11-15 → 11-30、note 同步（`promo-free-badge.test.js` 边界断言改 11-29/11-30）。Kimi-K3.1-Pro-Highspeed 拼写经客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed），摘掉 11-05 版的「待现网复核」。客户端新上的 **Max（1.33x，独立列表项）** 与 **Hy4 flash（new + Free now + 0.00x，卡片 300K）** 暂不收录——Max 是路由型目标（11-05 Auto 教训：五次探测全落 glm-5.2，无稳定能力行与计费口径不建行）；hy4-flash 的 id 拼写未经现网探测（hy4 本名 9-30 曾 11102，flash 后缀成立与否未知）。两者待探测后另行处理。三语用户日志同步。
+- **CN 侧同日换代（copilot.tencent.com，三张截图）**：Hy3 同口径下架（两侧同日）；Hy4 限免续窗 11-15 → 11-30（卡片「11月16日-11月30日，每日赠送免费额度」）；**新增 `hy4-flash`**（客户端「Hy4 flash 正式发布」banner：Agent 任务又快又省 + 限时免费体验——0.00x 同窗每日赠送、卡片 **960K** 上下文与 hy4 的 1M 不同窗；id 按命名惯例推断，rateMultiplier 暂记 0 交 promoFree 表达免费窗，窗口结束前现网复核回填原价；capabilities 补 `codebuddy-cn/hy4-flash` 行 960K/64000 并移除 hy3 行，audit 过）；Kimi-K3.1-Pro 新带「订阅优先」标签（subPriority: true，第四版新见）；CN 预设档首次记录（快速 0.15 / 均衡 0.50 / 极致 1.00——presets 参考数据，不建模型行，与 intl 的 fast/balanced/primary 数值不同 = 两侧独立计价又一例证）。测试：codebuddy-cn-models 三处断言重写 + 撤行名册收 hy3、promo-free-badge intl+CN 段续窗/hy4-flash 边界、paid-tier-badge 订阅优先名册收 K3.1-Pro。三门禁 byte-for-byte 不变、capability audit 无 invariant broken。
+- **Gemini API 一线补 Gemini 4 Hydrogen / Carbon**（gemini.google.com 官方模型选择器 11-16 状态）：官方 UI 语义清晰——快速解答=3.5 Flash-Lite / 日常帮助=**4 Hydrogen**（默认档）/ 深度研究=3.1 Pro / 代码与分析=4 Argon / 高难任务=**4 Carbon**（带 Pro 档升级墙，SGD 139.99/月；用户实测截图确认）。registry/gemini.js 两行上架（chat 主线置顶）；能力走 `*gemini-4*` 通配（vision/pdf/reasoning/search/1M/1M + gemini-level thinking 低中高），不另建精确行；计价已有 Gemini 4 模式（$2/$10，gemini-4-argon.test.js 的 google/commandcode/vertex 用例覆盖 Carbon）无新行。audit 过、providers/alias 基线 byte-for-byte 不变（gemini 模型行变更不进 alias 基线枚举）。
 
 - **MIT → AGPL-3.0（自 v1.8.1 起）**：v1.8.0 及更早的已发布版本永远维持 MIT（不可溯及）；自 v1.8.1 起本仓库整体改为 **GNU Affero General Public License v3.0**。动机：协议逆向 / 指纹对齐 / 签到链路 / executor 接入等真机调试成果（#57 复盘确认竞品以 AGPL 护同类资产）要求任何二次利用——**含网络服务形态（AGPL §13）**——同样开源，防止被闭源拿走；同时 AGPL→MIT 单向不可行，上游主线（decolua/9router 仍为 MIT）不能再吸收我们的实现，而我们吸收上游依旧合法。上游派生部分的 MIT 声明按其条款原文保留于 LICENSE 头部。程序层配套随 1.8.1 累计：root/`cli/`/`desktop/` 三处 `package.json` license 字段、fnOS fpk 安装向导协议步骤（`fnos-packaging/wizard/install`）、桌面安装器协议页、`license` npm 元数据。
 

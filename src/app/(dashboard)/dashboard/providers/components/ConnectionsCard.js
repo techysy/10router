@@ -369,7 +369,14 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
-      setBalanceStrategy(override.balanceStrategy || "priority");
+      if (override.earliestExpiryFirst === true) {
+        // 到期优先在下拉里是一等选项;balanceStrategy 保持 priority 语义
+        setBalanceStrategy("earliest-expiry");
+        setEarliestExpiryFirst(true);
+      } else {
+        setBalanceStrategy(override.balanceStrategy || "priority");
+        setEarliestExpiryFirst(false);
+      }
     } catch (e) { console.log("ConnectionsCard fetch error:", e); }
     finally { setLoading(false); }
   }, [providerId]);
@@ -528,16 +535,25 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
                           const val = e.target.value;
                           setBalanceStrategy(val);
                           if (val === "round-robin") {
+                            setEarliestExpiryFirst(false);
                             setProviderStrategy("round-robin");
                             if (!providerStickyLimit) setProviderStickyLimit("1");
                             saveStrategy("round-robin", providerStickyLimit || "1", false, val);
+                          } else if (val === "earliest-expiry") {
+                            // 到期优先:auth.js 排序序 earliestExpiryFirst 先于 balanceStrategy,
+                            // balanceStrategy 归 priority(不写 override)
+                            setEarliestExpiryFirst(true);
+                            setProviderStrategy(null);
+                            saveStrategy(null, providerStickyLimit, true, "priority");
                           } else {
+                            setEarliestExpiryFirst(false);
                             setProviderStrategy(null);
                             saveStrategy(null, providerStickyLimit, false, val);
                           }
                         }}
                         options={[
                           { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          { value: "earliest-expiry", label: translate("Earliest Expiry First") },
                           { value: "lowest-first", label: translate("Lowest Balance First") },
                           { value: "highest-first", label: translate("Highest Balance First") },
                           { value: "round-robin", label: translate("Round Robin (Balanced)") },

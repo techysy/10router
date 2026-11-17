@@ -4,6 +4,15 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## Unreleased (ships with next release)
 
+### ✨ New
+
+- **MiniMax Code credit expiry detail**: the quota card now shows per-batch expiries beside the Credits balance — buckets merged by expiry day (e.g. "12-05 · used 796 / of 1000"), with the earliest expiring batch's remaining and countdown beside the headline number; the connection row's earliest-expiry badge and earliest-expiry-first routing pick the signal up too. When your daily check-in credits (valid about a month) lapse is now visible at a glance.
+
+### 🧹 Catalog recalibration
+
+- **MiniMax Code scheduling preference gains Earliest Expiry First**: the dropdown previously offered only priority/balance/round-robin — the data chain was already complete (usage emits ledger expiry buckets; the auth.js sort branch doesn't care about quota category), the gap was UI-only. Pick Earliest Expiry and accounts sort ascending by their soonest-expiring bucket (check-in credits in same-day/limited buckets burn first); balance strategy resets to avoid double-priority.
+- **CodeBuddy catalog, 4th edition (CN + international, Nov 16 client screenshots)**: both sides rotated the same day — Hy3 has disappeared from the client pickers and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); CN gains Hy4 flash (official release, free-now 0.00x, 960K context card; id spelling pending a live probe); CN's Kimi-K3.1-Pro now carries the subscriber-priority tag. On the international side Max (1.33x) stays unlisted for now (a routing-style target with no stable capability row or billing semantics). **The Gemini API lane also gains Gemini 4 Hydrogen / Carbon** — the official model picker's Nov 16 state (daily help = Hydrogen default, hard tasks = Carbon behind the Pro tier), with capabilities and pricing riding the existing Gemini 4 channel; no configuration needed.
+
 ### 📄 License
 
 - **License change: starting with the next release (v1.8.1), this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.

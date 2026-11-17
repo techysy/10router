@@ -23,7 +23,7 @@ export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const code = parseDeepaiCallbackCode(body?.code);
-    if (!code) {
+    if (!code.code) {
       return NextResponse.json(
         { error: "No authorization code found — paste the full callback address from the browser's address bar." },
         { status: 400 },
@@ -32,10 +32,17 @@ export async function POST(request) {
 
     let cred;
     try {
-      cred = await exchangeDeepaiCode(code);
+      cred = await exchangeDeepaiCode(code.code, { state: code.state });
     } catch (err) {
+      // 2026-11-16 实测:上游两种失败语义不可区分地回 "invalid code"/"invalid or
+      // expired code"——code 是一次性的且寿命极短(用户从复制到点完成连接隔几分钟
+      // 就会撞),瞎编 code 同答。原文透传 + 补时效提示,别让用户以为是输入错了。
+      const raw = String(err?.message || err);
+      const hint = /invalid|expired/i.test(raw)
+        ? "——回调 code 是一次性的且有效期极短（几分钟内失效）。回到登录页重新走一遍，登录完成后立刻粘贴回调地址，不要再等。"
+        : "";
       return NextResponse.json(
-        { error: `DeepAI sign-in exchange failed: ${err?.message || err}` },
+        { error: `DeepAI sign-in exchange failed: ${raw}${hint}` },
         { status: 400 },
       );
     }
@@ -52,8 +59,15 @@ export async function POST(request) {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
+        // 2026-11-17 合并(654d69461 的诊断分支并入 PR 的 always-save 骨架):
+        // quota 拒绝不撤销 exchange——key 落库 + warning。machine_required 的
+        // 用户文案走 errors.js 精细分支;上游 body 摘要留 console.error 供
+        // check-in 端点考古(不回显全文——可能含凭据或网关 HTML)。
         const payload = await res.json().catch(() => null);
+        const bodyText = payload ? JSON.stringify(payload) : "";
+        console.error(`[deepai-exchange] /theos probe warning: status=${res.status} body=${bodyText.slice(0, 300)} username=${cred.username || "-"}`);
         warning = `登录已完成，API Key 已保存；${formatDeepaiQuotaError(res.status, payload, cred.apiKey)}`;
+      }
       }
     } catch {
       warning = "登录已完成，API Key 已保存；额度查询暂时无法完成，请稍后运行连接测试。";
