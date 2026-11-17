@@ -5,6 +5,7 @@ import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
+import { buildDeepaiMachineHeaders } from "../shared/deepai/machine.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
@@ -39,6 +40,7 @@ function applyAuth(headers, desc, credentials) {
 
 // Provider-specific header quirks kept as small hooks (not pure auth).
 const HEADER_HOOKS = {
+  deepaiMachineHeaders: (h) => Object.assign(h, buildDeepaiMachineHeaders()),
   // Stable device_id from OAuth connection (CLIProxyAPI KimiTokenStorage.DeviceID)
   kimiHeaders: (h, c) => Object.assign(h, buildKimiHeaders(c?.providerSpecificData?.deviceId)),
   // Muse: x-api-version 只加在订阅（铸造 key）请求上——纯 Model API key 不带即可用。

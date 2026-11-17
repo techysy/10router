@@ -5,6 +5,7 @@ import {
   exchangeDeepaiCode,
 } from "open-sse/shared/deepai/auth.js";
 import { buildDeepaiHeaders, DEEPAI_THEOS_URL } from "open-sse/shared/deepai/constants.js";
+import { formatDeepaiQuotaError } from "open-sse/shared/deepai/errors.js";
 
 /**
  * POST /api/oauth/deepai/exchange
@@ -12,8 +13,9 @@ import { buildDeepaiHeaders, DEEPAI_THEOS_URL } from "open-sse/shared/deepai/con
  * Panel-native DeepAI Code sign-in (no desktop app): the user's browser
  * completed the desktop_auth sign-in and landed on a dead 127.0.0.1
  * callback URL; the dashboard sends that URL (or the bare code) here.
- * The server exchanges the code for the account's long-lived API key,
- * validates it against /theos, and stores the connection.
+ * The server exchanges the code for the account's long-lived API key
+ * and stores the connection. A best-effort /theos probe supplies a warning;
+ * quota access is separate from sign-in and must not discard an issued key.
  *
  * Body: { code: "<callback URL or bare code>", name?: string }
  */
@@ -45,40 +47,30 @@ export async function POST(request) {
       );
     }
 
-    // Validate the issued key before storing it (the exchange already
-    // proves ownership; /theos proves the key is live for inference).
+    // The one-time exchange proves ownership. The quota endpoint can reject
+    // access for account restrictions, rate limits or a gateway challenge;
+    // none of those undo the successful exchange. Preserve the issued key
+    // and show a warning instead of consuming the code without a connection.
+    let warning = null;
     try {
       const res = await fetch(DEEPAI_THEOS_URL, {
         headers: buildDeepaiHeaders(cred.apiKey),
         redirect: "error",
+        signal: AbortSignal.timeout(10_000),
       });
-      if (res.status === 401 || res.status === 403) {
-        // 2026-11-16/17 两轮实测:401 auth_required = key 无效;403
-        // machine_required + check_in{nonce,seconds:600} = key 有效但免费
-        // 每日 Theos 要求「已注册机器」——nonce 就是机器注册挑战(官方桌面端
-        // "Restart to try again" 干的就是这件事)。完整落日志(含 exchange
-        // 原始响应,判别机器注册端点形态),key 暂不入库。
-        const bodyText = await res.text().catch(() => "");
-        console.error(`[deepai-exchange] issued key rejected by /theos: status=${res.status} body=${bodyText} exchangeRaw=${JSON.stringify(cred.raw || {}).slice(0, 500)} username=${cred.username || "-"}`);
-        const parsed = (() => { try { return JSON.parse(bodyText); } catch { return null; } })();
-        if (parsed?.error?.code === "machine_required" && parsed?.check_in?.nonce) {
-          return NextResponse.json(
-            {
-              error: `Key 已签发但免费 Theos 需要「机器注册」（machine_required）。上游给了注册挑战（nonce ${parsed.check_in.nonce.slice(0, 8)}…，${parsed.check_in.seconds}s 内有效）——10Router 正在实现这个 check-in，下个测试包可用；或先用官方桌面端完成一次登录注册机器后再走手动粘贴。`,
-            },
-            { status: 400 },
-          );
-        }
-        return NextResponse.json(
-          {
-            error: `DeepAI 拒绝了换出的 API Key（${res.status}）：上游回「${bodyText.slice(0, 160) || "no body"}」。这不是粘贴错误——浏览器登录流签出的 key 被上游判未登录，请改用官方桌面端登录后从 deepai-account.bin 复制 key 手动粘贴（同弹窗「已有 API Key？直接粘贴」）。`,
-          },
-          { status: 400 },
-        );
+      if (!res.ok) {
+        // 2026-11-17 合并(654d69461 的诊断分支并入 PR 的 always-save 骨架):
+        // quota 拒绝不撤销 exchange——key 落库 + warning。machine_required 的
+        // 用户文案走 errors.js 精细分支;上游 body 摘要留 console.error 供
+        // check-in 端点考古(不回显全文——可能含凭据或网关 HTML)。
+        const payload = await res.json().catch(() => null);
+        const bodyText = payload ? JSON.stringify(payload) : "";
+        console.error(`[deepai-exchange] /theos probe warning: status=${res.status} body=${bodyText.slice(0, 300)} username=${cred.username || "-"}`);
+        warning = `登录已完成，API Key 已保存；${formatDeepaiQuotaError(res.status, payload, cred.apiKey)}`;
+      }
       }
     } catch {
-      // Network hiccup while validating must not block a key the
-      // exchange just issued; the connection test will surface problems.
+      warning = "登录已完成，API Key 已保存；额度查询暂时无法完成，请稍后运行连接测试。";
     }
 
     const name =
@@ -89,20 +81,21 @@ export async function POST(request) {
       provider: "deepai",
       authType: "apikey",
       name,
-            apiKey: cred.apiKey,
+      apiKey: cred.apiKey,
       priority: 1,
       globalPriority: null,
       defaultModel: null,
       providerSpecificData: {},
       isActive: true,
       testStatus: "unknown",
+      ...(warning ? { lastError: warning, lastErrorAt: new Date().toISOString() } : {}),
       allowOverwrite: false,
     });
 
     const result = { ...connection };
     delete result.apiKey;
     return NextResponse.json(
-      { connection: result, username: cred.username, isPro: cred.isPro },
+      { connection: result, username: cred.username, isPro: cred.isPro, ...(warning ? { warning } : {}) },
       { status: 201 },
     );
   } catch (error) {

@@ -1,7 +1,12 @@
 // P0 GOLDEN: lock buildUrl + buildHeaders cho mọi provider trên code CŨ.
 // Sinh snapshot lần đầu (baseline) → sau refactor chạy lại phải khớp y hệt.
 // Mock proxyFetch + uuid-heavy executors KHÔNG cần ở đây vì chỉ gọi buildUrl/buildHeaders (pure).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+// Lock the header shape without reading the test runner's real device identity.
+// Real OS detection and unavailable-identity behavior have dedicated unit tests.
+vi.mock("../../open-sse/shared/deepai/machine.js", () => ({
+  buildDeepaiMachineHeaders: () => ({ "X-DeepAI-Code-Machine": "<HOST>" }),
+}));
 import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { DefaultExecutor } from "../../open-sse/executors/default.js";
 

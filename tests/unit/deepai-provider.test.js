@@ -19,6 +19,8 @@ import {
   DEEPAI_THEOS_URL,
   buildDeepaiHeaders,
 } from "../../open-sse/shared/deepai/constants.js";
+import { buildDeepaiMachineHeaders } from "../../open-sse/shared/deepai/machine.js";
+import { DefaultExecutor } from "../../open-sse/executors/default.js";
 
 const ATTESTED_MODEL_IDS = [
   "glm-5.3-flash",
@@ -70,6 +72,7 @@ describe("DeepAI provider registry", () => {
       combined: true,
       header: "api-key",
       scheme: "raw",
+      hooks: ["deepaiMachineHeaders"],
     });
     expect(entry.transport.headers["X-DeepAI-Code-Theos"]).toBe("4");
     expect(buildDeepaiHeaders("uuid-key")).toEqual({
@@ -77,9 +80,23 @@ describe("DeepAI provider registry", () => {
       "User-Agent": "10router-deepai/1.0",
       "Api-Key": "uuid-key",
       "X-DeepAI-Code-Theos": "4",
+      ...buildDeepaiMachineHeaders(),
     });
     expect(DEEPAI_MODELS_URL).toBe("https://api.deepai.org/deepai_code/models");
     expect(DEEPAI_THEOS_URL).toBe("https://api.deepai.org/deepai_code/theos");
+  });
+
+  it("sends the same host identity on quota and inference, regardless of account", () => {
+    const executor = new DefaultExecutor("deepai");
+    const machine = buildDeepaiMachineHeaders();
+    for (const apiKey of ["first-account", "second-account"]) {
+      expect(buildDeepaiHeaders(apiKey)).toMatchObject(machine);
+      const headers = executor.buildHeaders({ apiKey }, false);
+      expect(headers).toMatchObject({ ...machine, "api-key": apiKey });
+      expect(headers.Authorization).toBeUndefined();
+    }
+    expect(new DefaultExecutor("openai").buildHeaders({ apiKey: "other" }, false))
+      .not.toHaveProperty("X-DeepAI-Code-Machine");
   });
 
   it("seeds the attested static models, all covered by the spec table", () => {
