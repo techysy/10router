@@ -411,7 +411,12 @@ async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProx
   };
 }
 
-async function refreshOAuthToken(connection) {
+// Token refresh for the connection-test path. MUST ride the same connection
+// proxy as every probe around it (#146): with a proxy configured, a bare
+// fetch to oauth2.googleapis.com/claude/kiro from a blocked egress reads as
+// "refresh failed" and the test misjudges healthy credentials as expired.
+// Exported for unit tests.
+export async function refreshOAuthToken(connection, effectiveProxy = null) {
   const provider = connection.provider;
   const refreshToken = connection.refreshToken;
   if (!refreshToken) return null;
@@ -419,7 +424,7 @@ async function refreshOAuthToken(connection) {
   try {
     if (provider === "gemini-cli" || provider === "antigravity") {
       const config = provider === "gemini-cli" ? GEMINI_CONFIG : ANTIGRAVITY_CONFIG;
-      const response = await fetch("https://oauth2.googleapis.com/token", {
+      const response = await fetchWithConnectionProxy("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -428,7 +433,7 @@ async function refreshOAuthToken(connection) {
           grant_type: "refresh_token",
           refresh_token: refreshToken,
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
@@ -439,7 +444,7 @@ async function refreshOAuthToken(connection) {
     }
 
     if (provider === "claude") {
-      const response = await fetch(CLAUDE_CONFIG.tokenUrl, {
+      const response = await fetchWithConnectionProxy(CLAUDE_CONFIG.tokenUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
@@ -447,7 +452,7 @@ async function refreshOAuthToken(connection) {
           refresh_token: refreshToken,
           client_id: CLAUDE_CONFIG.clientId,
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
@@ -460,27 +465,27 @@ async function refreshOAuthToken(connection) {
       const region = psd.region || connection.region;
       if (clientId && clientSecret) {
         const endpoint = `https://oidc.${region || "us-east-1"}.amazonaws.com/token`;
-        const response = await fetch(endpoint, {
+        const response = await fetchWithConnectionProxy(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clientId, clientSecret, refreshToken, grantType: "refresh_token" }),
-        });
+        }, effectiveProxy);
         if (!response.ok) return null;
         const data = await response.json();
         return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
       }
-      const response = await fetch(KIRO_CONFIG.socialRefreshUrl, {
+      const response = await fetchWithConnectionProxy(KIRO_CONFIG.socialRefreshUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "User-Agent": "kiro-cli/1.0.0" },
         body: JSON.stringify({ refreshToken }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
     }
 
     if (provider === "cline") {
-      const response = await fetch(CLINE_CONFIG.refreshUrl, {
+      const response = await fetchWithConnectionProxy(CLINE_CONFIG.refreshUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
@@ -488,7 +493,7 @@ async function refreshOAuthToken(connection) {
           grantType: "refresh_token",
           clientType: "extension",
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const payload = await response.json();
       const data = payload?.data || payload;
@@ -700,7 +705,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
 
   const tokenExpired = isTokenExpired(connection);
   if (config.refreshable && tokenExpired && connection.refreshToken) {
-    const tokens = await refreshOAuthToken(connection);
+    const tokens = await refreshOAuthToken(connection, effectiveProxy);
     if (tokens) {
       accessToken = tokens.accessToken;
       refreshed = true;
@@ -749,7 +754,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
     }
 
     if (initial.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
-      const tokens = await refreshOAuthToken(connection);
+      const tokens = await refreshOAuthToken(connection, effectiveProxy);
       if (tokens?.accessToken) {
         const retry = await runProbe(tokens.accessToken);
         if (retry.valid) {
@@ -783,7 +788,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
       return initial;
     }
 
-    const tokens = await refreshOAuthToken(connection);
+    const tokens = await refreshOAuthToken(connection, effectiveProxy);
     if (!tokens?.accessToken) {
       return { valid: false, error: "Token invalid or revoked", refreshed: false };
     }
@@ -824,7 +829,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
     if (geoNote) return { valid: false, error: geoNote, refreshed: false };
 
     if (res.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
-      const tokens = await refreshOAuthToken(connection);
+      const tokens = await refreshOAuthToken(connection, effectiveProxy);
       if (tokens) {
         const retryUrl = config.buildUrl ? config.buildUrl(tokens.accessToken) : testUrl;
         const retryHeaders = config.noAuth

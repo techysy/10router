@@ -22,6 +22,7 @@
 
 ### 🐛 修复
 
+- **连接测试的 token 刷新走连接级出站代理（#146）**：testUtils 的刷新路径此前对 gemini-cli/antigravity/claude/kiro/cline 用裸 fetch——代理环境下刷新 POST 直连 oauth2.googleapis.com 等被拦，健康凭据被误判为「刷新失败/token 过期」。现在 `refreshOAuthToken` 穿 `effectiveProxy`（与周边探测同一 `fetchWithConnectionProxy` 通道，顺带获得 15s 超时），`testOAuthConnection` 四个调用点全部透传；codex/xai/minimax 系走共享 oauthCredentialManager（其自身代理化是另一个面，保持现状）。新增行为测试 5 例钉住代理/直连双路径。
 - **MiniMax Code 调度偏好「到期优先调度」补到供应商详情页本体**：上一笔补漏（385384906）把选项加进了 ConnectionsCard——但供应商详情页的连接表是 page.js 自建（ConnectionRow 直拼），ConnectionsCard 只被 media-providers 详情页引用，用户在 MiniMax Code 页看到的下拉仍是四档（11-17 用户截图实测）。本笔把 earliest-expiry 补进 page.js 的 PURE_BALANCE 下拉（排在手动优先之后），`handleBalanceStrategyChange` 增到期优先臂（earliestExpiryFirst=true + balanceStrategy 归 priority 不写 override，与 ConnectionsCard 同语义），其余各臂显式清 earliestExpiryFirst；回显链 earliestExpiryFirst 压过 balanceStrategy，重进页面不再打回「手动优先」。顺带 browser-probe 默认 `--no-proxy-server`（本机 clash 系统代理吞 127.0.0.1，探针被 RST）+ 新增调度偏好下拉 DOM 探针（scripts/probes/provider-strategy-dropdown.js）。
 
 ## v1.8.0 (2026-11-16)
