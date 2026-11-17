@@ -10,6 +10,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🧹 Catalog recalibration
 
+- **MiniMax Code scheduling preference gains Earliest Expiry First**: the dropdown previously offered only priority/balance/round-robin — the data chain was already complete (usage emits ledger expiry buckets; the auth.js sort branch doesn't care about quota category), the gap was UI-only. Pick Earliest Expiry and accounts sort ascending by their soonest-expiring bucket (check-in credits in same-day/limited buckets burn first); balance strategy resets to avoid double-priority.
 - **CodeBuddy catalog, 4th edition (CN + international, Nov 16 client screenshots)**: both sides rotated the same day — Hy3 has disappeared from the client pickers and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); CN gains Hy4 flash (official release, free-now 0.00x, 960K context card; id spelling pending a live probe); CN's Kimi-K3.1-Pro now carries the subscriber-priority tag. On the international side Max (1.33x) stays unlisted for now (a routing-style target with no stable capability row or billing semantics). **The Gemini API lane also gains Gemini 4 Hydrogen / Carbon** — the official model picker's Nov 16 state (daily help = Hydrogen default, hard tasks = Carbon behind the Pro tier), with capabilities and pricing riding the existing Gemini 4 channel; no configuration needed.
 
 ### 📄 License
