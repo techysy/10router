@@ -6,6 +6,9 @@
 
 ### ✨ 新增
 
+- **Codex 线 GPT-6.2 全家族上架**（2026-11-18 上游元数据，GET /api/providers/<conn>/models 原始字段 + models.dev 7 家网关同源佐证）：`gpt-6.2-sol` / `gpt-6.2-astra` 双系 + `[1m]` 长上下文变体（上游 max_context_window 872k）+ `-review` 自动 review 变体（照 gpt-5.6-*-review）。能力按上游原值：sol 500k 且 text+image+**audio**（家族首个 audioInput）、astra 272k；定价 sol 4/15、astra 16/60（models.dev 聚合价，待现网探测复核）。上游 supported_reasoning_levels 含 ultra（六档）——registry 行先照 6.1 家族五档，ultra 透传策略待现网验证再议。available_in_plans 无 free 档（6.1 有）——不挂免费。CLI 指纹 0.169.0（minimal_client_version 0.166.0 背书）。
+- **Codex 工具 schema 清洗补全（ZCode 77-tool 400）**：responses 校验器在 pattern 之外还拒一批 JSON Schema 2020-12 关键字——`stripCodexUnsupportedPatterns` 扩展剥除 `uniqueItems / unevaluatedProperties / unevaluatedItems / additionalItems / dependentSchemas / dependentRequired / contains / minContains / maxContains / propertyNames / patternProperties / $comment / $schema`（$ref/$defs 保留；properties 键是属性名不受清单误伤）。此前客户侧只能手工 patch 构建产物 chunks/{5210,2380}.js 且覆盖安装即冲掉——现在常驻 dispatch 路径清洗器。
+
 - **compatible 节点 per-endpoint 自定义请求头（#149）**：节点可配 opt-in 的 `customHeaders`（JSON），随该端点的**每个请求**发送——chat 路径 `buildHeaders` 末尾合并（自定义可覆盖默认鉴权头，x-api-key/Authorization/token 都行），连接测试路径（testApiKeyConnection 两分支 + 通用探针）同源合并，保证测试与真实请求同构。host / content-length / connection / transfer-encoding / expect 五个结构头拒绝；节点新建/编辑弹窗给 JSON 编辑器（非法 JSON/非字符串值阻断保存），POST/PUT 路由收纳并同步进连接 psd，编辑弹窗清空即解除。
 - **compatible 节点官网地址 → favicon logo + 控制台链接**：节点可填 website——详情页头部亮站点 favicon（远程 URL 走普通 img，绕开 next/image remotePatterns 配置），标题旁自动出现「注册 / 了解更多」外链；供应商墙卡片与配额页卡图标同源取 favicon（favicon 404 自动回落原图标/字标），建行与节点编辑同步 psd.website。
 

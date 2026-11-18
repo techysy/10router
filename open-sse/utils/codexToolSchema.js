@@ -50,6 +50,11 @@ function stripNode(node, stats) {
   let changed = false;
   const next = {};
   for (const [key, value] of Object.entries(node)) {
+    if (STRIP_KEYS.has(key)) {
+      stats.removedKeys = (stats.removedKeys || 0) + 1;
+      changed = true;
+      continue;
+    }
     if (key === "pattern" && hasUnicodePropertyEscape(value)) {
       stats.removed++;
       changed = true;
@@ -77,6 +82,34 @@ function stripNode(node, stats) {
 // Drops only the `pattern` constraints Codex's validator rejects. Returns the same
 // reference when the schema is already compatible. `stats.removed` counts the drops so
 // the caller can log them.
-export function stripCodexUnsupportedPatterns(schema, stats = { removed: 0 }) {
+export function stripCodexUnsupportedPatterns(schema, stats = { removed: 0, removedKeys: 0 }) {
+  return stripNode(schema, stats);
+}
+
+// 2026-11-18, ZCode 77-tool 400: the responses validator also rejects a set of
+// JSON Schema 2020-12 keywords on function tools (upstream metadata captured
+// from GET /api/providers/<conn>/models' sibling error; the same list was
+// hand-patched into a customer's built chunks/{5210,2380}.js — which an
+// overwrite install wipes, so it now lives here on the dispatch path).
+// $ref/$defs are KEPT (they resolve fine). Structural note: `properties` keys
+// are property NAMES, not schema keywords, and are never matched by this set.
+export const STRIP_KEYS = new Set([
+  "uniqueItems",
+  "unevaluatedProperties",
+  "unevaluatedItems",
+  "additionalItems",
+  "dependentSchemas",
+  "dependentRequired",
+  "contains",
+  "minContains",
+  "maxContains",
+  "propertyNames",
+  "patternProperties",
+  "$comment",
+  "$schema",
+]);
+
+export function stripCodexUnsupportedKeywords(schema, stats = { removed: 0, removedKeys: 0 }) {
+  if (!stats.removedKeys) stats.removedKeys = 0;
   return stripNode(schema, stats);
 }

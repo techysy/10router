@@ -1,5 +1,7 @@
 tests/translator/bugs-toClaude-context.test.js :: OpenAI → Claude context mapping assistant reasoning_content becomes a thinking block
 tests/translator/golden-request.test.js :: GOLDEN request: OpenAI → Kiro full body (image base64 + tool_result)
+tests/translator/golden-url-header.test.js :: GOLDEN buildHeaders (default executor providers) codebuddy-cn → headers (apiKey / oauth)
+tests/translator/golden-url-header.test.js :: GOLDEN buildHeaders (default executor providers) codebuddy-intl → headers (apiKey / oauth)
 tests/unit/claude-header-forwarding.test.js :: proxyAwareFetch — api.anthropic.com routing routes api.anthropic.com to gotScraping (non-streaming) and returns ok response
 tests/unit/codex-image-fetch.test.js :: CodexExecutor image handling execute() prefetches images before sending to upstream
 tests/unit/codex-image-fetch.test.js :: CodexExecutor image handling fetches 1MB remote image and inlines it as base64 data URI
@@ -28,8 +30,6 @@ tests/unit/oauth-cursor-auto-import.test.js :: GET /api/oauth/cursor/auto-import
 tests/unit/openai-to-claude.test.js :: openaiToClaudeResponse omits empty Read pages tool argument before emitting Claude input deltas
 tests/unit/request-details-tab.test.js :: getDistinctProviders — providers route (no full-row parse) returns unique provider list without parsing data blobs
 tests/unit/request-details-tab.test.js :: request details — tab crash-risk cases oversized field → stored truncated + reparseable (no circular)
-tests/unit/trae-proxy-bare-get.test.js :: Trae proxy bare-GET guard error 回调（用户取消）也进 exchange 流程并报告错误
-tests/unit/trae-proxy-bare-get.test.js :: Trae proxy bare-GET guard 带授权参数（authCodeInfo）仍进 exchange 流程
 tests/unit/translator-helpers-edge.test.js :: normalizeClaudePassthrough — haiku adaptive thinking (docs 11 §1) hoists mid-conversation system messages into top-level system
 tests/unit/translator-request-normalization.test.js :: request normalization claudeToOpenAIRequest flattens text-only content arrays into string
 tests/unit/translator-request-normalization.test.js :: request normalization filterToOpenAIFormat flattens text-only arrays to string
@@ -38,5 +38,3 @@ tests/unit/translator-request-normalization.test.js :: request normalization tra
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class PROVIDERS.windsurf baseUrl is the chat endpoint (registry in sync)
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class buildUrl returns the GetChatMessage endpoint
 tests/unit/windsurf-executor.test.js :: WindsurfExecutor class constructor wires config from PROVIDERS.windsurf
-tests/unit/xai-oauth-service.test.js :: xai/oauth service exchanges dashboard codes against the discovered xAI token endpoint
-tests/unit/xai-oauth-service.test.js :: xai/oauth service generates dashboard auth data with CLIProxyAPI PKCE size and discovered endpoints

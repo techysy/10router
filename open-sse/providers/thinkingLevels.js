@@ -51,6 +51,10 @@ const PATTERN_THINKING = [
   // thinking always on; codex-only "ultra" normalizes to max downstream.
   // MUST sit above the broad *gpt-6* rule - first match wins.
   { provider: "codex", pattern: "*gpt-6.1-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
+  // 6.2 (2026-11-18 上游元数据): supported_reasoning_levels 含 ultra(六档)——
+  // registry 行先照 6.1 家族保持五档,ultra 透传策略待现网验证再议。
+  { provider: "codex", pattern: "*gpt-6.2-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
+  { provider: "codex", pattern: "*gpt-6.2-astra*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6-luna*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6*", levels: CODEX_GPT_5_6_LEVELS },

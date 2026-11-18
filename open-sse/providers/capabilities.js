@@ -576,6 +576,15 @@ export const PROVIDER_CAPABILITIES = {
     // 后者由 `*gpt-6*` pattern 承担），所以 Sol/Luna 必须显式列出（上游 92c7bdd5）。
     "gpt-6.1-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6.1-terra":             { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },
+    // 6.2 (2026-11-18 上游元数据): context_window sol 500k / astra 272k,
+    // max_context_window 872k → [1m] 变体。sol 模态 text+image+audio(家族
+    // 首个 audioInput);astra text+image。review 行 = 本体 caps。
+    "gpt-6.2-sol":               { vision: true, audioInput: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },
+    "gpt-6.2-sol[1m]":           { vision: true, audioInput: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 872000, maxOutput: 128000 },
+    "gpt-6.2-sol-review":        { vision: true, audioInput: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },
+    "gpt-6.2-astra":             { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
+    "gpt-6.2-astra[1m]":         { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 872000, maxOutput: 128000 },
+    "gpt-6.2-astra-review":      { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-sol":                 { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-luna":                { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-astra[1m]":           CODEX_EXTENDED_CAPS,

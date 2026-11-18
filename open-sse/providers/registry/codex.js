@@ -63,6 +63,18 @@ export default {
     // five thinking levels (no "minimal"; codex-ultra maps to max).
     { id: "gpt-6.1-sol", name: "GPT 6.1 Sol", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
     { id: "gpt-6.1-terra", name: "GPT 6.1 Terra", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
+    // 6.2 (2026-11-18 上游元数据, GET /api/providers/<conn>/models 原始字段):
+    // sol/astra 双系 + [1m] 长上下文变体。minimal_client_version 0.166.0——
+    // 0.159.0 因此被 400,0.169.0 放行(指纹 2c8d067c0 的背书)。上游
+    // supported_reasoning_levels 比五档 e 多一个 ultra,registry 行先保持
+    // 同构五档,ultra 映射策略待现网验证再议;available_in_plans 无
+    // free/free_workspace/k12(6.1 有)——不挂免费档。
+    { id: "gpt-6.2-sol", name: "GPT 6.2 Sol", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
+    { id: "gpt-6.2-sol[1m]", name: "GPT 6.2 Sol (extended context)", upstreamModelId: "gpt-6.2-sol", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
+    { id: "gpt-6.2-sol-review", name: "GPT 6.2 Sol Review", upstreamModelId: "gpt-6.2-sol", quotaFamily: "review" },
+    { id: "gpt-6.2-astra", name: "GPT 6.2 Astra", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
+    { id: "gpt-6.2-astra[1m]", name: "GPT 6.2 Astra (extended context)", upstreamModelId: "gpt-6.2-astra", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
+    { id: "gpt-6.2-astra-review", name: "GPT 6.2 Astra Review", upstreamModelId: "gpt-6.2-astra", quotaFamily: "review" },
     { id: "gpt-6-sol", name: "GPT 6.0 Sol", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
     { id: "gpt-6-sol[1m]", name: "GPT 6.0 Sol (extended context)", upstreamModelId: "gpt-6-sol", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
     { id: "gpt-6-luna", name: "GPT 6.0 Luna", responsesLite: true, thinkingLevels: GPT_6_LITE_THINKING_LEVELS },
