@@ -4,6 +4,10 @@
 
 ## Unreleased（随 v1.8.1 发布）
 
+### 🐛 修复
+
+- **CodeBuddy Hy4 与 Hy4 flash 拆分为两个独立模型（11-18 客户端截图纠正）**：第四版把 Hy4 与 Hy4 flash 都挂了限免 `promoFreeUntil` 11-30，但用户截图确认两者是**独立模型**——选择器里 Hy4 = 0.29x 无徽章正常计费，「限时免费」只属于 Hy4 flash（0.00x，Nov 16-30 每日赠送额度）。CN 侧撤掉 hy4 的 promoFreeUntil（保留 0.29x 原价）；intl 侧新增缺失的 `hy4-flash` 行（0.00x + 限免窗口），`hy4-preview` 从误记的 0.00x+限免改为 Hy4 本体 0.29x。断言三处重写（codebuddy-cn/intl-models、promo-free-badge）。
+
 ### ✨ 新增
 
 - **Codex 线 GPT-6.2 全家族上架**（2026-11-18 上游元数据，GET /api/providers/<conn>/models 原始字段 + models.dev 7 家网关同源佐证）：`gpt-6.2-sol` / `gpt-6.2-astra` 双系 + `[1m]` 长上下文变体（上游 max_context_window 872k）+ `-review` 自动 review 变体（照 gpt-5.6-*-review）。能力按上游原值：sol 500k 且 text+image+**audio**（家族首个 audioInput）、astra 272k；定价 sol 4/15、astra 16/60（models.dev 聚合价，待现网探测复核）。上游 supported_reasoning_levels 含 ultra（六档）——registry 行先照 6.1 家族五档，ultra 透传策略待现网验证再议。available_in_plans 无 free 档（6.1 有）——不挂免费。CLI 指纹 0.169.0（minimal_client_version 0.166.0 背书）。

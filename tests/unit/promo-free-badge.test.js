@@ -41,11 +41,16 @@ describe("codebuddy intl Hy4 free-now promo", () => {
   // allowance」）—— intl 侧限免的现存实例。CN 侧同窗不同价（0.05/0.29 原价），
   // 两侧独立。
   it("hy4-preview: carries the client's renewed window and stays rate-bearing after it", () => {
-    const entry = intl.models.find((m) => m.id === "hy4-preview");
-    expect(entry.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
-    expect(entry.promoFreeNote).toMatch(/每日赠送/);
-    expect(isPromoFree(entry, Date.parse("2026-11-29T00:00:00+08:00"))).toBe(true);
-    expect(isPromoFree(entry, Date.parse("2026-11-30T00:00:01+08:00"))).toBe(false);
+    // 2026-11-18 用户纠正（国际版截图）：Hy4 与 Hy4 flash 是两个独立模型。
+    // Hy4 = 0.29x 正常计费（无 promoFreeUntil）；Free now 窗口属于 hy4-flash。
+    const hy4 = intl.models.find((m) => m.id === "hy4-preview");
+    expect(hy4.promoFreeUntil).toBeUndefined();
+    expect(hy4.rateMultiplier).toBeGreaterThan(0);
+    const flash = intl.models.find((m) => m.id === "hy4-flash");
+    expect(flash.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(flash.promoFreeNote).toMatch(/每日赠送/);
+    expect(isPromoFree(flash, Date.parse("2026-11-29T00:00:00+08:00"))).toBe(true);
+    expect(isPromoFree(flash, Date.parse("2026-11-30T00:00:01+08:00"))).toBe(false);
   });
 
   it("V4.1-Flash promo ended with the catalog generation — back to plain 0.11x", () => {
@@ -58,9 +63,10 @@ describe("codebuddy intl Hy4 free-now promo", () => {
     // 2026-11-16 第四版：CN 客户端同样撤下 Hy3、Hy4 限免续窗 11-30——两侧同日
     // 同口径。原价口径不变（限免结束后按 rateMultiplier 计）。
     expect(cn.models.find((x) => x.id === "hy3")).toBeUndefined();
+    // 2026-11-18：Hy4 是独立模型、正常计费 0.29x（限免只属于 hy4-flash）。
     const hy4 = cn.models.find((x) => x.id === "hy4");
     expect(hy4.rateMultiplier).toBe(0.29);
-    expect(hy4.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(hy4.promoFreeUntil).toBeUndefined();
   });
 
   it("CN hy4-flash: new daily-grant promo row (id spelling pending live probe)", () => {

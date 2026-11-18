@@ -127,8 +127,16 @@ export default {
   //     Highspeed），摘掉 11-05 版的「待现网复核」标注。
   models: [
     { id: "auto", name: "自动", rateMultiplier: 0.15 },
-    // 「Free now」= 限时免费窗口（每日赠送额度，非无限量）。
-    { id: "hy4-preview", name: "Hy4", rateMultiplier: 0, promoFreeUntil: "2026-11-30T00:00:00+08:00", promoFreeNote: "Nov 16-30 每日赠送免费额度，订阅用户更高额度" },
+    // 2026-11-18 用户纠正（国际版客户端截图）：Hy4 与 Hy4 flash 是两个独立模型。
+    // 选择器里 Hy4 = 0.29x（无徽章，正常计费）；「Free now」徽标属于 Hy4 flash
+    // （下方 hy4-flash 行，0.00x）。此前 hy4-preview 被误记成 Hy4 本体且挂限免
+    // 0.00x——现按截图改为 Hy4 本体口径。
+    { id: "hy4-preview", name: "Hy4", rateMultiplier: 0.29 },
+    // Hy4 flash（2026-11-18 国际版客户端截图确认）：独立模型、300K 卡片、
+    // 「Free now」限免 0.00x（Nov 16-30 每日赠送额度）。与 CN 侧同日同款。
+    // id 按命名惯例 hy4-flash（⚠️ 待现网复核）。原价未知，rateMultiplier
+    // 暂记 0 交 promoFree 表达免费窗；窗口结束前需现网复核回填。
+    { id: "hy4-flash", name: "Hy4 flash", rateMultiplier: 0, promoFreeUntil: "2026-11-30T00:00:00+08:00", promoFreeNote: "Nov 16-30 每日赠送免费额度，订阅用户更高额度" },
     { id: "deepseek-v4.1-flash", name: "Deepseek-V4.1-Flash", rateMultiplier: 0.11 },
     // 「Pro Only」= 模型仅向 Pro 订阅开放，免费账号请求会被拒。这就是旧
     // paidTier（订阅锁）的后继语义 —— ModelRow 的锁徽章消费的是 paidTier

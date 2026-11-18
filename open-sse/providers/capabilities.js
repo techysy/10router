@@ -774,6 +774,9 @@ export const PROVIDER_CAPABILITIES = {
     // 能力行按上限 1M 声明 —— 300K 只是默认选择，夹取应按模型真实上限。
     // proOnly 行未做现网验证（无 Pro 账号），但能力行只影响本地夹取。
     "kimi-k3.1-pro-highspeed": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    // Hy4 flash（2026-11-18 拆分：独立模型，客户端 Free now 0.00x；与 Hy4 本体
+    // 不同窗，客户端卡片 300K）。vision/reasoning 按 Hy 同档声明。
+    "hy4-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
   },
   // Qoder — upstream exposes opaque internal ids (dfmodel, kmodel, …);
   // capability lookup matches on the raw id, while clients may also address

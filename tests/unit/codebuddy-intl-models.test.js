@@ -13,6 +13,7 @@ describe("CodeBuddy international static model catalog", () => {
     expect(entry.models.map((model) => model.id)).toEqual([
       "auto",
       "hy4-preview",
+      "hy4-flash",
       "deepseek-v4.1-flash",
       "gpt-6-astra",
       "gpt-6.1-sol",
@@ -36,7 +37,8 @@ describe("CodeBuddy international static model catalog", () => {
     const rates = Object.fromEntries(entry.models.map((m) => [m.id, m.rateMultiplier]));
     expect(rates).toEqual({
       auto: 0.15,
-      "hy4-preview": 0,
+      "hy4-preview": 0.29,
+      "hy4-flash": 0,
       "deepseek-v4.1-flash": 0.11,
       "gpt-6-astra": 6.67,
       "gpt-6.1-sol": 1.33,
@@ -56,13 +58,17 @@ describe("CodeBuddy international static model catalog", () => {
     });
   });
 
-  it("marks the Free-now window on Hy4 with the daily-allowance note (renewed to Nov 16-30)", () => {
-    // 「Free now」是限时免费（每日赠送额度），不是永久 0 —— 原价 0 但窗口与
-    // 口径必须可见。第四版卡片文案「Nov 16-30: Receive a daily free
-    // allowance」—— 窗口从 11-05 版的 Nov 4-15 续期。
-    const m = entry.models.find((x) => x.id === "hy4-preview");
-    expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
-    expect(m.promoFreeNote).toMatch(/每日赠送/);
+  it("marks the Free-now window on Hy4 flash, not Hy4 (2026-11-18 client screenshot)", () => {
+    // 2026-11-18 用户纠正（国际版截图）：Hy4 与 Hy4 flash 是两个独立模型。
+    // 选择器里 Hy4 = 0.29x（无徽章、正常计费）；「Free now」徽标属于
+    // hy4-flash（0.00x，Nov 16-30 每日赠送额度）。此前 hy4-preview 被误记
+    // 成 Hy4 本体且挂限免——现拆分。
+    const hy4 = entry.models.find((x) => x.id === "hy4-preview");
+    expect(hy4.promoFreeUntil).toBeUndefined();
+    expect(hy4.rateMultiplier).toBeGreaterThan(0);
+    const flash = entry.models.find((x) => x.id === "hy4-flash");
+    expect(flash.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(flash.promoFreeNote).toMatch(/每日赠送/);
   });
 
   it("retires Hy3 — the client picker no longer lists it (4th edition)", () => {

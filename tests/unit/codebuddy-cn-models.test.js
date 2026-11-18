@@ -80,15 +80,15 @@ describe("CodeBuddy CN static model catalog", () => {
   });
 
   it("marks the promo windows and discount rules the client shows", () => {
-    // 「限时免费」：Hy4 续窗到 11 月 30 日（卡片「11月16日-11月30日，每日赠送
-    // 免费额度」），hy4-flash 同窗；原价口径不变（每日赠送额度，非整段免费）。
-    for (const id of ["hy4", "hy4-flash"]) {
-      const m = cn.models.find((x) => x.id === id);
-      expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
-      expect(m.promoFreeNote).toMatch(/每日赠送/);
-    }
-    // hy4 原价必须仍是正数 —— 写成 0 会永久显示 free（hy4-flash 例外，见上）。
-    expect(cn.models.find((x) => x.id === "hy4").rateMultiplier).toBeGreaterThan(0);
+    // 「限时免费」只属于 hy4-flash（卡片「11月16日-11月30日，每日赠送免费额度」，
+    // 限免 0.00x）。2026-11-18 用户纠正：Hy4 是独立模型、正常计费 0.29x，
+    // 不挂 promoFreeUntil（误挂会让徽章亮「限时免费」）。
+    const flash = cn.models.find((x) => x.id === "hy4-flash");
+    expect(flash.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(flash.promoFreeNote).toMatch(/每日赠送/);
+    const hy4 = cn.models.find((x) => x.id === "hy4");
+    expect(hy4.promoFreeUntil).toBeUndefined();
+    expect(hy4.rateMultiplier).toBeGreaterThan(0);
     // 「订阅优先」
     for (const id of ["glm-5.3", "glm-5.3-flash", "kimi-k2.8-preview", "kimi-k3.1-pro"]) {
       expect(cn.models.find((m) => m.id === id).subPriority).toBe(true);
