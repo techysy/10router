@@ -70,6 +70,20 @@ const STRINGS = {
         'win.notReadyTitle': 'Service not ready',
         'win.notReadyBody': 'Please use the tray icon menu "Start Service" and try again.',
         'win.authWindowTitle': 'Account Authorization',
+        'win.sessionLoginTitle': 'Login (Session {n})',
+        'win.sessionLoginReuseTitle': 'Login (Session {n} · Saved)',
+        'win.incognitoLoginTitle': 'Login (Incognito)',
+        'sessionPool.open': 'Session Pool',
+        'sessionPool.openHint': 'Multiple login slots per site — each slot is an isolated saved session.',
+        'sessionPool.slot': 'Session {n}',
+        'sessionPool.loginSlot': 'Login (Slot {n})',
+        'sessionPool.clearSlot': 'Clear Session {n}',
+        'sessionPool.renameSlot': 'Rename',
+        'sessionPool.empty': 'No saved session in this slot.',
+        'sessionPool.captured': '{name}: session captured (slot {n})',
+        'sessionPool.captureFailed': '{name}: session capture failed — please log in again',
+        'sessionPool.cleared': '{name}: session {n} cleared',
+        'sessionPool.renamed': '{name}: session {n} renamed to {label}',
         'menu.checkUpdate': 'Check for Updates',
         'menu.about': 'About 10Router',
         'update.failedTitle': 'Update check failed',
@@ -197,6 +211,20 @@ const STRINGS = {
         'win.notReadyTitle': '服务未就绪',
         'win.notReadyBody': '请从托盘图标菜单「启动服务」后重试。',
         'win.authWindowTitle': '账号授权',
+        'win.sessionLoginTitle': '登录（会话 {n}）',
+        'win.sessionLoginReuseTitle': '登录（会话 {n} · 复用）',
+        'win.incognitoLoginTitle': '登录（无痕窗口）',
+        'sessionPool.open': '会话池',
+        'sessionPool.openHint': '每站点多个登录槽——各槽是独立的持久登录会话。',
+        'sessionPool.slot': '会话 {n}',
+        'sessionPool.loginSlot': '登录（槽 {n}）',
+        'sessionPool.clearSlot': '清除会话 {n}',
+        'sessionPool.renameSlot': '重命名',
+        'sessionPool.empty': '该槽暂无已存会话。',
+        'sessionPool.captured': '{name}：会话已捕获（槽 {n}）',
+        'sessionPool.captureFailed': '{name}：会话捕获失败——请重新登录',
+        'sessionPool.cleared': '{name}：会话 {n} 已清除',
+        'sessionPool.renamed': '{name}：会话 {n} 已重命名为 {label}',
         'menu.checkUpdate': '检查更新',
         'menu.about': '关于 10Router',
         'update.failedTitle': '检查更新失败',
@@ -324,6 +352,20 @@ const STRINGS = {
         'win.notReadyTitle': '服務未就緒',
         'win.notReadyBody': '請從系統列圖示選單「啟動服務」後重試。',
         'win.authWindowTitle': '帳號授權',
+        'win.sessionLoginTitle': '登入（工作階段 {n}）',
+        'win.sessionLoginReuseTitle': '登入（工作階段 {n} · 復用）',
+        'win.incognitoLoginTitle': '登入（無痕視窗）',
+        'sessionPool.open': '工作階段池',
+        'sessionPool.openHint': '每站點多個登入槽——各槽是獨立的持久登入工作階段。',
+        'sessionPool.slot': '工作階段 {n}',
+        'sessionPool.loginSlot': '登入（槽 {n}）',
+        'sessionPool.clearSlot': '清除工作階段 {n}',
+        'sessionPool.renameSlot': '重新命名',
+        'sessionPool.empty': '該槽暫無已存工作階段。',
+        'sessionPool.captured': '{name}：工作階段已擷取（槽 {n}）',
+        'sessionPool.captureFailed': '{name}：工作階段擷取失敗——請重新登入',
+        'sessionPool.cleared': '{name}：工作階段 {n} 已清除',
+        'sessionPool.renamed': '{name}：工作階段 {n} 已重新命名為 {label}',
         'menu.checkUpdate': '檢查更新',
         'menu.about': '關於 10Router',
         'update.failedTitle': '檢查更新失敗',
@@ -695,6 +737,110 @@ let pendingUrl = null;   // 「前往→打开网址/最近」首开时带入的
 // 渲染层拿到的都是真 WindowProxy(window.open 返回值与 .closed 照常可用),仪表盘零改动。
 function sameOriginUrl(a, b) {
     try { return new URL(a).origin === new URL(b).origin; } catch { return false; }
+}
+
+// ──────────────────────── 会话池(每站点 9 个登录槽) ────────────────────────
+// Chrome 多 profile 式:同一站点并排养多个独立持久登录分区,换号 = 选另一槽开窗,
+// 不再来回清登录态。分区命名 cookie-site-<id>(槽 1)/ cookie-site-<id>-sN(槽 2-9);
+// 收割的 cookie 带 slot 上报,落连接 providerSpecificData.cookieSlot,面板按槽分行。
+// 设计对齐 CreditDaddy 会话池(两仓同 AGPL-3.0),实现按本仓结构重写。
+const SESSION_POOL_SLOTS = 9;
+
+function cookieSiteSlotOf(persistKey) {
+    const m = /-s([2-9])$/.exec(persistKey || '');
+    return m ? Number(m[1]) : 1;
+}
+
+function cookieSitePersistKey(siteId, slot) {
+    const n = Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS);
+    return n === 1 ? `cookie-site-${siteId}` : `cookie-site-${siteId}-s${n}`;
+}
+
+function serializeSessionCookies(cookies) {
+    const byName = new Map();
+    for (const c of cookies || []) {
+        if (c && typeof c.name === 'string' && c.name) byName.set(c.name, String(c.value ?? ''));
+    }
+    return [...byName.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+// CLI token:与 CLI 客户端同式(machineId + '9r-cli-auth' + cli-secret → sha256 前 16 位)。
+// 桌面壳与 CLI/服务同机同 DATA_DIR,读同一对文件即可;读不到机器号时退空(上报会 401,
+// 由面板重登解决,不阻塞收割)。
+function readCliTokenForReport() {
+    try {
+        const mid = fs.readFileSync(path.join(DATA_DIR, 'machine-id'), 'utf8').trim();
+        const secret = fs.readFileSync(path.join(DATA_DIR, 'auth', 'cli-secret'), 'utf8').trim();
+        if (!mid) return '';
+        return crypto.createHash('sha256').update(mid + '9r-cli-auth' + secret).digest('hex').substring(0, 16);
+    } catch { return ''; }
+}
+
+// 关窗时收割该持久分区的全量 cookie(不过滤 URL——带 Path 域的会话 cookie 按 URL
+// 过滤会丢),带 slot 上报 /api/cookie-sites/<site>/capture。持久分区不擦存储
+// (复用登录态正是其意义);由面板「清除会话」显式抹除。
+async function harvestCookieSiteSession(ses, siteId, slot) {
+    let all = [];
+    try { all = await ses.cookies.get({}); } catch { /* 分区已随窗销毁 */ }
+    const cookie = serializeSessionCookies(all);
+    if (!cookie) return { ok: false, error: 'empty' };
+    const token = readCliTokenForReport();
+    try {
+        const r = await net.fetch(`${BASE_URL}/api/cookie-sites/${encodeURIComponent(siteId)}/capture`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { 'x-10r-cli-token': token } : {}) },
+            body: JSON.stringify({ cookie, slot }),
+            signal: AbortSignal.timeout(10000),
+        });
+        const detail = await r.json().catch(() => ({}));
+        return { ok: r.ok, status: r.status, error: detail.error || (r.ok ? '' : `HTTP ${r.status}`) };
+    } catch (e) {
+        return { ok: false, error: e?.cause?.code || e?.message || String(e) };
+    }
+}
+
+// 打开站点登录窗(会话池入口):persistKey → 持久分区复用登录态;slot 计标题。
+// 与 attachWindowOpenRouting 的一次性授权窗区分:那是仪表盘 window.open 的跨域兜底,
+// 本窗由「会话池 / 登录」显式打开,可重复使用。
+function openSiteLoginWindow(site, slot) {
+    const persistKey = cookieSitePersistKey(site.id, slot);
+    const n = cookieSiteSlotOf(persistKey);
+    const ses = session.fromPartition('persist:' + persistKey);
+    const authWin = new BrowserWindow({
+        width: 480,
+        height: 720,
+        title: tr(n > 1 ? 'win.sessionLoginReuseTitle' : 'win.sessionLoginTitle', { n }),
+        autoHideMenuBar: true,
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#FDFAF6',
+        webPreferences: {
+            session: ses,
+            preload: CONTAINER_PRELOAD,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+    attachContainerCapture(authWin.webContents);
+    attachContextMenu(authWin);
+    authWin.webContents.setWindowOpenHandler(({ url: subUrl }) => {
+        if (/^https:\/\//i.test(subUrl)) {
+            return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { session: ses, preload: CONTAINER_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+        }
+        return { action: 'deny' };
+    });
+    authWin.on('closed', () => {
+        // 先收割再(不)清:持久分区保留存储;结果回主窗让面板刷新该行。
+        harvestCookieSiteSession(ses, site.id, n).then((res) => {
+            try {
+                if (win && !win.isDestroyed()) {
+                    win.webContents.send('cookie-site:captured', { site: site.id, slot: n, ok: res.ok, error: res.error || '' });
+                }
+            } catch { /* 主窗已关 */ }
+            notify(tr('sessionPool.open'), tr(res.ok ? 'sessionPool.captured' : 'sessionPool.captureFailed', { name: site.name, n }));
+        });
+    });
+    authWin.loadURL(site.loginUrl);
+    return authWin;
 }
 
 function attachWindowOpenRouting(openerContents, fixedSession) {
@@ -1644,6 +1790,20 @@ document.getElementById('go').addEventListener('click', go);
 
 // 输入框「打开」/回车 → 主进程校验:合法就记最近+主窗体打开(输入窗关闭);
 // 非法关窗并气泡提示。ipcRenderer.send 没有回报通道,提示走 notify。
+// 会话池（#150）：仪表盘 preload 调起站点登录窗（指定槽位）。
+// 站点表与 daemon /api/cookie-sites 同源（这里只取 id/loginUrl/name 供开窗）。
+const SHELL_COOKIE_SITES = [
+    { id: 'lingxi', name: 'WPS 灵犀', loginUrl: 'https://lingxi.kdocs.cn' },
+    { id: 'dumate', name: 'DuMate 百度搭子', loginUrl: 'https://dumate.baidu.com' },
+];
+ipcMain.handle('session-pool:list', () => SHELL_COOKIE_SITES);
+ipcMain.handle('session-pool:login', (e, siteId, slot) => {
+    const site = SHELL_COOKIE_SITES.find((s) => s.id === siteId);
+    if (!site) return { ok: false, error: 'unknown site' };
+    openSiteLoginWindow(site, slot);
+    return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), 9) };
+});
+
 ipcMain.on('url-prompt-submit', (e, raw) => {
     const fromPrompt = urlPromptWin && !urlPromptWin.isDestroyed() && e.sender === urlPromptWin.webContents;
     // 旧版只传字符串;现版带可选标题 {url, title}

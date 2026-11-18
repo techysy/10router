@@ -48,6 +48,10 @@ const PUBLIC_API_PATHS = [
 const LOCAL_OR_AUTH_API_PATHS = [
   "/api/version",
   "/api/init",
+  // 会话池（#150）：本机壳（CLI token）或已登录会话可达；站点表只回显 provider/
+  // 槽位元数据，capture 落库走连接写路径，clear 删行——均需本机信任。
+  // 注意：放在 LOCAL_OR_AUTH 而非 PUBLIC——捕获的 cookie 会落库，不能匿名可达。
+  "/api/cookie-sites",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).

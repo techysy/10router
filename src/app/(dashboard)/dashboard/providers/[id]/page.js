@@ -1702,6 +1702,12 @@ export default function ProviderDetailPage() {
                 reauthIcon={providerId === "lingxi" ? "cookie" : undefined}
                 reauthTitle={providerId === "lingxi" ? "Re-capture the WPS session cookie" : undefined}
                 reauthLabel={providerId === "lingxi" ? "Re-capture" : undefined}
+                onSlotLogin={!!WEB_COOKIE_PROVIDERS[providerId] ? (slot) => {
+                  // 会话池（#150）：壳内站点登录窗（持久分区，槽位独立）。
+                  const siteId = providerId === "lingxi" ? "lingxi" : providerId === "dumate" ? "dumate" : providerId;
+                  if (window.sessionPool?.login) window.sessionPool.login(siteId, slot);
+                } : undefined}
+                cookieSlot={Number(conn.providerSpecificData?.cookieSlot) || 1}
                 onDelete={() => handleDelete(conn.id)}
                 oneByOneStatus={oneByOneResults[conn.id] || null}
               />

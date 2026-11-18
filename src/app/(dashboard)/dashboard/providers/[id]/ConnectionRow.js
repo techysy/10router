@@ -26,7 +26,7 @@ function formatExpiry(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null, onReauth = null, reauthIcon = "qr_code_2", reauthTitle = null, reauthLabel = null }) {
+export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null, onReauth = null, reauthIcon = "qr_code_2", reauthTitle = null, reauthLabel = null, onSlotLogin = null, cookieSlot = 1 }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const proxyDropdownRef = useRef(null);
@@ -576,6 +576,14 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </button>
             </Tooltip>
           )}
+          {Number(connection.providerSpecificData?.cookieSlot) > 1 && (
+            <span
+              className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-text-muted"
+              title={translate("此会话来自登录槽 {n}（独立持久登录分区，与其它会话互不可见）").replace("{n}", String(connection.providerSpecificData.cookieSlot))}
+            >
+              {translate("会话 {n}").replace("{n}", String(connection.providerSpecificData.cookieSlot))}
+            </span>
+          )}
           {onReauth && (
             <button
               onClick={onReauth}
@@ -585,6 +593,17 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               <span className="material-symbols-outlined text-[18px]">{reauthIcon}</span>
               <span className="text-[10px] leading-tight">{translate(reauthLabel || "Re-login")}</span>
             </button>
+          )}
+          {onSlotLogin && (
+            <Tooltip text={translate("登录（槽 {n}）· 独立持久会话分区").replace("{n}", String(cookieSlot))}>
+              <button
+                onClick={() => onSlotLogin(cookieSlot)}
+                className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              >
+                <span className="material-symbols-outlined text-[18px]">switch_account</span>
+                <span className="text-[10px] leading-tight">{translate("槽 {n}").replace("{n}", String(cookieSlot))}</span>
+              </button>
+            </Tooltip>
           )}
           <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
             <span className="material-symbols-outlined text-[18px]">edit</span>

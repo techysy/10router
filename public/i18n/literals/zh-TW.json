@@ -1203,5 +1203,9 @@
   "Invalid project service AK": "專案服務 AK 無效",
   "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 帳號還沒有專案：先在 meoo.com 建立一個（並開啟雲端服務），AK 會自動解析到位",
   "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多帳號推薦用 CreditDaddy 管理：一鍵複製 / 填寫邀請碼，餘額自動同步到 10Router。",
-  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple賬戶登錄後，進入儀表盤，複製API Key添加至下方指定位置"
+  "会话 {n}": "工作階段 {n}",
+  "槽 {n}": "槽 {n}",
+  "此会话来自登录槽 {n}（独立持久登录分区，与其它会话互不可见）": "此工作階段來自登入槽 {n}（獨立持久登入分區，與其它工作階段互不可見）",
+  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple賬戶登錄後，進入儀表盤，複製API Key添加至下方指定位置",
+  "登录（槽 {n}）· 独立持久会话分区": "登入（槽 {n}）· 獨立持久工作階段分區"
 }
