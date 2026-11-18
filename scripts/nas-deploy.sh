@@ -137,7 +137,8 @@ else
 fi
 [ "\$d" = 200 ] || [ "\$d" = 307 ] || { echo "✗ [NAS] dashboard 异常:\$d"; false; }
 rm -f "\$JAR"
-# 不用 `| head -c 60` 截断:pipefail 下 head 先退会吃 SIGPIPE(curl exit 23)
+# 不用 "| head -c 60" 截断:pipefail 下 head 先退会吃 SIGPIPE(curl exit 23)
+# (本 heredoc 无引号=本地展开,注释里也别用反引号——会被当命令替换执行)
 # 触发 ERR→回滚且无任何 ✗ 输出(test.26 部署实锤的竞态)。case 本来就只匹配前缀。
 m=\$(curl -s -m 10 http://127.0.0.1:20127/v1/models || true)
 case "\$m" in '{"object"'*data*) ;; *) echo "✗ [NAS] /v1/models 异常: \$m"; false ;; esac
