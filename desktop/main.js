@@ -780,7 +780,7 @@ function readCliTokenForReport() {
 }
 
 // 关窗时收割该持久分区的全量 cookie(不过滤 URL——带 Path 域的会话 cookie 按 URL
-// 过滤会丢),带 slot 上报 /api/cookie-sites/<site>/capture。持久分区不擦存储
+// 过滤会丢),带 slot 上报 /api/cookie-sites/<site>(POST=capture)。持久分区不擦存储
 // (复用登录态正是其意义);由面板「清除会话」显式抹除。
 async function harvestCookieSiteSession(ses, siteId, slot) {
     let all = [];
@@ -789,7 +789,7 @@ async function harvestCookieSiteSession(ses, siteId, slot) {
     if (!cookie) return { ok: false, error: 'empty' };
     const token = readCliTokenForReport();
     try {
-        const r = await net.fetch(`${BASE_URL}/api/cookie-sites/${encodeURIComponent(siteId)}/capture`, {
+        const r = await net.fetch(`${BASE_URL}/api/cookie-sites/${encodeURIComponent(siteId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(token ? { 'x-10r-cli-token': token } : {}) },
             body: JSON.stringify({ cookie, slot }),

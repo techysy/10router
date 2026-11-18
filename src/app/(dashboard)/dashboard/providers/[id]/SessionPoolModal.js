@@ -55,7 +55,7 @@ export default function SessionPoolModal({ isOpen, onClose, providerId, siteId }
     setBusySlot(n);
     setError("");
     try {
-      const res = await fetch(`/api/cookie-sites/${encodeURIComponent(siteId)}/clear?slot=${n}`, { method: "DELETE" });
+      const res = await fetch(`/api/cookie-sites/${encodeURIComponent(siteId)}?slot=${n}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "清除失败");
       await load();
