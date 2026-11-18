@@ -1385,6 +1385,8 @@
   "Vision Adapter": "视觉适配器",
   "Visit the URL below and enter the code:": "访问以下网址并输入代码：",
   "Visit the login URL below and authorize:": "访问下面的登录 URL 并进行授权：",
+  "Open with account slot:": "用账号槽打开：",
+  "Account {n} (isolated login partition)": "账号 {n}（独立登录分区）",
   "Voice": "语音",
   "Voice ID": "语音 ID",
   "Voyage AI": "Voyage AI",

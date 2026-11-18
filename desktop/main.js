@@ -76,6 +76,7 @@ const STRINGS = {
         'win.openSiteSlot': 'Slot',
         'win.openSiteShortcuts': 'Shortcuts (click to fill)',
         'win.openSiteTypeUrl': 'Type a URL first',
+        'win.authSlotTitle': 'Authorize (Account {n})',
         'win.incognitoLoginTitle': 'Login (Incognito)',
         'sessionPool.open': 'Session Pool',
         'sessionPool.openHint': 'Multiple login slots per site — each slot is an isolated saved session.',
@@ -222,6 +223,7 @@ const STRINGS = {
         'win.openSiteSlot': '账号槽',
         'win.openSiteShortcuts': '常用站点（点击填入）',
         'win.openSiteTypeUrl': '先输入网址',
+        'win.authSlotTitle': '授权（账号 {n}）',
         'win.incognitoLoginTitle': '登录（无痕窗口）',
         'sessionPool.open': '会话池',
         'sessionPool.openHint': '每站点多个登录槽——各槽是独立的持久登录会话。',
@@ -368,6 +370,7 @@ const STRINGS = {
         'win.openSiteSlot': '帳號槽',
         'win.openSiteShortcuts': '常用站點（點擊填入）',
         'win.openSiteTypeUrl': '請先輸入網址',
+        'win.authSlotTitle': '授權（帳號 {n}）',
         'win.incognitoLoginTitle': '登入（無痕視窗）',
         'sessionPool.open': '工作階段池',
         'sessionPool.openHint': '每站點多個登入槽——各槽是獨立的持久登入工作階段。',
@@ -1663,6 +1666,7 @@ function getServiceVersion() {
 const RECENT_FILE = path.join(app.getPath('userData'), 'recent-urls.json');
 let urlPromptWin = null;
 let sitePromptWin = null;
+let authSlotWin = null;
 
 function loadRecentUrls() {
     try {
@@ -1823,6 +1827,39 @@ function genericSiteFromUrl(url) {
     return { id: `u-${hostKey}`, name: u.host, loginUrl: url, provider: null };
 }
 
+// 授权账号槽(全局身份分区):OAuth 登录页开在 persist:auth-slot-<n> 里,
+// 同一槽跨供应商共享登录态(像 Chrome profile)——上次用槽 3 登过某站,
+// 下次再授权选槽 3 直接免登录。device-code 流靠仪表盘轮询拿 token,开窗方式
+// 不影响回调;关窗不 harvest(授权凭证走服务端 exchange,不落 cookie 连接行)。
+function openAuthSlotWindow(url, slot) {
+    const n = Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS);
+    const ses = session.fromPartition(`persist:auth-slot-${n}`);
+    const authWin = new BrowserWindow({
+        width: 600,
+        height: 720,
+        title: tr('win.authSlotTitle', { n }),
+        autoHideMenuBar: true,
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#FDFAF6',
+        webPreferences: {
+            session: ses,
+            preload: CONTAINER_PRELOAD,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+    attachContainerCapture(authWin.webContents);
+    attachContextMenu(authWin);
+    authWin.webContents.setWindowOpenHandler(({ url: subUrl }) => {
+        if (/^https?:\/\//i.test(subUrl)) {
+            return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { session: ses, preload: CONTAINER_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+        }
+        return { action: 'deny' };
+    });
+    authWin.loadURL(url).catch(() => { /* 站点自行重定向 */ });
+    return authWin;
+}
+
 // 站点表以 daemon /api/cookie-sites 为准（本机 CLI token 鉴权）；静态表兜底。
 async function fetchCookieSites() {
     const token = readCliTokenForReport();
@@ -1846,6 +1883,7 @@ ipcMain.on('site-pick', (e, pick) => {
     if (!site && pick?.url) {
         const norm = normalizeOpenUrl(pick.url);
         if (!norm) return;
+        pushRecentUrl(norm);   // 与「打开网址…」共用同一份 recent-urls.json
         try {
             const origin = new URL(norm).origin;
             site = SHELL_COOKIE_SITES.find((s) => {
@@ -1864,6 +1902,15 @@ ipcMain.handle('session-pool:login', (e, siteId, slot) => {
     return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), 9) };
 });
 
+// 仪表盘 OAuth 弹窗「用账号槽打开」:登录页开进选定的授权槽分区(壳内开窗)。
+// 只收 http(s);渲染层给的 URL 不额外信任——分区隔离 + 无 node 集成兜底。
+ipcMain.handle('auth-slot:open', (e, rawUrl, slot) => {
+    const url = normalizeOpenUrl(rawUrl);
+    if (!url) return { ok: false, error: 'invalid url' };
+    openAuthSlotWindow(url, slot);
+    return { ok: true, slot: Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS) };
+});
+
 // 「打开服务网址（带账号）」：任意网址 × 槽位（身份分区）在壳内开窗。
 // 槽 = 持久分区身份（Chrome profile 式），与站点无关：同一网址不同槽 = 不同账号。
 // 下方站点行只是快捷方式（点击把网址填进输入框）；注册站点带收割上报，
@@ -1873,7 +1920,7 @@ function promptOpenSite() {
     const hasParent = win && !win.isDestroyed();
     sitePromptWin = new BrowserWindow({
         width: 460,
-        height: 360,
+        height: 470,
         parent: hasParent ? win : null,
         alwaysOnTop: true,
         title: tr('appmenu.openSite'),
@@ -1886,9 +1933,11 @@ function promptOpenSite() {
     });
     attachContextMenu(sitePromptWin);
     // 站点表异步：先加载占位页，拉到后推 site-list 渲染（失败则用静态兜底）。
+    // 最近打开与「打开网址…」共用同一份 recent-urls.json，一并推进去。
     sitePromptWin.webContents.once('did-finish-load', () => {
+        const recents = loadRecentUrls();
         fetchCookieSites().then((sites) => {
-            try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', sites); } catch { /* 窗已关 */ }
+            try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', { sites, recents }); } catch { /* 窗已关 */ }
         });
     });
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
@@ -1903,6 +1952,8 @@ function promptOpenSite() {
 </div>
 <div id="hint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px"></div>
 </div>
+<div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('appmenu.recent')}</div>
+<div id="recents" style="display:flex;flex-direction:column;gap:4px;max-height:130px;overflow-y:auto"></div>
 <div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('win.openSiteShortcuts')}</div>
 <div id="loading" style="font-size:12px;color:#888">…</div>
 <div id="list" style="display:none;flex-direction:column;gap:6px"></div>
@@ -1925,25 +1976,38 @@ for (let n = 1; n <= 9; n++) {
     slots.appendChild(b);
 }
 urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') pickSlot(1); });
-ipcRenderer.on('site-list', (e, sites) => {
+function quickRow(label, sub, url) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #8883;border-radius:6px;cursor:pointer';
+    row.title = url;
+    const name = document.createElement('div');
+    name.style.cssText = 'flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    name.textContent = label;
+    row.appendChild(name);
+    if (sub) {
+        const tag = document.createElement('div');
+        tag.style.cssText = 'font-size:11px;color:#888;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        tag.textContent = sub;
+        row.appendChild(tag);
+    }
+    row.addEventListener('click', () => { urlInput.value = url; urlInput.focus(); urlInput.select(); });
+    return row;
+}
+ipcRenderer.on('site-list', (e, data) => {
+    const sites = data.sites || [];
+    const recents = data.recents || [];
     document.getElementById('loading').style.display = 'none';
+    const rc = document.getElementById('recents');
+    for (const it of recents) rc.appendChild(quickRow(it.title || it.url, it.title ? it.url : '', it.url));
+    if (!recents.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:11px;color:#888;padding:2px 8px';
+        empty.textContent = ${JSON.stringify(tr('appmenu.recent.empty'))};
+        rc.appendChild(empty);
+    }
     const list = document.getElementById('list');
     list.style.display = 'flex';
-    for (const s of sites) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid #8883;border-radius:6px;cursor:pointer';
-        row.title = s.loginUrl;
-        const name = document.createElement('div');
-        name.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-        name.textContent = s.name;
-        row.appendChild(name);
-        const tag = document.createElement('div');
-        tag.style.cssText = 'font-size:11px;color:#888';
-        tag.textContent = s.loginUrl;
-        row.appendChild(tag);
-        row.addEventListener('click', () => { urlInput.value = s.loginUrl; urlInput.focus(); });
-        list.appendChild(row);
-    }
+    for (const s of sites) list.appendChild(quickRow(s.name, s.loginUrl, s.loginUrl));
 });
 </script>
 </body></html>`;

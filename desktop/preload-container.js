@@ -21,6 +21,8 @@ if (contextBridge && contextBridge.exposeInMainWorld) {
     contextBridge.exposeInMainWorld('sessionPool', {
         list: () => ipcRenderer.invoke('session-pool:list'),
         login: (siteId, slot) => ipcRenderer.invoke('session-pool:login', siteId, slot),
+        // OAuth 授权页开进选定账号槽分区(#150 用法延伸):仪表盘弹窗「用账号槽打开」。
+        openAuthSlot: (url, slot) => ipcRenderer.invoke('auth-slot:open', url, slot),
         onCaptured: (cb) => {
             const listener = (_e, msg) => { try { cb(msg); } catch { /* ignore */ } };
             ipcRenderer.on('cookie-site:captured', listener);

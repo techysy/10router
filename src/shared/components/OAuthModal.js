@@ -269,9 +269,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
         setDeviceData(data);
 
-        // Auto-open verification URL in new tab
+        // 壳内(桌面壳 preload 提供 sessionPool):不跳系统浏览器——留给用户在
+        // 「用账号槽打开」里选身份分区(免登录复用)。浏览器里维持自动开新标签。
         const verifyUrl = data.verification_uri_complete || data.verification_uri;
-        if (verifyUrl) window.open(verifyUrl, "_blank", "noopener,noreferrer");
+        if (verifyUrl && !window.sessionPool?.openAuthSlot) {
+          window.open(verifyUrl, "_blank", "noopener,noreferrer");
+        }
 
         // Pass extraData for Kiro (contains _clientId, _clientSecret) and
         // Qoder (contains _qoderMachineId / _qoderNonce — needed so mapTokens
@@ -882,6 +885,23 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                     Open
                   </Button>
                 </div>
+                {/* 壳内(桌面端):用账号槽打开——登录页开进选定持久分区,免登录复用 */}
+                {typeof window !== "undefined" && window.sessionPool?.openAuthSlot && deviceLoginUrl && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                    <span className="text-xs text-text-muted">Open with account slot:</span>
+                    {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => window.sessionPool.openAuthSlot(deviceLoginUrl, n)}
+                        className="h-7 w-7 rounded-md border border-border text-xs text-text-muted hover:border-primary hover:text-primary transition-colors"
+                        title={`Account ${n} (isolated login partition)`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {deviceData.user_code && (
                 <div className="bg-primary/10 p-4 rounded-lg">
