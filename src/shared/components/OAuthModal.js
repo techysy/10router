@@ -10,6 +10,10 @@ import { translate } from "@/i18n/runtime";
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
 const PROXY_OAUTH_PROVIDERS = new Set(["trae", "trae-cn", "windsurf", "zed"]);
 
+// 授权账号槽数量——与 SESSION_POOL_SLOTS(src/app/api/cookie-sites/cookieSiteRegistry.js)
+// 和壳 desktop/main.js 保持一致;改一处必须三处同改。
+const AUTH_SLOT_COUNT = 6;
+
 // #99 拆线：站点选择收敛为两条独立供应商（trae=国际站 / trae-cn=国内站），各自在
 // oauth 条目里钉死站点，弹窗不再出「登录站点」卡片；服务端 meta.region 仍兼容老入口。
 
@@ -727,7 +731,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {inShell && pendingPopup && (step === "waiting" || step === "input") && (
           <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
             <span className="text-xs text-text">{translate("Open with account slot:")}</span>
-            {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
+            {Array.from({ length: AUTH_SLOT_COUNT }, (_, i) => i + 1).map((n) => (
               <button
                 key={n}
                 type="button"
@@ -926,7 +930,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 {typeof window !== "undefined" && window.sessionPool?.openAuthSlot && deviceLoginUrl && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-3">
                     <span className="text-xs text-text-muted">{translate("Open with account slot:")}</span>
-                    {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
+                    {Array.from({ length: AUTH_SLOT_COUNT }, (_, i) => i + 1).map((n) => (
                       <button
                         key={n}
                         type="button"

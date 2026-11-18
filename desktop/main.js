@@ -762,7 +762,7 @@ function sameOriginUrl(a, b) {
 // 不再来回清登录态。分区命名 cookie-site-<id>(槽 1)/ cookie-site-<id>-sN(槽 2-9);
 // 收割的 cookie 带 slot 上报,落连接 providerSpecificData.cookieSlot,面板按槽分行。
 // 设计对齐 CreditDaddy 会话池(两仓同 AGPL-3.0),实现按本仓结构重写。
-const SESSION_POOL_SLOTS = 9;
+const SESSION_POOL_SLOTS = 6;
 
 function cookieSiteSlotOf(persistKey) {
     const m = /-s([2-9])$/.exec(persistKey || '');
@@ -1911,7 +1911,7 @@ ipcMain.handle('session-pool:login', (e, siteId, slot) => {
     const site = SHELL_COOKIE_SITES.find((s) => s.id === siteId);
     if (!site) return { ok: false, error: 'unknown site' };
     openSiteLoginWindow(site, slot);
-    return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), 9) };
+    return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS) };
 });
 
 // 仪表盘 OAuth 弹窗「用账号槽打开」:登录页开进选定的授权槽分区(壳内开窗)。
@@ -1973,7 +1973,7 @@ function pickSlot(n) {
     ipcRenderer.send('site-pick', { url: v, slot: n });
 }
 const slots = document.getElementById('slots');
-for (let n = 1; n <= 9; n++) {
+for (let n = 1; n <= ${SESSION_POOL_SLOTS}; n++) {
     const b = document.createElement('button');
     b.textContent = n;
     b.title = 'slot ' + n;

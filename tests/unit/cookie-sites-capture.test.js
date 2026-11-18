@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SESSION_POOL_SLOTS } from "@/app/api/cookie-sites/cookieSiteRegistry.js";
 
 const dbState = {
   connections: [],
@@ -111,10 +112,10 @@ describe("POST capture", () => {
     expect(dbState.created[1].providerSpecificData.cookieSlot).toBe(2);
   });
 
-  it("slot 越界收敛到 1-9", async () => {
+  it("slot 越界收敛到 1-N", async () => {
     const res = await POST(req("POST", { body: { slot: 99, cookie: "ck-x" } }), ctx());
     const data = await res.json();
-    expect(data.slot).toBe(9);
+    expect(data.slot).toBe(SESSION_POOL_SLOTS);
     const res2 = await POST(req("POST", { body: { slot: 0, cookie: "ck-y" } }), ctx());
     const data2 = await res2.json();
     expect(data2.slot).toBe(1);
