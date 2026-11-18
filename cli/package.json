@@ -1,6 +1,6 @@
 {
   "name": "@techysy/10router",
-  "version": "1.8.0",
+  "version": "1.8.1-test.10",
   "description": "10Router CLI - Start and manage 10Router server",
   "publishConfig": {
     "access": "public"
@@ -44,7 +44,7 @@
     "ai",
     "api"
   ],
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/techysy/10router.git",

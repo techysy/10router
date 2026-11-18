@@ -1,11 +1,11 @@
 {
   "name": "10router-desktop",
   "productName": "10Router",
-  "version": "1.8.0",
+  "version": "1.8.1-test.10",
   "description": "10Router 桌面托盘版 — Electron 托盘壳 + Node sidecar",
   "main": "main.js",
   "author": "techysy",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "private": true,
   "scripts": {
     "start": "electron .",
@@ -83,7 +83,8 @@
       "shortcutName": "10Router",
       "installerSidebar": "installerSidebar.bmp",
       "uninstallerSidebar": "uninstallerSidebar.bmp",
-      "include": "nsis/installer.nsh"
+      "include": "nsis/installer.nsh",
+      "license": "LICENSE-AGPL.rtf"
     },
     "portable": {
       "artifactName": "10Router-Win-Portable-${version}.${ext}"
