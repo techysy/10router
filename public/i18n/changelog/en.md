@@ -2,7 +2,7 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## Unreleased (ships with next release)
+## v1.8.1 (2026-11-19)
 
 ### ✨ New
 
@@ -24,7 +24,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 📄 License
 
-- **License change: starting with the next release (v1.8.1), this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.
+- **License change: starting with v1.8.1, this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.
 
 ## v1.8.0 (2026-11-16)
 

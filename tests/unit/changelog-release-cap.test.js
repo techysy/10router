@@ -148,11 +148,11 @@ describe("served changelog files", () => {
     // a lead constant only when the next release intentionally previews its
     // changelog before tagging.)
     //
-    // v1.8.0: the 1.7.5-test line (Meoo + DuMate 两条新产品线、privacy 规则
-    // 渠道级扩展、9 个学习合并修复) 已在 main 上积累完毕，用户日志先于发版
-    // 落地，版本号定为 v1.8.0（minor 量级）。Self-retires the moment v1.8.0
-    // is tagged.
-    const PRE_RELEASE_LEAD = "1.8.0";
+    // v1.8.1: AGPL 转换首版 + 会话池/#147 伪429防护/Meoo Qwen4-Max/Dots 免费
+    // 徽章/GPT-6.2 官方价目等积累完毕，发版 commit 直接落 2026-11-19 日期，
+    // tag 由 gh release create 服务端创建（CI 跑在打标前）。Self-retires the
+    // moment v1.8.1 is tagged.
+    const PRE_RELEASE_LEAD = "1.8.1";
     let newestTag = null;
     try {
       newestTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
