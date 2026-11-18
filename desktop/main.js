@@ -871,6 +871,32 @@ function attachWindowOpenRouting(openerContents, fixedSession) {
             shell.openExternal(url);
             return { action: 'deny' };
         }
+        // 授权弹窗带 authslot=N(features 里未知键 Chromium 会忽略,只到得了 handler):
+        // 开进该持久身份分区,不清存储——同槽下次授权免登录。回调链不变(opener 保留)。
+        const slotM = /(?:^|,)\s*authslot=(\d+)/.exec(features || '');
+        if (slotM && !fixedSession) {
+            const n = Math.min(Math.max(Number(slotM[1]) || 1, 1), SESSION_POOL_SLOTS);
+            const slotSes = session.fromPartition(`persist:auth-slot-${n}`);
+            openerContents.once('did-create-window', (child) => {
+                attachWindowOpenRouting(child.webContents, slotSes);
+                attachContainerCapture(child.webContents);
+                attachContextMenu(child);
+            });
+            return {
+                action: 'allow',
+                overrideBrowserWindowOptions: {
+                    autoHideMenuBar: true,
+                    title: tr('win.authSlotTitle', { n }),
+                    webPreferences: {
+                        session: slotSes,
+                        preload: CONTAINER_PRELOAD,
+                        contextIsolation: true,
+                        nodeIntegration: false,
+                        sandbox: true,
+                    },
+                },
+            };
+        }
         if (fixedSession) {
             // 无痕授权流程内站点自弹的子窗:复用同一分区;不清存储(随顶层授权窗关闭统一清)
             openerContents.once('did-create-window', (child) => {
@@ -1861,20 +1887,6 @@ function openAuthSlotWindow(url, slot) {
 }
 
 // 站点表以 daemon /api/cookie-sites 为准（本机 CLI token 鉴权）；静态表兜底。
-async function fetchCookieSites() {
-    const token = readCliTokenForReport();
-    try {
-        const r = await net.fetch(`${BASE_URL}/api/cookie-sites`, {
-            headers: token ? { 'x-10r-cli-token': token } : {},
-            signal: AbortSignal.timeout(6000),
-        });
-        if (!r.ok) return SHELL_COOKIE_SITES;
-        const data = await r.json().catch(() => null);
-        const list = Array.isArray(data?.sites) ? data.sites : [];
-        if (!list.length) return SHELL_COOKIE_SITES;
-        return list.map((s) => ({ id: s.id, name: s.name, loginUrl: s.loginUrl, provider: s.provider }));
-    } catch { return SHELL_COOKIE_SITES; }
-}
 ipcMain.handle('session-pool:list', () => SHELL_COOKIE_SITES);
 ipcMain.on('site-pick', (e, pick) => {
     // 注册站点(siteId 旧调用)或直接给的网址 → 统一成站点对象。
@@ -1913,8 +1925,8 @@ ipcMain.handle('auth-slot:open', (e, rawUrl, slot) => {
 
 // 「打开服务网址（带账号）」：任意网址 × 槽位（身份分区）在壳内开窗。
 // 槽 = 持久分区身份（Chrome profile 式），与站点无关：同一网址不同槽 = 不同账号。
-// 下方站点行只是快捷方式（点击把网址填进输入框）；注册站点带收割上报，
-// 通用网址靠分区自存 Cookie。不传 title——壳内窗自带标题。
+// 最近打开与「打开网址…」共用 recent-urls.json；点条目填入网址。网址命中注册
+// 站点 origin 时关窗带收割上报，其余靠分区自存 Cookie。不传 title——壳内窗自带标题。
 function promptOpenSite() {
     if (sitePromptWin && !sitePromptWin.isDestroyed()) { sitePromptWin.focus(); return; }
     const hasParent = win && !win.isDestroyed();
@@ -1932,13 +1944,10 @@ function promptOpenSite() {
         webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
     });
     attachContextMenu(sitePromptWin);
-    // 站点表异步：先加载占位页，拉到后推 site-list 渲染（失败则用静态兜底）。
-    // 最近打开与「打开网址…」共用同一份 recent-urls.json，一并推进去。
+    // 最近打开直接推过去（本地文件读取，无需拉 daemon）。
     sitePromptWin.webContents.once('did-finish-load', () => {
         const recents = loadRecentUrls();
-        fetchCookieSites().then((sites) => {
-            try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', { sites, recents }); } catch { /* 窗已关 */ }
-        });
+        try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', { recents }); } catch { /* 窗已关 */ }
     });
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="font-family:inherit;margin:0;padding:10px 12px;background:transparent">
@@ -1953,10 +1962,7 @@ function promptOpenSite() {
 <div id="hint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px"></div>
 </div>
 <div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('appmenu.recent')}</div>
-<div id="recents" style="display:flex;flex-direction:column;gap:4px;max-height:130px;overflow-y:auto"></div>
-<div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('win.openSiteShortcuts')}</div>
-<div id="loading" style="font-size:12px;color:#888">…</div>
-<div id="list" style="display:none;flex-direction:column;gap:6px"></div>
+<div id="recents" style="display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto"></div>
 <script>
 const { ipcRenderer } = require('electron');
 const urlInput = document.getElementById('url');
@@ -1994,9 +2000,7 @@ function quickRow(label, sub, url) {
     return row;
 }
 ipcRenderer.on('site-list', (e, data) => {
-    const sites = data.sites || [];
     const recents = data.recents || [];
-    document.getElementById('loading').style.display = 'none';
     const rc = document.getElementById('recents');
     for (const it of recents) rc.appendChild(quickRow(it.title || it.url, it.title ? it.url : '', it.url));
     if (!recents.length) {
@@ -2005,9 +2009,6 @@ ipcRenderer.on('site-list', (e, data) => {
         empty.textContent = ${JSON.stringify(tr('appmenu.recent.empty'))};
         rc.appendChild(empty);
     }
-    const list = document.getElementById('list');
-    list.style.display = 'flex';
-    for (const s of sites) list.appendChild(quickRow(s.name, s.loginUrl, s.loginUrl));
 });
 </script>
 </body></html>`;

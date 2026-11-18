@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 
 // Providers using the dynamic-port local callback proxy.
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
@@ -61,6 +62,10 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const popupRef = useRef(null);
   const pollingAbortRef = useRef(false);
   const openedRef = useRef(false);
+  // 壳内(桌面端):授权弹窗不直接开——等用户点账号槽,再带 authslot=N 开进
+  // 持久身份分区(壳 window-open 路由识别该标记)。浏览器里保持自动弹窗。
+  const [pendingPopup, setPendingPopup] = useState(null); // { url }
+  const inShell = typeof window !== "undefined" && !!window.sessionPool;
   const { copied, copy } = useCopyToClipboard();
 
   // State for client-only values to avoid hydration mismatch
@@ -79,6 +84,25 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   }, []);
 
   // Define all useCallback hooks BEFORE the useEffects that reference them
+
+  // 统一授权弹窗入口:壳内先挂起等选账号槽(返回 "pending",调用方保持 waiting),
+  // 浏览器直接开(返回是否成功,false=被拦,降级手动粘贴)。
+  const requestAuthPopup = useCallback((url) => {
+    if (typeof window !== "undefined" && window.sessionPool) {
+      setPendingPopup({ url });
+      return "pending";
+    }
+    popupRef.current = window.open(url, "oauth_popup", "width=600,height=700");
+    return !!popupRef.current;
+  }, []);
+
+  // 点账号槽:带 authslot=N 开弹窗(壳 window-open 路由开进持久分区)。
+  // popup 句柄照常保留——postMessage/BroadcastChannel 回调链不受影响。
+  const openAuthPopupAt = useCallback((n) => {
+    if (!pendingPopup?.url) return;
+    popupRef.current = window.open(pendingPopup.url, "oauth_popup", `width=600,height=700,authslot=${n}`);
+    setPendingPopup(null);
+  }, [pendingPopup]);
 
   // Exchange tokens
   const exchangeTokens = useCallback(async (code, state) => {
@@ -217,9 +241,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     // 4. Open popup; proxy auto-exchanges on callback, modal polls poll-status.
     setAuthData({ ...authData, proxyProvider: providerId });
     setStep("waiting");
-    popupRef.current = window.open(authData.authUrl, "oauth_popup", "width=600,height=700");
-    if (!popupRef.current) setStep("input"); // popup blocked → fall back to manual paste
-  }, []);
+    if (requestAuthPopup(authData.authUrl) === false) setStep("input"); // popup blocked → fall back to manual paste
+  }, [requestAuthPopup]);
 
   // Start OAuth flow
   const startOAuthFlow = useCallback(async () => {
@@ -391,14 +414,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       if (provider === "codex" && codexProxyActive) {
         // Proxy active: callback will be handled server-side (auto-exchange) or via channels (fallback)
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       } else if (provider === "xai" && xaiProxyActive) {
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       } else if (!isLocalhost || provider === "codex" || provider === "xai") {
@@ -408,8 +429,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       } else {
         // Localhost (non-Codex/xAI): Open popup and wait for message
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       }
@@ -417,7 +437,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setError(err.message);
       setStep("error");
     }
-  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig, authMode, startProxyFlow]);
+  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig, authMode, startProxyFlow, requestAuthPopup]);
 
   // Reset state and start OAuth when modal opens
   useEffect(() => {
@@ -703,6 +723,23 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
       <div className="flex flex-col gap-4">
+        {/* 壳内:授权弹窗挂起等选账号槽(开进持久分区,同槽下次免登录) */}
+        {inShell && pendingPopup && (step === "waiting" || step === "input") && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+            <span className="text-xs text-text">{translate("Open with account slot:")}</span>
+            {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => openAuthPopupAt(n)}
+                className="h-7 w-7 rounded-md border border-border text-xs text-text-muted hover:border-primary hover:text-primary transition-colors"
+                title={translate("Account {n} (isolated login partition)").replace("{n}", String(n))}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
@@ -888,14 +925,14 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 {/* 壳内(桌面端):用账号槽打开——登录页开进选定持久分区,免登录复用 */}
                 {typeof window !== "undefined" && window.sessionPool?.openAuthSlot && deviceLoginUrl && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                    <span className="text-xs text-text-muted">Open with account slot:</span>
+                    <span className="text-xs text-text-muted">{translate("Open with account slot:")}</span>
                     {Array.from({ length: 9 }, (_, i) => i + 1).map((n) => (
                       <button
                         key={n}
                         type="button"
                         onClick={() => window.sessionPool.openAuthSlot(deviceLoginUrl, n)}
                         className="h-7 w-7 rounded-md border border-border text-xs text-text-muted hover:border-primary hover:text-primary transition-colors"
-                        title={`Account ${n} (isolated login partition)`}
+                        title={translate("Account {n} (isolated login partition)").replace("{n}", String(n))}
                       >
                         {n}
                       </button>
