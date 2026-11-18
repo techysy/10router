@@ -904,6 +904,21 @@ export const PROVIDER_CAPABILITIES = {
     "claude-fable-5-2": { vision: true, reasoning: true, contextWindow: 1000000, maxOutput: 64000 },
     "gpt-6-astra": { vision: true, reasoning: true, contextWindow: 1048576, maxOutput: 128000 }
   },
+  // DuMate (百度搭子) 网关只注册压缩拼写的 id（qwen38-flash / glm-53 / glm-53-flash），
+  // 带点的 canonical 行（qwen3.8-flash / glm-5.3*）匹配不上，会落进通用族 pattern：
+  //   · qwen38-flash → *qwen* 兜底 262144/64000、vision:false（图片被 modality 层剥掉）；
+  //   · glm-53 / glm-53-flash → *glm-5* 兜底 200000/128000、vision:false。
+  // 窗口被砍到真实值的 1/4~1/5，autoCompact 提前压缩、/v1/models 上报偏小。这里把压缩
+  // id 指回同模型带点 canonical 行（spread 复用，改 canonical 即同步），与 deepai 转售
+  // 行同口径。其余 dumate id 已正确解析，不重复声明：带点的 qwen3.8-max / qwen3.5-* 命中
+  // canonical，deepseek-v41-flash / kimi-k31 等命中族 pattern，model-text / dm-auto-model
+  // 是 aggregator（见 audit ALLOWLIST）。DuMate 自家是否限窗无公开规格，暂对齐第一方
+  // canonical，待 live 探测校准（同 qoder 探测法）。
+  "dumate": {
+    "qwen38-flash": { ...MODEL_CAPABILITIES["qwen3.8-flash"] },
+    "glm-53":       { ...MODEL_CAPABILITIES["glm-5.3"] },
+    "glm-53-flash": { ...MODEL_CAPABILITIES["glm-5.3-flash"] },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
@@ -932,6 +947,9 @@ PROVIDER_CAPABILITIES.qd = PROVIDER_CAPABILITIES.qoder;
 PROVIDER_CAPABILITIES.qdc = PROVIDER_CAPABILITIES["qoder-cn"];
 PROVIDER_CAPABILITIES.kgw = PROVIDER_CAPABILITIES["kilo-gateway"];
 PROVIDER_CAPABILITIES.kilogateway = PROVIDER_CAPABILITIES["kilo-gateway"];
+// DuMate 的传输/UI 别名 du（registry aliases:["du"]）与 id 共享同一张压缩拼写行，
+// 否则 du/qwen38-flash 会绕过 provider 行落回 *qwen* 兜底（同 qd/qdc 口径）。
+PROVIDER_CAPABILITIES.du = PROVIDER_CAPABILITIES.dumate;
 PROVIDER_CAPABILITIES.oc = PROVIDER_CAPABILITIES.opencode;
 
 /**

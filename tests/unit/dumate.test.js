@@ -21,6 +21,7 @@ import { extractEarliestPackageExpiry } from "../../open-sse/services/usage/expi
 import { extractConnectionBalance } from "../../open-sse/services/usage/balanceExtractor.js";
 import { parseQuotaData } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 import { classifyCycleRows, cycleRowLines, detailRows, joinsPackPool } from "../../src/shared/utils/quotaRows.js";
+import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 
 describe("dumate cookie jar", () => {
   it("scopes cookies to their Domain (host or subdomain only)", () => {
@@ -349,5 +350,43 @@ describe("dumate usage login-failure detection", () => {
 
   it("accepts a well-formed quota payload", () => {
     expect(isLoginFailure({ status: 200, text: JSON.stringify({ code: 0, result: { totalPoints: 1 } }) })).toBe(false);
+  });
+});
+
+// DuMate 网关只认压缩拼写的 id（qwen38-flash / glm-53 / glm-53-flash），带点的
+// canonical 行匹配不上，曾落进 *qwen* / *glm-5* 通用兜底：窗口砍到 1/4~1/5、
+// vision:false 剥图片。PROVIDER_CAPABILITIES.dumate 把压缩 id 指回同模型带点
+// canonical 行——这里钉住「压缩拼写 == 带点拼写」，防止再回落兜底。
+describe("dumate compressed-spelling capabilities", () => {
+  const PAIRS = [
+    ["qwen38-flash", "qwen3.8-flash"],
+    ["glm-53", "glm-5.3"],
+    ["glm-53-flash", "glm-5.3-flash"],
+  ];
+
+  it.each(PAIRS)("dumate/%s resolves to the same caps as the dotted canonical %s", (compressed, dotted) => {
+    expect(getCapabilitiesForModel("dumate", compressed)).toEqual(getCapabilitiesForModel("dumate", dotted));
+  });
+
+  it("qwen38-flash keeps the real 1M window and vision (not the *qwen* 256K floor)", () => {
+    const c = getCapabilitiesForModel("dumate", "qwen38-flash");
+    expect(c.contextWindow).toBe(1000000);
+    expect(c.maxOutput).toBe(131072);
+    expect(c.vision).toBe(true);
+    expect(c.reasoning).toBe(true);
+    expect(c.thinkingFormat).toBe("qwen");
+  });
+
+  it("glm-53 / glm-53-flash keep the real 1M window (not the *glm-5* 200K floor)", () => {
+    for (const id of ["glm-53", "glm-53-flash"]) {
+      const c = getCapabilitiesForModel("dumate", id);
+      expect(c.contextWindow, id).toBe(1000000);
+      expect(c.maxOutput, id).toBe(131072);
+      expect(c.reasoning, id).toBe(true);
+      expect(c.thinkingFormat, id).toBe("zai");
+    }
+    // GLM-5.3 文本档 thinking 不可关闭；flash 多模态档可关。
+    expect(getCapabilitiesForModel("dumate", "glm-53").thinkingCanDisable).toBe(false);
+    expect(getCapabilitiesForModel("dumate", "glm-53-flash").vision).toBe(true);
   });
 });
