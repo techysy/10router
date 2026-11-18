@@ -144,6 +144,7 @@ const STRINGS = {
         'appmenu.close': 'Close Window',
         'appmenu.go': 'Go',
         'appmenu.openurl': 'Open URL…',
+        'appmenu.openSite': 'Open Site (with account)…',
         'appmenu.openurl.title': 'Open URL',
         'appmenu.openurl.go': 'Open',
         'appmenu.openurl.invalid': 'Invalid URL — check the address',
@@ -285,6 +286,7 @@ const STRINGS = {
         'appmenu.close': '关闭窗口',
         'appmenu.go': '前往',
         'appmenu.openurl': '打开网址…',
+        'appmenu.openSite': '打开服务网址（带账号）…',
         'appmenu.openurl.title': '打开网址',
         'appmenu.openurl.go': '打开',
         'appmenu.openurl.invalid': '网址无效，请检查地址',
@@ -426,6 +428,7 @@ const STRINGS = {
         'appmenu.close': '關閉視窗',
         'appmenu.go': '前往',
         'appmenu.openurl': '開啟網址…',
+        'appmenu.openSite': '開啟服務網址（帶帳號）…',
         'appmenu.openurl.title': '開啟網址',
         'appmenu.openurl.go': '開啟',
         'appmenu.openurl.invalid': '網址無效，請檢查地址',
@@ -1645,6 +1648,7 @@ function getServiceVersion() {
 // (userData/recent-urls.json, newest-first, 上限 10)、「回到 10Router」一键回家。
 const RECENT_FILE = path.join(app.getPath('userData'), 'recent-urls.json');
 let urlPromptWin = null;
+let sitePromptWin = null;
 
 function loadRecentUrls() {
     try {
@@ -1796,13 +1800,96 @@ const SHELL_COOKIE_SITES = [
     { id: 'lingxi', name: 'WPS 灵犀', loginUrl: 'https://lingxi.kdocs.cn' },
     { id: 'dumate', name: 'DuMate 百度搭子', loginUrl: 'https://dumate.baidu.com' },
 ];
+
+// 站点表以 daemon /api/cookie-sites 为准（本机 CLI token 鉴权）；静态表兜底。
+async function fetchCookieSites() {
+    const token = readCliTokenForReport();
+    try {
+        const r = await net.fetch(`${BASE_URL}/api/cookie-sites`, {
+            headers: token ? { 'x-10r-cli-token': token } : {},
+            signal: AbortSignal.timeout(6000),
+        });
+        if (!r.ok) return SHELL_COOKIE_SITES;
+        const data = await r.json().catch(() => null);
+        const list = Array.isArray(data?.sites) ? data.sites : [];
+        if (!list.length) return SHELL_COOKIE_SITES;
+        return list.map((s) => ({ id: s.id, name: s.name, loginUrl: s.loginUrl, provider: s.provider }));
+    } catch { return SHELL_COOKIE_SITES; }
+}
 ipcMain.handle('session-pool:list', () => SHELL_COOKIE_SITES);
+ipcMain.on('site-pick', (e, pick) => {
+    const site = SHELL_COOKIE_SITES.find((s) => s.id === pick?.siteId);
+    if (!site) return;
+    if (sitePromptWin && !sitePromptWin.isDestroyed()) sitePromptWin.close();
+    openSiteLoginWindow(site, pick?.slot || 1);
+});
 ipcMain.handle('session-pool:login', (e, siteId, slot) => {
     const site = SHELL_COOKIE_SITES.find((s) => s.id === siteId);
     if (!site) return { ok: false, error: 'unknown site' };
     openSiteLoginWindow(site, slot);
     return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), 9) };
 });
+
+// 「打开服务网址（带账号）」：列站点 × 槽位，选中即在壳内站点窗打开（持久分区带 Cookie）。
+// 站点表实时拉 daemon；槽位 1-9（有已存会话的槽位标注）。不传 title——壳内窗自带标题。
+function promptOpenSite() {
+    if (sitePromptWin && !sitePromptWin.isDestroyed()) { sitePromptWin.focus(); return; }
+    const hasParent = win && !win.isDestroyed();
+    sitePromptWin = new BrowserWindow({
+        width: 460,
+        height: 360,
+        parent: hasParent ? win : null,
+        alwaysOnTop: true,
+        title: tr('appmenu.openSite'),
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        autoHideMenuBar: true,
+        show: true,
+        webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
+    });
+    attachContextMenu(sitePromptWin);
+    // 站点表异步：先加载占位页，拉到后推 site-list 渲染（失败则用静态兜底）。
+    sitePromptWin.webContents.once('did-finish-load', () => {
+        fetchCookieSites().then((sites) => {
+            try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', sites); } catch { /* 窗已关 */ }
+        });
+    });
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+<body style="font-family:inherit;margin:0;padding:10px 12px;background:transparent">
+<div id="loading" style="font-size:12px;color:#888">…</div>
+<div id="list" style="display:none;flex-direction:column;gap:6px"></div>
+<script>
+const { ipcRenderer } = require('electron');
+ipcRenderer.on('site-list', (e, sites) => {
+    document.getElementById('loading').style.display = 'none';
+    const list = document.getElementById('list');
+    list.style.display = 'flex';
+    for (const s of sites) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #8883;border-radius:6px';
+        const name = document.createElement('div');
+        name.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        name.textContent = s.name;
+        row.appendChild(name);
+        for (let n = 1; n <= 9; n++) {
+            const b = document.createElement('button');
+            b.textContent = n;
+            b.title = s.name + ' · ' + n;
+            b.style.cssText = 'width:26px;height:24px;font-size:12px;border:1px solid #8883;border-radius:5px;cursor:pointer;padding:0';
+            b.addEventListener('click', () => ipcRenderer.send('site-pick', { siteId: s.id, slot: n }));
+            row.appendChild(b);
+        }
+        list.appendChild(row);
+    }
+});
+</script>
+</body></html>`;
+    sitePromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+        .catch((e) => { log(`site prompt load failed: ${e.message}`); try { sitePromptWin.close(); } catch { /* ignore */ } });
+    sitePromptWin.on('closed', () => { sitePromptWin = null; });
+}
 
 ipcMain.on('url-prompt-submit', (e, raw) => {
     const fromPrompt = urlPromptWin && !urlPromptWin.isDestroyed() && e.sender === urlPromptWin.webContents;
@@ -2356,6 +2443,7 @@ function setAppMenu() {
             submenu: [
                 { label: tr('appmenu.openurl'), accelerator: 'CmdOrCtrl+L', click: promptOpenUrl },
                 { label: tr('appmenu.home'), accelerator: 'CmdOrCtrl+Shift+H', click: () => openInWindow(DASHBOARD_URL) },
+                { label: tr('appmenu.openSite'), click: promptOpenSite },
                 { type: 'separator' },
                 ...(() => {
                     const recents = loadRecentUrls();

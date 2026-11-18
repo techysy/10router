@@ -27,9 +27,3 @@ export const COOKIE_SITES = [
 ];
 
 export const getCookieSite = (id) => COOKIE_SITES.find((s) => s.id === id) || null;
-
-/** 槽位归户键：同站点同槽一行、异槽分行（issue #150）。 */
-export function cookieSlotKey(slot) {
-  const n = Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS);
-  return `cookieSlot${n}`;
-}
