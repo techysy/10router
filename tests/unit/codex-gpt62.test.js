@@ -55,9 +55,11 @@ describe("Codex GPT-6.2 Sol/Astra catalog", () => {
     expect(getCapabilitiesForModel("codex", `${model}[1m]`).contextWindow).toBe(872000);
   });
 
-  it("prices sol 4/15 and astra 16/60 (models.dev aggregate, 7 gateways)", () => {
-    expect(getPricingForModel("codex", "gpt-6.2-sol")).toMatchObject({ input: 4.00, output: 15.00 });
-    expect(getPricingForModel("codex", "gpt-6.2-astra")).toMatchObject({ input: 16.00, output: 60.00 });
+  it("prices sol 2/10 and astra 8/40 (official Standard short-context tier)", () => {
+    // 官方 Standard 短上下文档,2026-11-18 经 CPA v3.52.0 核验列交叉验证;
+    // 旧的 4/15、16/60 是 models.dev 聚合(实为 >272K 长档)价,成本多算一倍。
+    expect(getPricingForModel("codex", "gpt-6.2-sol")).toMatchObject({ input: 2.00, output: 10.00 });
+    expect(getPricingForModel("codex", "gpt-6.2-astra")).toMatchObject({ input: 8.00, output: 40.00 });
   });
 
   it("keeps the transport headers on 0.169.0 (minimal_client_version 0.166.0 gate)", () => {

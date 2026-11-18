@@ -1444,7 +1444,7 @@
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog keeps the transport headers on 0.169.0 (minimal_client_version 0.166.0 gate)": "passed",
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog lists gpt-6.2-astra as a Responses Lite model with the five thinking levels": "passed",
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog lists gpt-6.2-sol as a Responses Lite model with the five thinking levels": "passed",
-  "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog prices sol 4/15 and astra 16/60 (models.dev aggregate, 7 gateways)": "passed",
+  "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog prices sol 2/10 and astra 8/40 (official Standard short-context tier)": "passed",
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog publishes [1m] variants of gpt-6.2-astra pointing at the base id": "passed",
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog publishes [1m] variants of gpt-6.2-sol pointing at the base id": "passed",
   "tests/unit/codex-gpt62.test.js :: Codex GPT-6.2 Sol/Astra catalog publishes gpt-6.2-astra-review with quotaFamily review": "passed",
