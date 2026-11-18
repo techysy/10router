@@ -12,9 +12,9 @@ describe("modelDisplayName", () => {
     // （实测 400）——双区注册表均撤行；历史行走退役名映射，不落裸 id。
     expect(modelDisplayName("qdc", "lmodel")).toBe("QoDuck (retired → Qwen4-Max-Preview)");
     expect(modelDisplayName("qoder", "lmodel")).toBe("QoDuck (retired → Qwen4-Max-Preview)");
-    expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen4-Max-Preview");
-    expect(modelDisplayName("qoder", "qmodel_latest")).toBe("Qwen4-Max-Preview");
-    expect(modelDisplayName("qoder", "dfmodel")).toBe("DeepSeek-V4.1-Flash 1017");
+    expect(modelDisplayName("qoder-cn", "qmodel_latest")).toBe("Qwen4-Max");
+    expect(modelDisplayName("qoder", "qmodel_latest")).toBe("Qwen4-Max");
+    expect(modelDisplayName("qoder", "dfmodel")).toBe("DeepSeek-Flash");
   });
 
   it("passes through ids that need no mapping", () => {

@@ -56,7 +56,7 @@ export default {
     // （2026-10-20 客户端模型卡确认），旧名 DeepSeek-V4-Flash 已过时。
     // 限免：个人版 0.0x 至 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
     // 用带时区的 ISO 写死边界——裸日期会被当成 UTC 零点，等于多送 8 小时。
-    { id: "dfmodel", name: "DeepSeek-V4.1-Flash 1017", promoFreeUntil: "2026-10-25T00:00:00+08:00" },
+    { id: "dfmodel", name: "DeepSeek-Flash", rateMultiplier: 0.1 },
     { id: "mmodel", name: "MiniMax-M3.1-Flash" },
   ],
   oauth: {

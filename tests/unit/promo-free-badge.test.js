@@ -123,19 +123,14 @@ describe("promo badge rendering contract", () => {
   });
 });
 
-describe("qoder / qoder-cn 的 DeepSeek-V4.1-Flash-1017 限免", () => {
-  // 2026-10-20 Qoder 客户端模型卡：dfmodel = DeepSeek-V4.1-Flash-1017，
-  // 个人版 0.0x 至 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
+describe("qoder / qoder-cn 的 dfmodel（2026-11-18 live 探测）", () => {
+  // 2026-11-18 live 目录探测：dfmodel 显示名已是「DeepSeek-Flash」，
+  // 限免窗口已过（原 2026-10-25 到期），现按 0.1x 正常计费。
   for (const [name, entry] of [["qoder", intlQoder], ["qoder-cn", cnQoder]]) {
-    it(`${name}: dfmodel 名称与限免窗口正确`, () => {
+    it(`${name}: dfmodel 名称与计费正确`, () => {
       const m = entry.models.find((x) => x.id === "dfmodel");
-      expect(m).toMatchObject({
-        name: "DeepSeek-V4.1-Flash 1017",
-        // 必须是带时区的 ISO：裸日期会被解析成 UTC 零点，等于多送 8 小时
-        promoFreeUntil: "2026-10-25T00:00:00+08:00",
-      });
-      expect(isPromoFree(m, Date.parse("2026-10-24T23:59:59+08:00"))).toBe(true);
-      expect(isPromoFree(m, Date.parse("2026-10-25T00:00:01+08:00"))).toBe(false);
+      expect(m).toMatchObject({ name: "DeepSeek-Flash", rateMultiplier: 0.1 });
+      expect(m.promoFreeUntil).toBeUndefined();
     });
   }
 });

@@ -433,7 +433,9 @@ const QODER_NAME_ALIASES = {
   // Qoder 2026-10 起把 dfmodel 显示为 DeepSeek-V4.1-Flash-1017（客户端模型卡确认）。
   // 旧名 DeepSeek-V4-Flash 不再出现在模型表里，别名一并移除——留着会被
   // audit-capabilities 判成 dead provider row（别名键必须能在 registry 找到对应条目）。
-  "DeepSeek-V4.1-Flash 1017": "dfmodel",
+  // 2026-11-18 live 探测：dfmodel 显示名已是「DeepSeek-Flash」；旧名
+  // DeepSeek-V4.1-Flash 1017 不再出现在目录，别名移除（dead row 会被 audit 判）。
+  "DeepSeek-Flash": "dfmodel",
   "MiniMax-M3.1-Flash": "mmodel",
 };
 const QODER_CN_NAME_ALIASES = {
@@ -805,10 +807,10 @@ export const PROVIDER_CAPABILITIES = {
     "ultimate":       { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // Claude Opus 5
     "performance":    { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // Claude Sonnet 5
     "efficient":      { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // 虚拟档：家族随上游路由漂移，给保守超集
-    "dmodel":         { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4-Pro
+    "dmodel":         { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4-Pro（live 1M）
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
-    "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash
+    "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash（live 1M）
     "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro
     "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
     "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
