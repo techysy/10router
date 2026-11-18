@@ -72,6 +72,10 @@ const STRINGS = {
         'win.authWindowTitle': 'Account Authorization',
         'win.sessionLoginTitle': 'Login (Session {n})',
         'win.sessionLoginReuseTitle': 'Login (Session {n} · Saved)',
+        'win.openSiteUrl': 'URL',
+        'win.openSiteSlot': 'Slot',
+        'win.openSiteShortcuts': 'Shortcuts (click to fill)',
+        'win.openSiteTypeUrl': 'Type a URL first',
         'win.incognitoLoginTitle': 'Login (Incognito)',
         'sessionPool.open': 'Session Pool',
         'sessionPool.openHint': 'Multiple login slots per site — each slot is an isolated saved session.',
@@ -214,6 +218,10 @@ const STRINGS = {
         'win.authWindowTitle': '账号授权',
         'win.sessionLoginTitle': '登录（会话 {n}）',
         'win.sessionLoginReuseTitle': '登录（会话 {n} · 复用）',
+        'win.openSiteUrl': '网址',
+        'win.openSiteSlot': '账号槽',
+        'win.openSiteShortcuts': '常用站点（点击填入）',
+        'win.openSiteTypeUrl': '先输入网址',
         'win.incognitoLoginTitle': '登录（无痕窗口）',
         'sessionPool.open': '会话池',
         'sessionPool.openHint': '每站点多个登录槽——各槽是独立的持久登录会话。',
@@ -356,6 +364,10 @@ const STRINGS = {
         'win.authWindowTitle': '帳號授權',
         'win.sessionLoginTitle': '登入（工作階段 {n}）',
         'win.sessionLoginReuseTitle': '登入（工作階段 {n} · 復用）',
+        'win.openSiteUrl': '網址',
+        'win.openSiteSlot': '帳號槽',
+        'win.openSiteShortcuts': '常用站點（點擊填入）',
+        'win.openSiteTypeUrl': '請先輸入網址',
         'win.incognitoLoginTitle': '登入（無痕視窗）',
         'sessionPool.open': '工作階段池',
         'sessionPool.openHint': '每站點多個登入槽——各槽是獨立的持久登入工作階段。',
@@ -832,7 +844,9 @@ function openSiteLoginWindow(site, slot) {
         return { action: 'deny' };
     });
     authWin.on('closed', () => {
-        // 先收割再(不)清:持久分区保留存储;结果回主窗让面板刷新该行。
+        // 注册站点:收割上报(落连接行,面板可见)。通用网址:不 harvest——
+        // 持久分区自存 Cookie,同槽再开直接复用登录态。
+        if (!site.provider) return;
         harvestCookieSiteSession(ses, site.id, n).then((res) => {
             try {
                 if (win && !win.isDestroyed()) {
@@ -1797,9 +1811,17 @@ document.getElementById('go').addEventListener('click', go);
 // 会话池（#150）：仪表盘 preload 调起站点登录窗（指定槽位）。
 // 站点表与 daemon /api/cookie-sites 同源（这里只取 id/loginUrl/name 供开窗）。
 const SHELL_COOKIE_SITES = [
-    { id: 'lingxi', name: 'WPS 灵犀', loginUrl: 'https://lingxi.kdocs.cn' },
-    { id: 'dumate', name: 'DuMate 百度搭子', loginUrl: 'https://dumate.baidu.com' },
+    { id: 'lingxi', name: 'WPS 灵犀', loginUrl: 'https://lingxi.kdocs.cn', provider: 'lingxi' },
+    { id: 'dumate', name: 'DuMate 百度搭子', loginUrl: 'https://dumate.baidu.com', provider: 'dumate' },
 ];
+
+// 通用网址 → 合成站点:分区键按 host 派生(u-<host>),槽位语义与站点槽一致;
+// provider 为空 = 关窗不 harvest(持久分区自存 Cookie,下次同槽开窗直接复用)。
+function genericSiteFromUrl(url) {
+    const u = new URL(url);
+    const hostKey = u.host.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'site';
+    return { id: `u-${hostKey}`, name: u.host, loginUrl: url, provider: null };
+}
 
 // 站点表以 daemon /api/cookie-sites 为准（本机 CLI token 鉴权）；静态表兜底。
 async function fetchCookieSites() {
@@ -1818,7 +1840,19 @@ async function fetchCookieSites() {
 }
 ipcMain.handle('session-pool:list', () => SHELL_COOKIE_SITES);
 ipcMain.on('site-pick', (e, pick) => {
-    const site = SHELL_COOKIE_SITES.find((s) => s.id === pick?.siteId);
+    // 注册站点(siteId 旧调用)或直接给的网址 → 统一成站点对象。
+    // 网址命中注册站点 origin 时沿用注册站点(关窗收割上报);否则通用分区(自存 Cookie)。
+    let site = SHELL_COOKIE_SITES.find((s) => s.id === pick?.siteId) || null;
+    if (!site && pick?.url) {
+        const norm = normalizeOpenUrl(pick.url);
+        if (!norm) return;
+        try {
+            const origin = new URL(norm).origin;
+            site = SHELL_COOKIE_SITES.find((s) => {
+                try { return new URL(s.loginUrl).origin === origin; } catch { return false; }
+            }) || genericSiteFromUrl(norm);
+        } catch { return; }
+    }
     if (!site) return;
     if (sitePromptWin && !sitePromptWin.isDestroyed()) sitePromptWin.close();
     openSiteLoginWindow(site, pick?.slot || 1);
@@ -1830,8 +1864,10 @@ ipcMain.handle('session-pool:login', (e, siteId, slot) => {
     return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), 9) };
 });
 
-// 「打开服务网址（带账号）」：列站点 × 槽位，选中即在壳内站点窗打开（持久分区带 Cookie）。
-// 站点表实时拉 daemon；槽位 1-9（有已存会话的槽位标注）。不传 title——壳内窗自带标题。
+// 「打开服务网址（带账号）」：任意网址 × 槽位（身份分区）在壳内开窗。
+// 槽 = 持久分区身份（Chrome profile 式），与站点无关：同一网址不同槽 = 不同账号。
+// 下方站点行只是快捷方式（点击把网址填进输入框）；注册站点带收割上报，
+// 通用网址靠分区自存 Cookie。不传 title——壳内窗自带标题。
 function promptOpenSite() {
     if (sitePromptWin && !sitePromptWin.isDestroyed()) { sitePromptWin.focus(); return; }
     const hasParent = win && !win.isDestroyed();
@@ -1855,32 +1891,57 @@ function promptOpenSite() {
             try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', sites); } catch { /* 窗已关 */ }
         });
     });
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="font-family:inherit;margin:0;padding:10px 12px;background:transparent">
+<div id="main">
+<div style="font-size:12px;color:#888;margin-bottom:4px">${tr('win.openSiteUrl')}</div>
+<input id="url" type="text" placeholder="https://…" autofocus
+  style="flex:1;width:100%;box-sizing:border-box;font-size:13px;padding:5px 8px;border:1px solid #8885;border-radius:6px;background:transparent;color:inherit;outline:none" />
+<div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+<span style="font-size:12px;color:#888">${tr('win.openSiteSlot')}</span>
+<span id="slots" style="display:flex;gap:4px"></span>
+</div>
+<div id="hint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px"></div>
+</div>
+<div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('win.openSiteShortcuts')}</div>
 <div id="loading" style="font-size:12px;color:#888">…</div>
 <div id="list" style="display:none;flex-direction:column;gap:6px"></div>
 <script>
 const { ipcRenderer } = require('electron');
+const urlInput = document.getElementById('url');
+const hint = document.getElementById('hint');
+function pickSlot(n) {
+    const v = urlInput.value.trim();
+    if (!v) { hint.textContent = ${JSON.stringify(tr('win.openSiteTypeUrl'))}; urlInput.focus(); return; }
+    ipcRenderer.send('site-pick', { url: v, slot: n });
+}
+const slots = document.getElementById('slots');
+for (let n = 1; n <= 9; n++) {
+    const b = document.createElement('button');
+    b.textContent = n;
+    b.title = 'slot ' + n;
+    b.style.cssText = 'width:28px;height:26px;font-size:12px;border:1px solid #8883;border-radius:5px;cursor:pointer;padding:0';
+    b.addEventListener('click', () => pickSlot(n));
+    slots.appendChild(b);
+}
+urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') pickSlot(1); });
 ipcRenderer.on('site-list', (e, sites) => {
     document.getElementById('loading').style.display = 'none';
     const list = document.getElementById('list');
     list.style.display = 'flex';
     for (const s of sites) {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #8883;border-radius:6px';
+        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid #8883;border-radius:6px;cursor:pointer';
+        row.title = s.loginUrl;
         const name = document.createElement('div');
         name.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
         name.textContent = s.name;
         row.appendChild(name);
-        for (let n = 1; n <= 9; n++) {
-            const b = document.createElement('button');
-            b.textContent = n;
-            b.title = s.name + ' · ' + n;
-            b.style.cssText = 'width:26px;height:24px;font-size:12px;border:1px solid #8883;border-radius:5px;cursor:pointer;padding:0';
-            b.addEventListener('click', () => ipcRenderer.send('site-pick', { siteId: s.id, slot: n }));
-            row.appendChild(b);
-        }
+        const tag = document.createElement('div');
+        tag.style.cssText = 'font-size:11px;color:#888';
+        tag.textContent = s.loginUrl;
+        row.appendChild(tag);
+        row.addEventListener('click', () => { urlInput.value = s.loginUrl; urlInput.focus(); });
         list.appendChild(row);
     }
 });
