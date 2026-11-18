@@ -38,14 +38,13 @@ export default {
     { id: "performance", name: "Performance" },
     { id: "efficient", name: "Efficient" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
-    // 2026-11-11: QoDuck（lmodel，app 场景 Qwen 测试模型）转正为 Qwen4-Max-Preview，
-    // 上游 key 复用 qmodel_latest（CN/国际 live 目录双端确认，官方推特 2h 前官宣，
-    // 限时 0.1x / 原价 0.5x —— live 目录 price_factor/original_price_factor 透传，
-    // 不在这里写死 promoFreeUntil）。旧名 Qwen3.7-Max 作废；qmodel/Qwen3.7-Plus
-    // 已从 live 目录消失（下线），保留静态行防老配置 404。
-    { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
-    // 2026-11-18: Qwen4-Max 正式版上架（客户端截图）。id 待 live 目录确认。
-    { id: "qmodel_max", name: "Qwen4-Max" },
+    // 2026-11-18 live 目录探测（GET /algo/api/v2/model/list，与 CN 同构）：
+    // Qwen4-Max 正式版 = 上游 key `qmodel_latest`（复用，0.4x/1M）；
+    // Qwen4-Max-Preview 拆为独立 key `qmodel_latest_preview`（0.1x/原价 0.5x）。
+    // 2026-11-11 的 QoDuck（lmodel）→ Qwen4-Max-Preview 复用 qmodel_latest 口径
+    // 已被本次拆分取代；旧名 Qwen3.7-Max 作废。
+    { id: "qmodel_latest", name: "Qwen4-Max", rateMultiplier: 0.4 },
+    { id: "qmodel_latest_preview", name: "Qwen4-Max-Preview", rateMultiplier: 0.1 },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     { id: "qfmodel", name: "Qwen3.8-Flash" },
     { id: "kmodel_latest", name: "Kimi-K3.1-Pro" },

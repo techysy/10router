@@ -6,7 +6,7 @@
 
 ### ✨ 新增
 
-- **Qoder Qwen4-Max 正式版上架**（2026-11-18 客户端截图「用 Qoder 创造」模型选择器）：CN/国际双端补 `qmodel_max`（New，0.4x）；能力行复用 Qwen4 家族档（1M/65536，qwen 思考格式）。id 暂按命名惯例 qmodel_max，待上游 live 目录确认。
+- **Qoder Qwen4-Max 正式版上架 + Preview 拆独立 key**（2026-11-18 客户端截图 + **live 目录探测** `GET /algo/api/v2/model/list`）：上游 key `qmodel_latest` = Qwen4-Max（0.4x/1M），`qmodel_latest_preview` = Qwen4-Max-Preview（0.1x/原价 0.5x）；CN/国际双端同步，能力行复用 Qwen4 家族档（1M/65536，qwen 思考格式）。探测走本机一次性实例读 NAS 库（凭据解密 + COSY 签名），未动 NAS 数据。
 
 - **CodeBuddy Hy4 与 Hy4 flash 拆分为两个独立模型（11-18 客户端截图纠正）**：第四版把 Hy4 与 Hy4 flash 都挂了限免 `promoFreeUntil` 11-30，但用户截图确认两者是**独立模型**——选择器里 Hy4 = 0.29x 无徽章正常计费，「限时免费」只属于 Hy4 flash（0.00x，Nov 16-30 每日赠送额度）。CN 侧撤掉 hy4 的 promoFreeUntil（保留 0.29x 原价）；intl 侧新增缺失的 `hy4-flash` 行（0.00x + 限免窗口），`hy4-preview` 从误记的 0.00x+限免改为 Hy4 本体 0.29x。断言三处重写（codebuddy-cn/intl-models、promo-free-badge）。
 

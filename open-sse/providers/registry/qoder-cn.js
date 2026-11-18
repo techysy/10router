@@ -39,15 +39,12 @@ export default {
     { id: "auto", name: "Auto" },
     { id: "fast", name: "快速" },
     { id: "qmodel_38max", name: "Qwen3.8-Max" },
-    // 2026-11-11: QoDuck 转正为 Qwen4-Max-Preview，上游 key 复用 qmodel_latest
-    // （CN live 目录确认 0.1x/原价 0.5x）。lmodel 已上游下线（实测 400
-    // "model_config not yet known"），注册表行与能力行随撤；历史用量在
-    // 模型类型图按 lmodel → qwen 家族归并（usageRepo CODENAME_FAMILIES）。
-    { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
-    // 2026-11-18 客户端截图（「用 Qoder 创造」模型选择器）：Qwen4-Max 正式版
-    // 上架（0.4x，New 标签）。id 待上游 live 目录确认，暂按命名惯例 qmodel_max；
-    // 倍率取客户端「消耗速度」列。
-    { id: "qmodel_max", name: "Qwen4-Max" },
+
+    // 2026-11-18 客户端截图 + live 目录探测（GET /algo/api/v2/model/list）：
+    // Qwen4-Max 正式版上架 = 上游 key `qmodel_latest`（复用，0.4x/1M）；
+    // Qwen4-Max-Preview 拆为独立 key `qmodel_latest_preview`（0.1x/原价 0.5x）。
+    { id: "qmodel_latest", name: "Qwen4-Max", rateMultiplier: 0.4 },
+    { id: "qmodel_latest_preview", name: "Qwen4-Max-Preview", rateMultiplier: 0.1 },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     // Added 2026-09-19: present in the live CN catalog (rate 0.1, no promo);
     // it was leaking into the page as a lone "custom" row via the fetch
