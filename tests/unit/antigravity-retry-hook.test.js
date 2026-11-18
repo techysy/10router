@@ -29,8 +29,16 @@ describe("antigravity computeRetryDelay hook (D3)", () => {
   });
 
   it("exponential backoff for 429 when no retry info", async () => {
-    expect(await ag.computeRetryDelay(res(429), 1)).toBe(Math.min(1000 * 2 ** 1, MAX));
-    expect(await ag.computeRetryDelay(res(429), 3)).toBe(Math.min(1000 * 2 ** 3, MAX));
+    // #147: only *attributed* quota 429s keep same-account backoff — carry a
+    // RESOURCE_EXHAUSTED signal so the bare-429 veto below does not apply.
+    const quota = { error: { status: "RESOURCE_EXHAUSTED", message: "There is currently not enough quota to serve this request" } };
+    expect(await ag.computeRetryDelay(res(429, {}, quota), 1)).toBe(Math.min(1000 * 2 ** 1, MAX));
+    expect(await ag.computeRetryDelay(res(429, {}, quota), 3)).toBe(Math.min(1000 * 2 ** 3, MAX));
+  });
+
+  it("vetoes bare 429 with no quota signal (#147 WAF-class)", async () => {
+    expect(await ag.computeRetryDelay(res(429), 1)).toBe(false);
+    expect(await ag.computeRetryDelay(res(429, {}, { error: { message: "Too many requests" } }), 2)).toBe(false);
   });
 
   it("503 without retry info → transient backoff", async () => {
