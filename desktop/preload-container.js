@@ -13,7 +13,21 @@
  *  - pw:fill 广播给全部 frame,各 frame 按 location.origin 自滤——条目只会落进
  *    它归属的 origin,跨域 iframe 拿不到。
  */
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, contextBridge } = require('electron');
+
+// 会话池白名单 API（#150）：仪表盘页面经此调起壳内站点登录窗/读站点表。
+// 只在壳内（preload 存在）暴露；普通浏览器里 contextBridge 不存在，页面拿不到。
+if (contextBridge && contextBridge.exposeInMainWorld) {
+    contextBridge.exposeInMainWorld('sessionPool', {
+        list: () => ipcRenderer.invoke('session-pool:list'),
+        login: (siteId, slot) => ipcRenderer.invoke('session-pool:login', siteId, slot),
+        onCaptured: (cb) => {
+            const listener = (_e, msg) => { try { cb(msg); } catch { /* ignore */ } };
+            ipcRenderer.on('cookie-site:captured', listener);
+            return () => ipcRenderer.removeListener('cookie-site:captured', listener);
+        },
+    });
+}
 
 (() => {
     'use strict';

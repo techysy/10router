@@ -2267,5 +2267,14 @@
   "Invalid project service AK": "项目服务 AK 无效",
   "Meoo account has no project; create one in Meoo first, then re-resolve the project AK": "Meoo 账号还没有项目：先在 meoo.com 创建一个（并开启云服务），AK 会自动解析到位",
   "Manage multiple Loomy accounts in CreditDaddy — one-click copy & fill of invite codes, balances auto-synced to 10Router.": "多账号推荐用 CreditDaddy 管理：一键复制 / 填写邀请码，余额自动同步到 10Router。",
-  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置"
+  "会话 {n}": "会话 {n}",
+  "关闭": "关闭",
+  "加载中…": "加载中…",
+  "暂无会话池站点（当前支持 WPS 灵犀 / DuMate）。": "暂无会话池站点（当前支持 WPS 灵犀 / DuMate）。",
+  "槽 {n}": "槽 {n}",
+  "此会话来自登录槽 {n}（独立持久登录分区，与其它会话互不可见）": "此会话来自登录槽 {n}（独立持久登录分区，与其它会话互不可见）",
+  "每站点 9 个登录槽：各槽是独立的持久登录分区，可各自登录不同账号；换号 = 选另一槽开窗。": "每站点 9 个登录槽：各槽是独立的持久登录分区，可各自登录不同账号；换号 = 选另一槽开窗。",
+  "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置",
+  "登录（槽 {n}）· 独立持久会话分区": "登录（槽 {n}）· 独立持久会话分区",
+  "空槽": "空槽"
 }
