@@ -12,6 +12,7 @@ import {
 } from "../services/auth.js";
 import { getSettings, getChannelBlock, setChannelBlock, clearChannelBlock } from "@/lib/localDb";
 import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint, withInsufficientBalanceHint, isInsufficientBalanceText, withZeroQuotaHint } from "open-sse/services/accountFallback.js";
+import { CHANNEL_BLOCK_MS } from "open-sse/config/errorConfig.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { isOversizedForCbcn, describeCbcnOversize } from "open-sse/executors/codebuddy-cn.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -492,7 +493,34 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     if (result.success) return result.response;
 
     // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
-    const { shouldFallback, channelScope } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs);
+    const { shouldFallback, channelScope, unattributed429 } = await markAccountUnavailable(
+      credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs,
+      { unattributed429: result.unattributed429 === true },
+    );
+
+    if (shouldFallback && unattributed429) {
+      // #147：Google 伪 429（WAF 身份识别类）。账号已按常规冷却锁住，但
+      // **绝不轮换 sibling**——一次请求亚秒级打穿全池留下的连续被拒记录
+      // 正是 Google abuse 判定吃的信号（60 天日志 1688 次全池锁定 + 两号
+      // TOS_VIOLATION 实证）。改为渠道级暂停：窗口内该 provider 直接快速
+      // 失败（selection 侧已有 channelBlock 预检），时长走 google429 档
+      // （首犯 5min，升级窗内再犯 30min）。
+      const prev = await getChannelBlock(provider);
+      const block = buildChannelBlock(prev, Date.now(), {
+        short: CHANNEL_BLOCK_MS.google429,
+        long: CHANNEL_BLOCK_MS.google429Long,
+      });
+      await setChannelBlock(provider, block);
+      const human = formatRetryAfter(block.until);
+      log.warn("AUTH", `${provider} | unattributed 429 (#147) — channel blocked for ${Math.round(block.durationMs / 1000)}s (strike ${block.strikes}${block.escalated ? ", escalated" : ""}), account fallback aborted`);
+      log.warn("CHAT", `[${provider}/${model}] ${result.error} (unattributed 429, ${human})`);
+      return unavailableResponse(
+        result.status || HTTP_STATUS.SERVICE_UNAVAILABLE,
+        withRateLimitHint(`[${provider}/${model}] ${result.error}`, provider),
+        block.until,
+        human,
+      );
+    }
 
     if (shouldFallback && channelScope) {
       // Channel-scope: stop the whole provider rather than trying the next

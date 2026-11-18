@@ -84,6 +84,11 @@ export const CHANNEL_BLOCK_MS = {
   // Repeat offence within CHANNEL_BLOCK_ESCALATE_WINDOW_MS: the fingerprint is
   // clearly sticky, back off properly.
   long: 10 * 60 * 1000,
+  // #147 Google 伪 429（WAF 身份识别类）：比形状类错误更长——被盯上的是身份
+  // 指纹，短窗口重试只会再撞一次。首犯 5min 给误伤（真配额恰好裸奔）封顶，
+  // 升级窗内再犯 30min（issue 建议值）。
+  google429: 5 * 60 * 1000,
+  google429Long: 30 * 60 * 1000,
 };
 
 // Re-offending inside this window escalates short → long.

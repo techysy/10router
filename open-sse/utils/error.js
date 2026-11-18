@@ -161,7 +161,13 @@ export async function parseUpstreamError(response, executor = null, requestedUrl
           || parsed.message
           || DEFAULT_ERROR_MESSAGES[response.status]
           || `Upstream error: ${response.status}`;
-        return { statusCode: parsed.status || response.status, message: msg, resetsAtMs: parsed.resetsAtMs };
+        return {
+          statusCode: parsed.status || response.status,
+          message: msg,
+          resetsAtMs: parsed.resetsAtMs,
+          // #147：Google 伪 429 标记穿透给 chat 层（渠道暂停、禁止换号）
+          unattributed429: parsed.unattributed429,
+        };
       }
     } catch { /* fall through to default parsing */ }
   }
@@ -201,14 +207,17 @@ export async function parseUpstreamError(response, executor = null, requestedUrl
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
  * @param {number} [resetsAtMs] - Optional precise cooldown expiry (ms epoch) for provider-specific quota errors
+ * @param {object} [flags] - Extra classification flags threaded to the fallback
+ *   layer; today `{ unattributed429?: boolean }` (#147 Google 伪 429 → 渠道暂停)。
  * @returns {{ success: false, status: number, error: string, response: Response, resetsAtMs?: number }}
  */
-export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null) {
+export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders = null, flags = null) {
   return {
     success: false,
     status: statusCode,
     error: message,
     resetsAtMs,
+    ...(flags?.unattributed429 ? { unattributed429: true } : {}),
     response: errorResponse(statusCode, message, extraHeaders)
   };
 }

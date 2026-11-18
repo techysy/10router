@@ -361,13 +361,18 @@ export function buildNeedsReauthUpdate(cooldownMs = NEEDS_REAUTH_COOLDOWN_MS) {
  * escalate to the long duration; otherwise the short one applies.
  * @param {object|null} prev - previous stored state (or null)
  * @param {number} nowMs - current epoch ms (injectable for tests)
+ * @param {{short?: number, long?: number}} [durations] - per-class override of
+ *   CHANNEL_BLOCK_MS (e.g. the #147 Google pseudo-429 family pauses longer than
+ *   a request-shape blip); missing keys fall back to the defaults.
  * @returns {{ until: string, lastAt: string, strikes: number, durationMs: number, escalated: boolean }}
  */
-export function buildChannelBlock(prev, nowMs = Date.now()) {
+export function buildChannelBlock(prev, nowMs = Date.now(), durations = null) {
   const prevLast = prev?.lastAt ? new Date(prev.lastAt).getTime() : 0;
   const withinWindow = prevLast > 0 && nowMs - prevLast <= CHANNEL_BLOCK_ESCALATE_WINDOW_MS;
   const escalated = withinWindow;
-  const durationMs = escalated ? CHANNEL_BLOCK_MS.long : CHANNEL_BLOCK_MS.short;
+  const durationMs = escalated
+    ? (durations?.long ?? CHANNEL_BLOCK_MS.long)
+    : (durations?.short ?? CHANNEL_BLOCK_MS.short);
   return {
     until: new Date(nowMs + durationMs).toISOString(),
     lastAt: new Date(nowMs).toISOString(),

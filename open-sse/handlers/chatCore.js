@@ -522,7 +522,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor, providerUrl);
+    const { statusCode, message, resetsAtMs, unattributed429 } = await parseUpstreamError(providerResponse, executor, providerUrl);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     const responseErrorText = proxyFallbackWarning ? `${message} [Note: ${proxyFallbackWarning}]` : message;
     saveRequestDetail(buildRequestDetail({
@@ -549,14 +549,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // multi-account providers keep their normal fallback path untouched.
     if (statusCode === 429 && isFreeModel(model)) {
       const retryAfterMs = resetsAtMs ? Math.max(0, resetsAtMs - Date.now()) : null;
-      return createErrorResult(statusCode, formatFreeRateLimitMessage(provider, model, retryAfterMs), resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+      return createErrorResult(statusCode, formatFreeRateLimitMessage(provider, model, retryAfterMs), resetsAtMs, upstreamResponseHeaders(providerResponse.headers), { unattributed429 });
     }
     // The API caller only learns THAT the proxy was bypassed: the raw dispatcher
     // error carries the proxy's host:port, which stays in the local logs above.
     const clientErrMsg = proxyFallbackWarning
       ? `${errMsg} [Note: proxy failed; fell back to direct connection]`
       : errMsg;
-    return createErrorResult(statusCode, clientErrMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+    return createErrorResult(statusCode, clientErrMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers), { unattributed429 });
   }
 
   // The client asked the model to halt at a stop sequence. Some upstreams accept
