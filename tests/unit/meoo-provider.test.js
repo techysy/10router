@@ -22,7 +22,8 @@ const ATTESTED_MODEL_IDS = [
   "qwen3.8-max",
   "qwen3.8-flash",
   // The gateway only accepts the all-lowercase id (capitalized 400s live).
-  "qwen4-max-preview",
+  // 2026-11-18: Qwen4-Max GA shipped as `qwen4-max`; the preview id is gone.
+  "qwen4-max",
   "qwen3.7-max",
   "qwen3.7-plus",
   "deepseek-v4.1-flash-1017",
@@ -637,7 +638,7 @@ describe("GET /api/providers/[id]/models — meoo live catalog (dashboard discov
         return jsonResponse(200, {
           data: [
             { id: "qwen3.8-flash" },
-            { id: "qwen4-max-preview" },
+            { id: "qwen4-max" },
             { id: "glm-5.3-flash" },
           ],
         });
@@ -658,12 +659,12 @@ describe("GET /api/providers/[id]/models — meoo live catalog (dashboard discov
     // table, so a model Meoo adds tomorrow is listed the moment it ships.
     expect(models.map((m) => m.id)).toEqual([
       "qwen3.8-flash",
-      "qwen4-max-preview",
+      "qwen4-max",
       "glm-5.3-flash",
     ]);
     // Spec-table hit under the corrected lowercase key.
     expect(models[1]).toMatchObject({
-      name: "Qwen4-Max-Preview",
+      name: "Qwen4-Max",
       contextLength: 1_000_000,
       maxOutputTokens: 131_072,
       isVL: true,
@@ -692,8 +693,8 @@ describe("GET /api/providers/[id]/models — meoo live catalog (dashboard discov
     const seedIds = (PROVIDER_MODELS["meoo"] || []).map((m) => m.id).sort();
     expect(ids).toEqual(seedIds);
     // The corrected lowercase Qwen4 id is what the seeds now carry.
-    expect(ids).toContain("qwen4-max-preview");
-    expect(ids).not.toContain("Qwen4-Max-Preview");
+    expect(ids).toContain("qwen4-max");
+    expect(ids).not.toContain("Qwen4-Max");
   });
 
   it("re-resolves a stale project AK through the control key and persists it", async () => {

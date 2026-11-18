@@ -55,7 +55,9 @@ export default {
     // 2026-11-15 官网逐一比对；官方未展示的模型不标（诚实缺省）。
     { id: "qwen3.8-max", name: "Qwen3.8-Max", priceTier: "premium" },
     { id: "qwen3.8-flash", name: "Qwen3.8-Flash", priceTier: "cheap" },
-    { id: "qwen4-max-preview", name: "Qwen4-Max-Preview", priceTier: "premium" },
+    // 2026-11-18 live 探测:Qwen4-Max 正式版上架 id `qwen4-max`(官网选择器同示
+    // 「超贵」),preview 已从网关下架;小写口径沿用(大写形式 400,2026-11-13 实测)。
+    { id: "qwen4-max", name: "Qwen4-Max", priceTier: "premium" },
     { id: "qwen3.7-max", name: "Qwen3.7-Max", priceTier: "pricey" },
     { id: "qwen3.7-plus", name: "Qwen3.7-Plus", priceTier: "cheap" },
     { id: "deepseek-v4.1-flash-1017", name: "DeepSeek V4.1 Flash", priceTier: "cheap" },
