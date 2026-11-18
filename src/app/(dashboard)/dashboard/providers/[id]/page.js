@@ -26,6 +26,7 @@ import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
 import DumateQrModal from "../components/DumateQrModal";
 import LingxiCaptureModal from "../components/LingxiCaptureModal";
+import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -91,6 +92,7 @@ export default function ProviderDetailPage() {
   const [dumateQrConnectionId, setDumateQrConnectionId] = useState(null);
   const [showLingxiCaptureModal, setShowLingxiCaptureModal] = useState(false);
   const [lingxiCaptureConnectionId, setLingxiCaptureConnectionId] = useState(null);
+  const [showSessionPool, setShowSessionPool] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
@@ -2658,6 +2660,13 @@ export default function ProviderDetailPage() {
                 </div>
               )}
               {connectionsList}
+              {WEB_COOKIE_PROVIDERS[providerId] && (
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" icon="dns" variant="secondary" onClick={() => setShowSessionPool(true)}>
+                    {translate("会话池")}
+                  </Button>
+                </div>
+              )}
               {!isCompatible && (
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:flex">
                   {providerId === "iflow" && (
@@ -2932,6 +2941,7 @@ export default function ProviderDetailPage() {
           onClose={() => setShowIFlowCookieModal(false)}
         />
       )}
+      <SessionPoolModal isOpen={showSessionPool} onClose={() => setShowSessionPool(false)} providerId={providerId} siteId={providerId === "lingxi" ? "lingxi" : providerId === "dumate" ? "dumate" : providerId} />
       {providerId === "dumate" && showDumateQrModal && (
         <DumateQrModal
           isOpen
