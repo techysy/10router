@@ -37,6 +37,10 @@ function runGate({ inventory, knownFails = [], report }) {
       const stdout = execFileSync("node", ["verify-no-regression.mjs", resultsPath], {
         cwd: dir,
         encoding: "utf8",
+        // execFileSync 默认把子进程 stderr 透传给父进程——本文件故意驱动门
+        // 禁触发（假 REGRESSION ❌ 行），CI 日志里就成了真回归的假象。显式
+        // pipe 掉：失败详情仍经 e.stderr 进入断言，一行不丢。
+        stdio: ["ignore", "pipe", "pipe"],
       });
       return { fired: false, code: 0, output: stdout };
     } catch (e) {
