@@ -3,7 +3,7 @@ import { withCodexReviewModels } from "../models/helpers.js";
 // Codex CLI version the backend sees in the Version / User-Agent identity headers.
 // Single source: bump it here when the installed Codex CLI moves on.
 // 上游 0.155 起：低于此版本的请求会被 OpenAI 限流拒绝（v0.5.95, ca6e8407）。
-const CODEX_CLI_VERSION = "0.159.0";
+const CODEX_CLI_VERSION = "0.169.0";
 
 const GPT_6_LITE_THINKING_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
