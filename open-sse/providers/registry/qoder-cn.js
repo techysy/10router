@@ -44,6 +44,10 @@ export default {
     // "model_config not yet known"），注册表行与能力行随撤；历史用量在
     // 模型类型图按 lmodel → qwen 家族归并（usageRepo CODENAME_FAMILIES）。
     { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
+    // 2026-11-18 客户端截图（「用 Qoder 创造」模型选择器）：Qwen4-Max 正式版
+    // 上架（0.4x，New 标签）。id 待上游 live 目录确认，暂按命名惯例 qmodel_max；
+    // 倍率取客户端「消耗速度」列。
+    { id: "qmodel_max", name: "Qwen4-Max" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     // Added 2026-09-19: present in the live CN catalog (rate 0.1, no promo);
     // it was leaking into the page as a lone "custom" row via the fetch

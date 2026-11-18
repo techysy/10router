@@ -44,6 +44,8 @@ export default {
     // 不在这里写死 promoFreeUntil）。旧名 Qwen3.7-Max 作废；qmodel/Qwen3.7-Plus
     // 已从 live 目录消失（下线），保留静态行防老配置 404。
     { id: "qmodel_latest", name: "Qwen4-Max-Preview" },
+    // 2026-11-18: Qwen4-Max 正式版上架（客户端截图）。id 待 live 目录确认。
+    { id: "qmodel_max", name: "Qwen4-Max" },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     { id: "qfmodel", name: "Qwen3.8-Flash" },
     { id: "kmodel_latest", name: "Kimi-K3.1-Pro" },

@@ -420,6 +420,8 @@ const QODER_NAME_ALIASES = {
   // 旧名 alias（Qwen3.7-Max / QoDuck）按 dfmodel→DeepSeek-V4-Flash 的先例一并
   // 移除——别名键必须能在 registry 找到对应条目，留着会被 audit 判 dead row。
   "Qwen4-Max-Preview": "qmodel_latest",
+  // 2026-11-18 客户端截图：正式版上架（「用 Qoder 创造」模型选择器，0.4x）。
+  "Qwen4-Max": "qmodel_max",
   "Qwen3.7-Plus": "qmodel",
   "Qwen3.8-Flash": "qfmodel",
   "Kimi-K3.1-Pro": "kmodel_latest",
@@ -810,6 +812,7 @@ export const PROVIDER_CAPABILITIES = {
     "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
     "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
     "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max-Preview（QoDuck 转正，key 复用）
+    "qmodel_max":     { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max 正式版（2026-11-18）
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
@@ -831,6 +834,7 @@ export const PROVIDER_CAPABILITIES = {
     "jmodel":         { vision: true, reasoning: true, thinkingFormat: "step", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Step-5-Preview
     "mmodel":         { vision: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 }, // MiniMax-M3.1-Flash
     "qmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max-Preview（QoDuck 转正，key 复用）
+    "qmodel_max":     { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen4-Max 正式版（2026-11-18）
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "q37fmodel":      { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Flash
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
