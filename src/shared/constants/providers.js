@@ -37,6 +37,8 @@ function buildProviderEntry(r) {
     // Trial provider (体验) — hidden by default on the providers
     // page unless the "Show community providers" toggle is on.
     ...(r.community ? { community: true } : {}),
+    // 官方挂价但未计费(dots 等) — 卡片挂绿色「免费」徽章;恢复收费删旗标。
+    ...(r.freeTrial ? { freeTrial: true } : {}),
     ...(r.hasOAuth ? { hasOAuth: true } : {}),
     ...(r.authModes ? { authModes: r.authModes } : {}),
     // OAuth 机制在（刷新/传输/回调），但页面上不提供「OAuth 登录」按钮 ——

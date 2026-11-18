@@ -278,6 +278,14 @@ export const PROVIDER_PRICING = {
     "deepseek-chat": { input: 0.14, output: 0.28, cached: 0.0028, reasoning: 0.28 },
     "deepseek-reasoner": { input: 0.14, output: 0.28, cached: 0.0028, reasoning: 0.28 },
   },
+  // Dots (小红书):官方 docs 已挂定价表(dots3-note-prev USD/1M 输入 $0.14 /
+  // 输出 $0.28,2026-11-18 核验),但明示「当前免费体验,暂不收费」——计费按
+  // 实际 0 记(同 stepaudio-3-music-preview / ACE Music 的限时免费口径)。
+  // 恢复收费时改成 { input: 0.14, output: 0.28, cached: ?, reasoning: 0.28 }
+  // 并删掉 registry 的 freeTrial 旗标。
+  dots: {
+    "dots3-note-prev": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
+  },
   // GitHub Copilot (gh) — explicit override, matches canonical gpt-5.3-codex rate
   gh: {
     "gpt-5.3-codex": { input: 1.75, output: 14.00, cached: 0.175, reasoning: 14.00, cache_creation: 1.75 },

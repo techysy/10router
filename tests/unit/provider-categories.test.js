@@ -31,4 +31,12 @@ describe("provider categories", () => {
       expect(FREE_TIER_PROVIDERS[id].notice?.apiKeyUrl).toBeTruthy();
     }
   });
+
+  it("dots carries the freeTrial flag (docs list prices but billing is 0)", () => {
+    // 2026-11-18 官方定价页核验:$0.14/$0.28 已挂出但「暂不收费」。
+    // 卡片据此渲染绿色「免费」徽章;恢复收费时删 registry 的 freeTrial。
+    expect(FREE_TIER_PROVIDERS.dots.freeTrial).toBe(true);
+    // sensenova 的收费状态未逐页核验,不挂旗标。
+    expect(FREE_TIER_PROVIDERS.sensenova.freeTrial).toBeUndefined();
+  });
 });

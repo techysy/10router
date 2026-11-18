@@ -1239,6 +1239,11 @@ function ApiKeyProviderCard({
                     {translate("Trial")}
                   </Badge>
                 )}
+                {provider.freeTrial && (
+                  <Badge variant="success" size="sm" className="shrink-0">
+                    {translate("Free")}
+                  </Badge>
+                )}
               </h3>
               <div className="flex min-w-0 items-center gap-1.5 text-xs flex-wrap">
                 {allDisabled ? (
