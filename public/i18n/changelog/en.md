@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **Input placeholders now follow the UI language**: grey hint text in a few input boxes (sudo password, alias, chat input — 5 spots) stayed English after switching language; they now translate like everything else. (#154)
+
 - **Trae CN quota card expiry breakdown rebuilt**: credit packs are no longer merged by name into a few rows — they are now grouped by name + expiry date (same name & same day merge into one cell, soonest-expiring first). Fixes three problems: a merged row's "expires in 1d 22h" countdown only applied to its earliest sliver of credits, making the whole row look dead tomorrow; the monthly login grant was collapsed away so the "N resource packs" count disagreed with the rows shown; and the per-pack details just repeated the card body. The headline number and segmented bar stay the same; the details now list real expiry buckets.
 
 ## v1.8.1 (2026-11-19)

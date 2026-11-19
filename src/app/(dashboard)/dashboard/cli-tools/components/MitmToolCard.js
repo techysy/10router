@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Input, ModelSelectModal } from "@/shared/components";
 import { TOOL_HOSTS } from "@/shared/constants/mitmToolHosts";
+import { translate } from "@/i18n/runtime";
 import Image from "next/image";
 
 /**
@@ -282,7 +283,7 @@ export default function MitmToolCard({
             </div>
             <Input
               type="password"
-              placeholder="Enter sudo password"
+              placeholder={translate("Enter sudo password")}
               value={sudoPassword}
               onChange={(e) => setSudoPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleConfirmPassword(); }}

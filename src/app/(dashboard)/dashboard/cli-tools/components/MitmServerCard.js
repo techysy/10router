@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Input } from "@/shared/components";
+import { translate } from "@/i18n/runtime";
 
 const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
 
@@ -275,7 +276,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
             </div>
             <Input
               type="password"
-              placeholder="Enter sudo password"
+              placeholder={translate("Enter sudo password")}
               value={sudoPassword}
               onChange={(e) => setSudoPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleConfirmPassword(); }}

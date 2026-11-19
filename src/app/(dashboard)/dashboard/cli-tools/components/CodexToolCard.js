@@ -6,6 +6,7 @@ import Image from "next/image";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import BaseUrlSelect from "./BaseUrlSelect";
 import ApiKeySelect from "./ApiKeySelect";
+import { translate } from "@/i18n/runtime";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 import { getCurrentCodexProviderSettings, deriveProfileNameFromModel } from "./codexConfig";
 
@@ -483,7 +484,7 @@ model = "${effectiveSubagentModel}"
                       type="text"
                       value={aliasInput}
                       onChange={(e) => setAliasInput(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                      placeholder="Alias (e.g. claude)"
+                      placeholder={translate("Alias (e.g. claude)")}
                       className="w-full min-w-0 px-2.5 py-1.5 bg-surface rounded border border-border text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
                       onKeyDown={(e) => e.key === "Enter" && handleAddProfileWithAlias()}
                     />

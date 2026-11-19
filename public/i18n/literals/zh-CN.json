@@ -119,6 +119,7 @@
   "Manage your System One providers": "管理您的 System One 提供商",
   "Media models skipped (use Media Providers)": "媒体模型已跳过（请到媒体服务商使用）",
   "All models already exist, no new models added": "所有模型均已存在，未新增模型",
+  "Alias (e.g. claude)": "别名（如 claude）",
   "All models are responding normally.": "所有模型均响应正常。",
   "All providers": "所有提供商",
   "All rates are in": "所有费率均在",

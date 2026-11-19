@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, Button, Badge, Modal, Input, ModelSelectModal } from "@/shared/components";
+import { translate } from "@/i18n/runtime";
 import Image from "next/image";
 
 export default function AntigravityToolCard({
@@ -427,7 +428,7 @@ export default function AntigravityToolCard({
 
           <Input
             type="password"
-            placeholder="Enter sudo password"
+            placeholder={translate("Enter sudo password")}
             value={sudoPassword}
             onChange={(e) => setSudoPassword(e.target.value)}
             onKeyDown={(e) => {

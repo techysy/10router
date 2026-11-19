@@ -106,7 +106,11 @@ function processTextNode(node) {
   node._i18nApplied = translated;
 }
 
-// Process all text nodes in element
+// Process all text nodes in element.
+// NOTE: the walker is SHOW_TEXT only — attributes (placeholder/title/aria-label/…)
+// are NOT scanned. Any translatable attribute must call translate() explicitly in JSX
+// (e.g. placeholder={translate("Message AI")}); RuntimeI18nProvider's locale-tick
+// re-render will re-evaluate it on switch. See issue #154.
 function processElement(element) {
   if (!element) return;
   
