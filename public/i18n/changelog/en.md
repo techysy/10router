@@ -4,6 +4,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ## Unreleased (ships with next release)
 
+### ✨ New
+
+- **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
+
 ### 🐛 Fixed
 
 - **Claude Code tool card switches unified**: the "Filter naming" and "Exa MCP" switches were raw browser checkboxes; they now use the same slide toggle as the rest of the dashboard. Behavior unchanged. (#153)

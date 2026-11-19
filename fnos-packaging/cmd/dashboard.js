@@ -406,6 +406,29 @@ function restartMainDetached() {
   lifecycleAuthCache = { value: null, at: 0 };
 }
 
+// 重启面板自身（2026-11-19 用户报「面板没有重启能力」）：面板进程无法在
+// 自己体内 exec 替换，用 detached 子进程接力 —— 先响应 HTTP，再延时 kill
+// 自己，然后原样 re-exec 自己（node + dashboard.js + 同一份 panel.log/pid）。
+// 刻意不走 `cmd/main start`：cmd/main 会从 TRIM_* env 重推 APP_DIR/SRC_DIR，
+// 而面板自发的子进程 env 里未必有它们（sudo/手动 start 拉起的进程链），
+// 一旦落进 /var/apps 默认布局会 "server dir not found" 退出 → 面板杀了起不
+// 来。这里全部用本进程已解析正确的绝对路径（process.execPath/__dirname/
+// DATA_DIR 常量），零 env 依赖。1.5s 延时给当前 HTTP 响应留出窗口。
+function restartPanelDetached() {
+  const logFd = fs.openSync(PANEL_LOG, "a");
+  const myPid = process.pid;
+  const pidFile = path.join(DATA_DIR, "panel.pid");
+  const script =
+    'sleep 1.5; kill "' + myPid + '" 2>/dev/null; ' +
+    'for i in $(seq 1 20); do kill -0 "' + myPid + '" 2>/dev/null || break; sleep 0.5; done; ' +
+    'kill -9 "' + myPid + '" 2>/dev/null; ' +
+    'umask 077; nohup "' + process.execPath + '" "' + __filename + '" >> "' + PANEL_LOG + '" 2>&1 & echo $! > "' + pidFile + '"';
+  const child = spawn("bash", ["-c", script, "10r-panel-restart"], { detached: true, stdio: ["ignore", logFd, logFd] });
+  child.unref();
+  fs.closeSync(logFd);
+  plog("ops", "panel restart triggered (detached)", { key: "plogPanelRestart" });
+}
+
 // ── 更新流水线 ──
 // 状态机：null = 空闲；否则 { stage, trigger, from, to, startedAt, message }
 let currentUpdate = null;
@@ -971,10 +994,34 @@ async function handleRequest(req, res, urlObj, routeKey) {
       sendJson(res, 202, { started: true });
       return;
     }
+    if (req.method === "POST" && urlObj.pathname === "/api/panel/restart") {
+      // 先响应再自杀：前端靠轮询 /api/status 观察面板回来（uptime 归零）
+      sendJson(res, 202, { started: true });
+      restartPanelDetached();
+      return;
+    }
     if (req.method === "GET" && urlObj.pathname === "/api/panel-log") {
       const raw = tailLog(PANEL_LOG, Number(urlObj.searchParams.get("lines") || 50), urlObj.searchParams.get("filter") || "");
       const events = raw.lines.map(panelEventText).filter(Boolean);
       sendJson(res, 200, { events, truncated: raw.truncated });
+      return;
+    }
+    // 主应用日志查看（dsh 同款模式：文件/行数/日期/grep 四参 + 可用日期列表）。
+    // file=app（当日滚动文件）| stdout（nohup 全量）| install；date 仅对 app 有意义。
+    if (req.method === "GET" && urlObj.pathname === "/api/logs") {
+      const f = urlObj.searchParams.get("file") || "stdout";
+      const n = Math.min(Number(urlObj.searchParams.get("lines")) || 300, 2000);
+      const grep = (urlObj.searchParams.get("grep") || "").toLowerCase().slice(0, 64);
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(urlObj.searchParams.get("date") || "") ? urlObj.searchParams.get("date") : "";
+      let file;
+      if (f === "stdout") file = path.join(DATA_DIR, "10router.log");
+      else if (f === "install") file = path.join(DATA_DIR, "install.log");
+      // 默认当日：app-*.log 按本地日滚动，日期用本地时钟拼，不能用 UTC ISO
+      else if (f === "app") file = path.join(DATA_DIR, "logs", `app-${date || lib.dateKey(Date.now())}.log`);
+      else { sendJson(res, 400, { ok: false, err: "bad file" }); return; }
+      let text = tailText(file, n);
+      if (grep) text = text.split("\n").filter((l) => l.toLowerCase().includes(grep)).join("\n");
+      sendJson(res, 200, { ok: true, text, dates: f === "app" ? listAppLogDates() : [] });
       return;
     }
     // 「重新检测」授权（recheckAuth 按钮的落点）：既有前端按钮调用的
@@ -1079,6 +1126,38 @@ function tailLog(file, lines, filter) {
   let picked = all.slice(-lines);
   if (filter) picked = picked.filter((l) => l.includes(filter));
   return { lines: picked, truncated: fileLargerThanWindow };
+}
+
+// 主应用日志文本尾部读取（/api/logs）：同 tailLog 的 2MB 窗口纪律，
+// 但返回整块文本（前端按行渲染着色，与 dsh 面板一致）。stdout 日志
+// （10router.log）跑几个月能上百 MB，绝不整读。
+function tailText(file, lines) {
+  try {
+    const stat = fs.statSync(file);
+    const windowBytes = Math.min(stat.size, 2 * 1024 * 1024);
+    const fd = fs.openSync(file, "r");
+    const buf = Buffer.alloc(windowBytes);
+    fs.readSync(fd, buf, 0, windowBytes, stat.size - windowBytes);
+    fs.closeSync(fd);
+    return buf.toString("utf8").split("\n").filter((l) => l.length > 0).slice(-lines).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+// 可选日期 = logs/app-YYYY-MM-DD.log 的文件名日期（滚动日志一天一文件，
+// 目录枚举即得 —— 不用像 dsh 那样扫内容）。倒序去重，最多 30 天。
+function listAppLogDates() {
+  try {
+    return fs.readdirSync(path.join(DATA_DIR, "logs"))
+      .map((f) => (f.match(/^app-(\d{4}-\d{2}-\d{2})\.log$/) || [])[1])
+      .filter(Boolean)
+      .sort()
+      .reverse()
+      .slice(0, 30);
+  } catch {
+    return [];
+  }
 }
 
 // sudo -n -l：非交互，未授权时直接失败。折行合并后提取 NOPASSWD 命令。
@@ -1201,6 +1280,9 @@ function renderUi() {
   .logitem .ls { flex-shrink:0; font-weight:600; }
   .logitem .ls.ok { color:var(--ok); } .logitem .ls.warn { color:var(--warn); } .logitem .ls.bad { color:var(--bad); } .logitem .ls.mut { color:var(--mut); }
   .logitem .lx { word-break:break-all; }
+  /* 原始日志行（主应用/按天文件，dsh 同款着色）：等宽小字,错误红/警告黄 */
+  .lograw .rl { padding:1px 10px; font-family:ui-monospace,Consolas,monospace; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-all; }
+  .lograw .rl.errl { color:var(--bad); } .lograw .rl.warnl { color:var(--warn); } .lograw .rl.diml { color:var(--mut); }
 </style></head><body>
 <script>
 /* 首帧主题解析（防闪烁）：localStorage 手动选择 > 系统偏好。 */
@@ -1284,16 +1366,29 @@ function renderUi() {
   <div class="card"><h2 data-i18n="opsCard"></h2>
     <div class="row">
       <button class="ghost" onclick="restartMain()" data-i18n="restartBtn">重启主应用</button>
+      <button class="ghost" onclick="restartPanel()" data-i18n="restartPanelBtn">重启面板</button>
     </div>
     <div id="authBox" style="margin-top:10px"></div>
   </div>
   <div class="card" style="margin-top:16px"><h2 data-i18n="logsCard"></h2>
     <div class="mut" style="margin-bottom:8px" data-i18n="logsHint"></div>
-    <div id="logBox" class="loglist"><span class="mut" data-i18n="loading">加载中…</span></div>
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-bottom:8px;gap:8px">
+      <select id="logFile" style="flex:1" onchange="onLogFileChange()">
+        <option value="panel" data-i18n="logFilePanel">面板事件</option>
+        <option value="stdout" data-i18n="logFileStdout">主应用日志</option>
+        <option value="app" data-i18n="logFileApp">按天调用日志</option>
+      </select>
+      <select id="logDate" style="display:none;flex:1" onchange="loadLogs()"></select>
+      <select id="logLines" onchange="loadLogs()">
+        <option value="50">50</option><option value="200" selected>200</option>
+        <option value="500">500</option><option value="1000">1000</option><option value="2000">2000</option>
+      </select>
+    </div>
+    <div class="row" style="margin-bottom:8px">
       <input id="logFilter" data-i18n-ph="logPh" placeholder="日志关键字过滤" style="flex:1">
       <button class="ghost" onclick="loadLogs()" data-i18n="refresh">刷新</button>
     </div>
+    <div id="logBox" class="loglist"><span class="mut" data-i18n="loading">加载中…</span></div>
   </div>
 </div>
 
@@ -1331,12 +1426,15 @@ const I18N = {
     quickUpdate: "快速更新", checkUpdate: "检查更新", btnUpdate: "一键更新到 latest",
     uploadCard: "上传安装（离线通道）", pickFile: "选择 tgz", noFile: "未选择文件",
     uploadBtn: "上传安装", uploadHint: "NAS 拉不到外网时：本机浏览器上传 tgz → 魔数校验 → 安装并重启。",
-    opsCard: "服务操作", restartBtn: "重启主应用",
-    logsCard: "面板日志", logPh: "日志关键字过滤", refresh: "刷新",
-    logsHint: "仅记录面板自身事件：更新检查/安装/回滚、定时调度、重启与授权。主应用的调用日志请看主面板。",
+    opsCard: "服务操作", restartBtn: "重启主应用", restartPanelBtn: "重启面板",
+    confirmRestartPanelT: "重启面板？", confirmRestartPanelM: "只重启管理面板自身（更新/调度进程），主应用不受影响。页面会短暂打不开，约 10 秒后刷新即可。",
+    logsCard: "日志", logPh: "日志关键字过滤", refresh: "刷新",
+    logFilePanel: "面板事件", logFileStdout: "主应用日志", logFileApp: "按天调用日志", logAllDates: "全部日期",
+    logsHint: "面板事件 = 更新/调度/重启记录；主应用日志 = 服务启动与请求流水（stdout 全量）；按天调用日志 = logs/app-*.log 当日滚动文件。",
     plogBoot: "面板启动", plogCrash: "面板崩溃", plogHttp: "接口错误", plogOps: "服务操作",
     plogSchedule: "定时调度", plogUpdate: "更新", plogOther: "事件", logEmpty: "暂无事件",
     plogAuthFail: "sudo 未放行，重启将回退内部模式", plogRestart: "主应用重启已触发",
+    plogPanelRestart: "面板重启已触发",
     plogRollback: "回滚：恢复 {0}", plogRollbackDone: "回滚完成",
     plogSchedTrigger: "到点触发（{0}，第 {1}/{2} 次尝试）", plogSchedOk: "自动更新成功",
     plogSchedRetryAt: "已排定重试：{0}",
@@ -1360,7 +1458,7 @@ const I18N = {
     drainTimeout: "等待超时仍有 {0} 个活跃请求，按你的指令继续",
     restarting: "重启主应用", healthCheck: "等待健康检查",
     upToDateWith: "已是最新（{0}）", updatedTo: "已更新 {0} → {1}", installedTo: "已安装 {0} → {1}",
-    restartSent: "重启指令已发送…", pickFirst: "先选择 tgz 文件", uploading: "上传中… 正在写入 NAS",
+    restartSent: "重启指令已发送…", panelRestartSent: "面板重启已触发，约 10 秒后自动刷新…", pickFirst: "先选择 tgz 文件", uploading: "上传中… 正在写入 NAS",
     installSent: "安装指令已下发，约 20 秒后刷新观察", checking: "检查中…",
     confirmRestartT: "确认重启", confirmRestartM: "将通过应用生命周期（appcenter-cli stop+start）重启主应用，约 1 分钟内恢复。未授权时回退内部重启。",
     tokenT: "需要面板令牌", tokenM: "服务端设置了 PANEL_TOKEN，输入后本机记住。",
@@ -1385,12 +1483,15 @@ const I18N = {
     quickUpdate: "Quick update", checkUpdate: "Check update", btnUpdate: "Update to latest",
     uploadCard: "Upload install (offline)", pickFile: "Pick tgz", noFile: "No file selected",
     uploadBtn: "Upload & install", uploadHint: "When the NAS cannot reach the internet: upload the tgz from your browser → magic check → install & restart.",
-    opsCard: "Service ops", restartBtn: "Restart main app",
-    logsCard: "Panel logs", logPh: "Filter logs by keyword", refresh: "Refresh",
-    logsHint: "Only panel-own events: update check/install/rollback, scheduler, restarts and authorization. For request/call logs, use the main dashboard.",
+    opsCard: "Service ops", restartBtn: "Restart main app", restartPanelBtn: "Restart panel",
+    confirmRestartPanelT: "Restart the panel?", confirmRestartPanelM: "Restarts the management panel process itself (updates/scheduler only) — the main app is untouched. The page will be unreachable for a few seconds; refresh in ~10s.",
+    logsCard: "Logs", logPh: "Filter logs by keyword", refresh: "Refresh",
+    logFilePanel: "Panel events", logFileStdout: "Main app log", logFileApp: "Daily request log", logAllDates: "All dates",
+    logsHint: "Panel events = update/scheduler/restart records. Main app log = full stdout (boot + request flow). Daily request log = today's rolling logs/app-*.log.",
     plogBoot: "Panel boot", plogCrash: "Panel crash", plogHttp: "API error", plogOps: "Service ops",
     plogSchedule: "Scheduler", plogUpdate: "Update", plogOther: "Event", logEmpty: "No events yet",
     plogAuthFail: "sudo not granted; restart falls back to internal mode", plogRestart: "Main app restart triggered",
+    plogPanelRestart: "Panel restart triggered",
     plogRollback: "Rollback: restoring {0}", plogRollbackDone: "Rollback complete",
     plogSchedTrigger: "Scheduled trigger ({0}, attempt {1}/{2})", plogSchedOk: "Auto update succeeded",
     plogSchedRetryAt: "Retry scheduled: {0}",
@@ -1414,7 +1515,7 @@ const I18N = {
     drainTimeout: "Still {0} active request(s) after the window — proceeding as requested",
     restarting: "Restarting main app", healthCheck: "Waiting for health check",
     upToDateWith: "Already latest ({0})", updatedTo: "Updated {0} → {1}", installedTo: "Installed {0} → {1}",
-    restartSent: "Restart command sent…", pickFirst: "Pick a tgz file first", uploading: "Uploading… writing to NAS",
+    restartSent: "Restart command sent…", panelRestartSent: "Panel restart triggered — auto refresh in ~10s…", pickFirst: "Pick a tgz file first", uploading: "Uploading… writing to NAS",
     installSent: "Install dispatched — refresh in ~20s", checking: "Checking…",
     confirmRestartT: "Confirm restart", confirmRestartM: "Restarts the main app via the app lifecycle (appcenter-cli stop+start); back within ~1 min. Falls back to internal restart when unauthorized.",
     tokenT: "Panel token required", tokenM: "The server has PANEL_TOKEN set; enter it once and it stays on this device.",
@@ -1671,38 +1772,79 @@ async function restartMain() {
   try { await jpost("/api/main/restart"); } catch (e) { toast(t("recheckFailed"), "bad"); }
   refresh();
 }
+async function restartPanel() {
+  const ok = await localConfirm(t("confirmRestartPanelT"), t("confirmRestartPanelM"), true);
+  if (!ok) return;
+  try { await jpost("/api/panel/restart"); } catch (e) { toast(t("recheckFailed"), "bad"); }
+  toast(t("panelRestartSent"));
+  // 面板几秒后自杀再被 cmd/main start 拉回；12s 后自动刷新页面重连
+  setTimeout(() => location.reload(), 12000);
+}
 const LOG_STAGE_T = { boot: "plogBoot", crash: "plogCrash", http: "plogHttp", ops: "plogOps", schedule: "plogSchedule", update: "plogUpdate" };
 const LOG_STAGE_CLASS = { boot: "mut", crash: "bad", http: "bad", ops: "ok", schedule: "warn", update: "ok" };
+let logDates = [];
+function escH(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function onLogFileChange() {
+  $("logDate").style.display = $("logFile").value === "app" ? "" : "none";
+  if ($("logFile").value === "app") { logDates = []; renderDateOptions(); }
+  loadLogs();
+}
+function renderDateOptions() {
+  const sel = $("logDate");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">' + t("logAllDates") + "</option>" +
+    logDates.map((d) => '<option value="' + d + '">' + d + "</option>").join("");
+  if (prev && logDates.includes(prev)) sel.value = prev;
+}
 async function loadLogs() {
-  const f = $("logFilter").value;
-  let r;
+  const box = $("logBox");
+  if (!box) return;
+  const src = $("logFile") ? $("logFile").value : "panel";
+  const f = $("logFilter") ? $("logFilter").value : "";
+  // 用户上翻查看历史时不打断滚动位置（dsh 同款：仅贴底才自动跟到底）
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   try {
-    r = await jget("/api/panel-log?lines=50" + (f ? "&filter=" + encodeURIComponent(f) : ""));
+    if (src === "panel") {
+      const r = await jget("/api/panel-log?lines=" + ($("logLines") ? $("logLines").value : 50) + (f ? "&filter=" + encodeURIComponent(f) : ""));
+      if (!r || !r.events || !r.events.length) { box.className = "loglist"; box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>"; return; }
+      box.className = "loglist";
+      box.innerHTML = r.events.map((ev) => {
+        const at = new Date(ev.at).toLocaleTimeString();
+        const cls = LOG_STAGE_CLASS[ev.stage] || "mut";
+        // text 可能是 {key,args} 语义对（tMsg 渲染）或纯字符串；update 行的
+        // "checking: xxx" 前缀是阶段枚举 → stage_xxx 词典；FAILED/rollback 保留原文。
+        let text = tMsg(ev.text);
+        const sm = typeof text === "string" && ev.stage === "update" ? text.match(/^(\w+)(?::\s*(.*))?$/) : null;
+        if (sm && sm[1] !== "FAILED" && sm[1] !== "rollback" && I18N[LANG]["stage_" + sm[1]] !== undefined) {
+          text = sm[2] ? t("stage_" + sm[1]) + " · " + sm[2] : t("stage_" + sm[1]);
+        }
+        // plogSchedTrigger 的 args 枚举词（schedWindow/schedRetry）翻成当前语言
+        if (typeof text === "string" && (text.includes("schedWindow") || text.includes("schedRetry"))) {
+          text = text.replace(/\b(schedWindow|schedRetry)\b/g, (w) => t(w));
+        }
+        return '<div class="logitem"><span class="lt">' + at + '</span><span class="ls ' + cls + '">' + t(LOG_STAGE_T[ev.stage] || "plogOther") + '</span><span class="lx">' + escH(text) + "</span></div>";
+      }).join("") + (r.truncated ? '<div class="mut" style="padding:4px 10px">…</div>' : "");
+      return;
+    }
+    // 主应用日志 / 按天调用日志（dsh 同款：原始行 + 着色 + 日期下拉）
+    const n = $("logLines") ? $("logLines").value : 300;
+    const dt = src === "app" && $("logDate") ? $("logDate").value : "";
+    const r = await jget("/api/logs?file=" + encodeURIComponent(src) + "&lines=" + n + (f ? "&grep=" + encodeURIComponent(f) : "") + (dt ? "&date=" + encodeURIComponent(dt) : ""));
+    if (src === "app" && Array.isArray(r.dates) && r.dates.join("|") !== logDates.join("|")) { logDates = r.dates; renderDateOptions(); }
+    const lines = (r.text || "").split("\n");
+    box.className = "loglist lograw";
+    box.innerHTML = lines.map((l) => {
+      if (!l.trim()) return '<span class="rl diml"> </span>';
+      const cls = /error|fail|exception|eaddrinuse|eacces|\b429\b|\b5\d\d\b/i.test(l) ? "errl"
+        : /\bwarn|🟠|🟡/i.test(l) ? "warnl" : "";
+      return '<span class="rl ' + cls + '">' + escH(l) + "</span>";
+    }).join("\n") || '<span class="mut">' + t("logEmpty") + "</span>";
+    if (atBottom) box.scrollTop = box.scrollHeight;
   } catch (e) {
     // 面板重启中 / 网络抖动：日志框显示占位而不是静默报错（控制台 unhandled rejection）
-    const box = $("logBox");
-    if (box) box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>";
-    return;
+    box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>";
   }
-  const box = $("logBox");
-  if (!r || !r.events || !r.events.length) { box.innerHTML = '<span class="mut">' + t("logEmpty") + "</span>"; return; }
-  box.innerHTML = r.events.map((ev) => {
-    const at = new Date(ev.at).toLocaleTimeString();
-    const cls = LOG_STAGE_CLASS[ev.stage] || "mut";
-    // text 可能是 {key,args} 语义对（tMsg 渲染）或纯字符串；update 行的
-    // "checking: xxx" 前缀是阶段枚举 → stage_xxx 词典；FAILED/rollback 保留原文。
-    let text = tMsg(ev.text);
-    const sm = typeof text === "string" && ev.stage === "update" ? text.match(/^(\w+)(?::\s*(.*))?$/) : null;
-    if (sm && sm[1] !== "FAILED" && sm[1] !== "rollback" && I18N[LANG]["stage_" + sm[1]] !== undefined) {
-      text = sm[2] ? t("stage_" + sm[1]) + " · " + sm[2] : t("stage_" + sm[1]);
-    }
-    // plogSchedTrigger 的 args 枚举词（schedWindow/schedRetry）翻成当前语言
-    if (typeof text === "string" && (text.includes("schedWindow") || text.includes("schedRetry"))) {
-      text = text.replace(/\b(schedWindow|schedRetry)\b/g, (w) => t(w));
-    }
-    const esc = String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    return '<div class="logitem"><span class="lt">' + at + '</span><span class="ls ' + cls + '">' + t(LOG_STAGE_T[ev.stage] || "plogOther") + '</span><span class="lx">' + esc + "</span></div>";
-  }).join("") + (r.truncated ? '<div class="mut" style="padding:4px 10px">…</div>' : "");
 }
 applyLang(); loadLogs(); refresh(); setInterval(refresh, 15 * 1000);
 </script></body></html>`;

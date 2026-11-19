@@ -4,6 +4,10 @@
 
 ## Unreleased（随 v1.8.2 发布）
 
+### ✨ 新增
+
+- **fnOS 管理面板：重启面板自身 + dsh 同款日志查看器**（2026-11-19 用户报「面板没有重启的能力，日志也没有对齐 dsh 一样的模式」）：① 运维卡新增「重启面板」按钮——面板进程无法在自己体内 exec 替换，detached 子进程接力：kill 自己（等 SIGTERM 优雅退场，最多 2s 强杀兜底）→ 用 `process.execPath`/`__filename` 原样 re-exec 自己并重写 panel.pid。刻意不走 `cmd/main start`：那会从 TRIM_* env 重推 APP_DIR/SRC_DIR，面板自发子进程 env 里未必有它们，一旦落进 /var/apps 默认布局就 "server dir not found" 退出——面板杀了起不来。全程零 env 依赖。② 日志卡从「仅 panel.log 50 行」升级为 dsh 同款三源查看器：面板事件 / 主应用日志（`10router.log` nohup 全量）/ 按天调用日志（`logs/app-YYYY-MM-DD.log` 滚动文件），带行数选择（50-2000，2MB 尾窗纪律不变）、关键字过滤、日期下拉（目录枚举 app-*.log 即得，比 dsh 的内容扫描便宜）、错误红/警告黄着色、贴底自动跟随滚动（上翻历史不打断）。`/api/logs?file=…&lines=…&date=…&grep=…` 与 dsh 面板参数面一致。面板双 cmd 路径（@appcenter + /var/apps）都要同步替换才生效。**注**：面板进程本身不随 server 热替换重启——cmd/ 层独立于 server/ 产物，部署脚本需带 cmd 段。
+
 ### 🐛 修复
 
 - **Claude Code 工具卡两个开关改用统一 Toggle（#153）**：Filter naming 与 Exa MCP 两处是原生 `<input type="checkbox">`，与仪表盘全线 ~50 处 `Toggle` 组件风格不一（accent-primary 小方块 vs 滑动开关）。换 `<Toggle size="sm">`：`handleCcFilterNamingToggle` 从事件签名 `(e) => e.target.checked` 改布尔签名 `(checked)`（Toggle 的 onChange 直接给布尔），外层 `<label>` 改 `<div>`（Toggle 是 button，嵌 label 会双触发）。文字与 Tooltip 原样保留。issue 的两处行号属实；其「17 处用 Toggle」低估了实际规模（实为 ~50 处），「token-saver 卡片已全部用 Toggle」不实（TokenSaverClient 自身还有 2 个原生 checkbox，另列待办）。CoworkToolCard 的 3 个 checkbox 是多选插件清单，不属本 issue 的「开关」语义，不动。
