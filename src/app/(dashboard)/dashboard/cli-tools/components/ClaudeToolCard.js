@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import { Card, Button, ModelSelectModal, ManualConfigModal, Tooltip } from "@/shared/components";
+import { Card, Button, ModelSelectModal, ManualConfigModal, Tooltip, Toggle } from "@/shared/components";
 import Image from "next/image";
 import BaseUrlSelect from "./BaseUrlSelect";
 import ApiKeySelect from "./ApiKeySelect";
@@ -108,8 +108,7 @@ export default function ClaudeToolCard({
     }).catch(() => {});
   }, []);
 
-  const handleCcFilterNamingToggle = async (e) => {
-    const value = e.target.checked;
+  const handleCcFilterNamingToggle = async (value) => {
     setCcFilterNaming(value);
     await fetch("/api/settings", {
       method: "PATCH",
@@ -583,26 +582,26 @@ export default function ClaudeToolCard({
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Filter naming</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input type="checkbox" checked={ccFilterNaming} onChange={handleCcFilterNamingToggle} className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+                  <div className="flex items-center gap-1.5 select-none">
+                    <Toggle size="sm" checked={ccFilterNaming} onChange={handleCcFilterNamingToggle} />
                     <span className="text-xs text-text-muted">Filter naming requests</span>
                     <Tooltip text="Intercepts Claude Code's topic-naming requests and returns a fake response locally, saving API tokens.">
                       <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
                     </Tooltip>
-                  </label>
+                  </div>
                 </div>
 
                 {/* Exa MCP — ~/.claude.json mcpServers (not settings.json) */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Web Search</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input type="checkbox" checked={exaMcpEnabled} onChange={(e) => setExaMcpEnabled(e.target.checked)} className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+                  <div className="flex items-center gap-1.5 select-none">
+                    <Toggle size="sm" checked={exaMcpEnabled} onChange={setExaMcpEnabled} />
                     <span className="text-xs text-text-muted">Exa MCP</span>
                     <Tooltip text="Injects Exa MCP into ~/.claude.json so non-Claude models gain web search. Restart Claude Code after Apply.">
                       <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
                     </Tooltip>
-                  </label>
+                  </div>
                 </div>
               </div>
 
