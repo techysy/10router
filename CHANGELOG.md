@@ -2,6 +2,12 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased（随 v1.8.2 发布）
+
+### 🐛 修复
+
+- **Trae CN 额度卡到期桶重做**（2026-11-19 用户报「trae 的额度卡也有问题」）：旧形态把 `user_entitlement_pack_list` 按名称归并、到期取最早，三宗实锤问题——①归并行「1d 22h后过期」的倒计时只对桶内最早那一小撮包成立，整行余额读起来像明天全死（实际多个到期日被压成一行）；②「每月登录积分」带 `giftPack` 被折叠出正文，meta 说「4 个资源包」正文只列 3 行，像丢数据；③逐包明细展开后与正文完全重复，零增量信息。改为「名称 + 到期日」分桶（Lingxi/MiniMax 账本到期桶先例）：汇总行「积分」带 `summarizesDetail`（大数 + 分段条分母，总额仍优先信服务端 `usage_summary`），桶行 `detailOnly` 进逐包明细——同名同日并格（`· N 包`）、到期升序 FIFO、超 19 格并进「更远到期 · N 包」、无到期日包排最后且无 countdown。行名刻意避开「余额」（STORED_VALUE_RE 会退化成无分母单值卡，丢掉 X/Y 总额）与「资源包」（hasCollectionRow 特殊逻辑）。`utils.js` trae 分支直通 `detailOnly`/`summarizesDetail`/`expiringBatch`/`unit` 旗标。`trae-usage.test.js` 8 例全部重写（分桶形状 / 并格 / 溢出 / 排序 / 秒毫秒戳 / parseQuotaData 直通 / 逐包明细门），quota-card 相邻 155 例 + trae 全线 46 例无回归。
+
 ## v1.8.1 (2026-11-19)
 
 ### ✨ 新增

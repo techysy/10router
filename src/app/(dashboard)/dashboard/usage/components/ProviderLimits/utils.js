@@ -901,24 +901,33 @@ export function parseQuotaData(provider, data) {
 
       case "trae":
       case "trae-cn":
-        // Trae CN 积分资源包（用户福利 / 邀请好友奖励 / 每日签到 / 每月登录积分 /
-        // 通用积分 / Work 积分）— open-sse/services/usage/trae.js 已按池语义归并：
-        // recurring 全 false（资源包，非滚动窗口），「每月登录积分」带 giftPack。
-        // displayRemaining: 积分包按剩余/总量向下计数（新包 = "500 / 500"），
-        // 与 CodeBuddy 的 bonus pack 同一呈现；expiresAt → resetAt 供倒计时与
-        // expiryExtractor 使用（default 分支只认 resetAt，会把它丢掉）。
+        // Trae CN 积分到期桶（用户定版 2026-11-19，Lingxi/MiniMax 账本先例）——
+        // open-sse/services/usage/trae.js 按「名称 + 到期日」聚桶：「积分」
+        // 汇总行（summarizesDetail，大数字与分段条分母）+ 逐桶
+        // detailOnly 明细行（进逐包明细，倒计时只对桶内包成立）。旧形态按名称
+        // 归并的三宗罪（meta 计数与正文行数不符、归并行倒计时撒谎、明细与正文
+        // 重复）全部由桶形态消解。旗标必须逐个直通——丢了 detailOnly/
+        // summarizesDetail，卡片会把桶当正文行双渲染、明细门失效。
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
+            const rawReset = quota.resetAt ?? quota.expiresAt;
             normalizedQuotas.push({
               name,
               used: quota.used || 0,
               total: quota.total || 0,
-              resetAt: quota.expiresAt && new Date(quota.expiresAt).getFullYear() <= 2099
-                ? quota.expiresAt
+              remaining: quota.remaining,
+              resetAt: rawReset && new Date(rawReset).getFullYear() <= 2099
+                ? rawReset
                 : null,
               recurring: quota.recurring === true,
               giftPack: quota.giftPack === true,
               displayRemaining: true,
+              unit: quota.unit,
+              detailOnly: quota.detailOnly === true,
+              summarizesDetail: quota.summarizesDetail === true,
+              isCreditBalance: quota.isCreditBalance === true,
+              // 头部「最早批次余额 · Xd后到期」通道（meoo/lingxi 同款），不直通就消失
+              ...(quota.expiringBatch ? { expiringBatch: quota.expiringBatch } : {}),
             });
           });
         }

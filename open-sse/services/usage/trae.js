@@ -7,8 +7,12 @@
 //     → 套餐名（Free / Lite / Pro）与到期时间；查不到不影响额度
 // 鉴权 `Authorization: Cloud-IDE-JWT <jwt>`；头组合与 traeCheckin 同一套（CD 实测）。
 //
-// 每天签到发 150 分/7 天有效的包，同名包可堆几十个 —— 按 group_name/display_desc
-// 归并（到期取最早），总额优先信服务端自报的 usage_summary。
+// 每天签到发 150 分/7 天有效的包，同名包可堆几十个 —— 按「名称 + 到期日」分桶
+// （Lingxi/MiniMax 账本到期桶先例），总额优先信服务端自报的 usage_summary。
+// 旧形态按名称归并、到期取最早，有实锤问题：归并行的倒计时只对最早那一小撮
+// 包成立（用户报「1d 22h后过期」实际只有部分包明天死）、且「每月登录积分」
+// 带 giftPack 被折叠出正文（meta 说 4 个包正文只列 3 行）、逐包明细展开后
+// 与正文完全重复。到期桶形态下每行倒计时都是真话。
 //
 // 站点：与签到一样只在国内站有产品面（intl 连接不进这个 handler —— usage 路由
 // 的 provider 分发按 trae-cn 命中；trae 条目 site=cn 的存量连接也在此命中）。
@@ -65,6 +69,93 @@ const iso = (v) => {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+/** 卡片明细行上限（余额行之外），超出并进「更远到期」（Lingxi 同款）。 */
+export const MAX_BUCKETS = 19;
+
+/** 到期日键 {YYYY-MM-DD}；无到期日 ""（排最后，无 countdown）。 */
+function dayKeyOf(expiresAt) {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(expiresAt || ""));
+  return m ? m[1] : "";
+}
+
+/**
+ * 原始权益包 → {name, total, used, expiresAt, packs} 列表（逐包、未分桶）。
+ * product_id 209 = Work 积分，其余是通用积分。credits_limit ≤ 0 的包不出行。
+ */
+export function normalizeTraePacks(packs = []) {
+  const out = [];
+  for (const pack of packs) {
+    const base = pack?.entitlement_base_info || {};
+    const limit = Number(base.quota?.credits_limit);
+    if (!Number.isFinite(limit) || limit <= 0) continue;
+    const spent = Number(pack?.usage?.credits_amount) || 0;
+    const isWork = Number(base.product_id) === 209;
+    const name = pack?.group_name || pack?.display_desc || (isWork ? "Work 积分" : "通用积分");
+    out.push({ name, total: limit, used: spent, expiresAt: iso(pack?.expire_time ?? base.end_time), packs: 1 });
+  }
+  return out;
+}
+
+/**
+ * 按「名称 + 到期日」聚桶（Lingxi/MiniMax 账本到期桶先例）：同名同日并格，
+ * 先到期先显示（FIFO 消耗语义），无到期日排最后。超过 MAX_BUCKETS 的远期桶
+ * 并入「更远到期 · N 包」一格（丢名称保到期日——到期日才是有效信息）。
+ */
+export function bucketTraePacks(packs = [], maxBuckets = MAX_BUCKETS) {
+  const buckets = new Map();
+  for (const p of packs) {
+    const key = `${p.name}|${dayKeyOf(p.expiresAt)}`;
+    if (!buckets.has(key)) {
+      buckets.set(key, { name: p.name, day: dayKeyOf(p.expiresAt), expireAt: p.expiresAt, total: 0, used: 0, packs: 0 });
+    }
+    const b = buckets.get(key);
+    b.total += p.total;
+    b.used += p.used;
+    b.packs += 1;
+    if (p.expiresAt && (!b.expireAt || p.expiresAt < b.expireAt)) b.expireAt = p.expiresAt;
+  }
+  const sorted = [...buckets.values()].sort((a, b) => {
+    if (!a.day) return 1;
+    if (!b.day) return -1;
+    if (a.day !== b.day) return a.day < b.day ? -1 : 1;
+    return String(a.name).localeCompare(String(b.name));
+  });
+
+  const rows = sorted.slice(0, maxBuckets);
+  const overflow = sorted.slice(maxBuckets);
+  if (overflow.length) {
+    const tail = { name: "__overflow__", day: "", expireAt: null, total: 0, used: 0, packs: 0 };
+    for (const b of overflow) {
+      tail.total += b.total;
+      tail.used += b.used;
+      tail.packs += b.packs;
+      if (b.expireAt && (!tail.expireAt || b.expireAt > tail.expireAt)) tail.expireAt = b.expireAt;
+    }
+    rows.push(tail);
+  }
+  return rows;
+}
+
+/** 桶 → detailOnly 明细行。recurring:false = 一次性到期包（非滚动窗口）。 */
+function bucketRow(b) {
+  const short = b.day ? b.day.slice(5) : "";
+  const name =
+    b.name === "__overflow__"
+      ? `更远到期 · ${b.packs} 包`
+      : `${b.name}${short ? ` · ${short}` : ""}${b.packs > 1 ? ` · ${b.packs} 包` : ""}`;
+  return {
+    name,
+    used: round2(b.used),
+    total: round2(b.total),
+    remaining: round2(Math.max(b.total - b.used, 0)),
+    resetAt: b.expireAt || undefined,
+    displayRemaining: true,
+    detailOnly: true,
+    recurring: false,
+    unit: "积分",
+  };
+}
+
 async function traePost(url, accessToken, body, proxyOptions) {
   const res = await proxyAwareFetch(url, {
     method: "POST",
@@ -106,45 +197,15 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
     failed = err;
   }
 
-  // 每天签到发 150 分/7 天有效期的包，同名包能堆到几十个；按名称归并（到期取最早）。
-  const quotas = {};
-  let total = 0;
-  let used = 0;
-  for (const pack of packs) {
-    const base = pack.entitlement_base_info || {};
-    const limit = Number(base.quota?.credits_limit);
-    if (!Number.isFinite(limit) || limit <= 0) continue;
-    const spent = Number(pack.usage?.credits_amount) || 0;
-    // product_id 209 = Work 积分，其余是通用积分
-    const isWork = Number(base.product_id) === 209;
-    const name = pack.group_name || pack.display_desc || (isWork ? "Work 积分" : "通用积分");
-    const expiresAt = iso(pack.expire_time ?? base.end_time);
-    const prev = quotas[name];
-    if (prev) {
-      prev.total += limit;
-      prev.used += spent;
-      if (expiresAt && (!prev.expiresAt || expiresAt < prev.expiresAt)) prev.expiresAt = expiresAt;
-    } else {
-      // 全部行都是「积分资源包」而非滚动窗口：签到包 7 天过期、邀请奖励领完即止、
-      // 每月登录积分按月发放。recurring:false 让 QuotaPackBar 把它们聚成一个
-      // 积分池（大数总余额 + 分段条），而不是渲染成四条独立满条。
-      // 「每月登录积分」名字含「月」会被 RECURRING_NAME_RE 误判为订阅窗口 →
-      // 标 giftPack:true（CodeBuddy Monthly 同语义：月度发放的资源包，进池、
-      // 不单独成行）。
-      quotas[name] = {
-        name, total: limit, used: spent, expiresAt,
-        recurring: false,
-        unit: "积分",
-        ...(name === "每月登录积分" ? { giftPack: true } : {}),
-      };
-    }
-    total += limit;
-    used += spent;
-  }
-  const parts = Object.values(quotas)
-    .map((p) => ({ ...p, total: round2(p.total), used: round2(p.used), remaining: round2(Math.max(p.total - p.used, 0)) }))
-    .sort((a, b) => b.remaining - a.remaining);
+  // 到期桶（用户定版 2026-11-19，Lingxi/MiniMax 账本先例）：按「名称 + 到期日」
+  // 聚桶，同日同名并格，先到期先显示（FIFO 消耗语义）。每桶都是 detailOnly
+  // 明细行——倒计时只对桶内包成立，不再拿「最早到期」冒充整行的死线。
+  const buckets = bucketTraePacks(normalizeTraePacks(packs));
+  const sumTotal = buckets.reduce((s, b) => s + b.total, 0);
+  const sumUsed = buckets.reduce((s, b) => s + b.used, 0);
   // 顶层总额优先信服务端自报的 usage_summary
+  let total = sumTotal;
+  let used = sumUsed;
   if (usageSummary && Number(usageSummary.total_amount) > 0) {
     total = Number(usageSummary.total_amount);
     used = Number(usageSummary.consumed_amount) || 0;
@@ -166,7 +227,7 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
     }
   } catch { /* fail-soft */ }
 
-  if (parts.length === 0 && !usageSummary) {
+  if (buckets.length === 0 && !usageSummary) {
     if (failed) return { message: `Trae usage fetch failed: ${failed.message}` };
     return {
       message: "No active Trae entitlement packs. 签到后这里会出现 150 积分/7 天的权益包。",
@@ -175,14 +236,34 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
     };
   }
 
+  const rows = buckets.map(bucketRow);
+  // 汇总行（大数字 + 分段条的分母）：summarizesDetail 把它排除出逐包明细
+  // （桶是它的构成，再列一遍同数是双计——dumate/lingxi 同款教训）。行名刻意
+  // 避开「余额」（STORED_VALUE_RE → 退化成无分母单值卡，丢掉 X/Y 总额）与
+  // 「资源包」（hasCollectionRow 特殊逻辑）——Qoder addOn 聚合行同款语义。
+  const quotas = {};
+  quotas["积分"] = {
+    name: "积分",
+    used: round2(used),
+    total: round2(total) || 0.000001,
+    remaining: round2(Math.max(total - used, 0)),
+    displayRemaining: true,
+    summarizesDetail: true,
+    recurring: false,
+    unit: "积分",
+  };
+  for (const r of rows) quotas[r.name] = r;
+
   return {
-    quotas: Object.fromEntries(parts.map((p) => [p.name, p])),
+    quotas,
     plan,
     planExpiresAt,
     total: round2(total),
     used: round2(used),
     remaining: round2(Math.max(total - used, 0)),
     exceeded: total > 0 && total - used <= 0,
-    empty: parts.length === 0 && !usageSummary,
+    empty: buckets.length === 0 && !usageSummary,
   };
 }
+
+export const __test__ = { normalizeTraePacks, bucketTraePacks, bucketRow, dayKeyOf, MAX_BUCKETS };
