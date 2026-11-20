@@ -12,6 +12,18 @@
 // 每日任务：签到 +100（ops/checkin）、每日首次对话 +200（agent_turn_completed
 // 事件 = 用网关发一条 say-hi，消耗 trial 池每日 2000 免费）——调度器在
 // src/sse/services/croliCheckin.js，settings key croliCheckin。
+//
+// 邀请码池（用户 2026-11-20 提供，5 条）：注册引导链接每次读取随机取一条，
+// 让新账号归因分散到不同码——与 CD 站点表 loginUrls 池同口径。getter 在
+// provider 信息被 JSON 序列化（面板 API）时求值一次，即每次页面加载换一条。
+const CROLI_INVITE_LINKS = [
+  "https://www.croli.net/invite/?code=IKJCPA1SVP",
+  "https://www.croli.net/invite/?code=2TELUWKZ2V",
+  "https://www.croli.net/invite/?code=WQ93WZ2KZS",
+  "https://www.croli.net/invite/?code=93YYUQAF3W",
+  "https://www.croli.net/invite/?code=FNRPRGUUQL",
+];
+const pickInviteLink = () => CROLI_INVITE_LINKS[Math.floor(Math.random() * CROLI_INVITE_LINKS.length)];
 export default {
   id: "croli",
   priority: 33,
@@ -25,7 +37,9 @@ export default {
     notice: {
       text: "Croli connections sign in via Clerk (Google / GitHub / email) with the paste-callback flow. Daily check-in (+100) and the first-conversation gift (+200) are automated by the Croli check-in scheduler.",
       signupUrl: "https://croli.net",
-      apiKeyUrl: "https://www.croli.net/invite/?code=FNRPRGUUQL",
+      get apiKeyUrl() {
+        return pickInviteLink();
+      },
     },
   },
   category: "oauth",
