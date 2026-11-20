@@ -14,6 +14,7 @@ import {
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
   refreshMeooToken,
+  refreshNousToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -36,6 +37,7 @@ export {
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
   refreshMeooToken,
+  refreshNousToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -182,6 +184,8 @@ const REFRESH_HANDLERS = {
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
   // Meoo: token refresh + project AK re-resolution in one handler.
   meoo: (c, log) => refreshMeooToken(c.refreshToken, c, log),
+  // Nous Portal: header-carried single-use refresh token (see providers.js).
+  nous: (c, log) => refreshNousToken(c.refreshToken, log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
   "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),

@@ -33,6 +33,63 @@ export async function refreshXaiToken(refreshToken, log) {
   }, log);
 }
 
+// Nous Portal: NON-STANDARD refresh — the refresh token travels in the
+// `x-nous-refresh-token` header, the form body carries only grant_type +
+// client_id (Hermes: hermes_cli/auth_nous.py). Refresh tokens are
+// SINGLE-USE and rotating: replaying an old one returns
+// refresh_token_reused and revokes the whole session, so the rotated
+// pair must be persisted by the caller every time (the framework does)
+// and concurrent refreshes are deduped on the current token.
+export async function refreshNousToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("nous", refreshToken, async () => {
+    const oauth = PROVIDER_OAUTH["nous"] || {};
+    const tokenUrl = oauth.refreshUrl || oauth.tokenUrl;
+    const clientId = oauth.clientId || "hermes-cli";
+    if (!tokenUrl) return null;
+    try {
+      const response = await proxyAwareFetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "x-nous-refresh-token": refreshToken,
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: clientId,
+        }),
+      });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      if (response.ok && data?.access_token) {
+        return {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token || refreshToken,
+          expiresIn: data.expires_in,
+        };
+      }
+      const errCode = data?.error || "";
+      log?.warn?.("TOKEN_REFRESH", `nous refresh failed: ${errCode || response.status}`);
+      if (
+        errCode === "invalid_grant" ||
+        errCode === "invalid_request" ||
+        errCode === "refresh_token_reused"
+      ) {
+        return { error: "invalid_grant" };
+      }
+      return null;
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `nous refresh failed: ${e?.message || e}`);
+      return null;
+    }
+  }, log);
+}
+
 // Per-provider refresh variants for the generic path. Keys not listed fall back
 // to the default form-encoded OAuth2 refresh with client_id + client_secret.
 const REFRESH_PROFILES = {
