@@ -25,9 +25,9 @@ const FREE_MODEL_IDS = [
 describe("Nous provider registry", () => {
   const entry = REGISTRY.find((e) => e.id === "nous");
 
-  it("is registered as a free-tier OAuth provider on the Nous inference host", () => {
+  it("is registered as an OAuth provider on the Nous inference host", () => {
     expect(entry).toBeDefined();
-    expect(entry.category).toBe("freeTier");
+    expect(entry.category).toBe("oauth");
     expect(entry.hasOAuth).toBe(true);
     expect(entry.authModes).toContain("oauth");
     expect(entry.transport.baseUrl).toBe(

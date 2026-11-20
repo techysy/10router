@@ -12,6 +12,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **Nous Portal card moved to OAuth providers**: it was initially listed under Free tier; it is a full OAuth provider (free and paid plans), so its card now sits with the other OAuth providers. Sign-in and models are unchanged.
+
 - **Claude Code tool card switches unified**: the "Filter naming" and "Exa MCP" switches were raw browser checkboxes; they now use the same slide toggle as the rest of the dashboard. Behavior unchanged. (#153)
 
 - **Input placeholders now follow the UI language**: grey hint text in a few input boxes (sudo password, alias, chat input — 5 spots) stayed English after switching language; they now translate like everything else. (#154)

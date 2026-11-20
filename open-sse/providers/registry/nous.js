@@ -41,7 +41,7 @@ export default {
       apiKeyUrl: "https://portal.nousresearch.com",
     },
   },
-  category: "freeTier",
+  category: "oauth",
   authModes: ["oauth", "apikey"],
   hasOAuth: true,
   authHint: "Nous Portal API key — create one in the Portal dashboard; or use OAuth device-code sign-in (recommended, no card needed for free models)",
