@@ -11,6 +11,7 @@
   "Open sign-in page": "開啟登入頁",
   "1. Open the DeepAI sign-in page": "1. 開啟 DeepAI 登入頁",
   "Sign in with Google or Apple in your browser — no desktop app, no key to copy.": "在瀏覽器裡用 Google 或 Apple 登入——不用裝桌面版、不用抄金鑰。",
+  "Sign in with your own Nous Portal account via device code (the same public Hermes client). Free models like qwen/qwen4-max:free work with no credit card; each user signs in with their own account.": "使用你自己的 Nous Portal 帳號以裝置碼登入（與公開 Hermes 客戶端同一個 OAuth 客戶端）。qwen/qwen4-max:free 等免費模型無需綁信用卡即可使用；每位使用者登入自己的帳號。",
   "Connect DeepAI Code": "連接 DeepAI Code",
   "Quota": "配額",
   "Unmetered, does not spend Theos": "免費不計量——不消耗 Theos",

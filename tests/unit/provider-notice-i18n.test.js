@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import commandCodeRegistry from "open-sse/providers/registry/commandcode.js";
 import mimoDesktopRegistry from "open-sse/providers/registry/mimo-desktop.js";
+import nousRegistry from "open-sse/providers/registry/nous.js";
 
 const rootDir = resolve(__dirname, "../..");
 
@@ -75,6 +76,28 @@ describe("MiMo Desktop notice i18n", () => {
       );
       expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
       // Guard against a copy-paste placeholder: the translation has to be Chinese.
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+// Same contract as MiMo Desktop above: the Nous Portal notice (#155) shipped
+// with the English text only \u2014 translate() renders it raw in a Chinese UI.
+describe("Nous Portal notice i18n", () => {
+  const noticeKey = nousRegistry.display?.notice?.text;
+
+  it("the Nous card has a notice naming the device-code flow and free models", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("device code");
+    expect(noticeKey).toContain("no credit card");
+  });
+
+  it("both Chinese dictionaries carry the Nous Portal notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
       expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
     }
   });
