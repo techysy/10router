@@ -6,9 +6,13 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **New provider: Nous Portal (Hermes)**: sign in with your own Nous Portal account via device code — the same public OAuth client Hermes Agent uses (no secret, no redirect setup). Free models such as `qwen/qwen4-max:free` work with no credit card on the account; the full live catalog (400+ models) is available, and paid models follow your Portal plan. Refresh tokens rotate on every use and are refreshed only by the gateway, so don't sign the same account into Hermes CLI at the same time.
+
 - **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
 
 ### 🐛 Fixed
+
+- **Nous Portal card moved to OAuth providers**: it was initially listed under Free tier; it is a full OAuth provider (free and paid plans), so its card now sits with the other OAuth providers. Sign-in and models are unchanged.
 
 - **Claude Code tool card switches unified**: the "Filter naming" and "Exa MCP" switches were raw browser checkboxes; they now use the same slide toggle as the rest of the dashboard. Behavior unchanged. (#153)
 
