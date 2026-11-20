@@ -1533,5 +1533,12 @@
     "format": "openai",
     "clientId": "znV4SkcUsY1AektQ",
     "tokenUrl": "https://clerk.croli.net/oauth/token"
+  },
+  "crowllm": {
+    "baseUrl": "https://crowllm.com/v1/chat/completions",
+    "validateUrl": "https://crowllm.com/v1/models",
+    "headers": {},
+    "timeoutMs": 120000,
+    "format": "openai"
   }
 }
