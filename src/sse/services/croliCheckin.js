@@ -99,7 +99,7 @@ async function resolveGatewayKey(conn, proxyOptions) {
   if (stored) return { sk: stored, reused: true };
   const jwt = typeof conn.accessToken === "string" ? conn.accessToken.trim() : "";
   if (!jwt) return { sk: "", reused: false };
-  const { CROLI_CONFIG } = await import("../lib/oauth/constants/oauth.js");
+  const { CROLI_CONFIG } = await import("../../lib/oauth/constants/oauth.js");
   const { resolveConnectionProxyConfig } = await import("../../lib/network/connectionProxy.js");
   const cfg = proxyOptions || (await resolveConnectionProxyConfig(conn.providerSpecificData));
   const headers = { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json", Accept: "application/json" };
@@ -135,7 +135,7 @@ async function resolveGatewayKey(conn, proxyOptions) {
 
 /** 每日签到：POST /v1/ops/checkin {taskId:1}。返回 {claimed, message, streakDays}。 */
 async function croliCheckin(jwt) {
-  const { CROLI_CONFIG } = await import("../lib/oauth/constants/oauth.js");
+  const { CROLI_CONFIG } = await import("../../lib/oauth/constants/oauth.js");
   const res = await fetch(`${CROLI_CONFIG.creditsBaseUrl}/v1/ops/checkin`, {
     method: "POST",
     headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json", Accept: "application/json" },
@@ -162,7 +162,7 @@ async function croliCheckin(jwt) {
  * 返回 {claimed, message}。
  */
 async function croliSayHi(sk, proxyOptions) {
-  const { CROLI_CONFIG } = await import("../lib/oauth/constants/oauth.js");
+  const { CROLI_CONFIG } = await import("../../lib/oauth/constants/oauth.js");
   const res = await fetch(`${CROLI_CONFIG.gatewayBaseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/json" },
