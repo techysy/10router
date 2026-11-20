@@ -561,6 +561,20 @@ export const PROVIDER_CAPABILITIES = {
     // 会落进 *claude*haiku* 兜底拿到 200K/claude-budget,导致 combo 被 min 拉成 200K。此处精确锁定 1M/adaptive。
     "claude-haiku-5.5:free":    { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   },
+  // Nous Portal（Hermes 设备码供应商）`:free` 档：带冒号后缀使 canonical 精确键
+  // 与家族 pattern 失配或错配。三个被 capability audit 点名的 id 按自家
+  // canonical 同值声明（longcat-2.5 → 全局行、hy4-flash → codebuddy-cn 行、
+  // solar-mini4 → deepai solar-mini-4 行；规格与 models.dev 2026-11-20 对账
+  // 一致）；step-3.7-flash:free 虽不触发 audit，但会落 `*step*` 通用档
+  // （128K/无 vision）而非自家 256K/全模态行——同 tokenharbor 口径「只列
+  // pattern 兜底会明显低报的 id」。qwen4-max:free 命中 `*qwen*max*` 与付费
+  // 档同值，不重复声明。
+  "nous": {
+    "meituan/longcat-2.5:free":    { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 262144 },
+    "stepfun/step-3.7-flash:free": { vision: true, videoInput: true, reasoning: true, thinkingFormat: "step", contextWindow: 256000 },
+    "tencent/hy4-flash:free":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
+    "upstage/solar-mini4:free":    { reasoning: true, contextWindow: 524288, maxOutput: 131072 },
+  },
   // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
   // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压
