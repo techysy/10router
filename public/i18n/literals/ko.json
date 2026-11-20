@@ -194,5 +194,7 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ 위험 알림: 이 공급자는 프록시/라우터 사용에 대해 공식적으로 라이선스가 부여되지 않은 구독/OAuth 세션을 사용합니다. 계정이 제한되거나 차단될 수 있습니다. 사용에 대한 책임은 본인에게 있습니다.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM은 로컬 CA를 통해 IDE 도구(Antigravity, GitHub Copilot, Kiro)의 HTTPS 트래픽을 가로채 요청을 공급자로 리다이렉트합니다. ToS 위반 가능성 → 계정 차단 위험. 사용에 대한 책임은 본인에게 있습니다.",
   "Endpoint is exposed without an API key.": "API 키 없이 엔드포인트가 노출되어 있습니다.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Croli auto daily tasks": "Croli 매일 자동 작업",
+  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "각 Croli 연결의 일일 작업 자동 실행: 체크인(+100, 연속 보너스) + 게이트웨이 say-hi로 첫 대화 보너스(+200) 획득 — 크레딧/체험 풀에서 소비"
 }

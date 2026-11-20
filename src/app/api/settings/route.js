@@ -224,6 +224,19 @@ export async function PATCH(request) {
       }
     }
 
+    // Croli daily tasks (check-in + first-conversation say-hi via the gateway)
+    if (Object.prototype.hasOwnProperty.call(body, "croliCheckin")) {
+      if (settings.croliCheckin === true) {
+        import("@/sse/services/croliCheckin.js")
+          .then(({ startCroliCheckin }) => startCroliCheckin())
+          .catch((error) => console.warn("[CroliCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/croliCheckin.js")
+          .then(({ stopCroliCheckin }) => stopCroliCheckin())
+          .catch((error) => console.warn("[CroliCheckin] stop failed:", error.message));
+      }
+    }
+
     // Daily-grant midnight reset (每日赠送积分优先 policy). Keyed off the
     // providerStrategies patch: any change that leaves at least one provider
     // with dailyGrantFirst=true starts the scheduler, none stops it. An

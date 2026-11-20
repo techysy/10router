@@ -194,5 +194,7 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ リスク通知: このプロバイダーは、プロキシ/ルーター使用について公式にライセンスされていないサブスクリプション/OAuthセッションを使用しています。アカウントが制限または禁止される可能性があります。自己責任でご使用ください。",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITMはローカルCAを介してIDEツール (Antigravity, GitHub Copilot, Kiro) のHTTPSトラフィックを傍受し、リクエストをプロバイダーにリダイレクトします。ToS違反の可能性 → アカウントBANリスク。自己責任でご使用ください。",
   "Endpoint is exposed without an API key.": "API キーなしでエンドポイントが公開されています。",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Croli auto daily tasks": "Croli 毎日自動タスク",
+  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "各 Croli 接続の毎日タスクを自動実行：チェックイン（+100、連続ボーナス）+ ゲートウェイ say-hi で初回会話ギフト（+200）を獲得——クレジット/トライアルプールから消費"
 }

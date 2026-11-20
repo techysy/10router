@@ -181,6 +181,15 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
+  // Croli (croli.net) daily tasks — check-in (+100) + first-conversation say-hi
+  // (+200 via the gateway event) against Clerk OAuth connections; gateway key is
+  // claimed idempotently from the relay API when the connection lacks one.
+  if (settings.croliCheckin === true) {
+    import("@/sse/services/croliCheckin.js")
+      .then(({ startCroliCheckin }) => startCroliCheckin())
+      .catch((e) => console.log("[CroliCheckin] scheduler start failed:", e.message));
+  }
+
   // Auto daily check-in for Lingxi connections (daily_check_in claim, ported
   // from CreditDaddy lingxiClient). Cookie-jar connections; tasks-state gate
   // never blind-fires the claim.

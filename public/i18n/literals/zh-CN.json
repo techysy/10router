@@ -2280,5 +2280,7 @@
   "每站点 9 个登录槽：各槽是独立的持久登录分区，可各自登录不同账号；换号 = 选另一槽开窗。": "每站点 9 个登录槽：各槽是独立的持久登录分区，可各自登录不同账号；换号 = 选另一槽开窗。",
   "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置": "用Google或Apple账户登录后，进入仪表盘，复制API Key添加至下方指定位置",
   "登录（槽 {n}）· 独立持久会话分区": "登录（槽 {n}）· 独立持久会话分区",
-  "空槽": "空槽"
+  "空槽": "空槽",
+  "Croli auto daily tasks": "Croli 每日自动任务",
+  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "为每个 Croli 连接自动执行每日任务：签到（+100，连续有加成）+ 网关 say-hi 触发每日首次对话奖励（+200）——消耗积分/试炼池"
 }

@@ -41,6 +41,11 @@ export const QODER_CONFIG = { ...PROVIDER_OAUTH["qoder"] };
 // at login is what the gateway accepts (see providers/meoo.js).
 export const MEOO_CONFIG = { ...PROVIDER_OAUTH["meoo"] };
 
+// Croli（croli.net）— Clerk OAuth application（public client，PKCE S256，无 secret）。
+// issuer clerk.croli.net；credits 池与模型网关在不同域（ds.croli.net/credits 与
+// ds.croli.net/v1），sk 领取在 api.croli.net —— 由 registry 条目的 oauth 块携带。
+export const CROLI_CONFIG = { ...PROVIDER_OAUTH["croli"] };
+
 // iFlow OAuth Configuration (Authorization Code)
 export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };
 

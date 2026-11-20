@@ -174,6 +174,7 @@ import p171 from "./zcode-free.js";
 import p172 from "./zed.js";
 import p173 from "./deepai.js";
 import p174 from "./nous.js";
+import p175 from "./croli.js";
 
 export default [
   p0,
@@ -351,4 +352,5 @@ export default [
   p172,
   p173,
   p174,
+  p175,
 ];

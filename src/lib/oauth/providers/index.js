@@ -14,6 +14,7 @@ import iflow from "./iflow.js";
 import qoder from "./qoder.js";
 import qoderCn from "./qoder-cn.js";
 import meoo from "./meoo.js";
+import croli from "./croli.js";
 import nous from "./nous.js";
 import github from "./github.js";
 import kiro from "./kiro.js";
@@ -46,6 +47,7 @@ const PROVIDERS = {
   qoder,
   "qoder-cn": qoderCn,
   meoo,
+  croli,
   nous,
   github,
   kiro,
