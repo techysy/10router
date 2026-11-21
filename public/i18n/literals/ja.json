@@ -196,5 +196,7 @@
   "Endpoint is exposed without an API key.": "API キーなしでエンドポイントが公開されています。",
   "Connected providers only": "Connected providers only",
   "Croli auto daily tasks": "Croli 毎日自動タスク",
-  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "各 Croli 接続の毎日タスクを自動実行：チェックイン（+100、連続ボーナス）+ ゲートウェイ say-hi で初回会話ギフト（+200）を獲得——クレジット/トライアルプールから消費"
+  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "各 Croli 接続の毎日タスクを自動実行：チェックイン（+100、連続ボーナス）+ ゲートウェイ say-hi で初回会話ギフト（+200）を獲得——クレジット/トライアルプールから消費",
+  "Croli connections sign in via Clerk (Google / GitHub / email) with the paste-callback flow. Daily check-in (+100) and the first-conversation gift (+200) are automated by the Croli check-in scheduler.": "Croli 接続は Clerk（Google / GitHub / メール）でログインし、貼り付けコールバック方式を使用します。毎日のチェックイン（+100）と初回会話ギフト（+200）は Croli チェックインスケジューラが自動実行します。",
+  "CrowLLM is an OpenAI-compatible gateway (one-hub family) with 180+ models; models suffixed :free cost nothing. Register with email/Google/GitHub/Discord, then create a key in the console.": "CrowLLM は OpenAI 互換ゲートウェイ（one-hub 系）で、180+ のモデルを提供しています。:free 接尾辞付きのモデルは無料です。メール/Google/GitHub/Discord で登録し、コンソールでキーを作成してください。"
 }
