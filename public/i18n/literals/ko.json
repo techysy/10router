@@ -213,5 +213,7 @@
   "Logging in…": "로그인 중…",
   "Verify & Add Connection": "인증 후 연결 추가",
   "Send failed": "전송 실패",
-  "Login failed": "로그인 실패"
+  "Login failed": "로그인 실패",
+  "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "Capy 계정(이메일 코드)으로 로그인합니다. 스레드(jam)는 로그인 후 재사용됩니다 — 요청마다 기기가 필요 없습니다. 무료 광고 지원 모델(GLM-5.3-Flash, DeepSeek V4.1 Flash)이 포함됩니다.",
+  "Disabled models": "비활성화된 모델"
 }

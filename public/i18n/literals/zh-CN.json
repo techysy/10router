@@ -2305,5 +2305,7 @@
   "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "用你的 Capy 账号邮箱登录——验证码发到你的邮箱（与 Capy 桌面端同一通道）。线程跑在你已连接的 Capy 设备上。",
   "Email Code": "邮箱验证码",
   "Send failed": "发送失败",
-  "Login failed": "登录失败"
+  "Login failed": "登录失败",
+  "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "用你的 Capy 账号（邮箱验证码）登录。线程（jam）登录后复用——无需每次请求都连设备。含免费广告补贴模型（GLM-5.3-Flash、DeepSeek V4.1 Flash）。",
+  "Disabled models": "已禁用模型"
 }

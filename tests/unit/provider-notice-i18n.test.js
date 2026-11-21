@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import capyRegistry from "open-sse/providers/registry/capy.js";
 import commandCodeRegistry from "open-sse/providers/registry/commandcode.js";
 import croliRegistry from "open-sse/providers/registry/croli.js";
 import crowllmRegistry from "open-sse/providers/registry/crowllm.js";
@@ -137,6 +138,26 @@ describe("CrowLLM notice i18n", () => {
   });
 
   it("both Chinese dictionaries carry the CrowLLM notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+describe("Capy notice i18n", () => {
+  const noticeKey = capyRegistry.display?.notice?.text;
+
+  it("the Capy card has a notice naming the email-code login and free ad models", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("email code");
+    expect(noticeKey).toContain("ad-funded models");
+  });
+
+  it("both Chinese dictionaries carry the Capy notice", () => {
     for (const locale of ["zh-CN", "zh-TW"]) {
       const dict = JSON.parse(
         readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),

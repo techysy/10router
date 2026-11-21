@@ -2045,7 +2045,7 @@ export default function ProviderDetailPage() {
             BEFORE exposing it to clients, so a disabled row must be testable. #14-B */}
         {(disabledDisplayModels.length > 0 || disabledCustomModelRows.length > 0) && (
           <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
+            <p className="text-xs text-text-muted mb-2">{translate("Disabled models")} ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
             <div className="flex flex-wrap gap-3">
               {disabledCustomModelRows.map((model) => (
                 <ModelRow
