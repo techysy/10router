@@ -181,9 +181,8 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
-  // Croli (croli.net) daily tasks — check-in (+100) + first-conversation say-hi
-  // (+200 via the gateway event) against Clerk OAuth connections; gateway key is
-  // claimed idempotently from the relay API when the connection lacks one.
+  // Croli daily check-in and server-claimable rewards are opt-in. The scheduler
+  // never creates model conversations; successful user chats report their own event.
   if (settings.croliCheckin === true) {
     import("@/sse/services/croliCheckin.js")
       .then(({ startCroliCheckin }) => startCroliCheckin())
