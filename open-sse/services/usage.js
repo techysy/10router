@@ -15,6 +15,7 @@ import { getGrokCliUsage } from "./usage/grok-cli.js";
 import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
 import { getMeooUsage } from "./usage/meoo.js";
+import { getQwenWorkUsage } from "./usage/qwenwork.js";
 import { getDeepaiUsage } from "./usage/deepai.js";
 import { getLoomyUsage } from "./usage/loomy.js";
 import { getDumateUsage } from "./usage/dumate.js";
@@ -61,6 +62,10 @@ const USAGE_HANDLERS = {
     const resolved = await resolveQoderCredentials(c, c.proxyOptions).catch(() => null);
     return getQoderUsage(resolved?.accessToken || c.accessToken, c.proxyOptions, "qoder-cn", c.providerSpecificData);
   },
+  // QwenWork: plan + credit quota from the account-context endpoint,
+  // read with the device token directly (no exchange layer).
+  qwenwork: (c) => getQwenWorkUsage(c.accessToken, "qwenwork", c.proxyOptions),
+  "qwenwork-cn": (c) => getQwenWorkUsage(c.accessToken, "qwenwork-cn", c.proxyOptions),
   iflow: (c) => getIflowUsage(c.accessToken),
   ollama: (c) => getOllamaUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
   // GLM 双认证：粘贴 apikey 或 OAuth 登录（coding-plan key 存在 accessToken 上）

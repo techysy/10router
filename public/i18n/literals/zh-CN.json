@@ -2305,5 +2305,7 @@
   "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "用你的 Capy 账号邮箱登录——验证码发到你的邮箱（与 Capy 桌面端同一通道）。线程跑在你已连接的 Capy 设备上。",
   "Email Code": "邮箱验证码",
   "Send failed": "发送失败",
-  "Login failed": "登录失败"
+  "Login failed": "登录失败",
+  "Sign in with your own QwenWork account via device code. On the authorization page, pick the team whose plan you want to use — calls are charged to the selected team's credits.": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。",
+  "使用您自己的千问办公账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。"
 }

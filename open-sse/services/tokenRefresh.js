@@ -16,6 +16,7 @@ import {
   refreshCodebuddyIntlToken,
   refreshMeooToken,
   refreshNousToken,
+  refreshQwenWorkToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -39,6 +40,7 @@ export {
   refreshCodebuddyIntlToken,
   refreshMeooToken,
   refreshNousToken,
+  refreshQwenWorkToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -199,6 +201,9 @@ const REFRESH_HANDLERS = {
   meoo: (c, log) => refreshMeooToken(c.refreshToken, c, log),
   // Nous Portal: header-carried single-use refresh token (see providers.js).
   nous: (c, log) => refreshNousToken(c.refreshToken, log),
+  // QwenWork: device-token refresh, single-use rotation (see providers.js).
+  qwenwork: (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork", log),
+  "qwenwork-cn": (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork-cn", log),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
   "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),
