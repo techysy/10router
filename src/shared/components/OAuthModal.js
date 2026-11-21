@@ -347,6 +347,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         redirectUri = "http://localhost:1455/auth/callback";
       } else if (provider === "xai") {
         redirectUri = "http://127.0.0.1:56121/callback";
+      } else if (provider === "croli") {
+        // Clerk 只登记 127.0.0.1 回环（任意端口通配）——localhost 是另一个 host
+        // 字符串，OAuth 精确匹配直接拒（invalid_request: redirect_uri 不匹配
+        // 预登记列表，2026-11-21 实测）。授权后 127.0.0.1 必然打不开（NAS 场景
+        // 用户机器上没这个服务），复制地址栏完整 URL 粘贴回来即 paste-callback。
+        redirectUri = `http://127.0.0.1:${appPort}/callback`;
       } else {
         redirectUri = `http://localhost:${appPort}/callback`;
       }
@@ -723,7 +729,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     ? "http://127.0.0.1:56121/callback?code=... or copied code"
     : isKimchiProvider
       ? `${placeholderUrl.replace("code=...", "token=...")} or copied token`
-      : placeholderUrl;
+      : provider === "croli"
+        ? `http://127.0.0.1:${window.location.port || (window.location.protocol === "https:" ? "443" : "80")}/callback?code=...`
+        : placeholderUrl;
 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
