@@ -307,7 +307,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
         )}
         {isCookie && authHint && (
           <p className="text-xs text-text-muted">
-            {authHint}
+            {translate(authHint)}
             {website && (
               <>
                 {" "}
