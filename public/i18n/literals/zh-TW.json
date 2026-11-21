@@ -1232,5 +1232,9 @@
   "登录（槽 {n}）· 独立持久会话分区": "登入（槽 {n}）· 獨立持久工作階段分區",
   "空槽": "空槽",
   "Croli auto daily tasks": "Croli 每日自動任務",
-  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "為每個 Croli 連接自動執行每日任務：簽到（+100，連續有加成）+ 網關 say-hi 觸發每日首次對話獎勵（+200）——消耗積分/試煉池"
+  "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "為每個 Croli 連接自動執行每日任務：簽到（+100，連續有加成）+ 網關 say-hi 觸發每日首次對話獎勵（+200）——消耗積分/試煉池",
+  "Fetch CrowLLM Models": "取得 CrowLLM 模型",
+  "Upstream no longer lists": "上游清單已不含",
+  "models — auto-disabled (re-enable from the list if they return)": "個模型——已自動停用（若上游恢復可從清單重新啟用）",
+  "Failed to disable models": "停用模型失敗"
 }

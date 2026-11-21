@@ -198,5 +198,9 @@
   "Croli auto daily tasks": "Croli 매일 자동 작업",
   "Automatically run Croli daily tasks for every connection: check-in (+100, streak bonuses) and a gateway say-hi that triggers the first-conversation gift (+200) — both draw on the credits/trial pool": "각 Croli 연결의 일일 작업 자동 실행: 체크인(+100, 연속 보너스) + 게이트웨이 say-hi로 첫 대화 보너스(+200) 획득 — 크레딧/체험 풀에서 소비",
   "Croli connections sign in via Clerk (Google / GitHub / email) with the paste-callback flow. Daily check-in (+100) and the first-conversation gift (+200) are automated by the Croli check-in scheduler.": "Croli 연결은 Clerk(Google / GitHub / 이메일)로 로그인하는 붙여넣기 콜백 방식을 사용합니다. 매일 체크인(+100)과 첫 대화 보너스(+200)는 Croli 체크인 스케줄러가 자동 실행합니다.",
-  "CrowLLM is an OpenAI-compatible gateway (one-hub family) with 180+ models; models suffixed :free cost nothing. Register with email/Google/GitHub/Discord, then create a key in the console.": "CrowLLM은 OpenAI 호환 게이트웨이(one-hub 계열)로 180+개 모델을 제공하며, :free 접미사가 붙은 모델은 무료입니다. 이메일/Google/GitHub/Discord로 가입한 후 콘솔에서 키를 생성하세요."
+  "CrowLLM is an OpenAI-compatible gateway (one-hub family) with 180+ models; models suffixed :free cost nothing. Register with email/Google/GitHub/Discord, then create a key in the console.": "CrowLLM은 OpenAI 호환 게이트웨이(one-hub 계열)로 180+개 모델을 제공하며, :free 접미사가 붙은 모델은 무료입니다. 이메일/Google/GitHub/Discord로 가입한 후 콘솔에서 키를 생성하세요.",
+  "Fetch CrowLLM Models": "CrowLLM 모델 가져오기",
+  "Upstream no longer lists": "업스트림 목록에 더 이상 없는",
+  "models — auto-disabled (re-enable from the list if they return)": "개 모델 — 자동 비활성화(복구되면 목록에서 다시 활성화 가능)",
+  "Failed to disable models": "모델 비활성화 실패"
 }

@@ -529,7 +529,7 @@ export default function ProviderDetailPage() {
   // "Fetch official catalog" import button scope: qoder family (live catalog)
   // and xiaomi-mimo (public /v1/models). mimo-x client previews are filtered
   // server-side in resolveMimoModels, so the import can never shadow them.
-  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo";
+  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo" || providerId === "crowllm";
   const models = providerId === "cursor" && liveModels.length > 0
     ? liveModels
     : isQoderFamily
@@ -1213,7 +1213,7 @@ export default function ProviderDetailPage() {
           mediaSkipped += 1;
           continue;
         }
-        
+
         // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or
         // "auto" — strip whichever provider prefix the route attached.
         const cleanModelId = modelId.replace(/^qoder(-cn)?\//, "");
@@ -1243,6 +1243,34 @@ export default function ProviderDetailPage() {
       }
       if (mediaSkipped > 0) {
         notify.info(translate("Media models skipped (use Media Providers)") + ` (${mediaSkipped})`)
+      }
+
+      // CrowLLM stale sweep (user request 2026-11-21): the registry anchors all
+      // 40 :free ids, and the upstream delists free-promo models without
+      // notice — routing retries against a delisted id just burn 404s. Diff
+      // the anchored set against the fetched catalog and auto-disable the
+      // gone ones; the disable lives in the reversible disabled-table, so a
+      // model that returns can be re-enabled from the list.
+      if (providerId === "crowllm") {
+        const remoteIds = new Set(models.map((m) => m.id || m.name).filter(Boolean));
+        const staleIds = (staticModels || []).map((m) => m.id).filter((id) => id && !remoteIds.has(id));
+        if (staleIds.length > 0) {
+          try {
+            const dis = await fetch("/api/models/disabled", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ providerAlias: providerStorageAlias, ids: staleIds }),
+            });
+            if (dis.ok) {
+              notify.info(translate("Upstream no longer lists") + ` ${staleIds.length} ` + translate("models — auto-disabled (re-enable from the list if they return)"))
+            } else {
+              const d = await dis.json().catch(() => ({}));
+              notify.error(d.error || translate("Failed to disable models"))
+            }
+          } catch (e) {
+            notify.error(translate("Failed to disable models") + ": " + e.message)
+          }
+        }
       }
     } catch (error) {
       console.log("Error importing Qoder models:", error);
@@ -1954,7 +1982,7 @@ export default function ProviderDetailPage() {
             </span>
             {importingQoderModels
               ? translate("Fetching...")
-              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : "Fetch Qoder Models")}
+              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : providerId === "crowllm" ? "Fetch CrowLLM Models" : "Fetch Qoder Models")}
           </button>
         )}
 

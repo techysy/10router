@@ -448,6 +448,23 @@ const PROVIDER_MODELS_CONFIG = {
   "qoder-cn": {
     customResolver: resolveQoderCatalog,
   },
+  // CrowLLM: the public /v1/models catalog carries 183 entries, but the gift
+  // balance only spends in the :free directory — paid models would be dead
+  // weight in the import surface (143 rows the credentials can never call).
+  // The parse filter keeps the catalog import and the stale sweep on the
+  // :free set only; ids pass through verbatim so they match the registry
+  // anchors (including internal vendor prefixes like "caw/" and "nvidia/").
+  crowllm: {
+    url: "https://crowllm.com/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    parseResponse: (data) => {
+      const rows = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      return rows.filter((m) => String(m?.id || "").endsWith(":free"));
+    },
+  },
   // Meoo（秒悟）: two-stage auth — the gateway only accepts the per-project
   // service AK, which resolveMeooModels resolves / re-resolves through the
   // control plane (OAuth pair or pasted control key) and merges specs into
