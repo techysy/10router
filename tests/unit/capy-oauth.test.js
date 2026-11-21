@@ -199,12 +199,21 @@ it("loginCapyByCode verifies the code and assembles a connection after model acc
   assert.equal(orgCall.init.headers.Authorization, "Bearer fixture-session-jwt");
 });
 
-it("rejects a wrong code with wrong_code and does not consume the account", async () => {
+it("rejects a wrong code with wrong_code and keeps the flow alive for a retry", async () => {
   const { fetchImpl } = fakeCapyServer();
   const { flowId } = await sendCapyCode("a@b.co", { fetchImpl });
   await assert.rejects(
     loginCapyByCode({ flowId, code: "000000" }, { fetchImpl }),
     (e) => e.code === "wrong_code",
+  );
+  // The flow survives the failed attempt — a typo must not burn the emailed
+  // code — and the same flowId completes once the right code arrives.
+  const r = await loginCapyByCode({ flowId, code: "123456" }, { fetchImpl });
+  assert.ok(r.sessionJwt);
+  // Success consumes the flow: a second login on it is refused.
+  await assert.rejects(
+    loginCapyByCode({ flowId, code: "123456" }, { fetchImpl }),
+    (e) => e.code === "flow_expired",
   );
 });
 

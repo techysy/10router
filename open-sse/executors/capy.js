@@ -615,11 +615,4 @@ export class CapyExecutor extends BaseExecutor {
       ...(u.cacheReadTokens ? { prompt_tokens_details: { cached_tokens: u.cacheReadTokens } } : {}),
     };
   }
-
-  /** Best-effort jam cleanup so one-shot threads don't pile up in the UI. */
-  #cleanupJam(getJwt, orgId, jamId, log) {
-    Promise.resolve(typeof getJwt === "function" ? getJwt() : getJwt)
-      .then((jwt) => capyDeleteJams(jwt, orgId, [jamId], { fetchImpl: this.config?.fetchImpl }))
-      .catch((e) => log?.debug?.("CAPY", `jam ${jamId} cleanup failed: ${e?.message || e}`));
-  }
 }

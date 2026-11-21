@@ -35,6 +35,7 @@
 
 import crypto from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { execSync } from "child_process";
 import { CapyApiError } from "./client.js";
@@ -64,19 +65,13 @@ export function deviceArch(arch = process.arch) {
 /** A device name Capy accepts: alphanumerics, dot, underscore, @ and dash. */
 export function defaultDeviceName(prefix = "10router-headless") {
   let host = "";
-  try { host = os_hostname(); } catch { /* fall through */ }
+  try { host = os.hostname(); } catch { /* fall through */ }
   const raw = String(host || prefix);
   const cleaned = raw
     .replace(/[^A-Za-z0-9._@-]+/gu, "-")
     .replace(/^-+|-+$/gu, "")
     .slice(0, 80);
   return cleaned || prefix;
-}
-
-function os_hostname() {
-  // Imported lazily so the module stays usable in a non-Node host in tests.
-  // eslint-disable-next-line global-require
-  return require("os").hostname();
 }
 
 function sha256(text) {
@@ -93,11 +88,21 @@ const ok = (result) => ({ status: "succeeded", result });
 const fail = (code, message) => ({ status: "failed", error: { code, message } });
 
 /**
- * The machine RPC the agent drives. Only the subset a text/image conversation
- * needs is implemented; everything else answers `MachineServer.Unavailable`
- * rather than pretending to work. That mirrors the boundary the reference
- * implementation documents: terminal/browser/file-editing tools stay
- * unavailable on a headless device.
+ * The machine RPC the agent drives. Implemented: worktree binding, bash
+ * (execSync, 120s cap, 4MB output) and file read/write/edit — the same
+ * primitives the desktop runtime serves, because the agent's jam needs them
+ * to operate the device. Everything else answers `MachineServer.Unavailable`
+ * rather than pretending to work.
+ *
+ * TRUST MODEL: whoever is on the other end of the tunnel (Capy's server,
+ * driving the agent) can run commands and read/write files on this host —
+ * bash takes any command and the file handlers accept absolute paths, so
+ * worktreeBase only bounds worktree_ensure's root registration, not the
+ * other handlers. Every conversation routed through Capy reaches that agent,
+ * so prompt-injected client traffic can drive these RPCs. The capability is
+ * deliberate — it is what makes headless jams work; a deployment that does
+ * not want it simply does not pair a device (or revokes the device token):
+ * without a `capyd_` token nothing dials the tunnel.
  */
 export function capyMachineResult(handler, params, state) {
   const base = state.root || state.worktreeBase;

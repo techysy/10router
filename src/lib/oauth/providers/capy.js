@@ -52,8 +52,11 @@ function enrollmentArch() {
 export const CAPY_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FLOW_TTL_MS = 10 * 60 * 1000;
 
-// Pending sign-ins keyed by a single-use flow id. Server-local: the dashboard
-// and these routes run in the same process, so nothing stronger is needed.
+// Pending sign-ins keyed by a flow id: consumed on success, kept alive on a
+// wrong code so a typo doesn't burn the emailed code (Clerk caps first-factor
+// attempts server-side; the routes rate-limit guesses). Server-local: the
+// dashboard and these routes run in the same process, so nothing stronger is
+// needed.
 const pendingFlows = new Map();
 
 function sweepExpired(now = Date.now()) {
@@ -79,11 +82,10 @@ export async function sendCapyCode(email, { fetchImpl } = {}) {
   return { flowId, expiresIn: Math.floor(FLOW_TTL_MS / 1000) };
 }
 
-function takeFlow(flowId) {
+function peekFlow(flowId) {
   sweepExpired();
   const flow = typeof flowId === "string" ? pendingFlows.get(flowId) : null;
   if (!flow) throw new CapyApiError("登录已过期，请重新发送验证码", { code: "flow_expired" });
-  pendingFlows.delete(flowId);
   return flow;
 }
 
@@ -95,11 +97,25 @@ function takeFlow(flowId) {
  * Returns everything createProviderConnection needs.
  */
 export async function loginCapyByCode({ flowId, code }, { fetchImpl } = {}) {
-  const flow = takeFlow(flowId);
-  const session = await verifyCapyEmailCode(
-    { clientJwt: flow.clientJwt, signInId: flow.signInId, code },
-    { fetchImpl },
-  );
+  const flow = peekFlow(flowId);
+  let session;
+  try {
+    session = await verifyCapyEmailCode(
+      { clientJwt: flow.clientJwt, signInId: flow.signInId, code },
+      { fetchImpl },
+    );
+  } catch (e) {
+    // A wrong code keeps the flow alive for a retry — Clerk caps first-factor
+    // attempts server-side and the route rate-limits guesses (6/10min per
+    // email + 20/10min per IP). A flow that can never complete (2FA required,
+    // sign-in finished in another shape) is dropped; a rotation that rode in
+    // on the failed response updates the stored clientJwt, or the retry goes
+    // out on a stale token.
+    if (typeof e?.rotatedJwt === "string" && e.rotatedJwt) flow.clientJwt = e.rotatedJwt;
+    if (e instanceof CapyApiError && e.code === "incomplete") pendingFlows.delete(flowId);
+    throw e;
+  }
+  pendingFlows.delete(flowId);
 
   const { jwt, rotatedClientJwt } = await mintCapySessionJwt(session, { fetchImpl });
   const clientJwt = rotatedClientJwt ?? session.clientJwt;

@@ -1260,7 +1260,13 @@ export default function ProviderDetailPage() {
       // model that returns can be re-enabled from the list.
       if (providerId === "crowllm") {
         const remoteIds = new Set(models.map((m) => m.id || m.name).filter(Boolean));
-        const staleIds = (staticModels || []).map((m) => m.id).filter((id) => id && !remoteIds.has(id));
+        const anchoredIds = (staticModels || []).map((m) => m.id).filter(Boolean);
+        // 短返回不可信（上游抖动/部分故障）：拿 5/40 的目录去禁 35 个锚点是
+        // 误伤。只有目录覆盖过半锚点才认为快照可用，否则跳过本轮清扫。
+        const credible = remoteIds.size >= Math.ceil(anchoredIds.length / 2);
+        const staleIds = credible
+          ? anchoredIds.filter((id) => !remoteIds.has(id))
+          : [];
         if (staleIds.length > 0) {
           try {
             const dis = await fetch("/api/models/disabled", {

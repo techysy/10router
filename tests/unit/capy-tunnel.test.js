@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import {
   CapyDeviceTunnel,
   CapyTunnelRegistry,
@@ -234,7 +235,9 @@ it("worktree_ensure creates a root under worktreeBase and records it", () => {
   const state = { root: null, worktreeBase: "/tmp/base-check" };
   const out = capyMachineResult("worktree_ensure", { root: "/tmp/base-check/jam_1" }, state);
   assert.equal(out.status, "succeeded");
-  assert.equal(state.root, "/tmp/base-check/jam_1");
+  // worktree_ensure records the path.resolve()d root, which on Windows maps a
+  // POSIX-looking input onto the current drive — compare resolved vs resolved.
+  assert.equal(state.root, path.resolve("/tmp/base-check/jam_1"));
 });
 
 it("unimplemented handlers answer Unavailable instead of pretending", () => {

@@ -27,12 +27,16 @@ import {
 } from "./constants.js";
 
 export class CapyApiError extends Error {
-  constructor(message, { status = 0, code = null, upstream = null } = {}) {
+  constructor(message, { status = 0, code = null, upstream = null, rotatedJwt = null } = {}) {
     super(message);
     this.name = "CapyApiError";
     this.status = status;
     this.code = code;
     this.upstream = upstream;
+    // Clerk rotates the client JWT on FAPI calls; the response header carries
+    // the new value even on a failed call, and callers that keep state across
+    // a retry (the login flow) need it or the retry goes out on a stale token.
+    this.rotatedJwt = rotatedJwt;
   }
 }
 
@@ -82,7 +86,7 @@ export async function clerkRequest(path, {
     const code = Array.isArray(body?.errors) && body.errors.length ? body.errors[0].code ?? null : null;
     throw new CapyApiError(
       `Capy sign-in request failed (HTTP ${response.status})${detail ? `: ${detail}` : ""}`,
-      { status: response.status, code },
+      { status: response.status, code, rotatedJwt },
     );
   }
   return { body, rotatedJwt };

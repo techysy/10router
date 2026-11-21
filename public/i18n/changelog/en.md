@@ -14,7 +14,7 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **New provider: CrowLLM**: an aggregator gateway with 180+ models behind a single API key; models suffixed `:free` cost nothing (40 of them, including the Qwen 4 Max free variant — 91%+ measured daily success rate, latency on the slow side). The "Get API Key" entry rotates through an invite-link pool so new-account attribution doesn't pile onto one code.
 
-- **New provider: Capy**: an agent platform — each request is one real agent run (threads are reused after login, **no need to keep the official desktop app running**). Sign in with an email code; three free all-zero-priced models are included (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Measured 5-9s per turn — good for conversation, not a "fast model" in the usual sense.
+- **New provider: Capy**: an agent platform — each request is one real agent run (threads are reused after login, **no need to keep the official desktop app running**; the headless device serves the agent's command and file operations just like the desktop app does — deployments that don't want that simply don't pair a device). Sign in with an email code; three free all-zero-priced models are included (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Measured 5-9s per turn — good for conversation, not a "fast model" in the usual sense.
 
 ### 🎨 UI
 

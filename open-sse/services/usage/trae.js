@@ -69,6 +69,9 @@ const iso = (v) => {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+/** 汇总行名（大数字 + 分段条分母）；明细桶行撞名时改名让位。 */
+const SUMMARY_NAME = "积分";
+
 /** 卡片明细行上限（余额行之外），超出并进「更远到期」（Lingxi 同款）。 */
 export const MAX_BUCKETS = 19;
 
@@ -242,8 +245,8 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
   // 避开「余额」（STORED_VALUE_RE → 退化成无分母单值卡，丢掉 X/Y 总额）与
   // 「资源包」（hasCollectionRow 特殊逻辑）——Qoder addOn 聚合行同款语义。
   const quotas = {};
-  quotas["积分"] = {
-    name: "积分",
+  quotas[SUMMARY_NAME] = {
+    name: SUMMARY_NAME,
     used: round2(used),
     total: round2(total) || 0.000001,
     remaining: round2(Math.max(total - used, 0)),
@@ -252,7 +255,11 @@ export async function getTraeUsage(accessToken, proxyOptions = null) {
     recurring: false,
     unit: "积分",
   };
-  for (const r of rows) quotas[r.name] = r;
+  for (const r of rows) {
+    // 桶名恰为汇总名（group_name「积分」且无到期日的包）会覆盖掉
+    // summarizesDetail 行，丢掉大数与分母语义——无到期日语意改名让位。
+    quotas[r.name === SUMMARY_NAME ? `${SUMMARY_NAME}（无到期日）` : r.name] = r;
+  }
 
   return {
     quotas,
