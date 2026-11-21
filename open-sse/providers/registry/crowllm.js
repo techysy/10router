@@ -18,12 +18,14 @@
 //
 // /console/token 是 one-hub 家族惯例 key 页路径（SPA 无法无浏览器渲染验证，
 // 未实锤）。
-// 邀请码池（用户 2026-11-21 提供，先放 2 条）：获取 API 入口每次读取随机取一条，
+// 邀请码池（用户 2026-11-21 提供，4 条）：获取 API 入口每次读取随机取一条，
 // 归因分散——与 croli 同款。getter 在 provider 信息被 JSON 序列化（面板 API）时
 // 求值一次，即每次页面加载换一条；后续加码直接往数组里补。
 const CROWLLM_INVITE_LINKS = [
   "https://crowllm.com/sign-up?aff=xGk0",
   "https://crowllm.com/sign-up?aff=quJ8",
+  "https://crowllm.com/sign-up?aff=tEjJ",
+  "https://crowllm.com/sign-up?aff=6CNM",
 ];
 const pickInviteLink = () => CROWLLM_INVITE_LINKS[Math.floor(Math.random() * CROWLLM_INVITE_LINKS.length)];
 export default {
