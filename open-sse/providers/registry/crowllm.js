@@ -31,7 +31,10 @@ export default {
     notice: {
       text: "CrowLLM is an OpenAI-compatible gateway (one-hub family) with 180+ models; models suffixed :free cost nothing. Register with email/Google/GitHub/Discord, then create a key in the console.",
       signupUrl: "https://crowllm.com/sign-up?aff=emqU",
-      apiKeyUrl: "https://crowllm.com/console/token",
+      // 获取 API 入口 = 用户邀请链接（2026-11-21 用户指定；aff=emqU 为主号码）。
+      // /console/token 是 one-hub 家族惯例 key 页路径，SPA 无法无浏览器渲染验证、
+      // 未实锤，弃用。
+      apiKeyUrl: "https://crowllm.com/sign-up?aff=emqU",
     },
   },
   category: "apikey",
