@@ -515,6 +515,83 @@ it("fails closed when Capy returns an unclosed tool marker", async () => {
   assert.equal(json.choices[0].message.tool_calls, undefined, "must never expose an executable partial call");
 });
 
+it("recovers multiple unclosed tool_call blocks in one message", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent(
+      '<tool_call>{"name":"weather","arguments":{"city":"LA"}}'
+      + '<tool_call>{"name":"news","arguments":{"topic":"tech"}}',
+    )],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "weather and news" }],
+      tools: [
+        { type: "function", function: { name: "weather", parameters: { type: "object" } } },
+        { type: "function", function: { name: "news", parameters: { type: "object" } } },
+      ],
+    },
+    stream: true,
+    credentials: executorCredentials(),
+  });
+  const { chunks } = await readSse(response);
+  const toolChunk = chunks.find((chunk) => chunk.choices[0].delta?.tool_calls?.length);
+  const names = toolChunk.choices[0].delta.tool_calls.map((c) => c.function.name);
+  assert.deepEqual(names, ["weather", "news"]);
+  assert.equal(chunks.at(-1).choices[0].finish_reason, "tool_calls");
+});
+
+it("keeps prose around an unclosed tool_call instead of failing", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent(
+      'Let me check. <tool_call>{"name":"weather","arguments":{"city":"LA"}} done.',
+    )],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "weather?" }],
+      tools: [{ type: "function", function: { name: "weather", parameters: { type: "object" } } }],
+    },
+    stream: true,
+    credentials: executorCredentials(),
+  });
+  const { chunks } = await readSse(response);
+  const text = chunks.map((c) => c.choices[0].delta?.content ?? "").join("");
+  const toolChunk = chunks.find((chunk) => chunk.choices[0].delta?.tool_calls?.length);
+  assert.equal(toolChunk.choices[0].delta.tool_calls[0].function.name, "weather");
+  assert.match(text, /Let me check\.|done\./);
+  assert.equal(chunks.at(-1).choices[0].finish_reason, "tool_calls");
+});
+
+it("still fails closed when a recovered block is followed by truncated JSON", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent(
+      '<tool_call>{"name":"weather","arguments":{"city":"LA"}}'
+      + '<tool_call>{"name":"news","arguments":{"top',
+    )],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "weather and news" }],
+      tools: [
+        { type: "function", function: { name: "weather", parameters: { type: "object" } } },
+        { type: "function", function: { name: "news", parameters: { type: "object" } } },
+      ],
+    },
+    stream: false,
+    credentials: executorCredentials(),
+  });
+  const json = await response.json();
+  assert.equal(json.choices[0].finish_reason, "stop");
+  assert.match(json.choices[0].message.content, /incomplete <tool_call>/);
+  assert.equal(json.choices[0].message.tool_calls, undefined, "partial batch must never execute");
+});
+
 it("ad model glm-5.3-flash-ads is in the registry and passes through", async () => {
   const REGISTRY = (await import("../../open-sse/providers/registry/index.js")).default;
   const entry = REGISTRY.find((r) => r.id === "capy");

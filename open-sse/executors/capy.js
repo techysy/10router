@@ -100,6 +100,7 @@ function toolPreamble(tools, toolChoice) {
     "Do NOT use your own sandbox/terminal/file tools for this request; only use message_user to reply.",
     "To call client tools, your message_user text must contain ONLY one or more blocks, each exactly:",
     '<tool_call>{"name":"<tool name>","arguments":{...json args...}}</tool_call>',
+    "Every block MUST end with the closing tag </tool_call> — never omit it.",
     "with no other text. Otherwise answer normally in plain text.",
     force + "Available tools (JSON Schema):",
     spec,
@@ -142,53 +143,91 @@ function decodeToolCallBlock(raw) {
 }
 
 /**
- * Parse tool blocks. Capy occasionally emits a complete JSON object after the
- * opening marker but omits the closing marker; recover that narrow case. Any
- * incomplete or malformed JSON remains a failed tool call and is never exposed
- * as executable data or silently returned as a normal answer.
+ * Extract the first balanced `{...}` JSON object from a string, tracking string
+ * state so braces inside quoted values don't count. Returns { json, rest } —
+ * rest is whatever follows the object — or null when no balanced object exists
+ * (truncated JSON, or no object at all).
+ */
+function extractJsonObjectPrefix(s) {
+  const start = s.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (ch === "\\") escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return { json: s.slice(start, i + 1), rest: s.slice(i + 1) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse tool blocks. Capy models systematically emit `<tool_call>{...}` with no
+ * closing marker — closed blocks are parsed first, then each unmatched open tag
+ * is treated as a segment running to the next open tag (or end of text). A
+ * segment whose leading JSON object is complete is recovered as a real call
+ * and any prose after it stays in `rest`; a segment with no `{` is prose; a
+ * segment whose JSON cannot be balanced or decoded is a failed call. Failures
+ * are never exposed as executable data or silently returned as a normal answer.
  */
 function parseToolCalls(text, allowedNames = null) {
   if (typeof text !== "string" || !TOOL_CALL_OPEN_RE.test(text)) return null;
   const calls = [];
-  let invalid = false;
+  let invalidReason = null;
+  let recovered = false;
+
   for (const match of text.matchAll(TOOL_CALL_RE)) {
     const call = decodeToolCallBlock(match[1]);
     if (call) calls.push(call);
-    else invalid = true;
+    else invalidReason = invalidReason || "invalid_tool_call";
   }
   const openCount = (text.match(/<tool_call\b[^>]*>/gi) || []).length;
   const closeCount = (text.match(/<\/tool_call\s*>/gi) || []).length;
 
-  if (!invalid && openCount === closeCount && calls.length) {
-    if (allowedNames && calls.some((call) => !allowedNames.has(call.function.name))) {
-      return { calls: [], rest: "", invalid: true, reason: "unknown_tool_name" };
-    }
-    return { calls, rest: text.replace(TOOL_CALL_RE, "").trim(), invalid: false };
-  }
-
-  // Tolerate exactly one missing close marker only when the suffix is a complete
-  // JSON tool object and contains no trailing prose. This fixes the observed
-  // `<tool_call>{...}` response without guessing at truncated arguments.
-  if (!invalid && openCount === closeCount + 1) {
-    const lastOpen = text.lastIndexOf("<tool_call");
-    const suffix = text.slice(lastOpen).replace(/^<tool_call\b[^>]*>/i, "").trim();
-    const recovered = decodeToolCallBlock(suffix);
-    if (recovered) {
-      const allCalls = [...calls, recovered];
-      if (allowedNames && allCalls.some((call) => !allowedNames.has(call.function.name))) {
-        return { calls: [], rest: "", invalid: true, reason: "unknown_tool_name" };
+  let rest = text.replace(TOOL_CALL_RE, "");
+  if (openCount > closeCount) {
+    const segments = rest.split(/<tool_call\b[^>]*>/i);
+    rest = segments.shift() ?? "";
+    for (const segment of segments) {
+      const ext = extractJsonObjectPrefix(segment);
+      if (!ext) {
+        if (segment.includes("{")) {
+          // Has a `{` but the braces never balance: a genuinely truncated call.
+          invalidReason = invalidReason || "unclosed_tool_call";
+        } else {
+          rest += `<tool_call>${segment}`; // bare marker mention, keep as prose
+        }
+        continue;
       }
-      const prefix = text.slice(0, lastOpen).replace(TOOL_CALL_RE, "").trim();
-      return { calls: allCalls, rest: prefix, invalid: false, recovered: true };
+      const call = decodeToolCallBlock(ext.json);
+      if (call) {
+        calls.push(call);
+        recovered = true;
+        rest += ext.rest;
+      } else {
+        invalidReason = invalidReason || "unclosed_tool_call";
+      }
     }
   }
+  rest = rest.trim();
 
-  return {
-    calls: [],
-    rest: "",
-    invalid: true,
-    reason: openCount !== closeCount ? "unclosed_tool_call" : "invalid_tool_call",
-  };
+  if (!calls.length && !invalidReason) return null;
+  if (invalidReason) return { calls: [], rest: "", invalid: true, reason: invalidReason };
+  if (allowedNames && calls.some((call) => !allowedNames.has(call.function.name))) {
+    return { calls: [], rest: "", invalid: true, reason: "unknown_tool_name" };
+  }
+  return { calls, rest, invalid: false, ...(recovered ? { recovered: true } : {}) };
 }
 
 function toolCallErrorText(parsed) {
