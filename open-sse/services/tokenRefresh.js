@@ -1,4 +1,5 @@
 import { PROVIDERS } from "../config/providers.js";
+import { mintCapySessionJwt } from "../shared/capy/client.js";
 import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
 import {
   refreshXaiToken,
@@ -168,6 +169,18 @@ function vertexRefreshHandler(c, log) {
   return refreshVertexToken(saJson, log);
 }
 
+// Capy: "refresh" = mint a fresh 60s session JWT through Clerk's session-minter.
+// refreshToken is the Clerk client JWT (rotating_token); Clerk may rotate it on
+// every call, so the (possibly) new value rides back in refreshToken and the
+// caller persists it via onCredentialsRefreshed.
+async function capyRefreshHandler(c) {
+  const sessionId = c?.providerSpecificData?.sessionId;
+  const clientJwt = c?.refreshToken;
+  if (!sessionId || !clientJwt) return null;
+  const { jwt, rotatedClientJwt } = await mintCapySessionJwt({ clientJwt, sessionId });
+  return { accessToken: jwt, refreshToken: rotatedClientJwt ?? clientJwt, expiresIn: 55 };
+}
+
 const REFRESH_HANDLERS = {
   "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
   antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
@@ -201,7 +214,8 @@ const REFRESH_HANDLERS = {
   "minimax-code": (c, log) => refreshMinimaxCodeToken("minimax-code", c.refreshToken, log),
   "minimax-code-global": (c, log) => refreshMinimaxCodeToken("minimax-code-global", c.refreshToken, log),
   vertex: vertexRefreshHandler,
-  "vertex-partner": vertexRefreshHandler
+  "vertex-partner": vertexRefreshHandler,
+  capy: capyRefreshHandler
 };
 
 export async function getAccessToken(provider, credentials, log) {

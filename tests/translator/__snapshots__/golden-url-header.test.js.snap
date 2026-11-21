@@ -392,6 +392,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > byteplus → headers
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > capy → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > cerebras → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2432,6 +2451,13 @@ exports[`GOLDEN buildUrl (default executor providers) > byteplus → url (stream
 {
   "nonStream": "https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions",
   "stream": "https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > capy → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.capy.ai/app",
+  "stream": "https://api.capy.ai/app",
 }
 `;
 

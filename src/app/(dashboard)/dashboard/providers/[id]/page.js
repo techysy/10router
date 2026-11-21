@@ -29,6 +29,7 @@ import LingxiCaptureModal from "../components/LingxiCaptureModal";
 import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
+import CapyLoginModal from "../components/CapyLoginModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
@@ -95,6 +96,7 @@ export default function ProviderDetailPage() {
   const [showSessionPool, setShowSessionPool] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
+  const [showCapyLoginModal, setShowCapyLoginModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
   const [showMeooImportApikey, setShowMeooImportApikey] = useState(false);
@@ -198,6 +200,11 @@ export default function ProviderDetailPage() {
   };
 
   const triggerAddConnection = () => {
+    // Capy has no browser-OAuth authorize URL: login is the dashboard email-code flow.
+    if (providerId === "capy") {
+      setShowCapyLoginModal(true);
+      return;
+    }
     if (isOAuth) {
       triggerOAuthConnection();
       return;
@@ -3009,6 +3016,13 @@ export default function ProviderDetailPage() {
         <LoomySmsModal
           isOpen
           onClose={() => setShowLoomySmsModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "capy" && showCapyLoginModal && (
+        <CapyLoginModal
+          isOpen
+          onClose={() => setShowCapyLoginModal(false)}
           onAdded={refreshAfterConnectionChange}
         />
       )}

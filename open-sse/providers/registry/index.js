@@ -176,6 +176,7 @@ import p173 from "./deepai.js";
 import p174 from "./nous.js";
 import p175 from "./croli.js";
 import p176 from "./crowllm.js";
+import p177 from "./capy.js";
 
 export default [
   p0,
@@ -355,4 +356,5 @@ export default [
   p174,
   p175,
   p176,
+  p177,
 ];

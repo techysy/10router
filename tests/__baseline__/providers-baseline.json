@@ -1540,5 +1540,10 @@
     "headers": {},
     "timeoutMs": 120000,
     "format": "openai"
+  },
+  "capy": {
+    "baseUrl": "https://api.capy.ai/app",
+    "validateUrl": "https://api.capy.ai/app/me",
+    "format": "openai"
   }
 }

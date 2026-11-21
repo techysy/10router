@@ -179,6 +179,11 @@ export const ALLOWLIST = {
   "crowllm/particle-1:free": "no public spec",
   "crowllm/solar-mini4:free": "no public spec",
   "crowllm/xing4.0-29b-a4b:free": "no public spec",
+
+  // Capy 自家模型（agent 平台内免费档）：无公开规格、无 models.dev 条目，
+  // 能力以私有 API 实测为准，保留地板值。其余 capy 模型（anthropic/* 等
+  // vendor 前缀 id）走 canonical/CI 层正常解析。
+  "capy/particle/particle-1": "no public spec",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from
