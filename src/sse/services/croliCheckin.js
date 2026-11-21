@@ -168,7 +168,9 @@ async function croliSayHi(sk, proxyOptions) {
     headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: SAYHI_MODEL,
-      messages: [{ role: "user", content: "hi" }],
+      // say-hi 只为触发 agent_turn_completed(+200 落账),内容不被断言;裸「hi」
+      // 已被 OpenRouter 池风控拉黑(同模型测试探针,2026-11-21),换验证过的词形。
+      messages: [{ role: "user", content: "Hello!" }],
       max_tokens: SAYHI_MAX_TOKENS,
     }),
     signal: AbortSignal.timeout(60000),

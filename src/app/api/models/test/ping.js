@@ -176,7 +176,10 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       // See issue #3010.
       max_tokens: 1024,
       stream: false,
-      messages: [{ role: "user", content: "hi" }],
+      // 探针词不能是裸「hi」:croli 背后 OpenRouter 共享池的风控把高频单 greeting
+      // 词拉黑了(HTTP 400 this prompt previously triggered a content refusal,
+      // 2026-11-21 实测),中性短句直通。这里的内容不被断言,只求触发一次正常补全。
+      messages: [{ role: "user", content: "Reply with OK." }],
     }),
     signal: AbortSignal.timeout(15000),
   });
