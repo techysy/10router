@@ -770,6 +770,44 @@ exports[`GOLDEN buildHeaders (default executor providers) > cohere → headers (
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > croli → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > crowllm → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > deepai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2535,6 +2573,20 @@ exports[`GOLDEN buildUrl (default executor providers) > cohere → url (stream +
 {
   "nonStream": "https://api.cohere.ai/v1/chat/completions",
   "stream": "https://api.cohere.ai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > croli → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://ds.croli.net/v1/chat/completions",
+  "stream": "https://ds.croli.net/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > crowllm → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://crowllm.com/v1/chat/completions",
+  "stream": "https://crowllm.com/v1/chat/completions",
 }
 `;
 
