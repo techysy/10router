@@ -29,6 +29,7 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
+import { testCroliConnection } from "./croliConnection.js";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 
 // OAuth provider test endpoints
@@ -1703,12 +1704,16 @@ export async function testSingleConnection(id, options = {}) {
   // sk- key → /models, session cookie → Preview model — lives in the apikey
   // path's provider switch. Route xiaomi-mimo there regardless of authType,
   // otherwise the Test button reports "Provider test not supported".
-  // Meoo routes here regardless of authType: the paste-key import stores
-  // authType "oauth" (line ~101 of import-apikey), but its probe is the
-  // two-stage chain in testMeooConnection, not OAUTH_TEST_CONFIG — which has
-  // no meoo entry and answered "Provider test not supported" for healthy
-  // accounts (2026-11-15 user report).
-  if (connection.provider === "meoo") {
+  // Croli verifies OAuth connectivity through its read-only balance endpoint;
+  // no model request is issued and no trial credits are spent.
+  if (connection.provider === "croli") {
+    result = await testCroliConnection(connection, effectiveProxy);
+  } else if (connection.provider === "meoo") {
+    // Meoo routes here regardless of authType: the paste-key import stores
+    // authType "oauth" (line ~101 of import-apikey), but its probe is the
+    // two-stage chain in testMeooConnection, not OAUTH_TEST_CONFIG — which has
+    // no meoo entry and answered "Provider test not supported" for healthy
+    // accounts (2026-11-15 user report).
     result = await testMeooConnection(connection, effectiveProxy, options);
   } else if (isKeyLike || connection.provider === "xiaomi-mimo" || connection.provider === "mimo-desktop") {
     result = await testApiKeyConnection(connection, effectiveProxy, options);

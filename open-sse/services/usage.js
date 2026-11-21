@@ -36,6 +36,7 @@ import { getCommandCodeUsage } from "./usage/commandcode.js";
 import { getMiniMaxCodeUsage } from "./usage/minimax-code.js";
 import { getCursorUsage } from "./usage/cursor.js";
 import { getTraeUsage } from "./usage/trae.js";
+import { getCroliUsage } from "./usage/croli.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -133,6 +134,7 @@ const USAGE_HANDLERS = {
   // ——api.trae.ai 的 pay 端点 404（TLB 网关层不存在），数据只在官网 dashboard
   // 前端（网页会话线，未考古）。intl 连接给指路文案而不是空 "not implemented"。
   "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
+  croli: (c) => getCroliUsage(c.accessToken, c.proxyOptions),
   trae: (c) =>
     String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
       ? getTraeUsage(c.accessToken, c.proxyOptions)
