@@ -1832,14 +1832,14 @@ async function loadLogs() {
     const dt = src === "app" && $("logDate") ? $("logDate").value : "";
     const r = await jget("/api/logs?file=" + encodeURIComponent(src) + "&lines=" + n + (f ? "&grep=" + encodeURIComponent(f) : "") + (dt ? "&date=" + encodeURIComponent(dt) : ""));
     if (src === "app" && Array.isArray(r.dates) && r.dates.join("|") !== logDates.join("|")) { logDates = r.dates; renderDateOptions(); }
-    const lines = (r.text || "").split("\n");
+    const lines = (r.text || "").split("\\n");
     box.className = "loglist lograw";
     box.innerHTML = lines.map((l) => {
       if (!l.trim()) return '<span class="rl diml"> </span>';
       const cls = /error|fail|exception|eaddrinuse|eacces|\b429\b|\b5\d\d\b/i.test(l) ? "errl"
         : /\bwarn|🟠|🟡/i.test(l) ? "warnl" : "";
       return '<span class="rl ' + cls + '">' + escH(l) + "</span>";
-    }).join("\n") || '<span class="mut">' + t("logEmpty") + "</span>";
+    }).join("\\n") || '<span class="mut">' + t("logEmpty") + "</span>";
     if (atBottom) box.scrollTop = box.scrollHeight;
   } catch (e) {
     // 面板重启中 / 网络抖动：日志框显示占位而不是静默报错（控制台 unhandled rejection）
