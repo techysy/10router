@@ -22,13 +22,12 @@ export default {
       apiKeyUrl: "https://tokenharbor.ai/dashboard",
     },
   },
-  category: "apikey",
+  // 免费额度组（同 crowllm）：apikey 接入 + 轮换的 :free 模型集，providers 页
+  // free + freeTier 合并渲染成「免费」列表。free 组是 noAuth 直连型，不适用。
+  category: "freeTier",
   authType: "apikey",
-  // Without this the card ranks ~51/53 in the API Key grid (unconnected
-  // providers fall through to `priority ?? 999`, then alphabetical) while the
-  // page folds everything past the first 20 behind "Show all". 45 keeps it
-  // ahead of the Anthropic/OpenAI tier so it lands inside the visible 20 on
-  // fresh installs.
+  // 连接状态同档时的排序兜底（免费列表按连接状态优先，其次 noAuth/community、
+  // 卡片顺序，最后落到 priority）。
   priority: 45,
   transport: {
     baseUrl: "https://tokenharbor.ai/v1/chat/completions",
