@@ -589,6 +589,16 @@ export const PROVIDER_CAPABILITIES = {
     // reasoning_efforts 档位（none→xhigh）→ openai 形状；窗口 1048576（live 原值）。
     "mimo-v2.5":              { vision: true, audioInput: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
   },
+  // Capy 的广告档模型 id 带 `-ads` 后缀（`deepseek/deepseek-v4.1-flash-ads`、
+  // `zai/glm-5.3-flash-ads`），既不是 canonical 名也不命中家族 pattern 的完整
+  // 形态，会落 DEFAULT_CAPABILITIES（vision 被剥、200000/64000）。这里按 Capy
+  // `/app/models` 返回的 limits 原值声明：两档广告模型的 context 都是 1048576，
+  // maxOutput 65536——与第一方 V4.1-Flash 的 384000 输出上限不同，不能套
+  // canonical 行，否则会把超出 65536 的输出请求发给只收 64K 的上游。
+  "capy": {
+    "deepseek/deepseek-v4.1-flash-ads": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+    "zai/glm-5.3-flash-ads":            { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 131072 },
+  },
   "codex": {
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     // codex OAuth 后端把 gpt-6 家族截到 272k（不同于 OpenAI API 的 1.05M 窗口，
@@ -954,6 +964,10 @@ PROVIDER_CAPABILITIES.th = PROVIDER_CAPABILITIES.tokenharbor;
 PROVIDER_CAPABILITIES.thh = PROVIDER_CAPABILITIES.tokenharbor;
 PROVIDER_CAPABILITIES.ps = PROVIDER_CAPABILITIES.poolside;
 PROVIDER_CAPABILITIES["atria-asi"] = PROVIDER_CAPABILITIES.atria;
+// Capy 的 registry 别名 capy-ai：alias 拼写必须与 id 共享同一张表，
+// 否则 capy-ai/zai/glm-5.3-flash-ads 这类钉住行取不到，会落 DEFAULT
+// （vision 被剥、200k/64k），与本文件 capy 块声明的 1M/64K 不一致。
+PROVIDER_CAPABILITIES["capy-ai"] = PROVIDER_CAPABILITIES.capy;
 // Qoder 的传输/UI 别名（qd = INTL，qdc = CN）与上面同理：/api/models 的
 // AI_MODELS 用 PROVIDER_MODELS 的 key（即 alias）拼 provider，若不在此归一化，
 // 同一模型换个拼写就回落到 DEFAULT 200k（vision/reasoning 被剥、窗口砍到 1/5）。

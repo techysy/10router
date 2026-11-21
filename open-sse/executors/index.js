@@ -36,10 +36,12 @@ import { GeminiWebExecutor } from "./gemini-web.js";
 import { MuseWebExecutor } from "./muse-web.js";
 import { DumateExecutor } from "./dumate.js";
 import { LingxiExecutor } from "./lingxi.js";
+import { CapyExecutor } from "./capy.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
+  capy: new CapyExecutor(),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),
@@ -137,3 +139,4 @@ export { default as TraeExecutor } from "./trae.js";
 export { default as ZedExecutor } from "./zed.js";
 export { default as WindsurfExecutor } from "./windsurf.js";
 export { DevinCliExecutor } from "./devin-cli.js";
+export { CapyExecutor } from "./capy.js";
