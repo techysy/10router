@@ -1241,9 +1241,10 @@
   "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "用你的 Capy 帳號信箱登入——驗證碼寄到你的信箱（與 Capy 桌面端同一通道）。執行緒跑在你已連接的 Capy 裝置上。",
   "Email": "信箱",
   "Email Code": "信箱驗證碼",
-  "6-digit code": "6 位驗證碼",
   "Send failed": "傳送失敗",
   "Login failed": "登入失敗",
   "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "用你的 Capy 帳號（信箱驗證碼）登入。執行緒（jam）登入後複用——無需每次請求都連裝置。含免費廣告補貼模型（GLM-5.3-Flash、DeepSeek V4.1 Flash）。",
-  "Disabled models": "已停用模型"
+  "Disabled models": "已停用模型",
+  "Sign in with your own QwenWork account via device code. On the authorization page, pick the team whose plan you want to use — calls are charged to the selected team's credits.": "使用您自己的千問辦公（QwenWork）帳號通過裝置碼登入。授權頁上請選擇要使用的團隊——呼叫將消耗所選團隊的積分。",
+  "使用您自己的千问办公账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。": "使用您自己的千問辦公（QwenWork）帳號通過裝置碼登入。授權頁上請選擇要使用的團隊——呼叫將消耗所選團隊的積分。"
 }

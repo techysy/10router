@@ -13,6 +13,8 @@ import antigravity from "./antigravity.js";
 import iflow from "./iflow.js";
 import qoder from "./qoder.js";
 import qoderCn from "./qoder-cn.js";
+import qwenwork from "./qwenwork.js";
+import qwenworkCn from "./qwenwork-cn.js";
 import meoo from "./meoo.js";
 import croli from "./croli.js";
 import nous from "./nous.js";
@@ -46,6 +48,8 @@ const PROVIDERS = {
   iflow,
   qoder,
   "qoder-cn": qoderCn,
+  qwenwork,
+  "qwenwork-cn": qwenworkCn,
   meoo,
   croli,
   nous,

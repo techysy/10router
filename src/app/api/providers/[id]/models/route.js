@@ -9,6 +9,7 @@ import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { resolveQwenWorkModels } from "open-sse/services/qwenworkModels.js";
 import { resolveMimoModels } from "open-sse/services/mimoModels.js";
 import { resolveMeooModels } from "open-sse/services/meooModels.js";
 import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
@@ -171,6 +172,45 @@ const resolveQoderCatalog = async (connection) => {
   } catch (error) {
     warning = `Failed to fetch Qoder models: ${error.message}`;
     console.log("Failed to fetch Qoder models dynamically, falling back to static:", error.message);
+  }
+  return { models: [], warning };
+};
+
+// QwenWork (intl + CN share one resolver; qwenworkModels branches on
+// credentials.provider for the gateway host). OAuth-only provider — the
+// device access token is the only credential the catalog fetch needs.
+const resolveQwenWorkCatalog = async (connection) => {
+  const credentials = {
+    provider: connection.provider,
+    accessToken: connection.accessToken,
+    refreshToken: connection.refreshToken,
+    email: connection.email,
+    displayName: connection.displayName,
+    providerSpecificData: connection.providerSpecificData || {},
+  };
+  let warning;
+  try {
+    const result = await resolveQwenWorkModels(credentials, { forceRefresh: true });
+    if (result?.models?.length) {
+      return {
+        models: result.models.map((m) => ({
+          id: `${connection.provider}/${m.id}`,
+          name: m.name,
+          contextLength: m.contextLength,
+          isVL: m.isVL,
+          isReasoning: m.isReasoning,
+          maxOutputTokens: m.maxOutputTokens,
+          description: m.description,
+          rateMultiplier: m.rateMultiplier,
+          originalRateMultiplier: m.originalRateMultiplier,
+          promotion: m.promotion,
+        })),
+      };
+    }
+    warning = "QwenWork returned no models; falling back to static catalog.";
+  } catch (error) {
+    warning = `Failed to fetch QwenWork models: ${error.message}`;
+    console.log("Failed to fetch QwenWork models dynamically, falling back to static:", error.message);
   }
   return { models: [], warning };
 };
@@ -464,6 +504,12 @@ const PROVIDER_MODELS_CONFIG = {
       const rows = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
       return rows.filter((m) => String(m?.id || "").endsWith(":free"));
     },
+  },
+  qwenwork: {
+    customResolver: resolveQwenWorkCatalog,
+  },
+  "qwenwork-cn": {
+    customResolver: resolveQwenWorkCatalog,
   },
   // Meoo（秒悟）: two-stage auth — the gateway only accepts the per-project
   // service AK, which resolveMeooModels resolves / re-resolves through the

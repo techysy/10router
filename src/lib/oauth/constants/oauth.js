@@ -35,6 +35,11 @@ export const GEMINI_CONFIG = { ...GOOGLE_OAUTH_CLIENT, ...PROVIDER_OAUTH["gemini
 // of attempting to silently rotate.
 export const QODER_CONFIG = { ...PROVIDER_OAUTH["qoder"] };
 
+// QwenWork （千问办公） OAuth Configuration (device-token flow, Qoder family;
+// the provider files read their site constants from shared/qwenwork).
+export const QWENWORK_CONFIG = { ...PROVIDER_OAUTH["qwenwork"] };
+export const QWENWORK_CN_CONFIG = { ...PROVIDER_OAUTH["qwenwork-cn"] };
+
 // Meoo （秒悟） OAuth Configuration (Authorization Code Flow with PKCE).
 // Public client from the official CLI (no secret); scope "cli.compat".
 // Chat traffic never uses these tokens — the project service AK resolved
