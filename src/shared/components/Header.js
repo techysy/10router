@@ -272,14 +272,23 @@ export default function Header({ onMenuClick, onDesktopMenuClick, showMenuButton
       {/* Page title with breadcrumbs */}
       <div className="flex flex-col min-w-0 flex-1">
         {breadcrumbs.length > 0 ? (
-          <div className="flex items-center gap-2">
+          // min-w-0 贯通到 h1,truncate 才拿得到宽度约束——否则长标题整串溢出,
+          // 画进右侧半透明按钮底下,窄屏上视觉上「堆在一起」。
+          <div className="flex items-center gap-2 min-w-0">
             {breadcrumbs.map((crumb, index) => (
               <div
                 key={`${crumb.label}-${crumb.href || "current"}`}
-                className="flex items-center gap-2"
+                className={
+                  crumb.href
+                    ? "hidden sm:flex items-center gap-2 min-w-0"
+                    : "flex items-center gap-2 min-w-0"
+                }
               >
+                {/* 窄屏只留当前页(图标+标题):层级导航由汉堡菜单承担,带链接的
+                    父级面包屑整体隐藏——CJK 链接被 flex 压窄会逐字换行成竖排。
+                    crumb[0] 恒为链接层,所以箭头也只在 sm+ 出现。 */}
                 {index > 0 && (
-                  <span className="material-symbols-outlined text-text-muted text-base">
+                  <span className="material-symbols-outlined text-text-muted text-base hidden sm:inline">
                     chevron_right
                   </span>
                 )}
@@ -291,13 +300,13 @@ export default function Header({ onMenuClick, onDesktopMenuClick, showMenuButton
                     {crumb.label}
                   </Link>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     {crumb.image && (
                       <ProviderIcon
                         src={crumb.image}
                         alt={crumb.label}
                         size={28}
-                        className="object-contain rounded max-w-[28px] max-h-[28px]"
+                        className="object-contain rounded max-w-[28px] max-h-[28px] shrink-0"
                         fallbackText={crumb.label.slice(0, 2).toUpperCase()}
                       />
                     )}
@@ -311,9 +320,9 @@ export default function Header({ onMenuClick, onDesktopMenuClick, showMenuButton
           </div>
         ) : title ? (
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {icon && (
-                <span className="material-symbols-outlined text-primary text-xl lg:text-2xl">
+                <span className="material-symbols-outlined text-primary text-xl lg:text-2xl shrink-0">
                   {icon}
                 </span>
               )}
