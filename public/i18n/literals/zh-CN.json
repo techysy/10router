@@ -2300,5 +2300,10 @@
   "Fetch CrowLLM Models": "获取 CrowLLM 模型",
   "Upstream no longer lists": "上游清单已不含",
   "models — auto-disabled (re-enable from the list if they return)": "个模型——已自动禁用（若上游恢复可从列表重新启用）",
-  "Failed to disable models": "禁用模型失败"
+  "Failed to disable models": "禁用模型失败",
+  "Capy Login": "Capy 登录",
+  "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "用你的 Capy 账号邮箱登录——验证码发到你的邮箱（与 Capy 桌面端同一通道）。线程跑在你已连接的 Capy 设备上。",
+  "Email Code": "邮箱验证码",
+  "Send failed": "发送失败",
+  "Login failed": "登录失败"
 }

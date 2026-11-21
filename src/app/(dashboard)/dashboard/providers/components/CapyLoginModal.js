@@ -32,7 +32,7 @@ export default function CapyLoginModal({ isOpen, onClose, onAdded }) {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Send failed");
+      if (!res.ok) throw new Error(data?.error || translate("Send failed"));
       setFlowId(data.flowId);
       setCountdown(60);
     } catch (e) {
@@ -50,7 +50,7 @@ export default function CapyLoginModal({ isOpen, onClose, onAdded }) {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flowId, code: code.trim(), email: email.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Login failed");
+      if (!res.ok) throw new Error(data?.error || translate("Login failed"));
       onAdded(data.connection);
       onClose();
     } catch (e) {

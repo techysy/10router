@@ -202,5 +202,16 @@
   "Fetch CrowLLM Models": "CrowLLM モデルを取得",
   "Upstream no longer lists": "上流カタログに含まれなくなった",
   "models — auto-disabled (re-enable from the list if they return)": "個のモデル — 自動無効化（復活したらリストから再有効化できます）",
-  "Failed to disable models": "モデルの無効化に失敗しました"
+  "Failed to disable models": "モデルの無効化に失敗しました",
+  "Capy Login": "Capy ログイン",
+  "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "Capy アカウントのメールアドレスでログインします——コードはメールに送られます（Capy デスクトップアプリと同じチャネル）。スレッドは接続済みの Capy デバイス上で実行されます。",
+  "Email": "メールアドレス",
+  "Send Code": "コードを送信",
+  "Email Code": "メール認証コード",
+  "6-digit code": "6 桁のコード",
+  "Sending…": "送信中…",
+  "Logging in…": "ログイン中…",
+  "Verify & Add Connection": "認証して接続を追加",
+  "Send failed": "送信に失敗しました",
+  "Login failed": "ログインに失敗しました"
 }

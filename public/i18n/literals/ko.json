@@ -202,5 +202,16 @@
   "Fetch CrowLLM Models": "CrowLLM 모델 가져오기",
   "Upstream no longer lists": "업스트림 목록에 더 이상 없는",
   "models — auto-disabled (re-enable from the list if they return)": "개 모델 — 자동 비활성화(복구되면 목록에서 다시 활성화 가능)",
-  "Failed to disable models": "모델 비활성화 실패"
+  "Failed to disable models": "모델 비활성화 실패",
+  "Capy Login": "Capy 로그인",
+  "Log in with your Capy account email — a code is sent to your inbox (same channel as the Capy desktop app). Threads run on your connected Capy device.": "Capy 계정 이메일로 로그인합니다 — 코드가 이메일로 전송됩니다(Capy 데스크톱 앱과 같은 채널). 스레드는 연결된 Capy 기기에서 실행됩니다.",
+  "Email": "이메일",
+  "Send Code": "코드 전송",
+  "Email Code": "이메일 인증 코드",
+  "6-digit code": "6자리 코드",
+  "Sending…": "전송 중…",
+  "Logging in…": "로그인 중…",
+  "Verify & Add Connection": "인증 후 연결 추가",
+  "Send failed": "전송 실패",
+  "Login failed": "로그인 실패"
 }
