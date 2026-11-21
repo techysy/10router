@@ -632,6 +632,50 @@ async function testMeooConnection(connection, effectiveProxy = null, options = {
   return { valid: true, error: null };
 }
 
+// Capy 连接探针:铸 session JWT(Clerk 会话活着)+ 列模型(模型访问开通)。
+// 中性链路,不建 jam、不需要设备在线;模型参数做可用性核对。
+async function testCapyConnection(connection, effectiveProxy = null, options = {}) {
+  const psd = connection.providerSpecificData || {};
+  const sessionId = psd.sessionId;
+  const clientJwt = connection.refreshToken;
+  const orgId = psd.orgId;
+  if (!sessionId || !clientJwt || !orgId) {
+    return { valid: false, error: "Capy connection missing session context", refreshed: false };
+  }
+  const proxyFetch = (url, init) => fetchWithConnectionProxy(url, init, effectiveProxy);
+  try {
+    const { mintCapySessionJwt, capyModels } = await import("open-sse/shared/capy/client.js");
+    const minted = await mintCapySessionJwt({ clientJwt, sessionId }, { fetchImpl: proxyFetch });
+    const models = await capyModels(minted.jwt, orgId, { fetchImpl: proxyFetch });
+    const list = Array.isArray(models) ? models : (models?.items ?? []);
+    if (!Array.isArray(list) || list.length === 0) {
+      return { valid: false, error: "Capy 会话未能获取模型列表（模型访问未开通）", refreshed: false };
+    }
+    const model = options?.model;
+    if (model) {
+      const bare = model.startsWith("capy/") ? model.slice(5) : model;
+      const available = list.some((m) => (m.id || m) === bare || String(m.id || m).endsWith("/" + bare));
+      if (!available) {
+        return { valid: false, error: "Model " + JSON.stringify(model) + " is not available on this Capy account", refreshed: false };
+      }
+    }
+    return {
+      valid: true,
+      error: null,
+      refreshed: true,
+      newTokens: { accessToken: minted.jwt, refreshToken: minted.rotatedClientJwt ?? clientJwt },
+    };
+  } catch (e) {
+    const status = e?.status;
+    const revoked = status === 401 || status === 403;
+    return {
+      valid: false,
+      error: revoked ? "Token invalid or expired" : "Capy test failed: " + (e.message || e),
+      refreshed: false,
+    };
+  }
+}
+
 async function testQoderConnection(connection, effectiveProxy = null, options = {}) {
   const { model } = options;
 
@@ -690,6 +734,12 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
   // test not supported" for an otherwise healthy account).
   if (connection.provider === "qoder" || connection.provider === "qoder-cn") {
     return testQoderConnection(connection, effectiveProxy, options);
+  }
+  if (connection.provider === "capy") {
+    // Capy: session JWT 只有 60 秒寿命,config 驱动的单请求探针表达不了
+    // 「铸 session JWT → 列模型」两步链。专用探针顺带触发 clientJwt 轮换,
+    // 新值随 newTokens 交回 testSingleConnection 持久化(与 capyRefreshHandler 同律)。
+    return testCapyConnection(connection, effectiveProxy, options);
   }
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
