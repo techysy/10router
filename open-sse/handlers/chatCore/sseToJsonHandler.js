@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { convertResponsesStreamToJson } from "../../transformer/streamToJsonConverter.js";
 import { createErrorResult } from "../../utils/error.js";
+import { hasCompletedSSEChatTurn } from "../../utils/completedChatTurn.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { FORMATS } from "../../translator/formats.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
@@ -214,7 +215,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
  * Handle case: provider forced streaming but client wants JSON.
  * Supports both Codex/Responses API SSE and standard Chat Completions SSE.
  */
-export async function handleForcedSSEToJson({ providerResponse, sourceFormat, targetFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, customToolNames, toolNameMap, translateToClientFormat, trackDone, appendLog, reqTag, log, privacyCtx }) {
+export async function handleForcedSSEToJson({ providerResponse, sourceFormat, targetFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, onCompletedResponse, customToolNames, toolNameMap, translateToClientFormat, trackDone, appendLog, reqTag, log, privacyCtx }) {
   const contentType = providerResponse.headers.get("content-type") || "";
   const isSSE = contentType.includes("text/event-stream") || (contentType === "" && isResponsesProvider(provider));
   if (!isSSE) return null; // not handled here
@@ -239,6 +240,11 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
   if (isCodexResponsesApi) {
     try {
       const jsonResponse = await convertResponsesStreamToJson(providerResponse.body);
+      if (jsonResponse?.status === "completed" && typeof onCompletedResponse === "function") {
+        Promise.resolve().then(onCompletedResponse).catch((error) => {
+          console.warn("[ChatCore] completed-response hook failed:", error?.message || error);
+        });
+      }
       if (onRequestSuccess) await onRequestSuccess();
 
       // `jsonResponse` is handed to the client verbatim just below, so the
@@ -348,6 +354,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
   // Standard Chat Completions SSE path
   try {
     const sseText = await providerResponse.text();
+    const upstreamCompleted = hasCompletedSSEChatTurn(sseText, targetFormat);
     const parsed = parseSSEToOpenAIResponse(sseText, model);
     if (!parsed) return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request");
     if (parsed.error) {
@@ -419,7 +426,6 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
     const finalBody = sourceFormat === FORMATS.OPENAI_RESPONSES
       ? chatCompletionToResponses(parsed, customToolNames)
       : (typeof translateToClientFormat === "function" ? translateToClientFormat(parsed) : parsed);
-
     const headers = {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
@@ -429,6 +435,12 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
       if (!headers["request-id"] || !headers["request-id"].startsWith("req_")) {
         headers["request-id"] = `req_${Date.now()}`;
       }
+    }
+
+    if (upstreamCompleted && typeof onCompletedResponse === "function") {
+      Promise.resolve().then(onCompletedResponse).catch((error) => {
+        console.warn("[ChatCore] completed-response hook failed:", error?.message || error);
+      });
     }
 
     return { success: true, response: new Response(JSON.stringify(restoreToolNames(restorePrivacy(finalBody), toolNameMap)), { headers }) };
