@@ -165,6 +165,20 @@ export const ALLOWLIST = {
   "lingxi/plan_pro": "aggregator",
   "lingxi/plan_max": "aggregator",
   "lingxi/doubao_seed_2_1_pro_260628": "no-models-dev-entry",
+
+  // CrowLLM (one-hub 中转) :free 全量锚定（2026-11-21 实拉 /v1/models）。以下 10 款
+  // 中转站上架的小众/内部模型无 models.dev 条目、无公开规格（站方只给 id 与零倍率），
+  // 保留地板值——与 loomy/spark-x2.6 同口径。
+  "crowllm/flint-v1.0:free": "no public spec",
+  "crowllm/hy4-flash:free": "no public spec",
+  "crowllm/jais-3-mova-36b-a4b:free": "no public spec",
+  "crowllm/k2-horizon-375b-a23b:free": "no public spec",
+  "crowllm/liquid/lfm-2.5-2.6b-thinking:free": "no public spec",
+  "crowllm/liquid/lfm-2.5-2.6b:free": "no public spec",
+  "crowllm/longcat-2.5:free": "no public spec",
+  "crowllm/particle-1:free": "no public spec",
+  "crowllm/solar-mini4:free": "no public spec",
+  "crowllm/xing4.0-29b-a4b:free": "no public spec",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from
@@ -176,7 +190,13 @@ export const ALLOWLIST = {
 // (first-party) + deepinfra / crusoe / kilo / openrouter report the nano-omni as
 // text+image+video+audio; vultr and requesty report text-only. It currently
 // inherits the text-only *nemotron* pattern and is left alone deliberately.
-export const DISPUTED = new Set(["tokenrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"]);
+export const DISPUTED = new Set([
+  "tokenrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  // nemotron-3.5-super-vl-120b-a12b：nvidia VL（vision-language）系确实带视觉，但
+  // crowllm 经 nvidia 池直答纯文本端点，*nemotron* pattern 的 vision 判据在此误报；
+  // 与 nano-omni 同类——knowingly disputed，留着不动。
+  "crowllm/nvidia/nemotron-3.5-super-vl-120b-a12b:free",
+]);
 
 export function audit() {
   const rows = CHAT_MODELS.map((m) => ({ ...m, ...resolveStep(m.provider, m.id), caps: getCapabilitiesForModel(m.provider, m.id) }));
