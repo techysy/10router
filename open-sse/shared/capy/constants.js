@@ -30,7 +30,7 @@ export const CAPY_CLERK_API_VERSION = "2026-08-20";
 export const CAPY_CLERK_JS_VERSION = "6.43.1";
 
 export const CAPY_SESSION_TOKEN_TTL_MS = 55_000; // minted JWTs live ~60s; refresh a little early
-export const CAPY_DEFAULT_TIMEOUT_MS = 20_000;
+export const CAPY_DEFAULT_TIMEOUT_MS = 45_000;
 
 // ── Client-surface headers (reverse-verified from @capy/desktop 0.9.2 renderer) ──
 // The desktop sends x-capy-client-surface=desktop, x-capy-client-features
