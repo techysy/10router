@@ -40,7 +40,7 @@ export async function refreshXaiToken(refreshToken, log) {
 // refresh_token_reused and revokes the whole session, so the rotated
 // pair must be persisted by the caller every time (the framework does)
 // and concurrent refreshes are deduped on the current token.
-export async function refreshNousToken(refreshToken, log) {
+export async function refreshNousToken(refreshToken, log, proxyOptions = null) {
   if (!refreshToken) return null;
   return dedupRefresh("nous", refreshToken, async () => {
     const oauth = PROVIDER_OAUTH["nous"] || {};
@@ -59,7 +59,7 @@ export async function refreshNousToken(refreshToken, log) {
           grant_type: "refresh_token",
           client_id: clientId,
         }),
-      });
+      }, proxyOptions);
       let data = null;
       try {
         data = await response.json();

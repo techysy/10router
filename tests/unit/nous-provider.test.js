@@ -178,3 +178,66 @@ describe("refreshNousToken (single-use rotating refresh)", () => {
     expect(result).toEqual({ error: "invalid_grant" });
   });
 });
+
+describe("DefaultExecutor 401-path refresh routes nous through the header refresher", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    global.fetch = originalFetch;
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  // The reactive 401 recovery in chatCore goes through
+  // executor.refreshCredentials, NOT the proactive REFRESH_HANDLERS table —
+  // a missing entry here silently returns null and the connection 401s until
+  // its stored expiry drifts into a proactive lead window (hours with a
+  // server-side-revoked access token).
+  it("refreshes with the x-nous-refresh-token header and returns the rotated pair", async () => {
+    const fetchMock = mockFetch({
+      access_token: "at-new",
+      refresh_token: "rt-rotated",
+      expires_in: 3600,
+    });
+    const { DefaultExecutor } = await import("open-sse/executors/default.js");
+
+    const executor = new DefaultExecutor("nous");
+    const result = await executor.refreshCredentials(
+      { accessToken: "at-expired", refreshToken: "rt-1" },
+      null,
+    );
+    expect(result.accessToken).toBe("at-new");
+    expect(result.refreshToken).toBe("rt-rotated");
+    expect(result.expiresIn).toBe(3600);
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://portal.nousresearch.com/api/oauth/token");
+    expect(opts.headers["x-nous-refresh-token"]).toBe("rt-1");
+    const body = new URLSearchParams(opts.body);
+    expect(body.get("grant_type")).toBe("refresh_token");
+    expect(body.get("refresh_token")).toBeNull();
+  });
+
+  it("surfaces an unrecoverable invalid_grant instead of pretending success", async () => {
+    mockFetch({ error: "refresh_token_reused" }, { ok: false, status: 400 });
+    const { DefaultExecutor } = await import("open-sse/executors/default.js");
+
+    const executor = new DefaultExecutor("nous");
+    const result = await executor.refreshCredentials(
+      { accessToken: "at-expired", refreshToken: "rt-dead" },
+      null,
+    );
+    expect(result).toEqual({ error: "invalid_grant" });
+  });
+
+  it("returns null without a network call when no refresh token exists", async () => {
+    const fetchMock = mockFetch({});
+    const { DefaultExecutor } = await import("open-sse/executors/default.js");
+
+    const executor = new DefaultExecutor("nous");
+    const result = await executor.refreshCredentials({ accessToken: "at-1" }, null);
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

@@ -6,6 +6,7 @@ import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
 import { buildDeepaiMachineHeaders } from "../shared/deepai/machine.js";
+import { refreshNousToken } from "../services/tokenRefresh/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
@@ -267,6 +268,12 @@ export class DefaultExecutor extends BaseExecutor {
       "minimax-code": () => this.refreshMinimaxCode("minimax-code", credentials, proxyOptions),
       "minimax-code-global": () => this.refreshMinimaxCode("minimax-code-global", credentials, proxyOptions),
       meoo: () => this.refreshMeoo(credentials, proxyOptions),
+      // Nous: header-carried single-use rotating refresh — the standard form
+      // shape would send the token in the body, which Nous never reads; and a
+      // replayed refresh token revokes the session. refreshNousToken carries
+      // the token in x-nous-refresh-token and dedupes concurrent refreshes on
+      // the current token (same guard the proactive path uses).
+      nous: () => refreshNousToken(credentials.refreshToken, log, proxyOptions),
     };
 
     const refresher = refreshers[this.provider];
