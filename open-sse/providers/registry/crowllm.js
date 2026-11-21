@@ -18,6 +18,14 @@
 //
 // /console/token 是 one-hub 家族惯例 key 页路径（SPA 无法无浏览器渲染验证，
 // 未实锤）。aff=emqU 是用户主号的邀请码。
+// 邀请码池（用户 2026-11-21 提供，先放 2 条）：获取 API 入口每次读取随机取一条，
+// 归因分散——与 croli 同款。getter 在 provider 信息被 JSON 序列化（面板 API）时
+// 求值一次，即每次页面加载换一条；后续加码直接往数组里补。
+const CROWLLM_INVITE_LINKS = [
+  "https://crowllm.com/sign-up?aff=xGk0",
+  "https://crowllm.com/sign-up?aff=quJ8",
+];
+const pickInviteLink = () => CROWLLM_INVITE_LINKS[Math.floor(Math.random() * CROWLLM_INVITE_LINKS.length)];
 export default {
   id: "crowllm",
   priority: 34,
@@ -31,10 +39,12 @@ export default {
     notice: {
       text: "CrowLLM is an OpenAI-compatible gateway (one-hub family) with 180+ models; models suffixed :free cost nothing. Register with email/Google/GitHub/Discord, then create a key in the console.",
       signupUrl: "https://crowllm.com/sign-up?aff=emqU",
-      // 获取 API 入口 = 用户邀请链接（2026-11-21 用户指定；aff=emqU 为主号码）。
+      // 获取 API 入口 = 邀请码池轮换（文件头 CROWLLM_INVITE_LINKS）。
       // /console/token 是 one-hub 家族惯例 key 页路径，SPA 无法无浏览器渲染验证、
       // 未实锤，弃用。
-      apiKeyUrl: "https://crowllm.com/sign-up?aff=emqU",
+      get apiKeyUrl() {
+        return pickInviteLink();
+      },
     },
   },
   category: "apikey",
