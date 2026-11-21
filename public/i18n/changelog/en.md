@@ -10,6 +10,14 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
 
+- **New provider: Croli**: sign in with Google / GitHub / email through Clerk, then paste the callback URL to finish authorization. New accounts come with a credits pool: daily check-in +100 (streak bonuses) and a first-conversation gift of +200 — both run automatically by the check-in scheduler, toggleable in the dashboard. Six live-probed models ship at launch (Claude Sonnet 5 / Opus 5.5, GPT-6-Luna / 6.1-Sol, GPT-5.6-Luna / 5.6-Sol).
+
+- **New provider: CrowLLM**: an aggregator gateway with 180+ models behind a single API key; models suffixed `:free` cost nothing (40 of them, including the Qwen 4 Max free variant — 91%+ measured daily success rate, latency on the slow side). The "Get API Key" entry rotates through an invite-link pool so new-account attribution doesn't pile onto one code.
+
+### 🎨 UI
+
+- **CrowLLM / Token Harbor moved into the Free group**: both are "paste an API key and go, with a batch of free models" providers, which matches the free-tier group's profile; they now appear in the providers page Free list and no longer duplicate in the paid API-key group.
+
 ### 🐛 Fixed
 
 - **Nous Portal card moved to OAuth providers**: it was initially listed under Free tier; it is a full OAuth provider (free and paid plans), so its card now sits with the other OAuth providers. Sign-in and models are unchanged.
@@ -19,6 +27,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Input placeholders now follow the UI language**: grey hint text in a few input boxes (sudo password, alias, chat input — 5 spots) stayed English after switching language; they now translate like everything else. (#154)
 
 - **Trae CN quota card expiry breakdown rebuilt**: credit packs are no longer merged by name into a few rows — they are now grouped by name + expiry date (same name & same day merge into one cell, soonest-expiring first). Fixes three problems: a merged row's "expires in 1d 22h" countdown only applied to its earliest sliver of credits, making the whole row look dead tomorrow; the monthly login grant was collapsed away so the "N resource packs" count disagreed with the rows shown; and the per-pack details just repeated the card body. The headline number and segmented bar stay the same; the details now list real expiry buckets.
+
+- **Provider detail info card now follows the UI language**: the blue info card on newly added providers was English-only; translations for simplified/traditional Chinese, Japanese and Korean are now in place.
+
+- **Mobile header and drawer fixes**: ① on narrow screens the provider detail top bar stacked the breadcrumb vertically and piled the announcement/donate icons over the title — narrow screens now show just the icon + title (hierarchy navigation lives in the sidebar menu); ② the providers page search box was wide enough to push the page title out of view — the search box is narrower and the announcement/donate buttons now appear on wider screens; ③ the usage request-details drawer overflowed the screen on phones — it now goes full-width on narrow screens.
 
 ## v1.8.1 (2026-11-19)
 
