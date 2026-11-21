@@ -2,16 +2,11 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## Unreleased (ships with next release)
+## v1.8.3 (2026-11-22)
 
 ### ✨ New
 
 - **New providers: QwenWork + QwenWork CN （千问办公）**: Alibaba's all-in-one workplace agent (international at qwenwork.ai, China at qwenwork.cn) joins as OAuth providers — sign in with your own account via device code, pick the team whose plan to use on the authorization page, and call its models (Economy / Standard / Advanced / Flagship tiers plus Qwen4-Max, DeepSeek V4 Pro, GLM-5.3 and more, all 1M context) with your plan's credits. The live per-account catalog, credit quota card and automatic token refresh (single-use rotating refresh tokens — the gateway is the only refresher, so don't sign the same account into the desktop app at the same time) are all wired up. Known issue: international accounts currently receive a tiers-only catalog (3 models; the direct models are not served) — under investigation, see the PR description.
-- **New provider: Nous Portal (Hermes)**: sign in with your own Nous Portal account via device code — the same public OAuth client Hermes Agent uses (no secret, no redirect setup). Free models such as `qwen/qwen4-max:free` work with no credit card on the account; the full live catalog (400+ models) is available, and paid models follow your Portal plan. Refresh tokens rotate on every use and are refreshed only by the gateway, so don't sign the same account into Hermes CLI at the same time.
-
-- **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
-
-- **New provider: Croli**: sign in with Google / GitHub / email through Clerk, then paste the callback URL to finish authorization. New accounts come with a credits pool: daily check-in +100 (streak bonuses), while the first-conversation gift of +200 is reported automatically when a real conversation turn completes (no synthetic probe messages) — toggleable in the dashboard; the credits panel now shows the native task center and wallet balance. Six live-probed models ship at launch (Claude Sonnet 5 / Opus 5.5, GPT-6-Luna / 6.1-Sol, GPT-5.6-Luna / 5.6-Sol).
 
 - **New provider: CrowLLM**: an aggregator gateway with 180+ models behind a single API key; models suffixed `:free` cost nothing (40 of them, including the Qwen 4 Max free variant — 91%+ measured daily success rate, latency on the slow side). The "Get API Key" entry rotates through an invite-link pool so new-account attribution doesn't pile onto one code.
 
@@ -20,6 +15,24 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 ### 🎨 UI
 
 - **CrowLLM / Token Harbor moved into the Free group**: both are "paste an API key and go, with a batch of free models" providers, which matches the free-tier group's profile; they now appear in the providers page Free list and no longer duplicate in the paid API-key group.
+
+### 🐛 Fixed
+
+- **Mobile header and drawer fixes**: ① on narrow screens the provider detail top bar stacked the breadcrumb vertically and piled the announcement/donate icons over the title — narrow screens now show just the icon + title (hierarchy navigation lives in the sidebar menu); ② the providers page search box was wide enough to push the page title out of view — the search box is narrower and the announcement/donate buttons now appear on wider screens; ③ the usage request-details drawer overflowed the screen on phones — it now goes full-width on narrow screens.
+
+- **LongCat thinking toggle now works**: turning thinking off had no effect on LongCat (the parameter format did not match the official API and was silently ignored); the switch is now sent in the official shape.
+
+- **Nous connections self-heal faster**: when the upstream revoked just the access token, it used to take hours to recover; the gateway can now refresh immediately on detection.
+
+## v1.8.2 (2026-11-20)
+
+### ✨ New
+
+- **New provider: Nous Portal (Hermes)**: sign in with your own Nous Portal account via device code — the same public OAuth client Hermes Agent uses (no secret, no redirect setup). Free models such as `qwen/qwen4-max:free` work with no credit card on the account; the full live catalog (400+ models) is available, and paid models follow your Portal plan. Refresh tokens rotate on every use and are refreshed only by the gateway, so don't sign the same account into Hermes CLI at the same time.
+
+- **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
+
+- **New provider: Croli**: sign in with Google / GitHub / email through Clerk, then paste the callback URL to finish authorization. New accounts come with a credits pool: daily check-in +100 (streak bonuses), while the first-conversation gift of +200 is reported automatically when a real conversation turn completes (no synthetic probe messages) — toggleable in the dashboard; the credits panel now shows the native task center and wallet balance. Six live-probed models ship at launch (Claude Sonnet 5 / Opus 5.5, GPT-6-Luna / 6.1-Sol, GPT-5.6-Luna / 5.6-Sol).
 
 ### 🐛 Fixed
 
@@ -32,8 +45,6 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Trae CN quota card expiry breakdown rebuilt**: credit packs are no longer merged by name into a few rows — they are now grouped by name + expiry date (same name & same day merge into one cell, soonest-expiring first). Fixes three problems: a merged row's "expires in 1d 22h" countdown only applied to its earliest sliver of credits, making the whole row look dead tomorrow; the monthly login grant was collapsed away so the "N resource packs" count disagreed with the rows shown; and the per-pack details just repeated the card body. The headline number and segmented bar stay the same; the details now list real expiry buckets.
 
 - **Provider detail info card now follows the UI language**: the blue info card on newly added providers was English-only; translations for simplified/traditional Chinese, Japanese and Korean are now in place.
-
-- **Mobile header and drawer fixes**: ① on narrow screens the provider detail top bar stacked the breadcrumb vertically and piled the announcement/donate icons over the title — narrow screens now show just the icon + title (hierarchy navigation lives in the sidebar menu); ② the providers page search box was wide enough to push the page title out of view — the search box is narrower and the announcement/donate buttons now appear on wider screens; ③ the usage request-details drawer overflowed the screen on phones — it now goes full-width on narrow screens.
 
 - **Croli sign-in fixed**: authorization used to be rejected outright by Clerk ("redirect_uri does not match"); it now initiates with the registered loopback shape, so the full "authorize → paste callback → gateway key claimed automatically" flow works.
 
