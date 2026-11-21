@@ -11,7 +11,7 @@ describe("Token Harbor provider", () => {
 
   it("is registered as an OpenAI-compatible apikey provider", () => {
     expect(entry).toBeDefined();
-    expect(entry.category).toBe("apikey");
+    expect(entry.category).toBe("freeTier");
     expect(entry.authType).toBe("apikey");
     expect(entry.alias).toBe("tokenharbor");
     expect(entry.aliases).toContain("th");
