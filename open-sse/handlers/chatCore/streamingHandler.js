@@ -177,7 +177,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, finalizedRef = { current: false } }) {
+export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, onCompletedResponse, finalizedRef = { current: false } }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
@@ -224,6 +224,16 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
     }, { id: streamDetailId })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
+
+    // Count only a clean finish emitted by the upstream parser. EOF and a
+    // synthesized [DONE] do not establish a completed user turn.
+    const cleanTerminal = !contentObj?.incomplete && !contentObj?.restoreLost && !contentObj?.parseFailures
+      && contentObj?.upstreamTerminalSeen === true && contentObj?.upstreamTurnComplete === true;
+    if (cleanTerminal && typeof onCompletedResponse === "function") {
+      Promise.resolve().then(onCompletedResponse).catch((err) => {
+        console.warn("[ChatCore] completed-response hook failed:", err?.message || err);
+      });
+    }
 
     // Persist stream usage to DB (no console line; the "📊 done" line below is authoritative)
     saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, latency, usageKey: randomUUID(), label: "STREAM USAGE", silent: true });

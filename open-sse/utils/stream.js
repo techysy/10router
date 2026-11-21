@@ -82,6 +82,8 @@ export function createSSEStream(options = {}) {
   // estimated (not real) usage. The stall watchdog only fires on byte gaps, not
   // on an early clean FIN, so flush() is the only place that can tell.
   let endedWithoutTerminal = false;
+  let upstreamTerminalSeen = false;
+  let upstreamTurnComplete = false;
   // A `data:` line that looked like payload but would not parse is dropped by
   // the loops below. That is deliberate for HTML error pages injected mid
   // stream, but the same swallow hides genuine corruption: the client gets a
@@ -256,6 +258,8 @@ export function createSSEStream(options = {}) {
         // rows carry them so a truncated stream is not booked as a clean
         // success, and so dropped content is not invisible.
         incomplete: endedWithoutTerminal,
+        upstreamTerminalSeen,
+        upstreamTurnComplete,
         parseFailures,
         ...(restoreLost ? { restoreLost } : {}),
       }, settledUsage, ttftAt);
@@ -293,6 +297,7 @@ export function createSSEStream(options = {}) {
           let injectedUsage = false;
 
           if (trimmed === "data: [DONE]" || trimmed === "data:[DONE]") {
+            upstreamTerminalSeen = true;
             promoteReasoningIfNeeded(controller);
             output = "data: [DONE]\n\n";
             streamDoneSent = true;
@@ -399,6 +404,7 @@ export function createSSEStream(options = {}) {
               }
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              if (isFinishChunk) upstreamTurnComplete = ["stop", "tool_calls", "function_call"].includes(isFinishChunk);
               // Issue #96: 提升帧必须在 finish 帧之前落地（见 promoteReasoningIfNeeded
               // 的时序说明）。这里先把累计的推理当作正文发出去，再转发 finish。
               if (isFinishChunk) promoteReasoningIfNeeded(controller);
@@ -463,11 +469,13 @@ export function createSSEStream(options = {}) {
 
         if (isOpenAIResponsesStream && isOpenAIResponsesTerminalEvent(openAIResponsesEventName, parsed)) {
           openAIResponsesTerminalSeen = true;
+          if (openAIResponsesEventName === "response.completed" || parsed?.response?.status === "completed") upstreamTurnComplete = true;
         }
 
         // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
         // For other formats: done=true is the [DONE] sentinel, skip
         if (parsed && parsed.done && targetFormat !== FORMATS.OLLAMA) {
+          upstreamTerminalSeen = true;
           // chat→responses 直连:[DONE] 到达时不再等尾部 usage chunk,
           // 立即补发被延迟的 response.completed 并取消 watchdog。
           flushDeferredCompletion(controller);
@@ -577,7 +585,16 @@ export function createSSEStream(options = {}) {
         // passthrough lane above — the terminal frame is about to be translated and
         // forwarded, so the synthetic content delta has to land first. Detected per
         // provider dialect, because `parsed` here is still in the UPSTREAM format.
-        if (isUpstreamTerminalChunk(parsed, targetFormat)) promoteReasoningIfNeeded(controller);
+        if (isUpstreamTerminalChunk(parsed, targetFormat)) {
+          upstreamTerminalSeen = true;
+          const finish = parsed.choices?.[0]?.finish_reason;
+          const stop = parsed.type === "message_delta" ? parsed.delta?.stop_reason : null;
+          const geminiFinish = parsed.candidates?.[0]?.finishReason;
+          upstreamTurnComplete = finish ? ["stop", "tool_calls", "function_call"].includes(finish)
+            : stop ? ["end_turn", "stop_sequence", "tool_use"].includes(stop)
+              : Boolean(geminiFinish && ["STOP", "FUNCTION_CALL"].includes(geminiFinish));
+          promoteReasoningIfNeeded(controller);
+        }
 
         // Translate: targetFormat -> openai -> sourceFormat
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);

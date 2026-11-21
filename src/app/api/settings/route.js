@@ -224,7 +224,7 @@ export async function PATCH(request) {
       }
     }
 
-    // Croli daily tasks (check-in + first-conversation say-hi via the gateway)
+    // Croli daily check-in and server-claimable rewards (no generated chat).
     if (Object.prototype.hasOwnProperty.call(body, "croliCheckin")) {
       if (settings.croliCheckin === true) {
         import("@/sse/services/croliCheckin.js")

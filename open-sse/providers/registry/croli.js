@@ -9,13 +9,14 @@
 // 套餐、deepseek-v4.1-flash 地区限制、DeepSeek-V4.1-Flash 计费口径不同、
 // gemini-4-argon 上游挂起）。上游校验 max_tokens ≥ 16。
 //
-// 每日任务：签到 +100（ops/checkin）、每日首次对话 +200（agent_turn_completed
-// 事件 = 用网关发一条 say-hi，消耗 trial 池每日 2000 免费）——调度器在
-// src/sse/services/croliCheckin.js，settings key croliCheckin。
+// Daily check-in is an explicit task-center action. Conversation progress is
+// reported only for user-initiated chats that complete successfully; the
+// scheduler never creates a model request to manufacture a task event.
 //
 // 邀请码池（用户 2026-11-20 提供，5 条）：注册引导链接每次读取随机取一条，
 // 让新账号归因分散到不同码——与 CD 站点表 loginUrls 池同口径。getter 在
 // provider 信息被 JSON 序列化（面板 API）时求值一次，即每次页面加载换一条。
+// 已注册账号的专属邀请码另由 credits 面板经 inviteCodeUrl 实时生成。
 const CROLI_INVITE_LINKS = [
   "https://www.croli.net/invite/?code=IKJCPA1SVP",
   "https://www.croli.net/invite/?code=2TELUWKZ2V",
@@ -35,7 +36,7 @@ export default {
     color: "#84cc16",
     website: "https://croli.net",
     notice: {
-      text: "Croli connections sign in via Clerk (Google / GitHub / email) with the paste-callback flow. Daily check-in (+100) and the first-conversation gift (+200) are automated by the Croli check-in scheduler.",
+      text: "Croli connections sign in via Clerk (Google / GitHub / email) with the paste-callback flow. Daily check-in (+100) and chat rewards are managed from the account page's Croli credits panel, which also shows balance, ledger, and this account's invite link.",
       signupUrl: "https://croli.net",
       get apiKeyUrl() {
         return pickInviteLink();
@@ -84,8 +85,21 @@ export default {
     apiBaseUrl: "https://clerk.croli.net",
     gatewayBaseUrl: "https://ds.croli.net/v1",
     userInfoUrl: "https://clerk.croli.net/oauth/userinfo",
-    // credits 池（签到/余额/sk 领取）与网关不同域
+    // Signed-in accounts expose a per-account relay resource (inference base +
+    // key + model catalog); the global /models list can be wider than the
+    // account's actual resource, so both sides must permit a model.
+    resourceUrl: "https://api.croli.net/relay/api/relay/search",
+    resourceId: "deepseek-free-pool",
+    inferenceBaseUrl: "https://ds.croli.net/v1",
+    // Credits APIs are separate from the inference gateway.
     creditsBaseUrl: "https://ds.croli.net/credits",
+    balanceUrl: "https://ds.croli.net/credits/v1/account/balance",
+    bootstrapUrl: "https://ds.croli.net/credits/v1/account/bootstrap",
+    opsHomeUrl: "https://ds.croli.net/credits/v1/ops/home",
+    checkinUrl: "https://ds.croli.net/credits/v1/ops/checkin",
+    eventsUrl: "https://ds.croli.net/credits/v1/ops/events",
+    inviteCodeUrl: "https://ds.croli.net/credits/v1/invite/code",
+    ledgerUrl: "https://ds.croli.net/credits/v1/account/ledger?limit=100",
     skClaimUrl: "https://api.croli.net/relay/api/deepseek/sk",
   },
 };

@@ -247,7 +247,9 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
     // Persist earliest available package expiry for expire-first routing and balance for balance routing
     try {
       const expiryInfo = extractEarliestPackageExpiry(usage);
-      const parsedBalance = extractConnectionBalance(usage);
+      // Croli wallet credits are display-only rewards, not model budget. Keep
+      // them out of quotaBalance so pure-balance routing cannot sort on them.
+      const parsedBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
       const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
       if (expiryInfo) {
         await updateProviderConnection(connection.id, {
@@ -305,7 +307,7 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
         }
         // Update balance if extracted from claimed rows
         try {
-          const extBalance = extractConnectionBalance(usage);
+          const extBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
           if (typeof extBalance === "number") {
             await updateProviderConnection(connection.id, { quotaBalance: extBalance });
           }

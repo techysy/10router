@@ -108,6 +108,11 @@ const DEFAULT_SETTINGS = {
   minimaxCheckin: false,
   // Daily-done memo for MiniMax: { [connectionId]: "YYYY-MM-DD" }
   minimaxDailyDone: {},
+  // Croli daily check-in / server-claimable milestones. Off by default.
+  croliCheckin: false,
+  croliDailyDone: {},
+  croliLastClaim: null,
+  croliInviteCodes: {},
   // Provider-wide channel blocks: { [provider]: { until, lastAt, strikes } }.
   // Set when an upstream answers with a channel-scope error (e.g. CodeBuddy
   // 11128 "unapproved channel"): the failure belongs to the channel, so every
@@ -183,6 +188,23 @@ async function mutateSettings(mutator) {
     );
   });
   return mergeWithDefaults(next || current || {});
+}
+
+/** Atomically merge one key into an object-valued settings map. */
+export async function mutateSettingsMap(key, mutator) {
+  if (typeof key !== "string" || !key || typeof mutator !== "function") {
+    throw new TypeError("mutateSettingsMap requires a key and mutator");
+  }
+  let nextValue;
+  await mutateSettings((current) => {
+    const map = current[key] && typeof current[key] === "object" && !Array.isArray(current[key]) ? current[key] : {};
+    nextValue = mutator({ ...map });
+    if (!nextValue || typeof nextValue !== "object" || Array.isArray(nextValue)) {
+      throw new TypeError(`mutator for ${key} must return an object`);
+    }
+    return { [key]: nextValue };
+  });
+  return nextValue;
 }
 
 export async function isCloudEnabled() {

@@ -32,6 +32,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken, persistRefreshedCredentials, markConnectionNeedsReauth } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { INTERNAL_COMPACTION_HEADER } from "@/sse/services/autoCompact.js";
 
 /**
  * Handle chat completion request
@@ -476,6 +477,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       onCredentialsRefreshFailed: async (err) => {
         await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
       },
+      onCompletedResponse: provider === "croli" && request?.headers?.get(INTERNAL_COMPACTION_HEADER) !== "1"
+        ? async () => {
+            const { reportCroliCompletedUserTurn } = await import("@/sse/services/croliCheckin.js");
+            await reportCroliCompletedUserTurn(credentials.connectionId, { log });
+          }
+        : undefined,
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);
         // A success proves the channel is serving again — drop any block
