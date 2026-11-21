@@ -455,6 +455,66 @@ it("creates a jam on demand when no jamId is persisted (device available)", asyn
   assert.equal(JSON.parse(create.init.body).device.deviceId, "dev_1");
 });
 
+it("returns a structured tool call for a complete Capy marker", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent('<tool_call>{"name":"weather","arguments":{"city":"Los Angeles"}}</tool_call>')],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "查天气" }],
+      tools: [{ type: "function", function: { name: "weather", parameters: { type: "object" } } }],
+    },
+    stream: false,
+    credentials: executorCredentials(),
+  });
+  const json = await response.json();
+  assert.equal(json.choices[0].finish_reason, "tool_calls");
+  assert.equal(json.choices[0].message.tool_calls[0].function.name, "weather");
+  assert.deepEqual(JSON.parse(json.choices[0].message.tool_calls[0].function.arguments), { city: "Los Angeles" });
+});
+
+it("recovers a complete JSON tool call when Capy omits only the closing marker", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent('<tool_call>{"name":"weather","arguments":{"city":"Los Angeles"}}')],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "查天气" }],
+      tools: [{ type: "function", function: { name: "weather", parameters: { type: "object" } } }],
+    },
+    stream: true,
+    credentials: executorCredentials(),
+  });
+  const { chunks } = await readSse(response);
+  const toolChunk = chunks.find((chunk) => chunk.choices[0].delta?.tool_calls?.length);
+  assert.equal(toolChunk.choices[0].delta.tool_calls[0].function.name, "weather");
+  assert.equal(chunks.at(-1).choices[0].finish_reason, "tool_calls");
+});
+
+it("fails closed when Capy returns an unclosed tool marker", async () => {
+  const { fetchImpl } = fakeCapyServer({
+    events: [assistantEvent('<tool_call>{"name":"bash","arguments":{"command":"curl -s wttr.in"}')],
+  });
+  const executor = new CapyExecutor("capy", { fetchImpl });
+  const { response } = await executor.execute({
+    model: "particle/particle-1",
+    body: {
+      messages: [{ role: "user", content: "查询天气" }],
+      tools: [{ type: "function", function: { name: "bash", parameters: { type: "object" } } }],
+    },
+    stream: false,
+    credentials: executorCredentials(),
+  });
+  const json = await response.json();
+  assert.equal(json.choices[0].finish_reason, "stop");
+  assert.match(json.choices[0].message.content, /incomplete <tool_call>/);
+  assert.equal(json.choices[0].message.tool_calls, undefined, "must never expose an executable partial call");
+});
+
 it("ad model glm-5.3-flash-ads is in the registry and passes through", async () => {
   const REGISTRY = (await import("../../open-sse/providers/registry/index.js")).default;
   const entry = REGISTRY.find((r) => r.id === "capy");

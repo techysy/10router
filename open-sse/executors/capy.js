@@ -36,6 +36,13 @@ import {
 const CAPY_STREAM_TIMEOUT_MS = 10 * 60 * 1000;
 const ROLE_LABELS = { system: "System", user: "User", assistant: "Assistant", tool: "Tool" };
 
+function declaredToolNames(tools) {
+  return new Set((Array.isArray(tools) ? tools : [])
+    .map((tool) => tool?.function?.name || tool?.name)
+    .filter((name) => typeof name === "string" && name.trim())
+    .map((name) => name.trim()));
+}
+
 function contentToText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -102,21 +109,93 @@ function toolPreamble(tools, toolChoice) {
 }
 
 const TOOL_CALL_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
-function parseToolCalls(text) {
-  if (typeof text !== "string" || !text.includes("<tool_call>")) return null;
-  const calls = [];
-  for (const m of text.matchAll(TOOL_CALL_RE)) {
-    let raw = m[1].trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
-    try {
-      const obj = JSON.parse(raw);
-      if (!obj?.name) continue;
-      const args = typeof obj.arguments === "string" ? obj.arguments : JSON.stringify(obj.arguments ?? obj.parameters ?? {});
-      calls.push({ id: `call_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`, type: "function", function: { name: obj.name, arguments: args } });
-    } catch { /* skip malformed */ }
+const TOOL_CALL_OPEN_RE = /<tool_call\b[^>]*>/i;
+
+function decodeToolCallBlock(raw) {
+  const source = String(raw ?? "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+  let value;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return null;
   }
-  if (!calls.length) return null;
-  const rest = text.replace(TOOL_CALL_RE, "").trim();
-  return { calls, rest };
+  if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.name !== "string" || !value.name.trim()) return null;
+  const input = value.arguments ?? value.parameters ?? {};
+  let args;
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      args = JSON.stringify(parsed);
+    } catch {
+      return null;
+    }
+  } else {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+    args = JSON.stringify(input);
+  }
+  return {
+    id: `call_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`,
+    type: "function",
+    function: { name: value.name.trim(), arguments: args },
+  };
+}
+
+/**
+ * Parse tool blocks. Capy occasionally emits a complete JSON object after the
+ * opening marker but omits the closing marker; recover that narrow case. Any
+ * incomplete or malformed JSON remains a failed tool call and is never exposed
+ * as executable data or silently returned as a normal answer.
+ */
+function parseToolCalls(text, allowedNames = null) {
+  if (typeof text !== "string" || !TOOL_CALL_OPEN_RE.test(text)) return null;
+  const calls = [];
+  let invalid = false;
+  for (const match of text.matchAll(TOOL_CALL_RE)) {
+    const call = decodeToolCallBlock(match[1]);
+    if (call) calls.push(call);
+    else invalid = true;
+  }
+  const openCount = (text.match(/<tool_call\b[^>]*>/gi) || []).length;
+  const closeCount = (text.match(/<\/tool_call\s*>/gi) || []).length;
+
+  if (!invalid && openCount === closeCount && calls.length) {
+    if (allowedNames && calls.some((call) => !allowedNames.has(call.function.name))) {
+      return { calls: [], rest: "", invalid: true, reason: "unknown_tool_name" };
+    }
+    return { calls, rest: text.replace(TOOL_CALL_RE, "").trim(), invalid: false };
+  }
+
+  // Tolerate exactly one missing close marker only when the suffix is a complete
+  // JSON tool object and contains no trailing prose. This fixes the observed
+  // `<tool_call>{...}` response without guessing at truncated arguments.
+  if (!invalid && openCount === closeCount + 1) {
+    const lastOpen = text.lastIndexOf("<tool_call");
+    const suffix = text.slice(lastOpen).replace(/^<tool_call\b[^>]*>/i, "").trim();
+    const recovered = decodeToolCallBlock(suffix);
+    if (recovered) {
+      const allCalls = [...calls, recovered];
+      if (allowedNames && allCalls.some((call) => !allowedNames.has(call.function.name))) {
+        return { calls: [], rest: "", invalid: true, reason: "unknown_tool_name" };
+      }
+      const prefix = text.slice(0, lastOpen).replace(TOOL_CALL_RE, "").trim();
+      return { calls: allCalls, rest: prefix, invalid: false, recovered: true };
+    }
+  }
+
+  return {
+    calls: [],
+    rest: "",
+    invalid: true,
+    reason: openCount !== closeCount ? "unclosed_tool_call" : "invalid_tool_call",
+  };
+}
+
+function toolCallErrorText(parsed) {
+  const description = parsed?.reason === "unclosed_tool_call"
+    ? "The model began a tool call but returned an incomplete <tool_call> block."
+    : "The model returned an invalid <tool_call> block.";
+  return `[capy error] ${description} No tool was executed; retry with a shorter prompt or without tools.`;
 }
 
 function requestEffort(body) {
@@ -255,9 +334,10 @@ export class CapyExecutor extends BaseExecutor {
 
     const getJwt = () => this.#sessionJwt(credentials, log, onCredentialsRefreshed);
     const withTools = !!toolPreamble(body?.tools, body?.tool_choice);
+    const allowedToolNames = declaredToolNames(body?.tools);
     const response = stream
-      ? this.#streamResponse({ getJwt, orgId, jamId, model: upstreamModel, completionId, signal, log, withTools, startCursor: messageId })
-      : await this.#jsonResponse({ getJwt, orgId, jamId, model: upstreamModel, completionId, signal, log, withTools, startCursor: messageId });
+      ? this.#streamResponse({ getJwt, orgId, jamId, model: upstreamModel, completionId, signal, log, withTools, allowedToolNames, startCursor: messageId })
+      : await this.#jsonResponse({ getJwt, orgId, jamId, model: upstreamModel, completionId, signal, log, withTools, allowedToolNames, startCursor: messageId });
 
     return {
       response,
@@ -428,7 +508,7 @@ export class CapyExecutor extends BaseExecutor {
     log?.warn?.("CAPY", `jam ${jamId} timed out waiting for the agent`);
   }
 
-  #streamResponse({ getJwt, orgId, jamId, model, completionId, signal, log, withTools, startCursor }) {
+  #streamResponse({ getJwt, orgId, jamId, model, completionId, signal, log, withTools, allowedToolNames, startCursor }) {
     const encoder = new TextEncoder();
     const out = new ReadableStream({
       start: async (controller) => {
@@ -453,8 +533,13 @@ export class CapyExecutor extends BaseExecutor {
           }
           if (withTools) {
             const full = textBuf.join("\n") || rawBuf.join("\n");
-            const parsed = parseToolCalls(full);
-            if (parsed) {
+            const parsed = parseToolCalls(full, allowedToolNames);
+            if (parsed?.invalid) {
+              // Never emit an empty/partial tool_calls array: clients may execute
+              // any tool call they receive. Fail closed when the model leaked an
+              // incomplete or malformed marker instead of returning it as prose.
+              write(openaiChunk(model, completionId, { content: toolCallErrorText(parsed) }));
+            } else if (parsed) {
               if (parsed.rest) write(openaiChunk(model, completionId, { content: parsed.rest }));
               write(openaiChunk(model, completionId, {
                 tool_calls: parsed.calls.map((c, index) => ({ index, ...c })),
@@ -482,7 +567,7 @@ export class CapyExecutor extends BaseExecutor {
   }
 
   /** Non-streaming: poll the jam to completion and return one completion JSON. */
-  async #jsonResponse({ getJwt, orgId, jamId, model, completionId, signal, log, withTools, startCursor }) {
+  async #jsonResponse({ getJwt, orgId, jamId, model, completionId, signal, log, withTools, allowedToolNames, startCursor }) {
     const encoder = new TextEncoder();
     const parts = [];
     const raw = [];
@@ -500,17 +585,18 @@ export class CapyExecutor extends BaseExecutor {
     }
     let text = parts.join("\n") || raw.join("\n");
     if (!text && errorText) text = `[capy error] ${errorText}`;
+    const parsed = withTools ? parseToolCalls(text, allowedToolNames) : null;
+    const message = parsed?.invalid
+      ? { role: "assistant", content: toolCallErrorText(parsed) }
+      : parsed
+        ? { role: "assistant", content: parsed.rest || null, tool_calls: parsed.calls }
+        : { role: "assistant", content: text };
     const completion = {
       id: completionId,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model,
-      choices: [(() => {
-        const parsed = withTools ? parseToolCalls(text) : null;
-        return parsed
-          ? { index: 0, message: { role: "assistant", content: parsed.rest || null, tool_calls: parsed.calls }, finish_reason: "tool_calls" }
-          : { index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" };
-      })()],
+      choices: [{ index: 0, message, finish_reason: parsed && !parsed.invalid ? "tool_calls" : "stop" }],
       ...(usage ? { usage } : {}),
     };
     return new Response(encoder.encode(JSON.stringify(completion)), {
