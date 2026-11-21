@@ -49,7 +49,11 @@ export default {
       },
     },
   },
-  category: "apikey",
+  // 免费额度组（free + freeTier 合并渲染成「免费」列表）——apikey 接入 +
+  // :free 零倍率模型正是 freeTier 语义（deepai/dots/api-airforce 同组）；
+  // free 组是 noAuth 直连型，不适用。authModes 保持 apikey（详情页对
+  // freeTier+apikey 的连接渲染是现成路径）。
+  category: "freeTier",
   authModes: ["apikey"],
   authType: "apikey",
   transport: {
