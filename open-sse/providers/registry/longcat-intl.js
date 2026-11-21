@@ -22,6 +22,8 @@ export default {
   transport: {
     baseUrl: "https://api.longcat.ai/openai/v1/chat/completions",
     validateUrl: "https://api.longcat.ai/openai/v1/models",
+    // 与国内站同源文档：thinking {type:enabled|disabled} 开关，见 longcat 注册表注。
+    thinkingFormat: "longcat",
   },
   models: [
     { id: "LongCat-2.5", name: "LongCat 2.5" },

@@ -400,6 +400,16 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
       if (level) body.reasoning_effort = level;
       break;
     }
+    case "longcat": {
+      // LongCat official switch is thinking {type: enabled|disabled} (2026-11
+      // 《模型参数参考》); reasoning_effort is silently ignored, so a client's
+      // "off" never took effect. Levels have no wire representation until the
+      // thinking_budget field shape is live-probed — everything non-off maps to
+      // plain enabled (upstream default budget).
+      if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
+      body.thinking = { type: "enabled" };
+      break;
+    }
     case "kiro":
       // Kiro thinking handled via system-tag injection in openai-to-kiro.js; no body field here.
       break;

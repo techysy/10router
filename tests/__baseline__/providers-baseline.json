@@ -759,11 +759,13 @@
   "longcat-intl": {
     "baseUrl": "https://api.longcat.ai/openai/v1/chat/completions",
     "validateUrl": "https://api.longcat.ai/openai/v1/models",
+    "thinkingFormat": "longcat",
     "format": "openai"
   },
   "longcat": {
     "baseUrl": "https://api.longcat.chat/openai/v1/chat/completions",
     "validateUrl": "https://api.longcat.chat/openai/v1/models",
+    "thinkingFormat": "longcat",
     "format": "openai"
   },
   "loomy": {
