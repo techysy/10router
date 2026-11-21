@@ -14,6 +14,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **New provider: CrowLLM**: an aggregator gateway with 180+ models behind a single API key; models suffixed `:free` cost nothing (40 of them, including the Qwen 4 Max free variant — 91%+ measured daily success rate, latency on the slow side). The "Get API Key" entry rotates through an invite-link pool so new-account attribution doesn't pile onto one code.
 
+- **New provider: Capy**: an agent platform — each request is one real agent run (threads are reused after login, **no need to keep the official desktop app running**). Sign in with an email code; three free all-zero-priced models are included (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Measured 5-9s per turn — good for conversation, not a "fast model" in the usual sense.
+
 ### 🎨 UI
 
 - **CrowLLM / Token Harbor moved into the Free group**: both are "paste an API key and go, with a batch of free models" providers, which matches the free-tier group's profile; they now appear in the providers page Free list and no longer duplicate in the paid API-key group.
@@ -31,6 +33,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **Provider detail info card now follows the UI language**: the blue info card on newly added providers was English-only; translations for simplified/traditional Chinese, Japanese and Korean are now in place.
 
 - **Mobile header and drawer fixes**: ① on narrow screens the provider detail top bar stacked the breadcrumb vertically and piled the announcement/donate icons over the title — narrow screens now show just the icon + title (hierarchy navigation lives in the sidebar menu); ② the providers page search box was wide enough to push the page title out of view — the search box is narrower and the announcement/donate buttons now appear on wider screens; ③ the usage request-details drawer overflowed the screen on phones — it now goes full-width on narrow screens.
+
+- **Croli sign-in fixed**: authorization used to be rejected outright by Clerk ("redirect_uri does not match"); it now initiates with the registered loopback shape, so the full "authorize → paste callback → gateway key claimed automatically" flow works.
+
+- **Authorization hints now follow the UI language**: provider authorization instructions used to be Chinese-only; they now translate (simplified/traditional Chinese, Japanese and Korean dictionaries in place).
 
 ## v1.8.1 (2026-11-19)
 

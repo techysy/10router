@@ -14,6 +14,8 @@
 
 - **CrowLLM 供应商**（2026-11-21 接入，全部信息来自公开 /api/status、/api/pricing、/v1/models 与端点探测）：one-hub/new-api 家族 OpenAI 兼容网关，API 与站点同域 Bearer key；/v1/models 公开可拉（183 模型 / 19 家厂商）→ passthroughModels 动态透传全量 + 静态锚定 4 个重点免费行。`:free` 后缀即零倍率（40 个），用户点名的 **qwen4-max:free** 只有免费版（model_ratio=0），24h 实测成功率 91.26%、平均延迟 27.5s（偏慢）。无签到/赠送机制（服务端 checkin_enabled=false 下发）→ 不接每日任务调度器；注册页带 Cloudflare Turnstile 但 /api/*、/v1/* 当前裸 curl 直通（服务端调用不受盾影响，规则可能变，接入后观测）；/v1/messages 端点存在但官方 supported_endpoint 矩阵未列 anthropic → 暂按纯 OpenAI 协议接入，claude 协议面待真 key 实测。**获取 API 入口 = 邀请码池轮换**：用户 4 码（xGk0/quJ8/tEjJ/6CNM）getter 随机取一条（同 croli 口径）；此前误挂的 emqU 经用户澄清非其所有，连同错误注释一并清除；/console/token 是 one-hub 惯例 key 页路径但 SPA 无法无浏览器渲染验证、未实锤，弃用。
 
+- **Capy 供应商（#156，PR by Duseus）**（2026-11-21）：agent 平台——**无补全接口**，一次请求 = 一轮真实 jam 执行（登录时建一次持久化 jamId 复用，绑定设备掉线不影响调用；事件流实为一页即关、从本次 messageId 起按 cursor 轮询至终止信号），合成 OpenAI 响应返回。Clerk Native API 邮箱验证码两步登录（code-send/code-login 限流对齐 loomy 口径：单邮箱 3 条/10 分钟 + 单 IP 10 条/小时 / 验码 6 次 + 20 次/10 分钟），铸 session JWT 必须带 `Origin: capy://app`（缺 azp claim 全 401 的坑写入隧道文件头）；能列出模型的会话才落连接（模型访问未开通的废连接直接拒）。**无头设备** = 设备码配对自动批准 + wss 隧道（`ready` 是客户端发出的、事件体是二进制帧 streamId+JSON——两坑入档），不再依赖 Capy 桌面端在线；隧道按 (orgId, deviceId) 单例，token 被拒重配对一次。工具调用靠提示词模拟：`<tool_call>` 反向解析回 tool_calls，未闭合/截断 fail closed 绝不泄漏半截可执行调用。免费广告档三模型（particle-1 / glm-5.3-flash-ads / deepseek-v4.1-flash-ads）全 0 计费，能力按私有 API 实测单独声明（`-ads` 落 DEFAULT 会剥 vision 且把 65536 上限压成 64K），capy-ai 别名共享同表、audit 白名单留地板值；付费档 Claude/GPT-6.2/Gemini 等 9 家 + passthroughModels。真机端到端三免费模型全通（设备离线态，5-9s）。合并解冲突一处：audit 白名单与 main 侧 crowllm 目录提交双保留。
+
 ### 🎨 界面
 
 - **CrowLLM / Token Harbor 移入「免费」分组**（2026-11-21 用户定版）：两者形态一致——apikey 接入 + 轮换的 `:free` 零倍率模型集，正是 freeTier 分组的语义（deepai / dots / api-airforce 同组）；providers 页把 free + freeTier 合并渲染成「免费」列表后从付费 API Key 组消失。`free` 组是 noAuth 直连型（devin-cli / opencode 那批）不适用；freeTier+apikey 的详情页连接渲染是现成路径。providers 基线不快照 category，快照复验 byte-for-byte 一致。
@@ -29,6 +31,10 @@
 - **供应商详情页说明卡跟随界面语言（#155/#156 跟进）**：registry 的 `display.notice.text` 是 translate() 的 key——英文原文查 `public/i18n/literals/<locale>.json`，缺条目就原样渲染英文，中文界面上就是英文蓝卡（用户截图实锤）。Croli / CrowLLM 两条补 zh-CN / zh-TW（强制口径）+ ja / ko（Croli 调度卡条目同款 courtesy）四语，`provider-notice-i18n` 测试加 Croli / CrowLLM 两块（14 例），`audit-notice-i18n` 全 registry 44 条 notice 覆盖归零（此前 42/44）。
 
 - **移动端顶栏与抽屉自适应三连修**（2026-11-21 用户连续两截图 + 全量审计收口）：① 顶栏窄屏堆叠——带链接的父级面包屑被 flex 压窄后 CJK 逐字换行成竖排（「提供商」三字竖排实锤），h1 因嵌套 flex 拿不到宽度约束整串溢出、画进右侧半透明公告/捐赠胶囊底下（视觉「堆一起」）；修法 = href 面包屑与箭头 <sm 整体隐藏（层级导航由汉堡菜单承担，页面内有「返回提供商」）、min-w-0 贯通到 truncate 元素、图标 shrink-0。② 供应商主页顶栏——全局搜索框固定 160px + 右侧功能钮把 flex-1 标题列挤到 0 宽（只剩 shrink-0 页图标）；公告/捐赠 <sm 隐藏（窄屏本就只剩图标、信息量≈0）+ 搜索框收窄 120px（393px 机型预算 358px ≤ 360 最小屏）。③ Drawer 固定 400-800px 宽在手机上左缘被裁（唯一使用方 usage 请求详情 lg=600px 超宽 207px）→ <sm 全宽、sm+ 恢复。全量审计（宽表格/Modal/页面标题行/grid/长文案/聊天组件各层）结论入档；同病灶识别口诀：固定宽元素 + flex-1 标题同排超视口 → 标题列压 0 宽溢出画进半透明钮底下；CJK 文本无 min-w-0/truncate 约束时逐字竖排。
+
+- **Croli 授权 redirect_uri 改 127.0.0.1 回环**：Clerk 应用只登记 127.0.0.1 回环（任意端口通配），OAuthModal 通用分支生成的 `http://localhost:<端口>/callback` 是另一个 host 字符串、OAuth 精确匹配直接 invalid_request 拒在授权第一步（2026-11-21 用户实测，连登录页都没到）。croli 加专用分支（codex/xai 先例同款），antigravity 走 localhost 不动（其 Google 侧登记的正是 localhost）；换票 authorize/exchange 同用存量 redirectUri 两端天然一致，粘贴 placeholder 同步对齐回环形状（不再显示 192.168.x 误导地址）。
+
+- **authHint 接 translate + Cookie 类提示补词典（#155 跟进）**：供应商授权操作提示此前硬编码中文（日语/韩语界面也显示中文），现接 translate 并补齐 Cookie 类提示四语词典条目。
 
 ## v1.8.1 (2026-11-19)
 
