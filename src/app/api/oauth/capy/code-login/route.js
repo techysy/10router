@@ -47,6 +47,7 @@ export async function POST(request) {
         deviceId: r.deviceId,
         machineId: r.machineId,
         deviceEnrolled: r.deviceEnrolled ?? false,
+        deviceToken: r.deviceToken ?? null,
         jamId: r.jamId,
         loginAt: new Date().toISOString(),
         credentialSource: "email-code",

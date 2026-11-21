@@ -260,6 +260,117 @@ export const capyModels = (jwt, orgId, o) => capyAppJson(jwt, `/models?orgId=${e
  * process.platform / (arch === "arm64" ? "arm64" : "x86_64"). Sending "x64"
  * instead of "x86_64" is a 400 with no body.
  */
+/**
+ * Device-code pairing — the path that actually yields a connectable device.
+ *
+ * `/devices/enroll` reserves a slot but returns no token, so the device can
+ * never come online (see tunnel.js). The device-code flow returns
+ * `{ token: "capyd_…" }` at the end, which is what the tunnel authenticates
+ * with:
+ *
+ *   startDeviceCode → approveDeviceCode (self-approve with our own JWT)
+ *   → pollDeviceCode until `status: "approved"` → enrolled.token
+ */
+export async function capyStartDeviceCode(jwt, { hostname, os, arch }, o = {}) {
+  const body = await capyAppJson(jwt, "/devices/code", {
+    ...o,
+    method: "POST",
+    body: { hostname, os, arch },
+  });
+  const userCode = String(body?.userCode ?? "").trim();
+  const deviceCode = String(body?.deviceCode ?? "").trim();
+  if (!userCode || !deviceCode) {
+    throw new CapyApiError("Capy 设备码接口没有返回 userCode/deviceCode", { code: "device_code_missing" });
+  }
+  return {
+    userCode,
+    deviceCode,
+    verificationUrl: typeof body?.verificationUrl === "string" ? body.verificationUrl : "",
+    expiresInSeconds: Number(body?.expiresInSeconds) || 300,
+    pollIntervalSeconds: Math.max(1, Number(body?.pollIntervalSeconds) || 5),
+  };
+}
+
+/**
+ * Approve a device code with the account's own session JWT. This is what makes
+ * pairing unattended — no browser round-trip is required (the verificationUrl
+ * exists only as a manual fallback).
+ */
+export function capyApproveDeviceCode(jwt, orgId, { userCode, name }, o = {}) {
+  return capyAppJson(jwt, `/orgs/${encodeURIComponent(orgId)}/devices/code/approve`, {
+    ...o,
+    method: "POST",
+    body: { userCode, name },
+  });
+}
+
+/** Poll until approved. Returns the enrolled device + its `capyd_` token. */
+export async function capyPollDeviceCode(jwt, deviceCode, o = {}) {
+  const body = await capyAppJson(jwt, "/devices/code/poll", {
+    ...o,
+    method: "POST",
+    body: { deviceCode },
+  });
+  const status = String(body?.status ?? "");
+  if (status === "approved") {
+    const enrolled = body?.enrolled;
+    if (!enrolled || typeof enrolled !== "object" || Array.isArray(enrolled)) {
+      throw new CapyApiError("Capy 设备码已批准，但没有 enrolled", { code: "device_code_missing" });
+    }
+    return {
+      status,
+      orgId: enrolled.orgId ?? null,
+      deviceId: enrolled.device?.id ?? enrolled.deviceId ?? null,
+      token: enrolled.token ?? null,
+    };
+  }
+  return { status };
+}
+
+/**
+ * Full pairing flow. `sleep` is injectable so tests do not wait real seconds.
+ */
+export async function capyPairDevice(jwt, orgId, { name, hostname, os, arch, polls = 10, sleep }, o = {}) {
+  const start = await capyStartDeviceCode(jwt, { hostname, os, arch }, o);
+  try {
+    await capyApproveDeviceCode(jwt, orgId, { userCode: start.userCode, name }, o);
+  } catch (e) {
+    const hint = start.verificationUrl ? `；可在浏览器打开 ${start.verificationUrl} 手动批准` : "";
+    throw new CapyApiError(`Capy 设备码自动批准失败：${e?.message ?? e}${hint}`, {
+      code: "device_pair_failed",
+      status: e?.status ?? 0,
+    });
+  }
+  const wait = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  for (let i = 0; i < polls; i += 1) {
+    let poll;
+    try {
+      poll = await capyPollDeviceCode(jwt, start.deviceCode, o);
+    } catch (e) {
+      if (e?.status === 401) throw e;
+      await wait(start.pollIntervalSeconds * 1000);
+      continue;
+    }
+    if (poll.status === "approved") {
+      if (!poll.deviceId || !poll.token) {
+        throw new CapyApiError("Capy 设备码批准结果缺少 deviceId/token", { code: "device_code_missing" });
+      }
+      return {
+        orgId: poll.orgId || orgId,
+        deviceId: poll.deviceId,
+        token: poll.token,
+        name,
+        verificationUrl: start.verificationUrl,
+      };
+    }
+    if (poll.status === "denied" || poll.status === "expired") {
+      throw new CapyApiError(`Capy 设备码配对${poll.status === "denied" ? "被拒绝" : "已过期"}`, { code: "device_pair_failed" });
+    }
+    await wait(start.pollIntervalSeconds * 1000);
+  }
+  throw new CapyApiError("等待 Capy 设备码批准超时", { code: "device_pair_timeout" });
+}
+
 export function capyEnrollDevice(jwt, { name, hostname, os, arch, heldOrgIds = [], deviceIds = [] }, o = {}) {
   return capyAppJson(jwt, "/devices/enroll", {
     ...o,

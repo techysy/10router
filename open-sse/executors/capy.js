@@ -24,6 +24,7 @@ import {
   capyJamEvents,
   CapyApiError,
 } from "../shared/capy/client.js";
+import { CapyTunnelRegistry } from "../shared/capy/tunnel.js";
 import {
   CAPY_EVENT_ASSISTANT,
   CAPY_EVENT_ERROR,
@@ -141,6 +142,8 @@ function openaiChunk(model, id, delta, finishReason = null, usage = null) {
 }
 
 export class CapyExecutor extends BaseExecutor {
+  #tunnels = null;
+
   constructor(provider = "capy", config = {}) {
     super(provider, config);
   }
@@ -291,9 +294,12 @@ export class CapyExecutor extends BaseExecutor {
       log?.debug?.("CAPY", `jam list failed: ${e.message}; will try create`);
     }
 
-    // No usable jam → create one. Requires a device on first enrolment;
-    // without any enrolled device this surfaces the server's own error.
+    // No usable jam → create one. Creation is refused unless the device is
+    // actually connected, so bring it online first: with a paired `capyd_`
+    // token the executor dials Capy's own device tunnel and serves the machine
+    // RPC the agent needs, instead of requiring the desktop app to be running.
     const deviceId = credentials?.providerSpecificData?.deviceId;
+    await this.#bringDeviceOnline(jwt, orgId, credentials, log);
     const jamId = `jam_${crypto.randomUUID()}`;
     try {
       const jam = await capyCreateJam(jwt, orgId, {
@@ -314,6 +320,54 @@ export class CapyExecutor extends BaseExecutor {
         { code: "jam_create_failed", status: e.status ?? 0, upstream: e.upstream },
       );
     }
+  }
+
+  /**
+   * Make sure this connection's device is registered as connected.
+   *
+   * A device is only `connected` while something holds its tunnel open, and a
+   * jam cannot be created against an offline device. When the connection
+   * carries a `capyd_` token we dial the tunnel ourselves and keep it for the
+   * lifetime of the connection; without a token there is nothing to dial, so
+   * the caller sees Capy's own "device is offline" error.
+   *
+   * Failures are non-fatal here: the jam create below reports the real reason,
+   * and a tunnel hiccup should not mask that.
+   */
+  async #bringDeviceOnline(jwt, orgId, credentials, log) {
+    const deviceId = credentials?.providerSpecificData?.deviceId;
+    const token = credentials?.providerSpecificData?.deviceToken;
+    if (!deviceId || !token) return;
+
+    const registry = this.#tunnelRegistry();
+    const existing = registry.get(orgId, deviceId);
+    if (existing?.connected) return;
+
+    const listDevices = () => capyDevices(jwt, orgId, { fetchImpl: this.config?.fetchImpl });
+    try {
+      await registry.ensure({
+        orgId,
+        deviceId,
+        token,
+        hostname: credentials.providerSpecificData.deviceName || "10router-headless",
+        listDevices,
+      });
+      log?.debug?.("CAPY", `device ${deviceId} online`);
+    } catch (e) {
+      log?.warn?.("CAPY", `device ${deviceId} could not be brought online: ${e?.message || e}`);
+    }
+  }
+
+  /** Lazily create the process-wide tunnel registry. */
+  #tunnelRegistry() {
+    if (!this.#tunnels) {
+      this.#tunnels = new CapyTunnelRegistry({
+        worktreeBase: this.config?.worktreeBase,
+        WebSocketImpl: this.config?.WebSocketImpl,
+        logger: this.config?.logger,
+      });
+    }
+    return this.#tunnels;
   }
 
   /**

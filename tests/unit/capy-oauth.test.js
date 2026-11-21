@@ -70,14 +70,22 @@ function fakeCapyServer({
     if (u.includes("api.capy.ai/app/organizations")) {
       return json(orgs);
     }
-    // Enroll: the wire enum shape is validated so a bad os/arch is caught here.
-    if (u.endsWith("/devices/enroll") && (init.method ?? "GET") === "POST") {
+    // Device-code pairing — the path that yields a connectable device.
+    // A bad os/arch is rejected here so a host string like "x64" fails loudly.
+    if (u.endsWith("/devices/code") && (init.method ?? "GET") === "POST") {
       const body = JSON.parse(init.body || "{}");
       if (!["win32", "darwin", "linux"].includes(body.os) || !["x86_64", "arm64"].includes(body.arch)) {
         return json({ _tag: "capy/InvalidRequest" }, 400);
       }
-      enrolled.push(body);
-      return json([{ orgId: orgs[0].id, device: { id: "dev_enrolled", machineId: "mach_e", connected: false } }]);
+      enrolled.push({ stage: "start", body });
+      return json({ userCode: "AAAA-BBBB", deviceCode: "capydc_1", verificationUrl: "https://capy.ai/x", expiresInSeconds: 300, pollIntervalSeconds: 1 });
+    }
+    if (u.includes("/devices/code/approve") && (init.method ?? "GET") === "POST") {
+      enrolled.push({ stage: "approve", body: JSON.parse(init.body || "{}") });
+      return json({ status: "approved" });
+    }
+    if (u.includes("/devices/code/poll") && (init.method ?? "GET") === "POST") {
+      return json({ status: "approved", enrolled: { orgId: orgs[0].id, device: { id: "dev_enrolled" }, token: "capyd_paired" } });
     }
     // Device access change (share)
     if (u.match(/\/devices\/[^/]+\/access$/) && (init.method ?? "GET") === "POST") {
@@ -229,12 +237,13 @@ it("enrolls a device and shares it when the account has none", async () => {
   const { flowId } = await sendCapyCode("a@b.co", { fetchImpl });
   const r = await loginCapyByCode({ flowId, code: "123456" }, { fetchImpl });
 
-  // Enrolled with the wire enum the endpoint demands, not host strings.
-  assert.equal(enrolled.length, 1, "expected exactly one enroll call");
-  assert.equal(enrolled[0].arch, process.arch === "arm64" ? "arm64" : "x86_64");
-  assert.ok(["win32", "darwin", "linux"].includes(enrolled[0].os));
-  assert.deepEqual(enrolled[0].heldOrgIds, []);
-  assert.deepEqual(enrolled[0].deviceIds, []);
+  // Paired through the device-code flow, with the wire enum the endpoint
+  // demands — a host string like "x64" is a 400 with an empty body.
+  const start = enrolled.filter((e) => e.stage === "start");
+  assert.equal(start.length, 1, "expected exactly one device-code request");
+  assert.equal(start[0].body.arch, process.arch === "arm64" ? "arm64" : "x86_64");
+  assert.ok(["win32", "darwin", "linux"].includes(start[0].body.os));
+  assert.equal(enrolled.filter((e) => e.stage === "approve").length, 1, "self-approval is what makes pairing unattended");
 
   // The enrolled device is offline, but it is what a jam gets created against.
   assert.equal(r.deviceId, "dev_enrolled");
@@ -259,7 +268,7 @@ it("does not enroll when the account already has a device", async () => {
 it("still logs in when enroll fails, leaving deviceId null", async () => {
   const inner = fakeCapyServer({ jamList: [], devices: [] });
   const fetchImpl = async (url, init) => {
-    if (String(url).endsWith("/devices/enroll")) {
+    if (String(url).endsWith("/devices/code")) {
       return new Response(JSON.stringify({ _tag: "capy/InvalidRequest" }), {
         status: 400, headers: { "content-type": "application/json" },
       });
@@ -290,7 +299,7 @@ it("leaves jamId null when jam creation fails, so the executor retries on demand
   const { flowId } = await sendCapyCode("a@b.co", { fetchImpl });
   const r = await loginCapyByCode({ flowId, code: "123456" }, { fetchImpl });
   assert.equal(r.jamId, null);
-  assert.equal(r.deviceId, "dev_enrolled", "the enrolled device is still recorded");
+  assert.equal(r.deviceId, "dev_enrolled", "the paired device is still recorded");
 });
 
 // ── Wiring ────────────────────────────────────────────────────────────────────

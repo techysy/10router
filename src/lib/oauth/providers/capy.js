@@ -11,13 +11,14 @@
 //                            machineId, loginAt, credentialSource }
 
 import crypto from "crypto";
+import os from "os";
 import {
   sendCapyEmailCode,
   verifyCapyEmailCode,
   mintCapySessionJwt,
   capyOrganizations,
   capyDevices,
-  capyEnrollDevice,
+  capyPairDevice,
   capyShareDevice,
   capyModels,
   CapyApiError,
@@ -28,6 +29,17 @@ import { CAPY_SESSION_TOKEN_TTL_MS } from "open-sse/shared/capy/constants.js";
 // The enroll endpoint takes the desktop's wire enum, not arbitrary strings:
 // process.platform verbatim, and arch collapses to arm64 or x86_64 — sending
 // "x64" is a 400 with an empty body.
+/** Stable device name for this install: hostname, sanitized to Capy's charset. */
+function deviceName() {
+  try {
+    const raw = String(os.hostname() || "10router-headless");
+    const cleaned = raw.replace(/[^A-Za-z0-9._@-]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 80);
+    return cleaned || "10router-headless";
+  } catch {
+    return "10router-headless";
+  }
+}
+
 function enrollmentOs() {
   const p = process.platform;
   return p === "win32" || p === "darwin" ? p : "linux";
@@ -106,31 +118,36 @@ export async function loginCapyByCode({ flowId, code }, { fetchImpl } = {}) {
   const connected = deviceList.filter((d) => d?.id && d.connected === true && !d.revokedAt);
   let device = connected[0] ?? deviceList.find((d) => d?.id && !d.revokedAt) ?? null;
 
-  // No device at all → enroll one, so the connection does not depend on the
-  // user having opened the Capy desktop app first. An enrolled device is
-  // offline until its agent connects, but it is what a jam is created against,
-  // and sharing it lets every org member run threads on the same machine
-  // instead of each needing their own.
+  // No usable device → pair one through the device-code flow. This is the only
+  // path that yields a `capyd_` token, and that token is what lets the executor
+  // dial Capy's device tunnel and bring the device online without the user
+  // running the desktop app. `/devices/enroll` would reserve a slot but hand
+  // back no token, so the device could never connect — see tunnel.js.
   let enrolled = false;
+  let deviceToken = null;
   if (!device) {
-    const hostname = "10router";
     try {
-      const enrolledOrgs = await capyEnrollDevice(jwt, {
-        name: "10router",
-        hostname,
+      const paired = await capyPairDevice(jwt, org.id, {
+        name: deviceName(),
+        hostname: deviceName(),
         os: enrollmentOs(),
         arch: enrollmentArch(),
       }, { fetchImpl });
-      const entries = Array.isArray(enrolledOrgs) ? enrolledOrgs : enrolledOrgs?.items ?? [];
-      const mine = entries.find((e) => e?.orgId === org.id) ?? entries[0];
-      if (mine?.device?.id) {
-        device = mine.device;
-        enrolled = true;
-        // Best-effort: shared devices belong to the org, personal ones only to
-        // whoever enrolled them. A failure here is not worth failing login over.
-        await capyShareDevice(jwt, org.id, mine.device.id, { fetchImpl }).catch(() => null);
-      }
+      device = { id: paired.deviceId, name: paired.name, connected: false };
+      deviceToken = paired.token;
+      enrolled = true;
+      // Shared so every org member can run threads on it, not just whoever
+      // paired it. Best-effort: a share failure must not fail the login.
+      await capyShareDevice(jwt, org.id, paired.deviceId, { fetchImpl }).catch(() => null);
     } catch { /* keep device null; the executor surfaces the real error */ }
+  }
+
+  // An existing device already paired by this account keeps its token, so the
+  // tunnel can be re-dialled on later requests without re-pairing.
+  if (device?.id && !deviceToken) {
+    deviceToken = (deviceList ?? []).find((d) => d?.id === device.id)?.token
+      ?? (device.token ?? null);
+    if (!deviceToken) enrolled = false;
   }
 
   // Model-access proof: a session that cannot list the org's models is not a
@@ -181,6 +198,7 @@ export async function loginCapyByCode({ flowId, code }, { fetchImpl } = {}) {
     jamId,
     deviceConnected: connected.length > 0,
     deviceEnrolled: enrolled,
+    deviceToken,
     modelCount: modelList.length,
   };
 }
