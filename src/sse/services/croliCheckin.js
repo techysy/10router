@@ -134,7 +134,7 @@ async function resolveGatewayKey(conn, proxyOptions) {
 }
 
 /** 每日签到：POST /v1/ops/checkin {taskId:1}。返回 {claimed, message, streakDays}。 */
-async function croliCheckin(jwt) {
+async function croliCheckin(jwt, retried = false) {
   const { CROLI_CONFIG } = await import("../../lib/oauth/constants/oauth.js");
   const res = await fetch(`${CROLI_CONFIG.creditsBaseUrl}/v1/ops/checkin`, {
     method: "POST",
@@ -145,6 +145,18 @@ async function croliCheckin(jwt) {
   const body = await res.json().catch(() => ({}));
   if (res.status === 401 || res.status === 403 || body.code === "unauthenticated") {
     return { claimed: false, authExpired: true, message: "凭据已失效（unauthenticated）——请重新授权" };
+  }
+  // 新授权账号的 credits 账户可能尚未开户——只对精确的 account_not_found
+  // 走一次官方开户链（resource 目录 provision → bootstrap）再重试，
+  // 其余 404/错误一律按普通失败处理，不误建号。
+  if (res.status === 404 && (body.code === "account_not_found" || body.error === "account_not_found") && !retried) {
+    try {
+      const { bootstrapCroliAccount } = await import("../../../open-sse/services/croli.js");
+      await bootstrapCroliAccount(jwt);
+      return croliCheckin(jwt, true);
+    } catch {
+      return { claimed: false, message: "credits 账户初始化失败——请稍后重试" };
+    }
   }
   if (!res.ok) {
     return { claimed: false, message: body.message || body.code || `HTTP ${res.status}` };
