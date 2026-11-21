@@ -943,6 +943,18 @@ export const PROVIDER_CAPABILITIES = {
     "glm-53":       { ...MODEL_CAPABILITIES["glm-5.3"] },
     "glm-53-flash": { ...MODEL_CAPABILITIES["glm-5.3-flash"] },
   },
+  // Amazon Quick — 三个 performanceMode 虚拟档（fast/smart/advanced），后端是
+  // Claude/GPT 混合路由（快=Haiku/Luna 级、均衡=Sonnet/Terra 级、智能=Opus/Sol
+  // 级），官方未公布逐档窗口 → 取混合族保守下限 200k/64k。vision 开（网页端聊天
+  // 支持图片附件）；search 开（agent 默认带网页搜索，chatOptions.disableWebSearch
+  // 默认 false）；thinkingCanDisable:false —— 线上没有客户端思考开关字段，档位
+  // 即模式，executor 不下发任何 thinking 意图，故不声明 thinkingFormat（留空 →
+  // 按 transport.format 派生），避免给混合后端钉死单一思考协议。
+  "amazonquick": {
+    "fast":     { vision: true, search: true, reasoning: true, thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 }, // 快（虚拟档）
+    "smart":    { vision: true, search: true, reasoning: true, thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 }, // 均衡（虚拟档，上游默认）
+    "advanced": { vision: true, search: true, reasoning: true, thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 }, // 智能（虚拟档）
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
@@ -974,6 +986,8 @@ PROVIDER_CAPABILITIES["capy-ai"] = PROVIDER_CAPABILITIES.capy;
 PROVIDER_CAPABILITIES.qd = PROVIDER_CAPABILITIES.qoder;
 PROVIDER_CAPABILITIES.qdc = PROVIDER_CAPABILITIES["qoder-cn"];
 PROVIDER_CAPABILITIES.kgw = PROVIDER_CAPABILITIES["kilo-gateway"];
+// Amazon Quick 的传输/UI 别名 aq 同理。
+PROVIDER_CAPABILITIES.aq = PROVIDER_CAPABILITIES.amazonquick;
 PROVIDER_CAPABILITIES.kilogateway = PROVIDER_CAPABILITIES["kilo-gateway"];
 // DuMate 的传输/UI 别名 du（registry aliases:["du"]）与 id 共享同一张压缩拼写行，
 // 否则 du/qwen38-flash 会绕过 provider 行落回 *qwen* 兜底（同 qd/qdc 口径）。

@@ -12,6 +12,12 @@ import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js"
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import {
+  amazonQuickListConversationsUrl,
+  buildAmazonQuickHeaders,
+  resolveAmazonQuickCredentials,
+} from "open-sse/shared/amazonquick/constants.js";
+import { AMAZONQUICK_TIERS } from "open-sse/services/amazonquickModels.js";
 import { fetchMeooPoints, resolveMeooProjectAk, getMeooControlKey } from "open-sse/services/meooAk.js";
 import { QODER_USERINFO_URL, QODER_CN_USERINFO_URL } from "open-sse/shared/qoder/constants.js";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
@@ -1101,6 +1107,32 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403 && res.status !== 404;
         return { valid, error: valid ? null : "Invalid API token or Account ID" };
+      }
+      case "amazonquick": {
+        // Read-only probe, deliberately NOT a minimal chat: a chat turn
+        // burns the account's monthly agent hours, while ListConversations
+        // rides the same qbsproxy service + cookie session and validates
+        // all three credential values (cookie, awsAccountId, csrf) at once.
+        const creds = resolveAmazonQuickCredentials(connection);
+        if (creds.missing.length > 0) {
+          return { valid: false, error: `Missing credential field(s): ${creds.missing.join(", ")}` };
+        }
+        if (model && !AMAZONQUICK_TIERS.some((t) => t.id === model)) {
+          return { valid: false, error: `Model "${model}" is not an Amazon Quick tier (fast / smart / advanced)` };
+        }
+        const res = await fetchWithConnectionProxy(
+          amazonQuickListConversationsUrl(creds.awsAccountId, creds.csrf),
+          { method: "GET", headers: buildAmazonQuickHeaders(creds) },
+          effectiveProxy,
+        );
+        if (res.ok) return { valid: true, error: null };
+        const revoked = res.status === 401 || res.status === 403;
+        return {
+          valid: false,
+          error: revoked
+            ? "Session expired or invalid — paste a fresh Copy as cURL from a logged-in quick.aws.com tab"
+            : `Amazon Quick test failed (${res.status})`,
+        };
       }
       case "azure": {
         const psd = connection.providerSpecificData || {};

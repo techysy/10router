@@ -1547,5 +1547,12 @@
     "baseUrl": "https://api.capy.ai/app",
     "validateUrl": "https://api.capy.ai/app/me",
     "format": "openai"
+  },
+  "amazonquick": {
+    "baseUrl": "https://quick.aws.com",
+    "headers": {},
+    "timeoutMs": 300000,
+    "stallTimeoutMs": 300000,
+    "format": "openai"
   }
 }

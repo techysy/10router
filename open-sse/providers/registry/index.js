@@ -177,6 +177,7 @@ import p174 from "./nous.js";
 import p175 from "./croli.js";
 import p176 from "./crowllm.js";
 import p177 from "./capy.js";
+import p178 from "./amazonquick.js";
 
 export default [
   p0,
@@ -357,4 +358,5 @@ export default [
   p175,
   p176,
   p177,
+  p178,
 ];

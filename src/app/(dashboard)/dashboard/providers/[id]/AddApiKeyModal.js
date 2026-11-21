@@ -14,8 +14,11 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const isOllamaLocal = provider === "ollama-local";
   const isCookie = authType === "cookie";
   const isXaiApiKey = provider === "xai" && !isCookie;
-  const credentialLabel = isCookie ? "Cookie Value" : provider === "qoder" ? "Personal Access Token (PAT)" : "API Key";
-  const credentialPlaceholder = isCookie
+  const isAmazonQuick = provider === "amazonquick";
+  const credentialLabel = isAmazonQuick ? "Copy as cURL 内容" : isCookie ? "Cookie Value" : provider === "qoder" ? "Personal Access Token (PAT)" : "API Key";
+  const credentialPlaceholder = isAmazonQuick
+    ? "curl 'https://quick.aws.com/sn/account/...' -H '...' -b '...'"
+    : isCookie
     ? (provider === "grok-web"
         ? "sso=xxxxx... or just the raw value"
         : provider === "lingxi"
@@ -283,7 +286,23 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             </div>
           </div>
         )}
-        {!isOllamaLocal && (
+        {!isOllamaLocal && isAmazonQuick && (
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-text-main">{credentialLabel}</label>
+            <textarea
+              className="w-full rounded border border-accent/30 bg-sidebar p-2 text-sm font-mono resize-y min-h-[120px] focus:outline-none focus:ring-1 focus:ring-primary"
+              value={formData.apiKey}
+              onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+              placeholder={credentialPlaceholder}
+            />
+            <div>
+              <Button onClick={handleValidate} disabled={!formData.apiKey || validating || saving} variant="secondary">
+                {validating ? "Checking..." : "Check"}
+              </Button>
+            </div>
+          </div>
+        )}
+        {!isOllamaLocal && !isAmazonQuick && (
           <div className="flex gap-2">
             <Input
               label={credentialLabel}

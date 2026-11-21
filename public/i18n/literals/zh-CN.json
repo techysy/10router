@@ -2307,5 +2307,7 @@
   "Send failed": "发送失败",
   "Login failed": "登录失败",
   "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "用你的 Capy 账号（邮箱验证码）登录。线程（jam）登录后复用——无需每次请求都连设备。含免费广告补贴模型（GLM-5.3-Flash、DeepSeek V4.1 Flash）。",
-  "Disabled models": "已禁用模型"
+  "Disabled models": "已禁用模型",
+  "Amazon Quick has no public API key: calls ride your logged-in quick.aws.com web session — just paste a Copy as cURL from your browser and the rest is extracted automatically. Usage draws on your Quick plan's monthly agent hours.": "Amazon Quick 没有公开 API Key：调用走你已登录的 quick.aws.com 网页会话——在浏览器里 Copy as cURL 整段粘贴即可，其余自动识别。用量走你的 Quick 套餐每月 agent 小时。",
+  "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。"
 }
