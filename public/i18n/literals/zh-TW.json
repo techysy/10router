@@ -1004,6 +1004,7 @@
   "Could not load announcements": "無法載入公告",
   "No announcements right now": "暫無公告",
   "Showing the last cached copy — the live feed is unreachable right now.": "即時公告暫時取不到，以下是上次快取的副本。",
+  "Showing the latest 10 announcements — older entries are hidden.": "僅顯示最新 10 則公告——更早的已收起，完整歷史見更新日誌。",
   "Learn more": "了解更多",
   "QR code unavailable right now": "二維碼暫不可用",
   "Enable this model": "啟用此模型",

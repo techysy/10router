@@ -5,7 +5,7 @@
     "titleEn/bodyEn": "可选英文；英文界面优先显示，缺省回退主字段",
     "date": "YYYY-MM-DD，超过 90 天自动隐藏",
     "link": "可选，显示「了解更多」按钮",
-    "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版；条数纪律：公告只放「持续生效/仍需用户行动」的内容，功能发布类随版本进更新日志，不留长挂"
+    "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版；条数纪律：公告只放「持续生效/仍需用户行动」的内容，功能发布类随版本进更新日志，不留长挂；展示门禁：弹窗只渲染最新 10 条（AnnouncementsModal MAX_DISPLAY_ITEMS，超出自动收起），正文一两句话讲完，细节走链接或更新日志"
   },
   "updatedAt": "2026-11-22",
   "items": [
@@ -13,50 +13,50 @@
       "id": "2026-11-22-qwenwork-provider",
       "date": "2026-11-22",
       "level": "feature",
-      "title": "千问办公 QwenWork 供应商：设备码登录选团队，档位 + 直通模型",
-      "body": "全新供应商「千问办公」（阿里一站式办公 Agent，国际站 qwenwork.ai / 国内站 qwenwork.cn 双入口）：设备码登录，授权页选好团队即按所选团队套餐积分计费。模型目录与官方客户端选择器对齐——标准 / 高级 / 旗舰系统档位 + Qwen4-Max、DeepSeek V4.1 Flash、GLM-5.3-Flash 等直通模型，全系 1M 上下文，模型行倍率即计费标注（档位行不标「免费」——实测从积分池计费）。连接副标题邮箱掩码显示。注意：刷新令牌单次轮换、只由网关刷新，同一账号勿同时登录官方桌面客户端；Free 账户调用直通模型返回 403（付费档解锁）。",
-      "titleEn": "QwenWork provider: device-code sign-in with team billing, tiers + direct models",
-      "bodyEn": "A new provider, QwenWork (Alibaba's all-in-one workplace agent, international qwenwork.ai / CN qwenwork.cn): sign in with a device code and pick the team whose plan pays the credits. The catalog mirrors the official client picker — Standard / Advanced / Flagship system tiers plus direct models like Qwen4-Max, DeepSeek V4.1 Flash and GLM-5.3-Flash, all 1M context; the rate-multiplier chip on each row IS the pricing mark (tier rows show no free badge — live tests bill from the credit pool). Connection subtitles mask the email. Note: refresh tokens are single-use and rotating, refreshed only by the gateway — don't sign the same account into the official desktop app at the same time; Free-plan accounts get 403 on direct models (paid tiers unlock them).",
+      "title": "千问办公 QwenWork：设备码登录选团队，档位 + 直通模型",
+      "body": "阿里办公 Agent 双站接入（国际 qwenwork.ai / 国内 qwenwork.cn）：设备码登录，授权页选团队即按其套餐计费。标准 / 高级 / 旗舰档位 + Qwen4-Max 等直通模型全系 1M 上下文。注意：刷新令牌只由网关刷新，勿同时登录官方桌面客户端；Free 档调直通模型 403（付费解锁）。",
+      "titleEn": "QwenWork: device-code sign-in with team billing, tiers + direct models",
+      "bodyEn": "Alibaba's workplace agent joins (intl qwenwork.ai / CN qwenwork.cn): device-code sign-in, pick a team and its plan pays the credits. Standard / Advanced / Flagship tiers plus direct models like Qwen4-Max, all 1M context. Note: refresh tokens are gateway-only — don't sign into the official desktop app simultaneously; Free plans get 403 on direct models.",
       "link": "https://qwenwork.ai"
     },
     {
       "id": "2026-11-22-capy-provider",
       "date": "2026-11-22",
       "level": "feature",
-      "title": "Capy 供应商：一次请求一轮真实 agent，免开桌面端",
-      "body": "全新供应商 Capy（agent 平台）：一次请求就是一轮真实 agent 任务——线程登录后复用，不需要你开着官方桌面端（无头设备码配对、自动批准）。邮箱验证码即可登录；三个全 0 计费的免费模型（GLM-5.3-Flash 广告版 / DeepSeek V4.1 Flash 广告版 / Particle-1），付费档 Claude / GPT / Gemini 等九家透传。实测单轮 5-9 秒起，适合对话场景。信任模型须知：配对的无头设备与官方桌面端一样会执行 agent 所需的命令与文件操作——不想要此能力的部署不配对设备 / 吊销设备令牌即可（无 capyd_ 令牌不会拨隧道）。",
-      "titleEn": "Capy provider: one request = one real agent run, no desktop app needed",
-      "bodyEn": "A new provider, Capy (agent platform): each request is one real agent run — threads are reused after login and you don't need the official desktop app running (headless device pairing, auto-approved). Sign in with an email code; three free all-zero-priced models (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1) plus nine paid families (Claude / GPT / Gemini and more) in passthrough. Measured 5-9s per turn — conversation-friendly. Trust-model notice: a paired headless device serves the agent's command and file operations just like the desktop app does — deployments that don't want that simply don't pair a device / revoke the device token (no capyd_ token, no tunnel).",
+      "title": "Capy：一次请求一轮真实 agent，免开桌面端",
+      "body": "agent 平台接入：一次请求就是一轮真实 agent 任务，线程复用、不需要开着官方桌面端；邮箱验证码登录。三个全 0 计费免费模型（GLM-5.3-Flash 广告版 / DeepSeek V4.1 Flash 广告版 / Particle-1）。须知：配对的无头设备与桌面端一样会执行命令与文件操作——不需要此能力就不配对设备即可。",
+      "titleEn": "Capy: one request = one real agent run, no desktop app needed",
+      "bodyEn": "Agent platform: each request is one real agent run — threads are reused and the official desktop app need not be running; sign in with an email code. Three free all-zero-priced models (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Notice: a paired headless device executes commands and file operations like the desktop app does — don't pair a device if you don't want that.",
       "link": "https://capy.ai"
     },
     {
       "id": "2026-11-22-crowllm-provider",
       "date": "2026-11-22",
       "level": "feature",
-      "title": "CrowLLM 供应商：180+ 模型一个 Key，40 个 :free 模型零倍率",
-      "body": "全新供应商 CrowLLM（one-hub 聚合网关）：填一个 API Key 即用，/v1/models 全量透传 180+ 模型。带 :free 后缀的模型完全免费（40 个，含 qwen4-max:free——实测日成功率 91%+，延迟偏高）。注册页「获取 API 密钥」入口接入邀请码池，每次打开随机取一条。无签到/赠送机制。",
-      "titleEn": "CrowLLM provider: 180+ models behind one key, 40 :free models at zero rate",
-      "bodyEn": "A new provider, CrowLLM (one-hub aggregator gateway): one API key unlocks the full 180+ model passthrough. Models suffixed :free cost nothing (40 of them, including qwen4-max:free — 91%+ measured daily success rate, latency on the slow side). The Get API Key entry rotates through an invite-link pool; no check-in or grant mechanics.",
+      "title": "CrowLLM：180+ 模型一个 Key，40 个 :free 零倍率",
+      "body": "one-hub 聚合网关：一个 API Key 透传 180+ 模型；带 :free 后缀的模型完全免费（40 个，含 qwen4-max:free，实测日成功率 91%+、延迟偏高）。「获取 API 密钥」入口接邀请码池轮换。",
+      "titleEn": "CrowLLM: 180+ models behind one key, 40 :free at zero rate",
+      "bodyEn": "one-hub aggregator gateway: one API key unlocks 180+ passthrough models; :free models cost nothing (40 of them, incl. qwen4-max:free — 91%+ daily success, latency on the slow side). The Get API Key entry rotates an invite pool.",
       "link": "https://crowllm.com"
     },
     {
       "id": "2026-11-22-croli-provider",
       "date": "2026-11-22",
       "level": "feature",
-      "title": "Croli 供应商：Clerk OAuth + 积分池，原生签到与积分面板",
-      "body": "全新供应商 Croli：Clerk OAuth（Google / GitHub / 邮箱验证码）登录，全程面板内完成。credits 积分池自动化——每日签到 +100（连续加成）、每日首次对话 +200（由真实完成的对话回合上报，不烧 trial 额度）；详情页原生积分任务中心 + 积分面板，实验性页可开自动签到。claude 系走池化路由、gpt 系直连，上游校验 max_tokens ≥ 16。注册引导走邀请码池轮换。",
-      "titleEn": "Croli provider: Clerk OAuth + credits pool, native check-in and credits panel",
-      "bodyEn": "A new provider, Croli: Clerk OAuth (Google / GitHub / email code), entirely in the panel. The credits pool runs itself — daily check-in +100 (with streak bonuses) and the first chat of the day +200, reported from real completed conversation turns rather than burning trial quota; the provider detail page carries a native task center and credits panel, and the Experimental page adds auto check-in. Claude-family models ride the pooled route, GPT-family connects directly; upstream enforces max_tokens >= 16. Signup walks through a rotating invite-code pool.",
+      "title": "Croli：Clerk OAuth + 积分池，原生签到与积分面板",
+      "body": "Clerk OAuth（Google / GitHub / 邮箱）面板内登录。每日签到 +100（连续加成）、每日首聊 +200（真实回合上报，不烧 trial 额度）；详情页带积分任务中心，实验性页可开自动签到。注册引导走邀请码池。",
+      "titleEn": "Croli: Clerk OAuth + credits pool, native check-in and credits panel",
+      "bodyEn": "Clerk OAuth (Google / GitHub / email) entirely in the panel. Daily check-in +100 (streak bonuses), first chat of the day +200 — reported from real completed turns, no trial quota burned; the detail page carries a task center and the Experimental page adds auto check-in. Signup rotates an invite pool.",
       "link": "https://croli.net"
     },
     {
       "id": "2026-11-22-nous-portal-provider",
       "date": "2026-11-22",
       "level": "feature",
-      "title": "Nous Portal 供应商：设备码登录，免费档免绑卡",
-      "body": "全新供应商 Nous Portal（Hermes 同款设备码 OAuth）：授权后浏览器停在「复制此 URL」页，粘贴回面板即完成登录。免费档 qwen/qwen4-max:free 等无需绑卡即可用；实时目录 400+ 模型全量透传，付费模型按 Portal 套餐计费。注意：刷新令牌每次使用即轮换、只由网关刷新，同一账号勿同时登录 Hermes CLI。",
-      "titleEn": "Nous Portal provider: device-code sign-in, free tier without a card",
-      "bodyEn": "A new provider, Nous Portal (Hermes-style device-code OAuth): after authorizing, the browser stops on a \"copy this URL\" page — paste it back into the panel to finish. The free tier (qwen/qwen4-max:free and friends) needs no card; the live catalog passes through 400+ models, paid ones bill against your Portal plan. Note: refresh tokens rotate on every use and only the gateway refreshes them — don't sign the same account into the Hermes CLI at the same time.",
+      "title": "Nous Portal：设备码登录，免费档免绑卡",
+      "body": "Hermes 同款设备码 OAuth：授权后把「复制此 URL」粘回面板即完成登录。免费档 qwen4-max:free 等免绑卡；实时目录 400+ 模型透传。注意：刷新令牌只由网关刷新，勿同时登录 Hermes CLI。",
+      "titleEn": "Nous Portal: device-code sign-in, free tier without a card",
+      "bodyEn": "Hermes-style device-code OAuth: paste the \"copy this URL\" page back into the panel to finish. Free tier (qwen4-max:free and friends) needs no card; 400+ models passthrough. Note: gateway-only refresh — don't sign into the Hermes CLI simultaneously.",
       "link": "https://portal.nousresearch.com"
     },
     {
@@ -64,9 +64,9 @@
       "date": "2026-11-16",
       "level": "warning",
       "title": "许可证已生效：自 v1.8.1 起改为 AGPL-3.0（此前为 MIT）",
-      "body": "为保护本项目的真机调试成果（协议逆向、指纹对齐、签到链路等）不被闭源拿走，自 v1.8.1 起本仓库改用 AGPL-3.0。v1.8.0 及更早的已发布版本维持 MIT 不变。日常使用、自部署完全不受影响；AGPL 仅要求任何二次利用（含以网络服务形式提供）同样开源。",
+      "body": "自 v1.8.1 起本仓库整体采用 AGPL-3.0；v1.8.0 及更早版本维持 MIT。日常使用、自部署不受影响；任何二次利用（含网络服务形式）需同协议开源。",
       "titleEn": "License in effect: AGPL-3.0 starting with v1.8.1 (previously MIT)",
-      "bodyEn": "To protect this project's reverse-engineering work (protocol reverse-ing, fingerprint alignment, check-in chains) from being taken closed-source, the repository adopts AGPL-3.0 starting with v1.8.1. Released versions up to v1.8.0 remain MIT. Everyday use and self-hosting are unaffected; AGPL only requires any reuse — including offering it as a network service — to be released under the same license.",
+      "bodyEn": "The repository ships under AGPL-3.0 since v1.8.1; releases up to v1.8.0 remain MIT. Everyday use and self-hosting are unaffected; any reuse — including as a network service — must stay under the same license.",
       "link": "https://github.com/techysy/10router/blob/main/LICENSE"
     },
     {
@@ -74,74 +74,40 @@
       "date": "2026-11-11",
       "level": "info",
       "title": "Qoder 排队机制与账号风控说明",
-      "body": "部分 Qoder 账号请求出现持续排队（底层返回 10605）。官方证实此为调用触发的账号级风控惩罚（慢速队列）。订阅套餐享有专属优先通道；遇到排队时，10Router 会自动识别并冷却顺延至其他可用账号。",
+      "body": "部分 Qoder 账号持续排队（10605）是官方账号级风控慢速队列；订阅套餐有专属优先通道。10Router 自动识别并冷却顺延至其他可用账号。",
       "titleEn": "Qoder queue throttle and account rate-limit explained",
-      "bodyEn": "Some Qoder accounts have experienced continuous queue waiting ('Estimated wait time ~1 min', upstream code 10605). According to official responses, this is a targeted rate-limit applied to accounts with high-frequency access patterns. Subscribed accounts enjoy prioritized lanes; 10Router automatically detects code 10605 and fails over to other accounts.",
+      "bodyEn": "Continuous queueing on some Qoder accounts (10605) is the official per-account slow lane; subscribed plans get a priority lane. 10Router detects it and fails over automatically.",
       "link": "https://forum.qoder.com/t/topic/13804"
-    },
-    {
-      "id": "2026-11-08-loomy-model-pool",
-      "date": "2026-11-08",
-      "level": "warning",
-      "title": "Loomy 模型池收紧：三款下线，新增 MiMo V2.5",
-      "body": "讯飞收紧模型池：Qwen 3.8 Max / MiniMax M3 / Kimi K2.6 下线不可调（组合引用了它们的请更新成员）；新增 MiMo V2.5（全模态，×3.3）。各模型积分倍率已标注在模型行（Spark-X2.6 正式版限时免费 ×0.0）。多账号的邀请码可在 CreditDaddy 快速填写与获取。",
-      "titleEn": "Loomy model pool tightened: 3 models retired, MiMo V2.5 added",
-      "bodyEn": "iFlytek tightened the pool: Qwen 3.8 Max / MiniMax M3 / Kimi K2.6 are retired (update combos referencing them); MiMo V2.5 added (omni-modal, x3.3). Credit multipliers are now labeled on model rows (Spark-X2.6 official is free for a limited time, x0.0). Invite codes for multiple accounts can be quickly filled/obtained via CreditDaddy.",
-      "link": "https://loomy.xunfei.cn"
     },
     {
       "id": "2026-11-16-deepai-code-provider",
       "date": "2026-11-16",
       "level": "feature",
       "title": "DeepAI Code 供应商：27 模型免费档，面板内直接登录",
-      "body": "免费额度区新增 DeepAI Code（deepai.org 桌面编程 agent）：11 个免费不计量模型 + 16 个按次花每日 Theos（GPT-6.1 Sol / Gemini 4 Hydrogen / Claude Fable 5.2 等都有）。添加连接在面板内完成 Google/Apple 浏览器登录——回调地址粘回即建连，本机不装任何东西；已有 API Key 也可直接粘贴。模型行亮「免费」/「配额 N」徽章，Theos 余额自动进配额页。",
+      "body": "deepai.org 桌面编程 agent 接入免费额度区：11 个免费不计量模型 + 16 个按次花每日 Theos。面板内 Google/Apple 登录粘回即建连，也可直接粘贴已有 Key。",
       "titleEn": "DeepAI Code provider: 27 models free-tier, panel-native sign-in",
-      "bodyEn": "DeepAI Code (deepai.org desktop coding agent) joins the free-tier section: 11 unmetered free models plus 16 metered against the daily Theos grant (GPT-6.1 Sol / Gemini 4 Hydrogen / Claude Fable 5.2 included). Adding a connection runs the Google/Apple browser sign-in inside the panel — paste the callback URL back and the connection is created, nothing to install. Existing API keys can be pasted directly. Model rows carry Free / Quota N badges; the Theos balance lands in the quota page automatically."
+      "bodyEn": "DeepAI Code (deepai.org coding agent) joins the free tier: 11 unmetered models + 16 metered against the daily Theos grant. Google/Apple sign-in runs in the panel — paste the callback back, or paste an existing key.",
+      "link": "https://deepai.org"
     },
     {
       "id": "2026-11-16-wps-lingxi-provider",
       "date": "2026-11-16",
       "level": "feature",
       "title": "WPS 灵犀供应商：粘贴 Cookie 即用，原生签到与到期桶",
-      "body": "全新供应商「灵犀」（WPS）：供应商页 Capture Session 三步引导（书签签 / 直接粘贴）或从 CreditDaddy 一键同步。配额卡按智点口径呈现——余额 + 逐包到期桶 + 最早到期倒计时；实验性页开关打开后自动领每日灵点（100/天、第七天 200），配额卡头显示「今日已签到 · 连续 N 天」。免费档日常对话不扣灵点。",
+      "body": "供应商页 Capture Session 三步引导（书签签 / 直接粘贴）或从 CreditDaddy 一键同步。配额卡按智点口径呈现——余额 + 逐包到期桶 + 倒计时；实验性页可开每日自动领灵点（100/天、第七天 200）。免费档日常对话不扣灵点。",
       "titleEn": "WPS Lingxi provider: paste a cookie to start, native check-in and expiry buckets",
-      "bodyEn": "A new provider line, Lingxi (WPS): the provider page walks you through Capture Session (bookmarklet or direct paste), or sync from CreditDaddy. The quota card speaks the credit language — balance + per-batch expiry buckets + earliest-expiry countdown. Flip the Experimental toggle for native daily check-in (100/day, 200 on day seven) with a streak badge on the quota card. Free-tier chat costs no credits."
+      "bodyEn": "Capture Session on the provider page (bookmarklet or direct paste), or one-click sync from CreditDaddy. The quota card speaks credits — balance + expiry buckets + countdown; the Experimental page adds auto daily claim (100/day, 200 on day seven). Free-tier chat costs no credits.",
+      "link": "https://lingxi.kdocs.cn"
     },
     {
       "id": "2026-11-15-meoo-provider",
       "date": "2026-11-15",
       "level": "feature",
       "title": "Meoo 秒悟供应商：OAuth 登录 / 控制面 Key 双通道",
-      "body": "全新供应商「秒悟」：OAuth（CLI 同款 PKCE）或粘贴控制面 Key 双通道接入；项目服务 AK 自动解析、失效自愈。积分账户完整呈现——余额 + 批次有效期（订阅 / 登录赠送 / 邀请奖励逐包到期）；实验性页新增「每日自动领积分」开关；模型行带价格倾向徽章（便宜 / 适中 / 较贵 / 超贵，官网同款）。",
+      "body": "OAuth（CLI 同款 PKCE）或粘贴控制面 Key 双通道接入；项目服务 AK 自动解析、失效自愈。积分账户完整呈现——余额 + 逐包到期；实验性页可开每日自动领积分。",
       "titleEn": "Meoo provider: OAuth or control-plane key, full points ledger",
-      "bodyEn": "A new provider, Meoo: connect via OAuth (CLI-style PKCE) or pasting a control-plane key; the per-project service AK resolves itself and self-heals. The points ledger shows balance + per-batch expiry (subscription / daily-login / invite grants each carry their own dates). The Experimental page adds an auto daily-claim toggle; model rows carry price-tendency badges matching the official picker."
-    },
-    {
-      "id": "2026-11-14-dumate-provider",
-      "date": "2026-11-14",
-      "level": "feature",
-      "title": "DuMate 百度搭子供应商：扫码登录，全程不拉起浏览器",
-      "body": "全新供应商「DuMate」（百度）：扫码登录全链路面板内完成（getqrcode → 长轮询 → 快捷登录，内置 SSRF 白名单）。配额卡按积分池语言呈现——订阅窗折叠进余额大数右侧、加油包逐包明细；额度包隐藏偏好改用稳定组合键，包过期重排后不再错位。",
-      "titleEn": "DuMate (Baidu) provider: QR-code login without spawning a browser",
-      "bodyEn": "A new provider, DuMate (Baidu): QR-code login runs entirely in the panel (getqrcode → long-poll → quick login, with an SSRF allowlist). The quota card speaks the credit-pool language — the subscription window folds beside the balance headline and top-up packs are itemised; pack hide-preferences use a stable composite key so expiring packs no longer shuffle."
-    },
-    {
-      "id": "2026-11-12-gemini-decision-provider",
-      "date": "2026-11-12",
-      "level": "feature",
-      "title": "Gemini Decision 1 供应商：System One 决策 lane 补齐多模态",
-      "body": "System One 决策模型新增 Gemini Decision 1（Google DeepMind）：typed questions 进、校准概率出，与 Drex 协议同构但支持文本/图片/音频/视频/PDF 五模态（Drex 只有文本/图片）。API Key 从 Google AI Studio 创建，免费层 200 请求/分钟。决策 lane 可按模态路由：文本/图片走 Drex，音/视频/PDF 走 Gemini。",
-      "titleEn": "Gemini Decision 1 provider: multimodal decision lane alongside Drex",
-      "bodyEn": "The System One decision lane gains Gemini Decision 1 (Google DeepMind): typed questions in, calibrated probabilities out — protocol-aligned with Drex but natively multimodal (text/image/audio/video/PDF vs Drex's text/image). API keys come from Google AI Studio; free tier is 200 requests/min. Route by modality: text/images via Drex, audio/video/PDF via Gemini."
-    },
-    {
-      "id": "2026-11-16-music-category-overview",
-      "date": "2026-11-16",
-      "level": "feature",
-      "title": "音乐生成分类：ACE Music 出整曲、StepFun 限免、两个 Web 工作台",
-      "body": "侧栏「媒体提供商 → 音乐」一栏汇总全部音乐能力：ACE Music（托管 ACE-Step）一行描述出整曲 MP3，带播放器与下载按钮；StepFun StepAudio 3 Music 限时免费——多行文字直接当歌词唱；另有 Miya（歌曲+MV，免费 beta）与 Flow Music 两个 Web 工作台一键直达。模型、连接、Prompt 在示例卡现场切换即试。",
-      "titleEn": "Music category: ACE Music full songs, StepFun limited-free, two web studios",
-      "bodyEn": "The sidebar Music section under Media Providers gathers every music capability: ACE Music (hosted ACE-Step) turns one description line into a full MP3 with a built-in player and download button; StepFun StepAudio 3 Music is free for a limited time — multi-line text is sung as-is; plus one-click shortcuts to two web studios, Miya (song + MV, free beta) and Flow Music. Switch model, connection and prompt live on the example card."
+      "bodyEn": "Connect via OAuth (CLI-style PKCE) or a control-plane key; the per-project AK resolves itself and self-heals. Points ledger shows balance + per-batch expiry; the Experimental page adds an auto daily-claim toggle.",
+      "link": "https://meoo.com"
     }
   ]
 }

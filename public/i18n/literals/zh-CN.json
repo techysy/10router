@@ -2175,6 +2175,7 @@
   "Could not load announcements": "无法加载公告",
   "No announcements right now": "暂无公告",
   "Showing the last cached copy — the live feed is unreachable right now.": "实时公告暂时取不到，以下是上次缓存的副本。",
+  "Showing the latest 10 announcements — older entries are hidden.": "仅显示最新 10 条公告——更早的已收起，完整历史见更新日志。",
   "Learn more": "了解更多",
   "QR code unavailable right now": "二维码暂不可用",
   "Enable this model": "启用此模型",

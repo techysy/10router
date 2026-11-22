@@ -17,6 +17,10 @@ const CACHE_KEY = "10r.announcements.cache";
 const SEEN_KEY = "10r.announcements.seen";
 // Anything older than this is stale enough to hide rather than show as news.
 const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+// Display gate: the modal renders at most the latest 10 items (deterministic
+// sort below, then cut) so an accumulating feed can never flood the dialog.
+// The file itself keeps the entries; age-based hiding is MAX_AGE_MS's job.
+const MAX_DISPLAY_ITEMS = 10;
 
 export const ANNOUNCEMENTS_CHANGED_EVENT = "10r-announcements-changed";
 
@@ -81,7 +85,9 @@ function normalizeFeed(raw) {
 function computeUnread() {
   const cached = normalizeFeed(readJson(CACHE_KEY, null));
   const seen = new Set(readSeenIds());
-  return cached.filter((it) => !seen.has(it.id)).length;
+  // The badge only counts what the modal can actually display — unseen items
+  // beyond the display gate must not keep the dot lit forever.
+  return cached.slice(0, MAX_DISPLAY_ITEMS).filter((it) => !seen.has(it.id)).length;
 }
 
 const SYNC_KEY = "10r.announcements.syncedAt";
@@ -211,6 +217,8 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
     if (items.length === 0) {
       return <p className="py-6 text-center text-sm text-text-muted">{translate("No announcements right now")}</p>;
     }
+    const shown = items.slice(0, MAX_DISPLAY_ITEMS);
+    const hidden = items.length - shown.length;
     return (
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {stale && (
@@ -218,7 +226,12 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
             {translate("Showing the last cached copy — the live feed is unreachable right now.")}
           </p>
         )}
-        {items.map((it) => (
+        {hidden > 0 && (
+          <p className="rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-xs text-text-muted lg:col-span-2">
+            {translate("Showing the latest 10 announcements — older entries are hidden.")}
+          </p>
+        )}
+        {shown.map((it) => (
           <article
             key={it.id}
             className={cn(
