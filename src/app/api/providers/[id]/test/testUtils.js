@@ -1351,6 +1351,24 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const res = await fetchWithConnectionProxy("https://api.siliconflow.com/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "atlascloud": {
+        // /v1/models is public (200 with or without a key) and proves nothing
+        // about the credential — the gate is a minimal chat turn: 401/403 on a
+        // bad key (verified live 2026-11-23), anything else means the key
+        // authenticated. max_tokens 16 to clear any floor a reasoning model
+        // sets; one call per explicit "Check" press, ~free.
+        const res = await fetchWithConnectionProxy("https://api.atlascloud.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          body: JSON.stringify({
+            model: model || "deepseek-ai/deepseek-v4-flash",
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 16,
+          }),
+        }, effectiveProxy);
+        const authed = res.status !== 401 && res.status !== 403;
+        return { valid: authed, error: authed ? null : "Invalid API key" };
+      }
       case "hyperbolic": {
         const res = await fetchWithConnectionProxy("https://api.hyperbolic.xyz/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };

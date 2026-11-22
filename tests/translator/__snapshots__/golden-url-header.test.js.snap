@@ -259,6 +259,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > assemblyai → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > atlascloud → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > atria → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1650,6 +1669,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > nous → headers (ap
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > numes → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > nvidia → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -2481,6 +2519,13 @@ exports[`GOLDEN buildUrl (default executor providers) > assemblyai → url (stre
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > atlascloud → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.atlascloud.ai/v1/chat/completions",
+  "stream": "https://api.atlascloud.ai/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > atria → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.atria-asi.ai/v1/chat/completions",
@@ -2905,6 +2950,13 @@ exports[`GOLDEN buildUrl (default executor providers) > nous → url (stream + n
 {
   "nonStream": "https://inference-api.nousresearch.com/v1/chat/completions",
   "stream": "https://inference-api.nousresearch.com/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > numes → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.numes.ai/api/v1/chat/completions",
+  "stream": "https://api.numes.ai/api/v1/chat/completions",
 }
 `;
 

@@ -449,6 +449,7 @@ export async function POST(request) {
         case "nebius":
         case "siliconflow":
         case "siliconflow-cn":
+        case "atlascloud":
         case "hyperbolic":
         case "ollama":
         case "ollama-local":

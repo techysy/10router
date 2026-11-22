@@ -1583,5 +1583,11 @@
     "thinkingFormat": "openai",
     "timeoutMs": 120000,
     "format": "openai"
+  },
+  "atlascloud": {
+    "baseUrl": "https://api.atlascloud.ai/v1/chat/completions",
+    "validateUrl": "https://api.atlascloud.ai/v1/models",
+    "thinkingFormat": "openai",
+    "format": "openai"
   }
 }

@@ -181,6 +181,7 @@ import p178 from "./amazonquick.js";
 import p179 from "./qwenwork.js";
 import p180 from "./qwenwork-cn.js";
 import p181 from "./numes.js";
+import p182 from "./atlascloud.js";
 
 export default [
   p0,
@@ -365,4 +366,5 @@ export default [
   p179,
   p180,
   p181,
+  p182,
 ];
