@@ -2175,6 +2175,7 @@
   "Could not load announcements": "无法加载公告",
   "No announcements right now": "暂无公告",
   "Showing the last cached copy — the live feed is unreachable right now.": "实时公告暂时取不到，以下是上次缓存的副本。",
+  "Showing the latest 10 announcements — older entries are hidden.": "仅显示最新 10 条公告——更早的已收起，完整历史见更新日志。",
   "Learn more": "了解更多",
   "QR code unavailable right now": "二维码暂不可用",
   "Enable this model": "启用此模型",
@@ -2308,6 +2309,15 @@
   "Login failed": "登录失败",
   "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "用你的 Capy 账号（邮箱验证码）登录。线程（jam）登录后复用——无需每次请求都连设备。含免费广告补贴模型（GLM-5.3-Flash、DeepSeek V4.1 Flash）。",
   "Disabled models": "已禁用模型",
+  "Sign in with your own QwenWork account via device code. On the authorization page, pick the team whose plan you want to use — calls are charged to the selected team's credits.": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。",
+  "使用您自己的千问办公账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。",
+  "Trial daily allowance": "试用每日额度",
+  "Croli wallet balance": "Croli 钱包余额",
+  "Separate from daily trial quota": "与每日试用额度分开",
+  "credits": "积分",
+  "Fetch QwenWork Models": "获取 QwenWork 模型",
+  "Delete Connection": "删除连接",
+  "Remove pushed quota card": "移除推送额度卡",
   "Amazon Quick has no public API key: calls ride your logged-in quick.aws.com web session — just paste a Copy as cURL from your browser and the rest is extracted automatically. Usage draws on your Quick plan's monthly agent hours.": "Amazon Quick 没有公开 API Key：调用走你已登录的 quick.aws.com 网页会话——在浏览器里 Copy as cURL 整段粘贴即可，其余自动识别。用量走你的 Quick 套餐每月 agent 小时。",
   "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。"
 }

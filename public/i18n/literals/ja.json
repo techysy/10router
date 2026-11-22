@@ -215,5 +215,12 @@
   "Send failed": "送信に失敗しました",
   "Login failed": "ログインに失敗しました",
   "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "Capy アカウント（メールコード）でログインします。スレッド（jam）はログイン後に再利用されます——リクエストごとのデバイスは不要。広告スポンサーの無料モデル（GLM-5.3-Flash、DeepSeek V4.1 Flash）を含みます。",
-  "Disabled models": "無効化されたモデル"
+  "Disabled models": "無効化されたモデル",
+  "Trial daily allowance": "トライアル日次枠",
+  "Croli wallet balance": "Croli ウォレット残高",
+  "Separate from daily trial quota": "日次トライアル枠とは別計上",
+  "credits": "クレジット",
+  "Fetch QwenWork Models": "QwenWork モデルを取得",
+  "Delete Connection": "接続を削除",
+  "Remove pushed quota card": "プッシュ型カードを削除"
 }

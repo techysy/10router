@@ -4,6 +4,7 @@ import { GeminiCLIExecutor } from "./gemini-cli.js";
 import { GithubExecutor } from "./github.js";
 import { IFlowExecutor } from "./iflow.js";
 import { QoderExecutor } from "./qoder.js";
+import { QwenWorkExecutor } from "./qwenwork.js";
 import { QODER_CN_GATEWAY_BASE } from "../shared/qoder/constants.js";
 import { KiroExecutor } from "./kiro.js";
 import { KimchiExecutor } from "./kimchi.js";
@@ -50,6 +51,8 @@ const executors = {
   iflow: new IFlowExecutor(),
   qoder: new QoderExecutor(),
   "qoder-cn": new QoderExecutor("qoder-cn", QODER_CN_GATEWAY_BASE),
+  qwenwork: new QwenWorkExecutor(),
+  "qwenwork-cn": new QwenWorkExecutor("qwenwork-cn"),
   kiro: new KiroExecutor(),
   kimchi: new KimchiExecutor(),
   codex: new CodexExecutor(),
@@ -118,6 +121,7 @@ export { GeminiCLIExecutor } from "./gemini-cli.js";
 export { GithubExecutor } from "./github.js";
 export { IFlowExecutor } from "./iflow.js";
 export { QoderExecutor } from "./qoder.js";
+export { QwenWorkExecutor } from "./qwenwork.js";
 export { KiroExecutor } from "./kiro.js";
 export { KimchiExecutor } from "./kimchi.js";
 export { CodexExecutor } from "./codex.js";

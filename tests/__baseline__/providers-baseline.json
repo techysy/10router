@@ -1554,5 +1554,27 @@
     "timeoutMs": 300000,
     "stallTimeoutMs": 300000,
     "format": "openai"
+  },
+  "qwenwork": {
+    "baseUrl": "https://gateway.qwenwork.ai/algo/api/v2/service/pro/sse/agent_chat_generation",
+    "headers": {},
+    "timeoutMs": 120000,
+    "stallTimeoutMs": 120000,
+    "usage": {
+      "url": "https://gateway.qwenwork.ai/api/v1/adapter/user/account-context?include=user,plan,quota,page,data_sharing"
+    },
+    "format": "openai",
+    "clientId": "cc65e5fc-05bd-4f5d-a4e8-0df19aa3d75a"
+  },
+  "qwenwork-cn": {
+    "baseUrl": "https://gateway.qwenwork.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
+    "headers": {},
+    "timeoutMs": 120000,
+    "stallTimeoutMs": 120000,
+    "usage": {
+      "url": "https://gateway.qwenwork.cn/api/v1/adapter/user/account-context?include=user,plan,quota,page,data_sharing"
+    },
+    "format": "openai",
+    "clientId": "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
   }
 }

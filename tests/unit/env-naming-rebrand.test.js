@@ -7,21 +7,27 @@ const SCAN_DIRS = ["src", "cli", "open-sse", "scripts"];
 const SCAN_ROOT_FILES = ["custom-server.js", "next.config.mjs"];
 
 // `cli/app` is a generated copy of the root tree (untracked build output) and may
-// legitimately lag until the next build; `desktop/dist` and `.next*` are bundles.
+// legitimately lag until the next build; its `.bak*` snapshots likewise. `desktop/dist`
+// and `.next*` are bundles.
 function isSource(file) {
   const rel = path.relative(REPO_ROOT, file).replace(/\\/g, "/");
-  if (rel.startsWith("cli/app/")) return false;
+  if (rel === "cli/app" || rel.startsWith("cli/app/") || rel.startsWith("cli/app.")) return false;
   if (rel.includes("node_modules/")) return false;
   if (rel.includes("/dist/") || rel.startsWith("dist/")) return false;
   if (rel.includes("/.next") || rel.startsWith(".next")) return false;
   return /\.(js|mjs|cjs)$/.test(file);
 }
 
+// isSource already rejects every file under node_modules / .next* / dist, so
+// don't pay the traversal either — a cli/app backup alone drags in a full
+// node_modules tree, and the walk runs against the live tree on every test run.
 function* walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) yield* walk(p);
-    else if (isSource(p)) yield p;
+    if (e.isDirectory()) {
+      if (e.name === "node_modules" || e.name === "dist" || e.name.startsWith(".next")) continue;
+      yield* walk(p);
+    } else if (isSource(p)) yield p;
   }
 }
 

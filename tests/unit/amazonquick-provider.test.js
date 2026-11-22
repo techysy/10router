@@ -182,6 +182,15 @@ describe("Amazon Quick credential resolution", () => {
     expect(creds.missing).toEqual(["cookie", "awsAccountId", "csrf"]);
   });
 
+  it("rejects a non-numeric legacy awsAccountId instead of putting it in the URL", () => {
+    const creds = resolveAmazonQuickCredentials({
+      [KEY_FIELD]: FAKE_COOKIE,
+      providerSpecificData: { awsAccountId: "sn/account/oops", csrf: "csrf-token-1" },
+    });
+    expect(creds.awsAccountId).toBe("");
+    expect(creds.missing).toContain("awsAccountId");
+  });
+
   it("builds the qbsproxy chat + list URLs with the csrf as mbtc", () => {
     expect(amazonQuickChatUrl("123456789012", "csrf token")).toBe(
       "https://quick.aws.com/sn/account/123456789012/qbsproxy/quicksight/accounts/123456789012/conversations/chat?mbtc=csrf%20token",

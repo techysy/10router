@@ -69,7 +69,23 @@ export function getConnectionLabel(connection) {
     return displayName || name || email || null;
   }
 
+  // QwenWork 同款隐私口径（用户 2026-11-22「邮箱又显示出来了」）：profile
+  // display name 优先；Free 账户常没有名字——此时掩码邮箱，不打印原文。
+  if (connection.provider === "qwenwork" || connection.provider === "qwenwork-cn") {
+    if (displayName) return displayName;
+    const masked = maskEmailLabel(email || name);
+    return masked || name || email || null;
+  }
+
   return name || email || displayName || null;
+}
+
+export function maskEmailLabel(email) {
+  const trimmed = String(email || "").trim();
+  if (!trimmed) return "";
+  const at = trimmed.indexOf("@");
+  if (at <= 0) return trimmed;
+  return `${trimmed.slice(0, Math.min(3, at))}****${trimmed.slice(at)}`;
 }
 
 // A connection is empty (depleted) only when EVERY quota row has an absolute

@@ -18,6 +18,8 @@ import {
   resolveAmazonQuickCredentials,
 } from "open-sse/shared/amazonquick/constants.js";
 import { AMAZONQUICK_TIERS } from "open-sse/services/amazonquickModels.js";
+import { resolveQwenWorkModels } from "open-sse/services/qwenworkModels.js";
+import { qwenworkSite } from "open-sse/shared/qwenwork/constants.js";
 import { fetchMeooPoints, resolveMeooProjectAk, getMeooControlKey } from "open-sse/services/meooAk.js";
 import { QODER_USERINFO_URL, QODER_CN_USERINFO_URL } from "open-sse/shared/qoder/constants.js";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
@@ -735,6 +737,56 @@ async function testQoderConnection(connection, effectiveProxy = null, options = 
   }
 }
 
+async function testQwenWorkConnection(connection, effectiveProxy = null, options = {}) {
+  const { model } = options;
+
+  let catalog = null;
+  try {
+    // forceRefresh: a Test button must reflect the account NOW, not the 1h cache.
+    catalog = await resolveQwenWorkModels(connection, { proxyOptions: effectiveProxy, forceRefresh: true });
+  } catch {
+    catalog = null;
+  }
+
+  if (catalog && Array.isArray(catalog.models)) {
+    const nonEmpty = catalog.models.length > 0;
+    if (model) {
+      const available = catalog.models.some((m) => m.id === model);
+      return available
+        ? { valid: true, error: null, refreshed: false }
+        : { valid: false, error: `Model "${model}" is not available on this QwenWork account`, refreshed: false };
+    }
+    return nonEmpty
+      ? { valid: true, error: null, refreshed: false }
+      : { valid: false, error: "No models available on this QwenWork account", refreshed: false };
+  }
+
+  // Catalog unavailable (COSY signing needs a userId, or a transient
+  // failure): fall back to the account-context probe so a good token is
+  // not marked broken.
+  if (!connection.accessToken) return { valid: false, error: "No access token", refreshed: false };
+  const userinfoUrl = qwenworkSite(connection.provider).userInfoUrl;
+  try {
+    const res = await fetchWithConnectionProxy(
+      userinfoUrl,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${connection.accessToken}`, Accept: "application/json" },
+      },
+      effectiveProxy,
+    );
+    if (!res.ok) {
+      const revoked = res.status === 401 || res.status === 403;
+      return { valid: false, error: revoked ? "Token invalid or expired" : `QwenWork account-context error (${res.status})`, refreshed: false };
+    }
+    return model
+      ? { valid: true, warning: "Credential OK, but model availability could not be verified (catalog unavailable)", error: null, refreshed: false }
+      : { valid: true, error: null, refreshed: false };
+  } catch (err) {
+    return { valid: false, error: `QwenWork test failed: ${err.message}`, refreshed: false };
+  }
+}
+
 async function testOAuthConnection(connection, effectiveProxy = null, options = {}) {
   // Qoder's test is model-aware and needs the live catalog — handled here, not
   // via OAUTH_TEST_CONFIG (which qoder-cn was never in, so it answered "Provider
@@ -747,6 +799,10 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
     // 「铸 session JWT → 列模型」两步链。专用探针顺带触发 clientJwt 轮换,
     // 新值随 newTokens 交回 testSingleConnection 持久化(与 capyRefreshHandler 同律)。
     return testCapyConnection(connection, effectiveProxy, options);
+  }
+  // QwenWork: same catalog-based test (see testQwenWorkConnection).
+  if (connection.provider === "qwenwork" || connection.provider === "qwenwork-cn") {
+    return testQwenWorkConnection(connection, effectiveProxy, options);
   }
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };

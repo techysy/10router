@@ -161,7 +161,7 @@ function inviteFrom(settings, id) {
   return typeof code === "string" && /^[A-Z0-9]{6,32}$/.test(code)
     ? { code, link: `https://www.croli.net/invite/?code=${encodeURIComponent(code)}` } : null;
 }
-async function saveResults(results, connections, trigger) {
+export async function saveResults(results, connections, trigger, keepIds = new Set()) {
   const { mutateSettingsMap } = await import("@/lib/db/repos/settingsRepo.js");
   const ids = new Set(connections.map((connection) => connection.id));
   let saved = [];
@@ -170,7 +170,13 @@ async function saveResults(results, connections, trigger) {
       .filter((row) => row?.connectionId && ids.has(row.connectionId)).map((row) => [row.connectionId, row]));
     for (const row of results) if (row?.connectionId && !row.memoized) byId.set(row.connectionId, row);
     saved = connections.map((connection) => byId.get(connection.id)).filter(Boolean);
-    return { at: new Date().toISOString(), trigger, results: saved };
+    // A scoped tick (manual single-connection check-in) must not wipe
+    // siblings' today-rows — the next skipIfCheckedToday tick would re-run
+    // their upstream check-in. keepIds bounds what may survive: connections
+    // that no longer exist are garbage-collected here instead of lingering.
+    const prevRows = (Array.isArray(current.results) ? current.results : [])
+      .filter((row) => row?.connectionId && !ids.has(row.connectionId) && keepIds.has(row.connectionId));
+    return { at: new Date().toISOString(), trigger, results: [...saved, ...prevRows] };
   });
   return saved;
 }
@@ -239,7 +245,10 @@ export async function runCroliCheckinTick(deps = {}) {
     catch (error) { return { connectionId: connection.id, account: connection.email || connection.name || connection.id, provider: "croli",
       status: "failed", claimedAmount: 0, items: [], at: new Date().toISOString(), errors: [errorInfo(error)] }; }
   });
-  await saveResults(results.filter((row) => !row.memoized), connections, deps.trigger || "manual");
+  const keepIds = deps.connectionId
+    ? new Set((await connectionsFor()).map((row) => row.id))
+    : new Set(connections.map((row) => row.id));
+  await saveResults(results.filter((row) => !row.memoized), connections, deps.trigger || "manual", keepIds);
   return results;
 }
 

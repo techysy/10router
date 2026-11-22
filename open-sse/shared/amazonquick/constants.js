@@ -167,7 +167,11 @@ export function resolveAmazonQuickCredentials(credentials) {
   const plainPsdCookie = psdCookie && psdCookie !== curlText ? psdCookie : "";
   const plainFieldCookie = rawField && rawField !== curlText ? rawField : "";
   const cookie = fromCurl.cookie || plainPsdCookie || plainFieldCookie;
-  const awsAccountId = fromCurl.awsAccountId || fromPsd(psd.awsAccountId);
+  // The account id rides the qbsproxy URL path, so a legacy PSD value is
+  // accepted only when it is purely numeric — anything else (a pasted
+  // sentence, a URL fragment) counts as absent rather than being sent.
+  const psdAccount = fromPsd(psd.awsAccountId);
+  const awsAccountId = fromCurl.awsAccountId || (/^\d+$/.test(psdAccount) ? psdAccount : "");
   const csrf = fromCurl.csrf || fromPsd(psd.csrf);
   const missing = [];
   if (!cookie) missing.push("cookie");

@@ -178,6 +178,8 @@ import p175 from "./croli.js";
 import p176 from "./crowllm.js";
 import p177 from "./capy.js";
 import p178 from "./amazonquick.js";
+import p179 from "./qwenwork.js";
+import p180 from "./qwenwork-cn.js";
 
 export default [
   p0,
@@ -359,4 +361,6 @@ export default [
   p176,
   p177,
   p178,
+  p179,
+  p180,
 ];

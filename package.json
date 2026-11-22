@@ -1,6 +1,6 @@
 {
   "name": "10router-app",
-  "version": "1.8.1",
+  "version": "1.8.3",
   "description": "10Router web dashboard",
   "private": true,
   "engines": {
