@@ -38,6 +38,10 @@
 
 - **LongCat 思考开关修复（0e2c9abe3）**：官方开关是 thinking {type:enabled|disabled}（2026-11《模型参数参考》），此前发 reasoning_effort 被上游静默忽略——客户端「关思考」从未生效。修法按 tokenrouter 先例：longcat / longcat-intl 注册表声明 provider 级 thinkingFormat:"longcat"，thinkingUnified 新增 longcat 分支——off → thinking:{type:"disabled"}，非 off → {type:"enabled"}；budget 字段形状待真账号实测再接，levels 暂无线格式。providerFmt 优先于 caps 行的 openai，转售商（crowllm 等）不受影响。providers 基线随 transport 字段重打（+2 行），longcat-thinking-toggle.test.js 4 例。
 
+- **QwenWork price_factor 0 无促销时不再出免费徽章（31db1627）**：用户质疑「你确定是免费吗」→ 消耗实证——intl 账户 2136-token 的 qwork-auto 对话真实扣减 ~0.52 积分（699.5867 → 699.0657）。model/list 给 intl 档位发的 price_factor 0 语义是「无独立倍率」（计费走账户积分池），不是免费——与 CN 站 0 带显式 promotion（会员限免/限时1折）不同。修法：price_factor 0 仅在 promotion active 时映射为免费（CN 口径保留），否则 rateMultiplier 置 null 不出误导徽章。
+
+- **QwenWork 卡片邮箱掩码 + 标题对齐注册表名（c250e7832）**：老问题「邮箱又显示出来了」——卡片副标题 getConnectionLabel 对 qwenwork 走 qoder 同款隐私口径：profile displayName 优先（CN 账户有余师洋等），Free 账户无名字时掩码邮箱（tec****@gmail.com，新增 maskEmailLabel 助手，短 local 用 Math.min(3, at) 防泄漏 @）；卡片标题 KNOWN_PROVIDER_NAMES 补 qwenwork/QwenWork CN——此前落 capitalize(qwenwork) 兜底显示「Qwenwork」。qoder-cn.test.js 补 QwenWork 标签 1 例 + 掩码助手断言（含 ab@**** 泄漏案例）。
+
 ## v1.8.2 (2026-11-20)
 
 ### ✨ 新增
