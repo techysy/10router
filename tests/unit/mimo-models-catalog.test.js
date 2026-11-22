@@ -82,8 +82,11 @@ describe("MiMo catalog wiring (source scan)", () => {
   it("shows the fetch-catalog button for xiaomi-mimo with its own label", () => {
     expect(pageSrc).toMatch(/supportsCatalogImport[\s\S]{0,120}xiaomi-mimo/);
     expect(pageSrc).toMatch(/Fetch MiMo Models/);
-    // The qoder-family pricing overlay must stay exclusive to qoder/qoder-cn.
-    expect(pageSrc).toMatch(/isQoderFamily = providerId === "qoder" \|\| providerId === "qoder-cn";/);
+    // The qoder-family pricing overlay must stay exclusive to the qoder
+    // family (qoder/qoder-cn + the 2026-11-22 additions qwenwork/qwenwork-cn).
+    expect(pageSrc).toMatch(
+      /isQoderFamily = providerId === "qoder" \|\| providerId === "qoder-cn"\s*\|\| providerId === "qwenwork" \|\| providerId === "qwenwork-cn";/
+    );
   });
 });
 
