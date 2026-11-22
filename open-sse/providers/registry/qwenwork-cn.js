@@ -21,7 +21,10 @@ export default {
     },
   },
   category: "oauth",
-  authModes: ["oauth"],
+  // apikey 通道（CD sk-key 场景，issue #164）：CD 经 transfer/import 推
+  // access-only 连接（ory_rt_ 不共享，官方客户端独占刷新），apiKey 槽位
+  // 由 /api/providers 通道建连接时使用。
+  authModes: ["oauth", "apikey"],
   hasOAuth: true,
   transport: {
     baseUrl: "https://gateway.qwenwork.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
@@ -65,5 +68,6 @@ export default {
   },
   features: {
     usage: true,
+    usageApikey: true,
   },
 };

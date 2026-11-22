@@ -52,7 +52,8 @@ describe("QwenWork provider registry", () => {
       expect(entry).toBeDefined();
       expect(entry.category).toBe("oauth");
       expect(entry.hasOAuth).toBe(true);
-      expect(entry.authModes).toEqual(["oauth"]);
+      // #164: apikey 通道（CD sk-key 场景）与 OAuth 双模并存
+      expect(entry.authModes).toEqual(["oauth", "apikey"]);
       expect(entry.transport.baseUrl).toBe(`https://${host}/algo/api/v2/service/pro/sse/agent_chat_generation`);
       expect(entry.passthroughModels).toBe(true);
       expect(PROVIDER_OAUTH[entry.id]).toEqual(entry.oauth);
@@ -379,6 +380,36 @@ it("price_factor 0 without an active promotion is NOT free (intl tiers bill from
     // CN-style promoted zero keeps the free semantics (会员限免).
     expect(result.models.find((m) => m.id === "qwork-advanced").rateMultiplier).toBe(0);
     expect(result.models.find((m) => m.id === "qwen4-max").rateMultiplier).toBe(1.4);
+  });
+
+it("stored-value card semantics for null-total accounts + degraded copy on 401 (#164)", async () => {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      if (String(url).includes("account-context")) {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}), text: async () => "" });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => modelListBody, text: async () => JSON.stringify(modelListBody) });
+    });
+    const { getQwenWorkUsage } = await import("../../open-sse/services/usage/qwenwork.js");
+    const degraded = await getQwenWorkUsage("at-expired", "qwenwork");
+    // CD access-only syncs last ~7 days — the card degrades with a re-sync
+    // instruction instead of rendering dead numbers.
+    expect(degraded.message).toContain("expired or revoked");
+    expect(degraded.message).toContain("CreditDaddy");
+
+    proxyAwareFetchMock.mockImplementation((url) => {
+      // 个人版余额制: quota.total/used are null (issue #164 CD-observed shape)
+      const payload = String(url).includes("account-context")
+        ? { data: { plan: { name: "个人基础版" }, quota: { total: null, used: null, remaining: 699.58 } } }
+        : modelListBody;
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const usage = await getQwenWorkUsage("at-1", "qwenwork");
+    const row = usage.quotas.credits;
+    expect(row.isCreditBalance).toBe(true);
+    expect(row.total).toBe(699.58);
+    expect(row.remaining).toBe(699.58);
+    expect(row.used).toBe(0);
+    expect(usage.plan).toBe("个人基础版");
   });
 
 describe("chat-modes-v2 catalog merge", () => {

@@ -28,6 +28,15 @@ export async function getQwenWorkUsage(accessToken, providerId = "qwenwork", pro
       proxyOptions,
     );
     if (!response.ok) {
+      // CD access-only 同步的 access 约 7 天有效（官方客户端在线时 CD 重推
+      // 最新 access）。过期后卡面降级说话，不渲染死数字——口径对齐 crowllm
+      // 会话失效卡（issue #164 需求 2）。
+      if (response.status === 401 || response.status === 403) {
+        return {
+          message:
+            "QwenWork access token expired or revoked (access-only syncs last ~7 days). Re-sync the latest access from CreditDaddy, or sign in to the connection again.",
+        };
+      }
       return { message: `QwenWork connected. Usage fetch returned ${response.status}.` };
     }
     const body = await response.json().catch(() => null);
@@ -45,21 +54,35 @@ export async function getQwenWorkUsage(accessToken, providerId = "qwenwork", pro
 
     const quotas = {};
     if (quota) {
-      const total = Number(quota.total) || 0;
+      // 个人版是余额制：account-context 的 quota.total/used 常为 null（issue
+      // #164 CD 侧实测同形）→ 储值单值卡口径（isCreditBalance），不印 0 分母。
+      const totalRaw = quota.total;
+      const hasDenominator = Number.isFinite(Number(totalRaw)) && Number(totalRaw) > 0;
+      const total = hasDenominator ? Number(totalRaw) : 0;
       const remaining = Number.isFinite(Number(quota.remaining)) ? Number(quota.remaining) : null;
-      const used = Number.isFinite(Number(quota.used))
-        ? Number(quota.used)
-        : remaining !== null
-          ? Math.max(0, total - remaining)
-          : 0;
+      const used = hasDenominator
+        ? Number.isFinite(Number(quota.used))
+          ? Number(quota.used)
+          : remaining !== null
+            ? Math.max(0, total - remaining)
+            : 0
+        : 0;
       const remainingNum = remaining !== null ? remaining : Math.max(0, total - used);
       quotas.credits = {
-        total,
+        total: hasDenominator ? total : remainingNum,
         used,
         remaining: remainingNum,
         unit: "credits",
         resetAt,
         unlimited: false,
+        ...(hasDenominator
+          ? {}
+          : {
+              // 储值单值卡（isCreditBalance）：大数 = 余额本体，无分母。
+              isCreditBalance: true,
+              displayRemaining: true,
+              summarizesDetail: true,
+            }),
         // Meoo/lingxi 同款头部通道：大数右侧「X · N后过期」——积分窗口该回答
         // 「到什么时候」。批次即整个窗口（resetAt = plan 刷新日）。
         ...(resetAt ? { expiringBatch: { remaining: remainingNum, resetAt } } : {}),
