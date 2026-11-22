@@ -2309,5 +2309,9 @@
   "Sign in with your Capy account (email code). Threads (jams) are reused after login — no per-request device needed. Includes free ad-funded models (GLM-5.3-Flash, DeepSeek V4.1 Flash).": "用你的 Capy 账号（邮箱验证码）登录。线程（jam）登录后复用——无需每次请求都连设备。含免费广告补贴模型（GLM-5.3-Flash、DeepSeek V4.1 Flash）。",
   "Disabled models": "已禁用模型",
   "Sign in with your own QwenWork account via device code. On the authorization page, pick the team whose plan you want to use — calls are charged to the selected team's credits.": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。",
-  "使用您自己的千问办公账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。"
+  "使用您自己的千问办公账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。": "使用您自己的千问办公（QwenWork）账号通过设备码登录。授权页上请选择要使用的团队——调用将消耗所选团队的积分。",
+  "Trial daily allowance": "试用每日额度",
+  "Croli wallet balance": "Croli 钱包余额",
+  "Separate from daily trial quota": "与每日试用额度分开",
+  "credits": "积分"
 }

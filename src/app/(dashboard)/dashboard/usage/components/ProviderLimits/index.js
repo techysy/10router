@@ -1763,8 +1763,8 @@ export default function ProviderLimits() {
                         point at them. */}
                     {conn.provider === "croli" && Number.isFinite(quota?.croliWalletPoints) && (
                       <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-2 text-xs" data-croli-wallet-display="true">
-                        <span className="text-text-muted">Croli wallet balance <span className="font-medium text-text">{quota.croliWalletPoints.toLocaleString()}</span> credits</span>
-                        <span className="text-text-muted">Separate from daily trial quota</span>
+                        <span className="text-text-muted">{translate("Croli wallet balance")} <span className="font-medium text-text">{quota.croliWalletPoints.toLocaleString()}</span> {translate("credits")}</span>
+                        <span className="text-text-muted">{translate("Separate from daily trial quota")}</span>
                       </div>
                     )}
                     {visibleQuotas.length === 0 && rawQuotas.length > 0 && (
