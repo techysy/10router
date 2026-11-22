@@ -1576,5 +1576,12 @@
     },
     "format": "openai",
     "clientId": "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
+  },
+  "numes": {
+    "baseUrl": "https://api.numes.ai/api/v1/chat/completions",
+    "validateUrl": "https://api.numes.ai/api/v1/models",
+    "thinkingFormat": "openai",
+    "timeoutMs": 120000,
+    "format": "openai"
   }
 }

@@ -180,6 +180,7 @@ import p177 from "./capy.js";
 import p178 from "./amazonquick.js";
 import p179 from "./qwenwork.js";
 import p180 from "./qwenwork-cn.js";
+import p181 from "./numes.js";
 
 export default [
   p0,
@@ -363,4 +364,5 @@ export default [
   p178,
   p179,
   p180,
+  p181,
 ];

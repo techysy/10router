@@ -48,6 +48,8 @@ const ICON_ALIASES = {
 const ICON_EXTENSIONS = {
   bai: ".svg",
   // 官方百炼 wordmark 只有 SVG（docs.bailian.console.aliyun.com/logo/）
+  // numes 官方 favicon.svg（assets.numes.ai）自带 prefers-color-scheme 双色适配
+  numes: ".svg",
 };
 
 // Runtime only — first 404 remembers id for the whole session

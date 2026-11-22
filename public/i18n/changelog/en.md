@@ -2,6 +2,12 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## Unreleased
+
+### ✨ New
+
+- **New provider: Numes**: an OpenAI-compatible inference marketplace — frontier and open-source models served by independent providers, billed per request from a USD or Bitcoin balance (the key's currency is fixed at creation). Model ids are OpenRouter-shaped (`author/model`); ids suffixed `:free` cost nothing (GLM-5.3, GLM-5.3-Flash, DeepSeek V4.1 Flash, Kimi K3.1 Pro, Nemotron 3 Ultra 550B), while a plain id only routes to priced endpoints. 34 flagship models are pre-listed and everything else in the catalog works by id; reasoning tiers ride the standard OpenAI reasoning_effort.
+
 ## v1.8.3 (2026-11-22)
 
 ### ✨ New

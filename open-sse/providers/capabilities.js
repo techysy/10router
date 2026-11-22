@@ -979,6 +979,26 @@ export const PROVIDER_CAPABILITIES = {
     "smart":    { vision: true, search: true, reasoning: true, thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 }, // 均衡（虚拟档，上游默认）
     "advanced": { vision: true, search: true, reasoning: true, thinkingCanDisable: false, contextWindow: 200000, maxOutput: 64000 }, // 智能（虚拟档）
   },
+  // Numes（numes.ai 推理市场）—— 模型 id 是 OpenRouter 形态的 `author/model`，
+  // 解析时剥掉 vendor 前缀走 canonical/pattern 表，绝大多数 id 无需 provider 行。
+  // 这里只钉住三类解析不掉/会错报的 id（对账源：numes GET /models 2026-11-23）：
+  //   · 点号形态的 Claude id —— canonical 表只有横杠键（claude-haiku-5-5），点号
+  //     落 `*claude*haiku*` 兜底被压成 200K/claude-budget（同 tokenharbor 的坑）；
+  //   · 腾讯 Hy 系 —— 两款 id 无任何 pattern 命中（只有 hy3*），会静默落地板；
+  //     数值与 codebuddy-cn 的同模型行一致（Hy 家族思考强制常开）；
+  //   · `:free` 变体 —— 冒号后缀使 canonical 精确键失配，裸落族 pattern：
+  //     deepseek-v4.1-flash:free 拿到 *deepseek-v4* 的 vision:false（图片被剥），
+  //     glm-5.3-flash:free 落 *glm-5.3* 同样丢 vision——按各自 canonical 同值钉回。
+  // thinkingFormat 一律 openai：numes 是纯 OpenAI Chat Completions 网关
+  // （docs/features/reasoning 明说收 reasoning_effort 简写），transport 层同值。
+  "numes": {
+    "anthropic/claude-haiku-5.5":        { vision: true, pdf: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 128000 },
+    "tencent/hy4":                       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
+    "tencent/hy4-flash":                 { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
+    "deepseek/deepseek-v4.1-flash:free": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 384000 },
+    "z-ai/glm-5.3-flash:free":           { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "nvidia/nemotron-3-ultra-550b-a55b:free": { reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 65536 },
+  },
 };
 
 // 传输/UI 别名与 provider id 共享同一张表（上游 89ffac5a）：combo 座位、gpt-6
