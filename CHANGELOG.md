@@ -42,6 +42,10 @@
 
 - **QwenWork 卡片邮箱掩码 + 标题对齐注册表名（c250e7832）**：老问题「邮箱又显示出来了」——卡片副标题 getConnectionLabel 对 qwenwork 走 qoder 同款隐私口径：profile displayName 优先（CN 账户有余师洋等），Free 账户无名字时掩码邮箱（tec****@gmail.com，新增 maskEmailLabel 助手，短 local 用 Math.min(3, at) 防泄漏 @）；卡片标题 KNOWN_PROVIDER_NAMES 补 qwenwork/QwenWork CN——此前落 capitalize(qwenwork) 兜底显示「Qwenwork」。qoder-cn.test.js 补 QwenWork 标签 1 例 + 掩码助手断言（含 ab@**** 泄漏案例）。
 
+- **发版前审查二巡收口（2026-11-22，f09706b7e 之后约 20 提交增量、open-sse 与 src 两路并行复审）**：无阻断项，落地五件——① **croli 手动签到不再抹兄弟账号的当日行**：`/api/croli/checkin` 带 connectionId 时 saveResults 的 mutator 只返回本 tick 的行，整图替换把不在本轮的其他 croli 连接的 croliLastClaim 行一并抹掉，下一个 2 小时调度 tick（skipIfCheckedToday）找不到当日行就对上游重跑签到——恰是 #160 mutateSettingsMap 要防的那类覆盖；修复=作用域 tick 只替换自己 id 集内的行，兄弟行按全量连接宇宙保留（已删连接的残留行顺带 GC），新增 croli-checkin-save.test.js 三例锁定语义。② **CroliCreditsPanel 自动签到确认改样式化弹窗**：新面板的 window.confirm 在 Electron 壳渲染成 OS 原生框（de2d9fab4 同病灶，同版自打脸），换 ConfirmModal（primary variant，禁用直通不弹窗），顺修面板一处 HEAD 已存在的 react/no-unescaped-entities。③ **refreshQwenWorkToken 无过期兜底**：刷新响应缺 expires_in/expires_at（或 expires_at 已成过去时被钳成 0）时 expiresIn 落 undefined，mergeRefreshedCredentials 保留旧 expiresAt——行永久「待刷新」，每请求 + 5 分钟后台 tick 都重转单次轮换刷新令牌；修复=落 30 天 floor（QoderService.parseExpiry 同款兜底约定）。④ **croli 注册表 oauth 对象 4 个重复键清除**（resourceUrl/balanceUrl/bootstrapUrl/opsHomeUrl 双块同值，last-wins 下改第一块会被静默忽略，两块必然漂移）。⑤ qwenwork 执行器注释纠偏——`refreshCredentials` 返回 null 镜像的是 **qoder** 的「不做反应式刷新」立场而非 nous（nous 恰好有反应式条目）：单次轮换令牌在并发 401 风暴下反应式刷新会连环轮换，过期由 pre-dispatch checkAndRefreshToken 覆盖（含已过期行）。
+
+- **QwenWork/qwenwork-cn 能力表对齐 2026-11-22 目录（19 个 dead rows 审计红收口，aa3581cc7 遗留）**：目录整体替换只修剪了注册表 roster，PROVIDER_CAPABILITIES 两张表还是替换前形态（lite/flash/pro/flagship 四短档 + qwork-lite + 烧毁的 qmodel_latest 代号 + Economy/Standard/Advanced/Flagship 英文别名）——capability audit 连红 7 个 run 且把后面的回归门步骤一并跳过。修剪为现役键：intl=qwork-auto/advanced/ultimate 三档（补 标准/高级/旗舰 显示名别名）、CN=flash/pro 两档（补两别名）；直通键走 canonical 行不落 floor（探针验证全部 roster id 解析正常）。顺修审计脚本去重键的字面 NUL 字节（模板串里应为 \x00 转义，字面字节让 grep 把整个文件当二进制）。
+
 ## v1.8.2 (2026-11-20)
 
 ### ✨ 新增
