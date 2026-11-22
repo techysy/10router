@@ -72,14 +72,23 @@ describe("QwenWork provider registry", () => {
   });
 
   it("hardcodes the tier + direct model keys in the static list", () => {
-    for (const entry of [intl, cn]) {
-      const ids = entry.models.map((m) => m.id);
-      for (const id of ["lite", "flash", "pro", "flagship", "qwen4-max", "deepseek-v4-pro", "glm-5.3", "kimi-k3.1-pro"]) {
-        expect(ids).toContain(id);
-      }
-      const listed = PROVIDER_MODELS[entry.alias].map((m) => m.id);
-      expect(listed).toContain("flash");
-    }
+    // Static rosters trimmed to the LIVE-verified sets (2026-11-22 client
+    // cross-check): intl = 3 qwork-* tiers + 6 direct; CN = 2 tiers + 11
+    // direct. The burned preview key (qmodel_latest) and the intl-deepseek
+    // naming (deepseek-v4-pro) are gone — they never existed client-side.
+    const intlIds = intl.models.map((m) => m.id);
+    expect(intlIds).toEqual([
+      "qwork-auto", "qwork-advanced", "qwork-ultimate",
+      "qwen4-max", "qwen3.8-max", "deepseek-flash", "glm-5.3-flash", "kimi-k3.1-pro", "minimax-m3.1-flash",
+    ]);
+    const cnIds = cn.models.map((m) => m.id);
+    expect(cnIds).toEqual([
+      "flash", "pro", "qwen4-max", "qwen3.8-max-preview", "qwen3.8-flash", "ling-3.1-flash",
+      "deepseek-flash", "deepseek-v4-pro", "glm-5.3", "glm-5.3-flash", "kimi-k3.1-pro",
+      "minimax-m3.1-flash", "step-5-preview",
+    ]);
+    // CN's tier key "flash" stays routable; intl's tiers ride the qwork-* keys.
+    expect(PROVIDER_MODELS[cn.alias].map((m) => m.id)).toContain("flash");
   });
 });
 
@@ -306,6 +315,44 @@ describe("QwenWorkExecutor chat body (qwork scene)", () => {
     expect(payload.model_config).toEqual(modelConfig);
   });
 });
+
+it("hides tier keys from the chat-modes catalog (client picker parity)", async () => {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("/api/desktop/chat-modes")
+        ? { schema_version: 2, catalog: [
+            { key: "qwen3.8-flash", i18n: { display_name: { en: "Standard", zh: "标准" } }, frontier: false, is_default: true, enable: true, max_input_tokens: 1000000, price_factor: 1 },
+            { key: "glm-5.3", i18n: { display_name: { en: "Pro", zh: "高级" } }, frontier: false, enable: true, max_input_tokens: 1000000, price_factor: 1 },
+            { key: "gpt-6.1-sol", i18n: { display_name: { en: "Flagship", zh: "旗舰" } }, frontier: false, enable: true, max_input_tokens: 1000000, price_factor: 1 },
+            { key: "qwen4-max", i18n: { display_name: { en: "Qwen4-Max" } }, frontier: true, enable: true, format: "anthropic/messages", max_input_tokens: 1000000, price_factor: 1.4 },
+            { key: "qwen3.8-max", i18n: { display_name: { en: "Qwen3.8-Max" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 1.9 },
+            { key: "qwen3.8-flash", i18n: { display_name: { en: "Qwen3.8-Flash" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0.1 },
+            { key: "deepseek-flash", i18n: { display_name: { en: "DeepSeek-V4.1-Flash" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0.2 },
+            { key: "glm-5.3", i18n: { display_name: { en: "GLM-5.3" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 1.3 },
+            { key: "glm-5.3-flash", i18n: { display_name: { en: "GLM-5.3-Flash" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0.2 },
+            { key: "kimi-k3.1-pro", i18n: { display_name: { en: "Kimi-K3.1-Pro" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 2.6 },
+            { key: "minimax-m3.1-flash", i18n: { display_name: { en: "MiniMax-M3.1-Flash" } }, frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0.2 },
+          ] }
+        : { qwork: [
+            { key: "qwork-auto", display_name: "Standard (qwork)" },
+            { key: "qwork-advanced", display_name: "Advanced (qwork)" },
+            { key: "qwork-ultimate", display_name: "Flagship (qwork)" },
+          ], chat: [], app: [] };
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork",
+      providerSpecificData: { userId: "u-tier-1" },
+    });
+    // 3 qwork-* tiers + 6 direct (the tier-key collisions qwen3.8-flash / glm-5.3 drop)
+    expect(result.models.map((m) => m.id)).toEqual([
+      "qwork-auto", "qwork-advanced", "qwork-ultimate",
+      "qwen4-max", "qwen3.8-max", "deepseek-flash", "glm-5.3-flash", "kimi-k3.1-pro", "minimax-m3.1-flash",
+    ]);
+    expect(result.rawConfigs.get("qwen4-max").format).toBe("anthropic/messages");
+    expect(result.rawConfigs.get("qwen3.8-flash")).toBeUndefined();
+  });
 
 describe("chat-modes-v2 catalog merge", () => {
   beforeEach(() => {

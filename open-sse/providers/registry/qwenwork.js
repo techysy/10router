@@ -46,23 +46,15 @@ export default {
   // desktop client actually offers (client 1.3.x+ modelSelector); the
   // qwork-* spellings are the same tiers' long names.
   models: [
-    { id: "lite", name: "Economy" },
-    { id: "flash", name: "Standard" },
-    { id: "pro", name: "Advanced" },
-    { id: "flagship", name: "Flagship" },
-    { id: "qwork-lite", name: "Economy (qwork)" },
-    { id: "qwork-auto", name: "Standard (qwork)" },
-    { id: "qwork-advanced", name: "Advanced (qwork)" },
-    { id: "qwork-ultimate", name: "Flagship (qwork)" },
+    { id: "qwork-auto", name: "标准" },
+    { id: "qwork-advanced", name: "高级" },
+    { id: "qwork-ultimate", name: "旗舰" },
     { id: "qwen4-max", name: "Qwen4-Max" },
-    { id: "qmodel_latest", name: "Qwen3.8-Max" },
-    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
-    { id: "deepseek-flash", name: "DeepSeek V4 Flash" },
-    { id: "glm-5.3", name: "GLM-5.3" },
+    { id: "qwen3.8-max", name: "Qwen3.8-Max" },
+    { id: "deepseek-flash", name: "DeepSeek-V4.1-Flash" },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
     { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro" },
     { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash" },
-    { id: "step-5-preview", name: "Step-5-Preview" },
   ],
   passthroughModels: true,
   oauth: {

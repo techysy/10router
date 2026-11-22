@@ -38,18 +38,14 @@ export default {
   // desktop client actually offers; the qwork-* spellings are the same
   // tiers' long names.
   models: [
-    { id: "lite", name: "经济" },
     { id: "flash", name: "标准" },
     { id: "pro", name: "高级" },
-    { id: "flagship", name: "旗舰" },
-    { id: "qwork-lite", name: "经济 (qwork)" },
-    { id: "qwork-auto", name: "标准 (qwork)" },
-    { id: "qwork-advanced", name: "高级 (qwork)" },
-    { id: "qwork-ultimate", name: "旗舰 (qwork)" },
     { id: "qwen4-max", name: "Qwen4-Max" },
-    { id: "qmodel_latest", name: "Qwen3.8-Max" },
-    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
-    { id: "deepseek-flash", name: "DeepSeek V4 Flash" },
+    { id: "qwen3.8-max-preview", name: "Qwen3.8-Max" },
+    { id: "qwen3.8-flash", name: "Qwen3.8-Flash" },
+    { id: "ling-3.1-flash", name: "Ling-3.1-Flash" },
+    { id: "deepseek-flash", name: "DeepSeek-V4.1-Flash" },
+    { id: "deepseek-v4-pro", name: "Deepseek-V4-Pro" },
     { id: "glm-5.3", name: "GLM-5.3" },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
     { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro" },

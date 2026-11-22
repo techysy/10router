@@ -259,15 +259,25 @@ async function fetchQwenWorkChatModesRaw(credentials, signal, proxyOptions = nul
     return null;
   }
 
+  // Tier modes (frontier:false — 标准/高级/旗舰) are selected through the
+  // tier dropdown, never listed as models; a direct entry sharing a tier
+  // key is hidden by the client too (intl live: 11 modes = 3 tiers + 8
+  // direct, the picker lists only the 6 direct whose keys don't collide).
+  const tierKeys = new Set(
+    catalog
+      .filter((e) => e && typeof e === "object" && e.frontier === false && typeof e.key === "string")
+      .map((e) => e.key),
+  );
   const entries = [];
   const seen = new Set();
   for (const entry of catalog) {
     if (!entry || typeof entry !== "object") continue;
     const key = typeof entry.key === "string" && entry.key ? entry.key : null;
-    if (!key) continue;
+    if (!key || tierKeys.has(key)) continue;
     const i18n = entry.i18n && typeof entry.i18n === "object" ? entry.i18n : {};
     const displayName = i18n.display_name && typeof i18n.display_name === "object" ? i18n.display_name : {};
     const description = i18n.description && typeof i18n.description === "object" ? i18n.description : {};
+    if (seen.has(key)) continue;
     seen.add(key);
     entries.push({
       ...entry,

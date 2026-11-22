@@ -543,7 +543,11 @@ export default function ProviderDetailPage() {
   // and xiaomi-mimo (public /v1/models). mimo-x client previews are filtered
   // server-side in resolveMimoModels, so the import can never shadow them.
   const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo" || providerId === "crowllm" || providerId === "qwenwork" || providerId === "qwenwork-cn";
-  const models = providerId === "cursor" && liveModels.length > 0
+  // QwenWork: the live catalog IS the model set (the client mirrors its own
+  // picker; the static roster's tier aliases / burned preview keys must not
+  // resurface next to the live rows — 2026-11-22 user report「完全搞乱了」).
+  const liveCatalogOnly = providerId === "cursor" || providerId === "qwenwork" || providerId === "qwenwork-cn";
+  const models = liveCatalogOnly && liveModels.length > 0
     ? liveModels
     : isQoderFamily
       ? mergeQoderLivePricing(staticModels, liveModels)
@@ -2002,7 +2006,7 @@ export default function ProviderDetailPage() {
             </span>
             {importingQoderModels
               ? translate("Fetching...")
-              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : providerId === "crowllm" ? "Fetch CrowLLM Models" : "Fetch Qoder Models")}
+              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : providerId === "crowllm" ? "Fetch CrowLLM Models" : providerId === "qwenwork" || providerId === "qwenwork-cn" ? "Fetch QwenWork Models" : "Fetch Qoder Models")}
           </button>
         )}
 

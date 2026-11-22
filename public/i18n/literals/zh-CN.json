@@ -2313,5 +2313,6 @@
   "Trial daily allowance": "试用每日额度",
   "Croli wallet balance": "Croli 钱包余额",
   "Separate from daily trial quota": "与每日试用额度分开",
-  "credits": "积分"
+  "credits": "积分",
+  "Fetch QwenWork Models": "获取 QwenWork 模型"
 }
