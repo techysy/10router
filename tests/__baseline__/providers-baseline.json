@@ -1569,5 +1569,11 @@
     },
     "format": "openai",
     "clientId": "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
+  },
+  "atlascloud": {
+    "baseUrl": "https://api.atlascloud.ai/v1/chat/completions",
+    "validateUrl": "https://api.atlascloud.ai/v1/models",
+    "thinkingFormat": "openai",
+    "format": "openai"
   }
 }
