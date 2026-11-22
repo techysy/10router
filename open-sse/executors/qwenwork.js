@@ -796,8 +796,12 @@ export class QwenWorkExecutor extends BaseExecutor {
   }
 
   // Device-token refresh is handled by the tokenRefresh handler
-  // (refreshQwenWorkToken, single-use rotation) — the executor itself
-  // never refreshes, mirroring the Nous wiring.
+  // (refreshQwenWorkToken, single-use rotation). The executor itself never
+  // refreshes reactively — same stance as Qoder: the refresh token is
+  // single-use and rotating, so a reactive 401 path would rotate it on
+  // every concurrent-401 burst. Expiry is covered pre-dispatch by
+  // checkAndRefreshToken, which fires whenever expiresAt is inside the
+  // lead (including already-expired rows).
   async refreshCredentials() {
     return null;
   }

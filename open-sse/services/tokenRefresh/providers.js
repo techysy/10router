@@ -125,6 +125,11 @@ export async function refreshQwenWorkToken(refreshToken, provider, log) {
           const ms = typeof raw === "number" ? raw : /^\d+$/.test(String(raw).trim()) ? Number(raw) : Date.parse(raw);
           if (Number.isFinite(ms) && ms > 0) expiresIn = Math.max(0, Math.floor((ms - Date.now()) / 1000));
         }
+        // No parseable expiry (or one already in the past) would leave the
+        // stale expiresAt on the row — permanently "due", re-rotating the
+        // single-use refresh token on every request and background tick.
+        // Same fallback convention as QoderService.parseExpiry: 30 days.
+        if (!Number.isFinite(expiresIn) || expiresIn <= 0) expiresIn = 30 * 86400;
         return {
           accessToken: data.token,
           refreshToken: data.refresh_token || refreshToken,
