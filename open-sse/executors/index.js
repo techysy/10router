@@ -38,11 +38,14 @@ import { MuseWebExecutor } from "./muse-web.js";
 import { DumateExecutor } from "./dumate.js";
 import { LingxiExecutor } from "./lingxi.js";
 import { CapyExecutor } from "./capy.js";
+import { AmazonQuickExecutor } from "./amazonquick.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
   capy: new CapyExecutor(),
+  amazonquick: new AmazonQuickExecutor(),
+  aq: new AmazonQuickExecutor(), // Alias for amazonquick
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),
@@ -144,3 +147,4 @@ export { default as ZedExecutor } from "./zed.js";
 export { default as WindsurfExecutor } from "./windsurf.js";
 export { DevinCliExecutor } from "./devin-cli.js";
 export { CapyExecutor } from "./capy.js";
+export { AmazonQuickExecutor } from "./amazonquick.js";

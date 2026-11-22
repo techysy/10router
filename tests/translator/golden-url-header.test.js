@@ -31,6 +31,9 @@ const SPECIALIZED = new Set([
   // 快照下来只会锁住一段永远不会执行的代码。xiaomi-mimo 之所以**不**排除，正是因为
   // 它的云模型确实走默认路径。真正会执行的桌面路径锁在 unit/xiaomi-mimo-executor.test.js。
   "mimo-desktop",
+  // amazonquick 只跑自己的 AmazonQuickExecutor（EventStream 会话桥接），URL/headers
+  // 锁在 unit/amazonquick-provider.test.js——同 kiro/perplexity-web 的口径。
+  "amazonquick",
 ]);
 
 // Phiên bản app được nướng vào vài header (đọc từ package.json lúc chạy):
