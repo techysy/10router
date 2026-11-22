@@ -220,5 +220,7 @@
   "Croli wallet balance": "Croli ウォレット残高",
   "Separate from daily trial quota": "日次トライアル枠とは別計上",
   "credits": "クレジット",
-  "Fetch QwenWork Models": "QwenWork モデルを取得"
+  "Fetch QwenWork Models": "QwenWork モデルを取得",
+  "Delete Connection": "接続を削除",
+  "Remove pushed quota card": "プッシュ型カードを削除"
 }

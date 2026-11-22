@@ -220,5 +220,7 @@
   "Croli wallet balance": "Croli 지갑 잔액",
   "Separate from daily trial quota": "일일 체험 한도와 별도",
   "credits": "크레딧",
-  "Fetch QwenWork Models": "QwenWork 모델 가져오기"
+  "Fetch QwenWork Models": "QwenWork 모델 가져오기",
+  "Delete Connection": "연결 삭제",
+  "Remove pushed quota card": "푸시 카드 제거"
 }

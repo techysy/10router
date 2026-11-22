@@ -871,40 +871,29 @@ export const PROVIDER_CAPABILITIES = {
     // 历史用量在类型图按 lmodel → qwen 归并（usageRepo CODENAME_FAMILIES）。
   }, { ...QODER_CN_NAME_ALIASES, "Auto": "auto" }),
   // QwenWork （千问办公） — the "qwork" scene of the shared Qoder-family
-  // backend. Only the tier keys (lite/flash/pro/flagship + qwork-* long
-  // names) carry rows here: they are virtual routing tiers over the Qwen
-  // family — conservative superset, like qoder's auto, 1M context per the
-  // desktop client's catalog, thinkingCanDisable:false (thinking is fixed
-  // by the catalog entry's is_reasoning in model_config; the executor
-  // drops client thinking intent, same as qoder). The direct keys
-  // (qwen4-max, deepseek-v4-pro, glm-5.3, …) deliberately carry NO row:
-  // they resolve from the canonical model rows like every other reseller
-  // (opencode-go etc.), so a model keeps one capability profile grid-wide.
-  // Sole exception: qmodel_latest — a Qoder-family codename with no
-  // canonical row anywhere (qoder carries its own row for it too), so the
-  // family providers each pin it or it would fall through to the floor.
+  // backend. Only the tier keys carry rows here: they are virtual routing
+  // tiers over the Qwen family — conservative superset, like qoder's auto,
+  // 1M context per the desktop client's catalog, thinkingCanDisable:false
+  // (thinking is fixed by the catalog entry's is_reasoning in model_config;
+  // the executor drops client thinking intent, same as qoder). Tier keys are
+  // the 2026-11-22 live-verified client catalog (client 1.3.x): intl rides
+  // qwork-* long names, CN uses flash/pro; the pre-replacement short scheme
+  // (lite/flash/pro/flagship + qwork-lite) and the burned Qoder-family
+  // codename qmodel_latest never existed client-side and carry no rows —
+  // their old rows made the capability audit flag them dead. The direct
+  // keys (qwen4-max, qwen3.8-max, glm-5.3-flash, …) deliberately carry NO
+  // row: they resolve from the canonical model rows like every other
+  // reseller (opencode-go etc.), so a model keeps one capability profile
+  // grid-wide.
   "qwenwork": aliased({
-    "lite":              { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 经济（虚拟档）
-    "flash":             { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 标准（虚拟档）
-    "pro":               { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 高级（虚拟档）
-    "flagship":          { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 旗舰（虚拟档）
-    "qwork-lite":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
     "qwork-auto":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
     "qwork-advanced":    { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
     "qwork-ultimate":    { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
-    "qmodel_latest":     { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // Qwen3.8-Max（家族代号，同 qoder 行）
-  }, { "Economy": "lite", "Standard": "flash", "Advanced": "pro", "Flagship": "flagship", "Qwen3.8-Max": "qmodel_latest" }),
+  }, { "标准": "qwork-auto", "高级": "qwork-advanced", "旗舰": "qwork-ultimate" }),
   "qwenwork-cn": aliased({
-    "lite":              { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 经济（虚拟档）
     "flash":             { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 标准（虚拟档）
     "pro":               { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 高级（虚拟档）
-    "flagship":          { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // 旗舰（虚拟档）
-    "qwork-lite":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
-    "qwork-auto":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
-    "qwork-advanced":    { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
-    "qwork-ultimate":    { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
-    "qmodel_latest":     { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 }, // Qwen3.8-Max（家族代号，同 qoder 行）
-  }, { "经济": "lite", "标准": "flash", "高级": "pro", "旗舰": "flagship", "Qwen3.8-Max": "qmodel_latest" }),
+  }, { "标准": "flash", "高级": "pro" }),
   // ACE Music — acemusic.ai 托管的 ACE-Step 音乐生成（/v1/models 模型卡 2026-11-05）：
   // text+audio 进、audio+text 出；context_length 4096，输出上限未公布（取上下文内
   // 保守值）。无 vision/reasoning。音频整曲走 message.audio[]/delta.audio[]（OpenAI

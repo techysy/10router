@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Modal, Toggle } from "@/shared/components";
+import { Button, ConfirmModal, Modal, Toggle } from "@/shared/components";
 
 export default function CroliCreditsPanel({ connections = [], initialAutoCheckin = false }) {
   const [open, setOpen] = useState(false);
   const [autoCheckin, setAutoCheckin] = useState(initialAutoCheckin === true);
+  const [autoConfirm, setAutoConfirm] = useState(false);
   const [autoBusy, setAutoBusy] = useState(false);
   const [loading, setLoading] = useState({});
   const [results, setResults] = useState({});
@@ -53,8 +54,14 @@ export default function CroliCreditsPanel({ connections = [], initialAutoCheckin
     } finally { setLoading((prev) => ({ ...prev, [connection.id]: false })); }
   }
 
-  async function toggleAuto(enabled) {
-    if (enabled && !window.confirm("Automatic Croli check-in can claim daily check-in and milestones Croli marks claimable. It will not create chats, import sessions, or report installation activity. Enable it?")) return;
+  function toggleAuto(enabled) {
+    // Enable is gated behind a styled confirm (not native confirm() — the
+    // Electron shell renders that as a raw OS dialog); disabling is direct.
+    if (enabled) { setAutoConfirm(true); return; }
+    void setAuto(false);
+  }
+
+  async function setAuto(enabled) {
     setAutoBusy(true);
     try {
       const response = await fetch("/api/croli/auto-checkin", { method: "POST", cache: "no-store",
@@ -142,13 +149,21 @@ export default function CroliCreditsPanel({ connections = [], initialAutoCheckin
                   </div>
                   {row?.invite?.link && <input readOnly aria-label={`Invite link for ${connection.email || connection.name || "Croli account"}`} value={row.invite.link}
                     onFocus={(event) => event.target.select()} className="mt-2 w-full rounded-md border border-border bg-transparent px-2 py-1.5 text-xs" />}
-                  <p className="mt-1 text-[11px] text-text-muted">This reads the signed-in account's own code with rotation disabled; it does not redeem or bind another account.</p>
+                  <p className="mt-1 text-[11px] text-text-muted">This reads the signed-in account&apos;s own code with rotation disabled; it does not redeem or bind another account.</p>
                 </div>
               </section>
             );
           })}
         </div>
       </Modal>
+      <ConfirmModal
+        isOpen={autoConfirm}
+        onClose={() => setAutoConfirm(false)}
+        onConfirm={async () => { setAutoConfirm(false); await setAuto(true); }}
+        variant="primary"
+        title="Enable automatic Croli check-in?"
+        message="Automatic Croli check-in can claim daily check-in and milestones Croli marks claimable. It will not create chats, import sessions, or report installation activity."
+      />
     </>
   );
 }

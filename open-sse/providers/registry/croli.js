@@ -101,10 +101,5 @@ export default {
     inviteCodeUrl: "https://ds.croli.net/credits/v1/invite/code",
     ledgerUrl: "https://ds.croli.net/credits/v1/account/ledger?limit=100",
     skClaimUrl: "https://api.croli.net/relay/api/deepseek/sk",
-    // 签名账号的资源目录（provisioning 前置）与 credits 账户端点
-    resourceUrl: "https://api.croli.net/relay/api/relay/search",
-    bootstrapUrl: "https://ds.croli.net/credits/v1/account/bootstrap",
-    opsHomeUrl: "https://ds.croli.net/credits/v1/ops/home",
-    balanceUrl: "https://ds.croli.net/credits/v1/account/balance",
   },
 };

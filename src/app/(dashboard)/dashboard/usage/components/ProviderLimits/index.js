@@ -198,6 +198,8 @@ const KNOWN_PROVIDER_NAMES = {
   "glm-cn": "GLM CN",
   "kimi-cn": "Kimi CN",
   "lingxi": "Lingxi",
+  "qwenwork": "QwenWork",
+  "qwenwork-cn": "QwenWork CN",
 };
 
 export default function ProviderLimits() {
@@ -216,6 +218,7 @@ export default function ProviderLimits() {
   const [countdown, setCountdown] = useState(Math.floor(DEFAULT_REFRESH_INTERVAL_MS / 1000));
   const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [resettingLimitId, setResettingLimitId] = useState(null);
   const [resetConfirmState, setResetConfirmState] = useState(null);
@@ -662,60 +665,67 @@ export default function ProviderLimits() {
   }, []);
 
   const handleDeleteConnection = useCallback(
-    async (id) => {
+    (id) => {
       // Pushed cards are _meta snapshots, not connections: the confirm says
       // what actually happens (the pusher can just re-push) and the DELETE
-      // targets /api/external-quota/<source>. Native confirm() is not routed
-      // through the i18n layer, so translate explicitly here.
+      // targets /api/external-quota/<source>. ConfirmModal replaces the
+      // native confirm() — the Electron shell renders window.confirm as a
+      // raw OS dialog (2026-11-22 用户报「太原生」).
       const isExternalId = typeof id === "string" && id.startsWith("ext:");
-      if (isExternalId) {
-        if (!confirm(translate("Remove this pushed quota card? The pushing app can re-add it with its next update."))) return;
-      } else if (!confirm("Delete this connection?")) return;
-      setDeletingId(id);
-      try {
-        const url = isExternalId
-          ? `/api/external-quota/${encodeURIComponent(id.slice(4))}`
-          : `/api/providers/${id}`;
-        const res = await fetch(url, { method: "DELETE" });
-        if (res.ok) {
-          setQuotaData((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-          setLoading((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-          setErrors((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
+      setConfirmState({
+        title: isExternalId ? translate("Remove pushed quota card") : translate("Delete Connection"),
+        message: isExternalId
+          ? translate("Remove this pushed quota card? The pushing app can re-add it with its next update.")
+          : translate("Delete this connection?"),
+        onConfirm: async () => {
+          setConfirmState(null);
+          setDeletingId(id);
+          try {
+            const url = isExternalId
+              ? `/api/external-quota/${encodeURIComponent(id.slice(4))}`
+              : `/api/providers/${id}`;
+            const res = await fetch(url, { method: "DELETE" });
+            if (res.ok) {
+              setQuotaData((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+              setLoading((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
 
-          if (typeof window !== "undefined") {
-            try {
-              const cache = getQuotaCache();
-              if (cache[id]) {
-                delete cache[id];
-                window.localStorage.setItem(
-                  QUOTA_CACHE_KEY,
-                  JSON.stringify(cache),
-                );
+              if (typeof window !== "undefined") {
+                try {
+                  const cache = getQuotaCache();
+                  if (cache[id]) {
+                    delete cache[id];
+                    window.localStorage.setItem(
+                      QUOTA_CACHE_KEY,
+                      JSON.stringify(cache),
+                    );
+                  }
+                } catch (e) {
+                  console.error("Error deleting cache entry:", e);
+                }
               }
-            } catch (e) {
-              console.error("Error deleting cache entry:", e);
-            }
-          }
 
-          await reconcileConnectionsPage(fetchConnections, page);
-        }
-      } catch (error) {
-        console.error("Error deleting connection:", error);
-      } finally {
-        setDeletingId(null);
-      }
+              await reconcileConnectionsPage(fetchConnections, page);
+            }
+          } catch (error) {
+            console.error("Error deleting connection:", error);
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      });
     },
     [fetchConnections, page],
   );
@@ -2205,6 +2215,19 @@ export default function ProviderLimits() {
           onSave={(result) => handleSaveAutoPing(scheduleConnection.id, scheduleConnection.provider, result)}
         />
       )}
+
+      {/* 删除连接/推送卡的确认：样式化弹窗替代原生 confirm()（Electron 壳
+          会把 window.confirm 渲染成 OS 原生框，2026-11-22 用户报「太原生」）。 */}
+      <ConfirmModal
+        isOpen={!!confirmState}
+        onClose={() => setConfirmState(null)}
+        onConfirm={confirmState?.onConfirm}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmText={translate("Confirm")}
+        cancelText={translate("Cancel")}
+        variant="danger"
+      />
     </div>
   );
 }

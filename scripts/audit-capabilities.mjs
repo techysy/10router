@@ -255,7 +255,7 @@ export function audit() {
     for (const m of entry.models || []) {
       const id = typeof m === "string" ? m : m.id;
       if (!id) continue;
-      const key = `${id} ${(m && m.kind) || "chat"}`;
+      const key = `${id}\x00${(m && m.kind) || "chat"}`;
       if (seen.has(key)) dups.add(id);
       seen.add(key);
     }
