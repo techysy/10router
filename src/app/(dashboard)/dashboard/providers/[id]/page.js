@@ -535,11 +535,14 @@ export default function ProviderDetailPage() {
   // catalog (price_factor flips to 0 during a free window, the promotion
   // object carries the 22:00–08:00 Asia/Singapore discount). Overlay them
   // onto the static rows so the badges reflect the account's real pricing.
-  const isQoderFamily = providerId === "qoder" || providerId === "qoder-cn";
+  // QwenWork 同款：目录行带 price_factor（0.1 档位 → 2.6 直通）——倍率徽章
+  // 让「付费模型」一目了然（用户 2026-11-22）。
+  const isQoderFamily = providerId === "qoder" || providerId === "qoder-cn"
+    || providerId === "qwenwork" || providerId === "qwenwork-cn";
   // "Fetch official catalog" import button scope: qoder family (live catalog)
   // and xiaomi-mimo (public /v1/models). mimo-x client previews are filtered
   // server-side in resolveMimoModels, so the import can never shadow them.
-  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo" || providerId === "crowllm";
+  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo" || providerId === "crowllm" || providerId === "qwenwork" || providerId === "qwenwork-cn";
   const models = providerId === "cursor" && liveModels.length > 0
     ? liveModels
     : isQoderFamily
