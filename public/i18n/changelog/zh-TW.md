@@ -2,6 +2,12 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
+## 未發版
+
+### ✨ 新增
+
+- **新增供應商 Numes**：OpenAI 相容推理市場——前沿與開源模型由多家獨立供應商提供，按請求計費，餘額支援美元或比特幣（Key 建立時固定幣種）。模型 ID 與 OpenRouter 同形態（`作者/模型名`），帶 `:free` 後綴的完全免費（GLM-5.3、GLM-5.3-Flash、DeepSeek V4.1 Flash、Kimi K3.1 Pro、Nemotron 3 Ultra 550B），不帶後綴只路由到計費端點。已預置 34 款主力模型，其餘目錄模型填 ID 即用；思考檔位走標準 OpenAI reasoning_effort。
+
 ## v1.8.3（2026-11-22）
 
 ### ✨ 新增

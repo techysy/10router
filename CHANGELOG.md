@@ -2,6 +2,10 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased（随下一版发布）
+
+- **Numes 供应商**（2026-11-23 接入）：OpenAI 兼容推理市场（numes.ai/docs：「one OpenAI-compatible API for every model, paid by card or Bitcoin」）。base URL `https://api.numes.ai/api/v1`（/chat/completions + /models），Bearer 鉴权；GET /models 无鉴权 401 → 不接 modelsFetcher（dashboard 动态拉取无凭据必空），静态锚定 34 款（5 款 `:free` 免费档 + 29 款主力）+ `passthroughModels` 透传其余目录。模型 id 是 OpenRouter 形态 `author/model`（接入当日 309 个），`:free` 后缀走免费端点（裸 id 只路由计费端点）、`:e2ee` 走加密推理信封（非普通 chat，未接）、`:batch` 批处理；reasoning 双形状（`reasoning:{effort}` 与 OpenAI `reasoning_effort` 简写都收，docs/features/reasoning）→ transport thinkingFormat:"openai"。503 service_unavailable 是平台过载常态（接入当日多次实测），默认重试表（503×3 退避）已覆盖。能力表钉 6 行：点号 claude-haiku-5.5（canonical 只有横杠键，落 *claude*haiku* 会压成 200K/claude-budget）、腾讯 hy4/hy4-flash（无任何 pattern 命中，会落地板）、deepseek-v4.1-flash:free 与 glm-5.3-flash:free（冒号后缀失配 canonical、裸落族 pattern 丢 vision 图片被剥）、nemotron-3-ultra:free（pattern 128K → 实际 1M）；`audit-capabilities --check` 零问题。实测（测试 key）：GET /models 200（309 模型）+ chat 非流式/流式双通（z-ai/glm-5.3:free 答 pong，SSE 标准 OpenAI 分块 + 末帧 usage + [DONE]）。logo 取官网 favicon.svg 原图（自带 prefers-color-scheme 明暗双色适配），providerIcon ICON_EXTENSIONS 登记 svg 扩展名（bai 先例）。三基线重快照（135 providers / 318 aliases）。
+
 ## v1.8.3 (2026-11-22)
 
 ### ✨ 新增
