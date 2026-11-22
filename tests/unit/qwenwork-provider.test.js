@@ -354,6 +354,33 @@ it("hides tier keys from the chat-modes catalog (client picker parity)", async (
     expect(result.rawConfigs.get("qwen3.8-flash")).toBeUndefined();
   });
 
+it("price_factor 0 without an active promotion is NOT free (intl tiers bill from the credit pool)", async () => {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("/api/desktop/chat-modes")
+        ? { schema_version: 2, catalog: [
+            { key: "qwen4-max", i18n: { display_name: { en: "Qwen4-Max" } }, frontier: true, enable: true, format: "anthropic/messages", max_input_tokens: 1000000, price_factor: 1.4 },
+          ] }
+        : { qwork: [
+            { key: "qwork-auto", display_name: "Standard (qwork)", price_factor: 0 },
+            { key: "qwork-advanced", display_name: "Advanced (qwork)", price_factor: 0, promotion: { badge: { zh: "会员限免" }, active: true, ruleId: "ffm-1", timezone: "Asia/Shanghai", windowEnd: "23:59", windowStart: "00:00" } },
+          ], chat: [], app: [] };
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork",
+      providerSpecificData: { userId: "u-zero-1" },
+    });
+    // Live 2026-11-22: a 2,136-token qwork-auto chat drew ~0.52 credits —
+    // price_factor 0 on intl tiers means "no published factor", not free.
+    expect(result.rawConfigs.get("qwork-auto").price_factor).toBe(0);
+    expect(result.models.find((m) => m.id === "qwork-auto").rateMultiplier).toBeNull();
+    // CN-style promoted zero keeps the free semantics (会员限免).
+    expect(result.models.find((m) => m.id === "qwork-advanced").rateMultiplier).toBe(0);
+    expect(result.models.find((m) => m.id === "qwen4-max").rateMultiplier).toBe(1.4);
+  });
+
 describe("chat-modes-v2 catalog merge", () => {
   beforeEach(() => {
     proxyAwareFetchMock.mockReset();

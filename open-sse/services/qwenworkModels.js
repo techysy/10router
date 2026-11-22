@@ -183,6 +183,13 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
     const key = entry.key;
     const display = entry.display_name || key;
     const ctx = Number(entry.max_input_tokens) || 131_072;
+    // price_factor 0 is NOT "free" by itself: intl tier models publish 0 yet
+    // bill from the plan's credit pool (live 2026-11-22 — a 2,136-token chat
+    // on qwork-auto drew ~0.52 credits). Only an active promotion makes zero
+    // actually free (CN 标准「会员限免」, ling-3.1「限时1折」) — otherwise the
+    // multiplier stays unpublished so ModelRow renders no misleading badge.
+    const promoActive = !!(entry.promotion && entry.promotion.active !== false);
+    const priceRaw = typeof entry.price_factor === "number" ? entry.price_factor : null;
     models.push({
       id: key,
       name: `${display}`,
@@ -191,7 +198,7 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
       isReasoning: !!entry.is_reasoning,
       maxOutputTokens: Number(entry.max_output_tokens) || 0,
       description: entry.description || "",
-      rateMultiplier: typeof entry.price_factor === "number" ? entry.price_factor : null,
+      rateMultiplier: priceRaw === 0 && !promoActive ? null : priceRaw,
       originalRateMultiplier: typeof entry.original_price_factor === "number" ? entry.original_price_factor : null,
       promotion: entry.promotion && typeof entry.promotion === "object" ? entry.promotion : null,
       enabled: entry.enable !== false,
