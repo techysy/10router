@@ -141,7 +141,6 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
     return null;
   }
 
-  const models = [];
   const rawConfigs = new Map();
   for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
@@ -151,6 +150,37 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
     // Always cache the config — chat needs it even for UI-hidden models
     // (enable:false). Upstream still accepts chat for these keys.
     rawConfigs.set(key, entry);
+  }
+
+  // chat-modes-v2 (GET /api/desktop/chat-modes) — the desktop client's own
+  // catalog strategy. /algo/api/v2/model/list serves the tier modes only on
+  // the international gateway (3 entries, 2026-11-22 live probe) while the
+  // desktop picker lists the direct models from THIS endpoint (qwen4-max,
+  // qwen3.8-max, deepseek-flash=DeepSeek-V4.1-Flash, kimi-k3.1-pro, ...).
+  // Merge per key: chat-modes fields win (fresher client-attested config),
+  // model/list-only fields (max_output_tokens, promotion) survive; keys that
+  // only chat-modes carries are new rows. Best-effort: a chat-modes failure
+  // keeps the model/list catalog intact.
+  const chatModes = await fetchQwenWorkChatModesRaw(credentials, signal, proxyOptions).catch((e) => {
+    console.warn(`[QwenWorkModels] chat-modes fetch failed: ${e?.message || e}`);
+    return null;
+  });
+  if (chatModes?.length) {
+    let added = 0;
+    for (const cm of chatModes) {
+      if (!cm || !cm.key) continue;
+      const prev = rawConfigs.get(cm.key);
+      rawConfigs.set(cm.key, prev ? { ...prev, ...cm, key: cm.key } : cm);
+      if (!prev) added++;
+    }
+    console.log(`[QwenWorkModels] chat-modes: ${chatModes.length} entries merged (+${added} new keys)`);
+  } else {
+    console.warn("[QwenWorkModels] chat-modes unavailable — catalog is model/list only");
+  }
+
+  const models = [];
+  for (const entry of rawConfigs.values()) {
+    const key = entry.key;
     const display = entry.display_name || key;
     const ctx = Number(entry.max_input_tokens) || 131_072;
     models.push({
@@ -169,6 +199,83 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
   }
 
   return { models, rawConfigs };
+}
+
+/**
+ * chat-modes-v2 catalog (GET /api/desktop/chat-modes) — the desktop client's
+ * own model-list strategy (DesktopChatModesV2CatalogProvider, bundle id
+ * "chat-modes-v2"): plain Bearer access token + client identity headers,
+ * no COSY signing. Response (live 2026-11-22, intl):
+ *   { schema_version: 2, catalog: [ { key, i18n: { display_name: {en, zh},
+ *     description: {…} }, enable, format, harness, is_reasoning, is_vl,
+ *     max_input_tokens, price_factor, frontier, context_config,
+ *     model_params, thinking_config, badges[] } ], subtask_routing: {…} }
+ * Tier modes and direct models can share a key (qwen3.8-flash is both the
+ * 标准 tier and a direct model) — later entries win on key collision, which
+ * keeps the direct entry's model-shaped display name over the tier label.
+ * Returns adapted entries (display_name/description lifted from i18n) or
+ * null on any failure.
+ */
+async function fetchQwenWorkChatModesRaw(credentials, signal, proxyOptions = null) {
+  if (!credentials?.accessToken) return null;
+  const site = qwenworkSite(credentials?.provider);
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${credentials.accessToken}`,
+    ...qwenworkClientHeaders(),
+  };
+  const controller = new AbortController();
+  let timer = null;
+  let abortListener = null;
+  let response;
+  try {
+    timer = setTimeout(() => controller.abort("timeout"), FETCH_TIMEOUT_MS);
+    if (signal && typeof signal.addEventListener === "function") {
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+      } else {
+        abortListener = () => controller.abort(signal.reason);
+        signal.addEventListener("abort", abortListener);
+      }
+    }
+    response = await proxyAwareFetch(
+      site.chatModesUrl,
+      { method: "GET", headers, signal: controller.signal },
+      proxyOptions,
+    );
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal && abortListener) signal.removeEventListener("abort", abortListener);
+  }
+
+  if (!response.ok) {
+    console.warn(`[QwenWorkModels] chat-modes fetch failed: HTTP ${response.status} (${site.chatModesUrl})`);
+    return null;
+  }
+  const body = await response.json().catch(() => null);
+  const catalog = Array.isArray(body?.catalog) ? body.catalog : null;
+  if (!catalog) {
+    console.warn(`[QwenWorkModels] chat-modes response missing catalog array; top-level keys: ${body && typeof body === "object" ? Object.keys(body).join(",") : typeof body}`);
+    return null;
+  }
+
+  const entries = [];
+  const seen = new Set();
+  for (const entry of catalog) {
+    if (!entry || typeof entry !== "object") continue;
+    const key = typeof entry.key === "string" && entry.key ? entry.key : null;
+    if (!key) continue;
+    const i18n = entry.i18n && typeof entry.i18n === "object" ? entry.i18n : {};
+    const displayName = i18n.display_name && typeof i18n.display_name === "object" ? i18n.display_name : {};
+    const description = i18n.description && typeof i18n.description === "object" ? i18n.description : {};
+    seen.add(key);
+    entries.push({
+      ...entry,
+      display_name: displayName.zh || displayName.en || key,
+      description: description.zh || description.en || "",
+    });
+  }
+  return entries;
 }
 
 /**

@@ -244,9 +244,12 @@ describe("QwenWork catalog request shape (official-client identity)", () => {
     };
     await resolveQwenWorkModels(credentials, { forceRefresh: true });
     await resolveQwenWorkModels(credentials, { forceRefresh: true });
-    expect(proxyAwareFetchMock).toHaveBeenCalledTimes(2);
-    const [url1, opts1] = proxyAwareFetchMock.mock.calls[0];
-    const [, opts2] = proxyAwareFetchMock.mock.calls[1];
+    // One catalog pass = model/list + chat-modes (two calls); count the
+    // model/list ones specifically.
+    const modelListCalls = proxyAwareFetchMock.mock.calls.filter(([u]) => String(u).includes("model/list"));
+    expect(modelListCalls).toHaveLength(2);
+    const [url1, opts1] = modelListCalls[0];
+    const [, opts2] = modelListCalls[1];
     expect(url1).toBe("https://gateway.qwenwork.ai/algo/api/v2/model/list?Encode=1");
     expect(opts1.headers["User-Agent"]).toBe("qoderwork/1.2.1");
     expect(opts1.headers["X-QwenWork-Version"]).toBe("1.2.1");
@@ -301,5 +304,86 @@ describe("QwenWorkExecutor chat body (qwork scene)", () => {
     expect(payload.messages[0].role).toBe("system");
     expect(payload.parameters).toMatchObject({ enable_thinking: true, context_length: 1000000 });
     expect(payload.model_config).toEqual(modelConfig);
+  });
+});
+
+describe("chat-modes-v2 catalog merge", () => {
+  beforeEach(() => {
+    proxyAwareFetchMock.mockReset();
+  });
+
+  const modelListBody = {
+    qwork: [
+      { key: "flash", display_name: "标准", is_reasoning: true, is_vl: true, max_input_tokens: 1000000, max_output_tokens: 32768, price_factor: 0.1, enable: true },
+    ],
+    chat: [],
+    app: [],
+  };
+  const chatModesBody = {
+    schema_version: 2,
+    catalog: [
+      { key: "qwen4-max", i18n: { display_name: { en: "Qwen4-Max", zh: "Qwen4-Max" }, description: { zh: "全维旗舰" } }, enable: true, format: "anthropic/messages", harness: "oc", is_reasoning: true, is_vl: true, max_input_tokens: 1000000, price_factor: 1.4 },
+      { key: "glm-5.3", i18n: { display_name: { en: "GLM-5.3", zh: "GLM-5.3" } }, enable: true, is_reasoning: true, is_vl: false, max_input_tokens: 1000000, price_factor: 1.3 },
+      { key: "flash", i18n: { display_name: { en: "Qwen3.8-Flash", zh: "Qwen3.8-Flash" } }, enable: true, is_reasoning: true, is_vl: true, max_input_tokens: 1000000, price_factor: 0.1 },
+    ],
+    subtask_routing: {},
+  };
+
+  function routeFetch() {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("/api/desktop/chat-modes") ? chatModesBody : modelListBody;
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+  }
+
+  it("merges the chat-modes catalog: new keys appear, config fields survive the union", async () => {
+    routeFetch();
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork",
+      providerSpecificData: { userId: "u-merge-1" },
+    });
+    expect(result.models.map((m) => m.id).sort()).toEqual(["flash", "glm-5.3", "qwen4-max"]);
+    const q4 = result.rawConfigs.get("qwen4-max");
+    expect(q4.display_name).toBe("Qwen4-Max");
+    expect(q4.format).toBe("anthropic/messages");
+    // chat-modes fields win on overlap; model/list-only fields survive
+    const flash = result.rawConfigs.get("flash");
+    expect(flash.display_name).toBe("Qwen3.8-Flash");
+    expect(flash.max_output_tokens).toBe(32768);
+    const modelsById = Object.fromEntries(result.models.map((m) => [m.id, m]));
+    expect(modelsById["qwen4-max"].rateMultiplier).toBe(1.4);
+  });
+
+  it("keeps the model/list catalog when chat-modes fetch fails", async () => {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      if (String(url).includes("/api/desktop/chat-modes")) {
+        return Promise.resolve({ ok: false, status: 503, json: async () => ({}), text: async () => "" });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => modelListBody, text: async () => JSON.stringify(modelListBody) });
+    });
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork",
+      providerSpecificData: { userId: "u-fallback-1" },
+    });
+    expect(result.models.map((m) => m.id)).toEqual(["flash"]);
+  });
+
+  it("usage credits row carries the meoo-style expiringBatch channel", async () => {
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("account-context")
+        ? { data: { plan: { name: "Pro", next_refresh_date: "2026-12-20T00:00:00+08:00" }, quota: { total: 1000, used: 200, remaining: 800 } } }
+        : modelListBody;
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const { getQwenWorkUsage } = await import("../../open-sse/services/usage/qwenwork.js");
+    const usage = await getQwenWorkUsage("at-1", "qwenwork");
+    const row = usage.quotas.credits;
+    expect(row.remaining).toBe(800);
+    expect(row.expiringBatch).toMatchObject({ remaining: 800 });
+    expect(typeof row.expiringBatch.resetAt).toBe("string");
   });
 });

@@ -52,13 +52,17 @@ export async function getQwenWorkUsage(accessToken, providerId = "qwenwork", pro
         : remaining !== null
           ? Math.max(0, total - remaining)
           : 0;
+      const remainingNum = remaining !== null ? remaining : Math.max(0, total - used);
       quotas.credits = {
         total,
         used,
-        remaining: remaining !== null ? remaining : Math.max(0, total - used),
+        remaining: remainingNum,
         unit: "credits",
         resetAt,
         unlimited: false,
+        // Meoo/lingxi 同款头部通道：大数右侧「X · N后过期」——积分窗口该回答
+        // 「到什么时候」。批次即整个窗口（resetAt = plan 刷新日）。
+        ...(resetAt ? { expiringBatch: { remaining: remainingNum, resetAt } } : {}),
       };
     }
 

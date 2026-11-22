@@ -36,6 +36,7 @@ export const QWENWORK_DEVICE_TOKEN_URL = `${QWENWORK_GATEWAY_BASE}/api/v1/device
 export const QWENWORK_REFRESH_TOKEN_URL = `${QWENWORK_GATEWAY_BASE}/api/v1/deviceToken/refresh`;
 export const QWENWORK_USERINFO_URL = `${QWENWORK_GATEWAY_BASE}/api/v1/adapter/user/account-context?include=user,plan,quota,page,data_sharing`;
 export const QWENWORK_MODEL_LIST_URL = `${QWENWORK_GATEWAY_BASE}/algo/api/v2/model/list?Encode=1`;
+export const QWENWORK_CHAT_MODES_URL = `${QWENWORK_GATEWAY_BASE}/api/desktop/chat-modes`;
 export const QWENWORK_CHAT_URL = `${QWENWORK_GATEWAY_BASE}/algo/api/v2/service/pro/sse/agent_chat_generation?FetchKeys=llm_model_result&AgentId=agent_common&Encode=1`;
 
 // ─── China (qwenwork.cn) ───
@@ -47,6 +48,7 @@ export const QWENWORK_CN_DEVICE_TOKEN_URL = `${QWENWORK_CN_GATEWAY_BASE}/api/v1/
 export const QWENWORK_CN_REFRESH_TOKEN_URL = `${QWENWORK_CN_GATEWAY_BASE}/api/v1/deviceToken/refresh`;
 export const QWENWORK_CN_USERINFO_URL = `${QWENWORK_CN_GATEWAY_BASE}/api/v1/adapter/user/account-context?include=user,plan,quota,page,data_sharing`;
 export const QWENWORK_CN_MODEL_LIST_URL = `${QWENWORK_CN_GATEWAY_BASE}/algo/api/v2/model/list?Encode=1`;
+export const QWENWORK_CN_CHAT_MODES_URL = `${QWENWORK_CN_GATEWAY_BASE}/api/desktop/chat-modes`;
 export const QWENWORK_CN_CHAT_URL = `${QWENWORK_CN_GATEWAY_BASE}/algo/api/v2/service/pro/sse/agent_chat_generation?FetchKeys=llm_model_result&AgentId=agent_common&Encode=1`;
 
 // COSY / client fingerprint for QwenWork (desktop app 1.2.5, verified by
@@ -75,6 +77,7 @@ export const QWENWORK_SITES = {
     refreshTokenUrl: QWENWORK_REFRESH_TOKEN_URL,
     userInfoUrl: QWENWORK_USERINFO_URL,
     modelListUrl: QWENWORK_MODEL_LIST_URL,
+    chatModesUrl: QWENWORK_CHAT_MODES_URL,
     chatUrl: QWENWORK_CHAT_URL,
   },
   "qwenwork-cn": {
@@ -86,6 +89,7 @@ export const QWENWORK_SITES = {
     refreshTokenUrl: QWENWORK_CN_REFRESH_TOKEN_URL,
     userInfoUrl: QWENWORK_CN_USERINFO_URL,
     modelListUrl: QWENWORK_CN_MODEL_LIST_URL,
+    chatModesUrl: QWENWORK_CN_CHAT_MODES_URL,
     chatUrl: QWENWORK_CN_CHAT_URL,
   },
 };
