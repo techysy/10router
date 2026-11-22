@@ -7,15 +7,65 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版；条数纪律：公告只放「持续生效/仍需用户行动」的内容，功能发布类随版本进更新日志，不留长挂"
   },
-  "updatedAt": "2026-11-16",
+  "updatedAt": "2026-11-22",
   "items": [
+    {
+      "id": "2026-11-22-qwenwork-provider",
+      "date": "2026-11-22",
+      "level": "feature",
+      "title": "千问办公 QwenWork 供应商：设备码登录选团队，档位 + 直通模型",
+      "body": "全新供应商「千问办公」（阿里一站式办公 Agent，国际站 qwenwork.ai / 国内站 qwenwork.cn 双入口）：设备码登录，授权页选好团队即按所选团队套餐积分计费。模型目录与官方客户端选择器对齐——标准 / 高级 / 旗舰系统档位 + Qwen4-Max、DeepSeek V4.1 Flash、GLM-5.3-Flash 等直通模型，全系 1M 上下文，模型行倍率即计费标注（档位行不标「免费」——实测从积分池计费）。连接副标题邮箱掩码显示。注意：刷新令牌单次轮换、只由网关刷新，同一账号勿同时登录官方桌面客户端；Free 账户调用直通模型返回 403（付费档解锁）。",
+      "titleEn": "QwenWork provider: device-code sign-in with team billing, tiers + direct models",
+      "bodyEn": "A new provider, QwenWork (Alibaba's all-in-one workplace agent, international qwenwork.ai / CN qwenwork.cn): sign in with a device code and pick the team whose plan pays the credits. The catalog mirrors the official client picker — Standard / Advanced / Flagship system tiers plus direct models like Qwen4-Max, DeepSeek V4.1 Flash and GLM-5.3-Flash, all 1M context; the rate-multiplier chip on each row IS the pricing mark (tier rows show no free badge — live tests bill from the credit pool). Connection subtitles mask the email. Note: refresh tokens are single-use and rotating, refreshed only by the gateway — don't sign the same account into the official desktop app at the same time; Free-plan accounts get 403 on direct models (paid tiers unlock them).",
+      "link": "https://qwenwork.ai"
+    },
+    {
+      "id": "2026-11-22-capy-provider",
+      "date": "2026-11-22",
+      "level": "feature",
+      "title": "Capy 供应商：一次请求一轮真实 agent，免开桌面端",
+      "body": "全新供应商 Capy（agent 平台）：一次请求就是一轮真实 agent 任务——线程登录后复用，不需要你开着官方桌面端（无头设备码配对、自动批准）。邮箱验证码即可登录；三个全 0 计费的免费模型（GLM-5.3-Flash 广告版 / DeepSeek V4.1 Flash 广告版 / Particle-1），付费档 Claude / GPT / Gemini 等九家透传。实测单轮 5-9 秒起，适合对话场景。信任模型须知：配对的无头设备与官方桌面端一样会执行 agent 所需的命令与文件操作——不想要此能力的部署不配对设备 / 吊销设备令牌即可（无 capyd_ 令牌不会拨隧道）。",
+      "titleEn": "Capy provider: one request = one real agent run, no desktop app needed",
+      "bodyEn": "A new provider, Capy (agent platform): each request is one real agent run — threads are reused after login and you don't need the official desktop app running (headless device pairing, auto-approved). Sign in with an email code; three free all-zero-priced models (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1) plus nine paid families (Claude / GPT / Gemini and more) in passthrough. Measured 5-9s per turn — conversation-friendly. Trust-model notice: a paired headless device serves the agent's command and file operations just like the desktop app does — deployments that don't want that simply don't pair a device / revoke the device token (no capyd_ token, no tunnel).",
+      "link": "https://capy.ai"
+    },
+    {
+      "id": "2026-11-22-crowllm-provider",
+      "date": "2026-11-22",
+      "level": "feature",
+      "title": "CrowLLM 供应商：180+ 模型一个 Key，40 个 :free 模型零倍率",
+      "body": "全新供应商 CrowLLM（one-hub 聚合网关）：填一个 API Key 即用，/v1/models 全量透传 180+ 模型。带 :free 后缀的模型完全免费（40 个，含 qwen4-max:free——实测日成功率 91%+，延迟偏高）。注册页「获取 API 密钥」入口接入邀请码池，每次打开随机取一条。无签到/赠送机制。",
+      "titleEn": "CrowLLM provider: 180+ models behind one key, 40 :free models at zero rate",
+      "bodyEn": "A new provider, CrowLLM (one-hub aggregator gateway): one API key unlocks the full 180+ model passthrough. Models suffixed :free cost nothing (40 of them, including qwen4-max:free — 91%+ measured daily success rate, latency on the slow side). The Get API Key entry rotates through an invite-link pool; no check-in or grant mechanics.",
+      "link": "https://crowllm.com"
+    },
+    {
+      "id": "2026-11-22-croli-provider",
+      "date": "2026-11-22",
+      "level": "feature",
+      "title": "Croli 供应商：Clerk OAuth + 积分池，原生签到与积分面板",
+      "body": "全新供应商 Croli：Clerk OAuth（Google / GitHub / 邮箱验证码）登录，全程面板内完成。credits 积分池自动化——每日签到 +100（连续加成）、每日首次对话 +200（由真实完成的对话回合上报，不烧 trial 额度）；详情页原生积分任务中心 + 积分面板，实验性页可开自动签到。claude 系走池化路由、gpt 系直连，上游校验 max_tokens ≥ 16。注册引导走邀请码池轮换。",
+      "titleEn": "Croli provider: Clerk OAuth + credits pool, native check-in and credits panel",
+      "bodyEn": "A new provider, Croli: Clerk OAuth (Google / GitHub / email code), entirely in the panel. The credits pool runs itself — daily check-in +100 (with streak bonuses) and the first chat of the day +200, reported from real completed conversation turns rather than burning trial quota; the provider detail page carries a native task center and credits panel, and the Experimental page adds auto check-in. Claude-family models ride the pooled route, GPT-family connects directly; upstream enforces max_tokens >= 16. Signup walks through a rotating invite-code pool.",
+      "link": "https://croli.net"
+    },
+    {
+      "id": "2026-11-22-nous-portal-provider",
+      "date": "2026-11-22",
+      "level": "feature",
+      "title": "Nous Portal 供应商：设备码登录，免费档免绑卡",
+      "body": "全新供应商 Nous Portal（Hermes 同款设备码 OAuth）：授权后浏览器停在「复制此 URL」页，粘贴回面板即完成登录。免费档 qwen/qwen4-max:free 等无需绑卡即可用；实时目录 400+ 模型全量透传，付费模型按 Portal 套餐计费。注意：刷新令牌每次使用即轮换、只由网关刷新，同一账号勿同时登录 Hermes CLI。",
+      "titleEn": "Nous Portal provider: device-code sign-in, free tier without a card",
+      "bodyEn": "A new provider, Nous Portal (Hermes-style device-code OAuth): after authorizing, the browser stops on a \"copy this URL\" page — paste it back into the panel to finish. The free tier (qwen/qwen4-max:free and friends) needs no card; the live catalog passes through 400+ models, paid ones bill against your Portal plan. Note: refresh tokens rotate on every use and only the gateway refreshes them — don't sign the same account into the Hermes CLI at the same time.",
+      "link": "https://portal.nousresearch.com"
+    },
     {
       "id": "2026-11-16-license-agpl-notice",
       "date": "2026-11-16",
       "level": "warning",
-      "title": "许可证变更预告：自 v1.8.1 起改为 AGPL-3.0（此前为 MIT）",
+      "title": "许可证已生效：自 v1.8.1 起改为 AGPL-3.0（此前为 MIT）",
       "body": "为保护本项目的真机调试成果（协议逆向、指纹对齐、签到链路等）不被闭源拿走，自 v1.8.1 起本仓库改用 AGPL-3.0。v1.8.0 及更早的已发布版本维持 MIT 不变。日常使用、自部署完全不受影响；AGPL 仅要求任何二次利用（含以网络服务形式提供）同样开源。",
-      "titleEn": "License change notice: AGPL-3.0 starting with v1.8.1 (previously MIT)",
+      "titleEn": "License in effect: AGPL-3.0 starting with v1.8.1 (previously MIT)",
       "bodyEn": "To protect this project's reverse-engineering work (protocol reverse-ing, fingerprint alignment, check-in chains) from being taken closed-source, the repository adopts AGPL-3.0 starting with v1.8.1. Released versions up to v1.8.0 remain MIT. Everyday use and self-hosting are unaffected; AGPL only requires any reuse — including offering it as a network service — to be released under the same license.",
       "link": "https://github.com/techysy/10router/blob/main/LICENSE"
     },
