@@ -1,4 +1,11 @@
-export default {
+// 邀请码池（用户 2026-11-22 提供，3 条）。
+const MEOO_INVITE_LINKS = [
+  "https://meoo.com/?inviteCode=2i2N6e2y",
+  "https://meoo.com/?inviteCode=ycDdBjLV",
+  "https://meoo.com/?inviteCode=Raxntxwk",
+];
+const pickMeooInviteLink = () => MEOO_INVITE_LINKS[Math.floor(Math.random() * MEOO_INVITE_LINKS.length)];
+const meoo = {
   id: "meoo",
   priority: 32,
   alias: "meoo",
@@ -14,7 +21,11 @@ export default {
       // 用户不用翻日志 —— 2026-11-15 真机踩坑后用户点名要上页面。
       text: "Meoo chat needs a project service AK — create at least one project on meoo.com (cloud services on) first. Once it exists, the AK is picked up automatically; until then chat returns 401 while balance and check-in keep working.",
       signupUrl: "https://meoo.com",
-      apiKeyUrl: "https://meoo.com/?inviteCode=ycDdBjLV",
+      // 邀请码池轮换（croli 5 码池同款 getter）：provider 信息被面板 API
+      // 序列化时求值一次，即每次页面加载换一条，新账号归因分散。
+      get apiKeyUrl() {
+        return pickMeooInviteLink();
+      },
     },
   },
   category: "oauth",
@@ -86,3 +97,5 @@ export default {
     pointsUrl: "https://meoo.com/open/v1/cli-compat/account/points",
   },
 };
+
+export default meoo;
