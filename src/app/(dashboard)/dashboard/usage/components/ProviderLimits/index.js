@@ -198,6 +198,8 @@ const KNOWN_PROVIDER_NAMES = {
   "glm-cn": "GLM CN",
   "kimi-cn": "Kimi CN",
   "lingxi": "Lingxi",
+  "qwenwork": "QwenWork",
+  "qwenwork-cn": "QwenWork CN",
 };
 
 export default function ProviderLimits() {
