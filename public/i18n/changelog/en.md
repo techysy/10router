@@ -8,6 +8,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **New provider: Numes**: an OpenAI-compatible inference marketplace — frontier and open-source models served by independent providers, billed per request from a USD or Bitcoin balance (the key's currency is fixed at creation). Model ids are OpenRouter-shaped (`author/model`); ids suffixed `:free` cost nothing (GLM-5.3, GLM-5.3-Flash, DeepSeek V4.1 Flash, Kimi K3.1 Pro, Nemotron 3 Ultra 550B), while a plain id only routes to priced endpoints. 34 flagship models are pre-listed and everything else in the catalog works by id; reasoning tiers ride the standard OpenAI reasoning_effort.
 
+### 🐛 Fixed
+
+- **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.
+
 ## v1.8.3 (2026-11-22)
 
 ### ✨ New

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { isPromoFree, promoFreeUntilMs } from "../../src/shared/utils/promoFree.js";
+import { promotionBadgeNote } from "../../src/shared/utils/offPeak.js";
 import intl from "../../open-sse/providers/registry/codebuddy-intl.js";
 import cn from "../../open-sse/providers/registry/codebuddy-cn.js";
 import intlQoder from "../../open-sse/providers/registry/qoder.js";
@@ -133,4 +134,39 @@ describe("qoder / qoder-cn 的 dfmodel（2026-11-18 live 探测）", () => {
       expect(m.promoFreeUntil).toBeUndefined();
     });
   }
+});
+
+describe("promotionBadgeNote（2026-11-23 用户报：CN 会员限免的 free 徽章没有说明）", () => {
+  // QwenWork CN 目录：price_factor 0 + promotion{badge:{zh:"会员限免"}} 的行
+  // 在面板上是 green free 徽章，tooltip 此前只说「走免费额度」，不说免费从哪
+  // 来（会员结余，不是长期免费）。helper 取上游促销自己的徽章文案（读者语言
+  // 优先），交给 ModelRow 的倍率 tooltip。
+  it("surfaces the upstream badge text, reader's language first", () => {
+    const promo = { badge: { zh: "会员限免", en: "Member-exclusive free" }, active: true };
+    expect(promotionBadgeNote(promo, "zh-CN")).toBe("会员限免");
+    expect(promotionBadgeNote(promo, "zh-TW")).toBe("会员限免");
+    expect(promotionBadgeNote(promo, "en")).toBe("Member-exclusive free");
+    // zh-only payload degrades to the zh text for everyone — upstream wording
+    // beats a blank note.
+    expect(promotionBadgeNote({ badge: { zh: "限时1折" }, active: true }, "en")).toBe("限时1折");
+  });
+
+  it("stays silent without a promotion, a badge, or with an explicitly deactivated one", () => {
+    expect(promotionBadgeNote(null, "zh-CN")).toBe("");
+    expect(promotionBadgeNote(undefined, "zh-CN")).toBe("");
+    expect(promotionBadgeNote("会员限免", "zh-CN")).toBe("");
+    // active is optional (Qoder off-peak objects carry it only as fetch-time
+    // state) — absence means shown; an explicit false means withdrawn.
+    expect(promotionBadgeNote({ badge: { zh: "会员限免" } }, "zh-CN")).toBe("会员限免");
+    expect(promotionBadgeNote({ badge: { zh: "会员限免" }, active: false }, "zh-CN")).toBe("");
+    expect(promotionBadgeNote({ active: true }, "zh-CN")).toBe("");
+    expect(promotionBadgeNote({ badge: "会员限免", active: true }, "zh-CN")).toBe("");
+  });
+
+  it("wires the note into both multiplier tooltip branches (0x free and Nx discounted)", () => {
+    // 会员限免 → 0x「走免费额度 (会员限免)」；限时1折 → Nx 倍率徽章的 tooltip
+    // 同样带上官方文案。徽章本身不动（house rule：free 是永不翻译的字面量）。
+    expect(MODEL_ROW).toContain("const promoNote = promotionBadgeNote(model.promotion, getCurrentLocale())");
+    expect(MODEL_ROW.split("(promoNote ? ` (${promoNote})` : \"\")").length - 1).toBe(2);
+  });
 });

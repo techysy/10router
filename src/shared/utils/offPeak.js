@@ -86,6 +86,20 @@ export function promotionText(field, locale) {
   return (locale && String(locale).startsWith("zh") ? field.zh || field.en : field.en || field.zh) || "";
 }
 
+/**
+ * The promotion's own badge text — the upstream client's wording for WHY a
+ * model's price is what it is (QwenWork CN 标准「会员限免」/ ling-3.1「限时1折」,
+ * Qoder off-peak banners) — or "" when there is no promotion or it is
+ * explicitly deactivated. The multiplier tooltip appends it so a promoted
+ * price explains itself; without it a bare `free` reads as a lasting
+ * property, which is exactly what a CN 会员限免 row is not (2026-11-23 user
+ * report: the badge said nothing about where the free ride comes from).
+ */
+export function promotionBadgeNote(promotion, locale) {
+  if (!promotion || typeof promotion !== "object" || promotion.active === false) return "";
+  return promotionText(promotion.badge, locale);
+}
+
 /** 46800 → "13:00:00" (hours may exceed 24 never happens: < 86400 by construction). */
 export function formatCountdown(totalSeconds) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "--:--:--";

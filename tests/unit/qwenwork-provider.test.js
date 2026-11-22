@@ -380,6 +380,10 @@ it("price_factor 0 without an active promotion is NOT free (intl tiers bill from
     // CN-style promoted zero keeps the free semantics (会员限免).
     expect(result.models.find((m) => m.id === "qwork-advanced").rateMultiplier).toBe(0);
     expect(result.models.find((m) => m.id === "qwen4-max").rateMultiplier).toBe(1.4);
+    // The dashboard tooltip explains the free ride from the promotion's own
+    // badge text — the passthrough below is the contract that carries
+    // 「会员限免」to the model row (ModelRow promotionBadgeNote reads it).
+    expect(result.models.find((m) => m.id === "qwork-advanced").promotion.badge.zh).toBe("会员限免");
   });
 
 it("stored-value card semantics for null-total accounts + degraded copy on 401 (#164)", async () => {

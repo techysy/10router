@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
 import { isNightFreeHour } from "@/shared/utils/nightFree";
-import { offPeakStatus, promotionText } from "@/shared/utils/offPeak";
+import { offPeakStatus, promotionBadgeNote, promotionText } from "@/shared/utils/offPeak";
 import { translate, getCurrentLocale } from "@/i18n/runtime";
 import { cn } from "@/shared/utils/cn";
 
@@ -346,6 +346,13 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
   // window opens, so the number above is already the discounted one — this
   // badge only announces WHY it dropped, and flips green inside the window.
   const offPeak = useOffPeakClock(model.promotion);
+  // Live-catalog promotions ride the same multiplier badge (QwenWork CN 标准
+  // 「会员限免」→ 0x free,「限时1折」→ discounted Nx; Qoder off-peak free
+  // windows → 0x). The upstream's own badge text is the authoritative wording
+  // for WHY the price is what it is — a bare `free` reads as a lasting
+  // property, which a 会员限免 row is not (2026-11-23 user report). "" when
+  // there is no promotion → the tooltip stays exactly as it was.
+  const promoNote = promotionBadgeNote(model.promotion, getCurrentLocale());
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -454,11 +461,17 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                         ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x`
                         : "")
                       + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
+                      // 上游促销的官方文案（QwenWork CN「会员限免」等）说明
+                      // 这次免费从哪来——会员结余，不是长期免费额度。
+                      + (promoNote ? ` (${promoNote})` : "")
                     : translate("Credit multiplier") + `: ${displayMultiplier}x`
                       // `discountNote` 承载「夜间折扣/错峰使用」这类**立减型**折扣的
                       // 时段规则。它们不是免费窗口（nightFree 徽章会亮 free 夸大），
                       // 所以只作悬停说明，徽章仍显示原价倍率。
                       + (model.discountNote ? ` — ${model.discountNote}` : "")
+                      // 折扣型促销同理（「限时1折」）：官方文案放进 tooltip，
+                      // 徽章仍显示真实倍率。
+                      + (promoNote ? ` (${promoNote})` : "")
                 }
               >
                 <Badge
