@@ -26,6 +26,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **Meoo invite pool + new scheduling preferences**: Meoo onboarding now rotates through 3 invite links (attribution spread); Meoo / QwenWork gain highest-balance-first / lowest-balance-first scheduling preferences, ranked by each account's credit balance.
 
+- **Styled delete confirmation**: deleting a connection from the quota tracker no longer pops the raw native dialog; it uses the same styled confirm modal as the rest of the dashboard.
+
 - **QwenWork supports the API Key channel**: CD sk-key scenarios can create connections via API Key (previously rejected as Invalid provider); when the access token expires, the quota card shows a re-sync hint instead of stale numbers.
 
 ## v1.8.2 (2026-11-20)

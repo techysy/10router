@@ -17,6 +17,7 @@
 - **settings 事务原子读改写（#160，PR by Duseus）**：`mutateSettingsMap(key, mutator)`——对形如 `{ [subKey]: {...} }` 的 settings map 键做事务内原子 read-modify-write，两个调用方并发更新不同 subKey 不再互相覆盖（per-connection 签到状态等场景）。
 
 - **Meoo 邀请码池轮换 + 调度偏好大额/小额优先**：邀请池 3 条（用户 2026-11-22 提供：2i2N6e2y / ycDdBjLV / Raxntxwk，croli 5 码池同款 getter，页面加载换一条归因分散）；meoo/qwenwork/qwenwork-cn 归入 PURE_BALANCE 分类——调度偏好下拉新增「大额优先（highest-first）/小额优先（lowest-first）」，排序消费连接持久化的 quotaBalance（无余额账号排最后；余额由 extractConnectionBalance 全 provider 提取链既有供给）。
+- **删除连接确认改样式化弹窗**（用量页）：原生 confirm() 在 Electron 壳里渲染成 OS 原生框（用户 2026-11-22 报「太原生」）——改 ConfirmModal（danger 变体，删除连接/移除推送卡两分支），按钮走 Confirm/Cancel 词典。
 - **QwenWork 官方客户端图标**：本机安装的官方客户端 window-icon 256×256 双站（国际站白底绿标 / CN 绿底白标），替换官网 favicon 版。
 - **Croli 额度卡钱包行接 translate 四语**（ea0deead9）：钱包行/Credits 单位/「与每日试用额度分开」此前硬编码英文。
 - **QwenWork apikey 通道 + 储值单值卡/降级文案（#164）**：authModes 补 apikey（CD sk-key 场景经 /api/providers 建连接此前 400 Invalid provider）+ features.usageApikey；额度卡在 quota.total/used 为 null（个人版余额制）时按储值单值卡（isCreditBalance）渲染；access 过期（CD access-only 约 7 天）卡面降级为重同步指引，不渲染死数字。

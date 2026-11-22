@@ -2314,5 +2314,7 @@
   "Croli wallet balance": "Croli 钱包余额",
   "Separate from daily trial quota": "与每日试用额度分开",
   "credits": "积分",
-  "Fetch QwenWork Models": "获取 QwenWork 模型"
+  "Fetch QwenWork Models": "获取 QwenWork 模型",
+  "Delete Connection": "删除连接",
+  "Remove pushed quota card": "移除推送额度卡"
 }
