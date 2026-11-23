@@ -8,6 +8,8 @@
 
 - **模型行倍率 tooltip 带上上游促销官方文案（2026-11-23 用户报）**：QwenWork CN 会员限免模型（price_factor 0 + 活动 promotion，badge.zh「会员限免」）的面板行此前只说「积分倍率: 0x — 走免费额度」，不说免费从哪来（会员结余，不是长期免费额度）。promotion 对象本就随 live 目录透传到模型行（route → ModelRow），本次在 offPeak.js 新增 promotionBadgeNote 纯函数（取读者语言的促销徽章文案；无促销或 active:false 返回空），ModelRow 的 0x 免费分支与 Nx 折扣分支 tooltip 各补一段「(会员限免)/(限时1折)」——徽章本体不动（`free` 永为字面量的家规），Qoder 错峰促销行同享此说明。测试：promotionBadgeNote 纯函数断言 + ModelRow tooltip 接线源码契约（promo-free-badge）+ qwenwork 目录 promotion 透传契约（qwenwork-provider）。
 
+- **CrowLLM 额度卡名称更正（2026-11-23 用户报）**：免费额度页卡片标题兜底走 CSS `capitalize` 把 provider id 渲染成「Crowllm」，与 registry display.name「CrowLLM」不一致。KNOWN_PROVIDER_NAMES 补 `crowllm` 条目一行修复。重复计数侧（卡面 219.98 实际 109.99）根因在 CreditDaddy 仓的 crowllmClient——余额行已含赠送、Gift 拆分行未标 detailOnly 进了加性池，CD 侧已同步修复（Gift 行 detailOnly: true，对齐 longcat summary+detail 模式）。
+
 ## v1.8.3 (2026-11-22)
 
 ### ✨ 新增

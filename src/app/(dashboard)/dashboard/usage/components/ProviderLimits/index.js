@@ -200,6 +200,7 @@ const KNOWN_PROVIDER_NAMES = {
   "lingxi": "Lingxi",
   "qwenwork": "QwenWork",
   "qwenwork-cn": "QwenWork CN",
+  "crowllm": "CrowLLM",
 };
 
 export default function ProviderLimits() {

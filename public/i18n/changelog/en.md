@@ -10,6 +10,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **CrowLLM quota card fixes**: ① the card title's casing is corrected (Crowllm → CrowLLM); ② quota is no longer double-counted — the wallet balance already includes the gift credit, but the card used to add the two together and show a doubled figure (219.98 where the real balance is 109.99). The headline number now reflects the true balance, and the gift credit remains visible in the per-pack breakdown (that side is fixed in CreditDaddy and takes effect as it ships).
+
 - **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.
 
 ## v1.8.3 (2026-11-22)
