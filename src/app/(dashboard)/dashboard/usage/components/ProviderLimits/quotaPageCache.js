@@ -43,8 +43,12 @@ function writeJson(key, value) {
 }
 
 /** The list query a cached page belongs to — a different filter is a miss. */
-export function connectionsCacheKey({ page, pageSize, accountFilter, providerFilter }) {
-  return [page, pageSize, accountFilter, providerFilter].join("|");
+export function connectionsCacheKey({ page, pageSize, accountFilter, providerFilter, expiringFirst }) {
+  // expiringFirst changes the server's row order, so it must be part of the
+  // key — a cached page painted under the default order must not stand in for
+  // the "Resets first" order (that was part of why the hourglass looked dead).
+  // `=== true` keeps legacy boolean coercion at bay; absent/false share a key.
+  return [page, pageSize, accountFilter, providerFilter, expiringFirst === true ? 1 : 0].join("|");
 }
 
 function stripSecrets(connection) {

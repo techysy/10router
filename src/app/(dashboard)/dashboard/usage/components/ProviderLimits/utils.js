@@ -155,6 +155,13 @@ export function sortVisibleConnections(
 
   if (!expiringFirst) return groupByProviderStable(connections);
 
+  // Rank by the earliest reset the CARD knows about (per-pack resetAt from the
+  // quota fetch); a card whose quota has not landed yet falls back to the
+  // connection row's persisted earliestPackageExpiry (the same signal the
+  // server-side "expiring" sort uses), and only a row with NEITHER sinks to
+  // the end. Reset times in the past (window already refilled) rank like no
+  // date — the point of this sort is "what is about to reset/expire".
+  const now = Date.now();
   const getEarliestResetTime = (connection) => {
     const resetTimes = (quotaData[connection.id]?.quotas || [])
       .map((quota) =>
@@ -162,15 +169,24 @@ export function sortVisibleConnections(
           ? new Date(quota.resetAt).getTime()
           : Number.POSITIVE_INFINITY,
       )
-      .filter((time) => Number.isFinite(time));
-    return resetTimes.length > 0
-      ? Math.min(...resetTimes)
+      .filter((time) => Number.isFinite(time) && time > now);
+    if (resetTimes.length > 0) return Math.min(...resetTimes);
+    const rowExpiry = connection.earliestPackageExpiry
+      ? new Date(connection.earliestPackageExpiry).getTime()
+      : NaN;
+    return Number.isFinite(rowExpiry) && rowExpiry > now
+      ? rowExpiry
       : Number.POSITIVE_INFINITY;
   };
 
   return [...connections].sort((a, b) => {
-    const expiryDiff = getEarliestResetTime(a) - getEarliestResetTime(b);
-    if (expiryDiff !== 0) return expiryDiff;
+    // Compare the VALUES, not the difference: both sides Infinity makes
+    // `a - b` NaN, a NaN comparator result is treated as "equal" and the
+    // provider/name tiebreak below never fires — the no-date cards then kept
+    // the default order and the hourglass looked like it did nothing.
+    const aTime = getEarliestResetTime(a);
+    const bTime = getEarliestResetTime(b);
+    if (aTime !== bTime) return aTime - bTime;
     return (
       (a.provider || "").localeCompare(b.provider || "") ||
       (getConnectionLabel(a) || "").localeCompare(getConnectionLabel(b) || "")
