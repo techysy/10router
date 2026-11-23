@@ -16,6 +16,7 @@ import {
   refreshCodebuddyIntlToken,
   refreshMeooToken,
   refreshNousToken,
+  refreshJunieToken,
   refreshQwenWorkToken,
   refreshTraeToken,
   refreshClineToken,
@@ -40,6 +41,7 @@ export {
   refreshCodebuddyIntlToken,
   refreshMeooToken,
   refreshNousToken,
+  refreshJunieToken,
   refreshQwenWorkToken,
   refreshTraeToken,
   refreshClineToken,
@@ -201,6 +203,8 @@ const REFRESH_HANDLERS = {
   meoo: (c, log) => refreshMeooToken(c.refreshToken, c, log),
   // Nous Portal: header-carried single-use refresh token (see providers.js).
   nous: (c, log) => refreshNousToken(c.refreshToken, log),
+  // Junie: form refresh; the returned id_token is the credential (see providers.js).
+  junie: (c, log) => refreshJunieToken(c.refreshToken, log),
   // QwenWork: device-token refresh, single-use rotation (see providers.js).
   qwenwork: (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork", log),
   "qwenwork-cn": (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork-cn", log),

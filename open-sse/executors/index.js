@@ -39,6 +39,7 @@ import { DumateExecutor } from "./dumate.js";
 import { LingxiExecutor } from "./lingxi.js";
 import { CapyExecutor } from "./capy.js";
 import { AmazonQuickExecutor } from "./amazonquick.js";
+import { JunieExecutor } from "./junie.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
@@ -46,6 +47,7 @@ const executors = {
   capy: new CapyExecutor(),
   amazonquick: new AmazonQuickExecutor(),
   aq: new AmazonQuickExecutor(), // Alias for amazonquick
+  junie: new JunieExecutor(),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),
