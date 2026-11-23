@@ -1234,7 +1234,9 @@ export default function ProviderDetailPage() {
 
         // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or
         // "auto" — strip whichever provider prefix the route attached.
-        const cleanModelId = modelId.replace(/^qoder(-cn)?\//, "");
+        // qwenwork(-cn) rows too: the route prefixed its ids until
+        // 2026-11-23 and a cached response can still deliver them.
+        const cleanModelId = modelId.replace(/^(?:qoder(-cn)?|qwenwork(-cn)?)\//, "");
         // Models already listed as official registry entries are NOT re-added
         // as customs — the fetch button exists to pull in catalog newcomers
         // (e.g. q37fmodel before it was registered), not to duplicate the

@@ -179,6 +179,17 @@ const resolveQoderCatalog = async (connection) => {
 // QwenWork (intl + CN share one resolver; qwenworkModels branches on
 // credentials.provider for the gateway host). OAuth-only provider — the
 // device access token is the only credential the catalog fetch needs.
+//
+// ids are the BARE catalog keys (qwen4-max, flash, …), NOT
+// "<provider>/<key>": every consumer of this route composes its own prefix —
+// the provider page renders `${alias}/${id}`, the combo picker composes
+// `${alias}/${modelKey}`, and the "Fetch models" import strips provider
+// prefixes. Emitting prefixed ids here made the provider page render
+// double-prefixed rows ("qw/qwenwork/qwen4-max", 2026-11-23 user report
+// 「数据完全是乱的」) and every alias/disable/lock persisted from those rows
+// carries the malformed key. Qoder's route keeps prefixed ids because
+// mergeQoderLivePricing joins by bare key — QwenWork's page replaces the
+// list wholesale (liveCatalogOnly), so it needs the bare keys directly.
 const resolveQwenWorkCatalog = async (connection) => {
   const credentials = {
     provider: connection.provider,
@@ -194,7 +205,7 @@ const resolveQwenWorkCatalog = async (connection) => {
     if (result?.models?.length) {
       return {
         models: result.models.map((m) => ({
-          id: `${connection.provider}/${m.id}`,
+          id: m.id,
           name: m.name,
           contextLength: m.contextLength,
           isVL: m.isVL,

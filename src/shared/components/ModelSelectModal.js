@@ -323,17 +323,18 @@ export default function ModelSelectModal({
           combined = [...registeredLlms, ...aliasModels.filter((m) => !registeredLlms.some((registered) => registered.value === m.value)), ...hardcoded];
           // Live 目录补位（qwenwork 等，2026-11-23 用户报）：passthrough 供应商的
           // 组合选择器此前只出别名+自定义+静态表 —— 别名是用户手建的（qwenwork 只建
-          // 过 4 个），远落后于详情页的 live 目录。live 行 id 已带 provider 前缀
-          // （qwenwork-cn/flash），剥掉再拼本供应商 alias，value 形状保持
-          // <alias>/<modelKey> 与路由一致；按 value 去重，别名/custom 优先。
-          // 拉取失败/为空时保持现状，不清空可选池。
+          // 过 4 个），远落后于详情页的 live 目录。live 行 id 以裸键为主
+          // （qwen4-max）；带 provider 前缀的旧形态（qwenwork-cn/flash，2026-11-23
+          // 之前的 route 行为）剥掉再拼，两种形态都归一到本供应商 alias 下的
+          // value（<alias>/<modelKey>，与路由一致）；按 value 去重，别名/custom
+          // 优先。拉取失败/为空时保持现状，不清空可选池。
           const providerLiveModels = (liveCatalogModels[providerId] || []).filter((m) => m?.id);
           if (providerLiveModels.length > 0) {
-            const livePrefix = providerId === getProviderAlias(providerId) ? "" : `${providerId}/`;
+            const livePrefix = `${providerId}/`;
             combined = combined.concat(
               providerLiveModels
                 .map((m) => {
-                  const modelKey = livePrefix && m.id.startsWith(livePrefix) ? m.id.slice(livePrefix.length) : m.id;
+                  const modelKey = m.id.startsWith(livePrefix) ? m.id.slice(livePrefix.length) : m.id;
                   return {
                     id: modelKey,
                     name: m.name || modelKey,
