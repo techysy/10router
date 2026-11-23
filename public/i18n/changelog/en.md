@@ -10,6 +10,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **"Resets first" sort button on the quota page fixed**: the hourglass button in the quota page toolbar previously did nothing when clicked, and rendered as a squashed pink chip while active — the sort only worked within the current page and lacked the data to sort by, the page order never followed it across pages, and the button's styles clashed. Accounts are now genuinely ordered by their earliest quota reset/expiry time (across pages), and the button's active state renders correctly.
+
 - **QwenWork model list "double prefix" fix**: model ids on the QwenWork / QwenWork CN provider pages used to render as `qw/qwenwork/…`, `qwc/qwenwork-cn/…` — a doubled prefix (the extra layer came from the catalog route). Imports, disables and locks made from those rows stored invalid keys, which hid models and made them unpickable in combos. Ids are now normalized to the correct `qw/qwen4-max`, `qwc/flash` shape, and the malformed keys stored server-side are cleaned up automatically. Manually added models are unaffected; models that were wrongly hidden become visible again after a refresh (if one was wrongly disabled, restore it with "+" on the provider page).
 
 - **The combo model picker now shows QwenWork's latest models**: when adding models to a combo, QwenWork (intl / CN) used to list only the handful of models you had added by hand, out of sync with the provider detail page's live catalog; the picker now fetches the account's current model list and shows the same rate badges as the detail page (free / Nx). Manually added models and their order are unchanged, and the previous list is kept if the catalog fetch fails.
