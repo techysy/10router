@@ -10,6 +10,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **The combo model picker now shows QwenWork's latest models**: when adding models to a combo, QwenWork (intl / CN) used to list only the handful of models you had added by hand, out of sync with the provider detail page's live catalog; the picker now fetches the account's current model list and shows the same rate badges as the detail page (free / Nx). Manually added models and their order are unchanged, and the previous list is kept if the catalog fetch fails.
+
 - **CrowLLM quota card fixes**: ① the card title's casing is corrected (Crowllm → CrowLLM); ② quota is no longer double-counted — the wallet balance already includes the gift credit, but the card used to add the two together and show a doubled figure (219.98 where the real balance is 109.99). The headline number now reflects the true balance, and the gift credit remains visible in the per-pack breakdown (that side is fixed in CreditDaddy and takes effect as it ships).
 
 - **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.

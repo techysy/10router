@@ -25,9 +25,11 @@ const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(
 );
 
 // 需要按账号拉取 live 目录的供应商（Cursor 的可选模型随账号订阅浮动；Zed 的
-// 静态 registry 目录是空的、靠 passthrough 透传，由 modelsUrl 实时下发）。静态
+// 静态 registry 目录是空的、靠 passthrough 透传，由 modelsUrl 实时下发；
+// QwenWork 的目录按账号套餐浮动且静态表只是兜底 —— 用户手建别名只有 4 个时
+// 组合选择器会远落后于详情页的 live 目录，2026-11-23 用户报）。静态
 // 目录只作拉取失败/为空时的兜底 —— 不同账号可能拿到不同的模型清单。
-const LIVE_CATALOG_PROVIDERS = ["cursor", "zed"];
+const LIVE_CATALOG_PROVIDERS = ["cursor", "zed", "qwenwork", "qwenwork-cn"];
 
 export default function ModelSelectModal({
   isOpen,
@@ -317,7 +319,34 @@ export default function ModelSelectModal({
             .filter((m) => !getModelKind(m) || getModelKind(m) === "llm")
             .map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) }))
             .filter((m) => !seen.has(m.value));
+          for (const m of hardcoded) seen.add(m.value);
           combined = [...registeredLlms, ...aliasModels.filter((m) => !registeredLlms.some((registered) => registered.value === m.value)), ...hardcoded];
+          // Live 目录补位（qwenwork 等，2026-11-23 用户报）：passthrough 供应商的
+          // 组合选择器此前只出别名+自定义+静态表 —— 别名是用户手建的（qwenwork 只建
+          // 过 4 个），远落后于详情页的 live 目录。live 行 id 已带 provider 前缀
+          // （qwenwork-cn/flash），剥掉再拼本供应商 alias，value 形状保持
+          // <alias>/<modelKey> 与路由一致；按 value 去重，别名/custom 优先。
+          // 拉取失败/为空时保持现状，不清空可选池。
+          const providerLiveModels = (liveCatalogModels[providerId] || []).filter((m) => m?.id);
+          if (providerLiveModels.length > 0) {
+            const livePrefix = providerId === getProviderAlias(providerId) ? "" : `${providerId}/`;
+            combined = combined.concat(
+              providerLiveModels
+                .map((m) => {
+                  const modelKey = livePrefix && m.id.startsWith(livePrefix) ? m.id.slice(livePrefix.length) : m.id;
+                  return {
+                    id: modelKey,
+                    name: m.name || modelKey,
+                    value: `${alias}/${modelKey}`,
+                    rateMultiplier: m.rateMultiplier,
+                    originalRateMultiplier: m.originalRateMultiplier,
+                    promotion: m.promotion,
+                    isLive: true,
+                  };
+                })
+                .filter((m) => !seen.has(m.value)),
+            );
+          }
         }
 
         if (combined.length > 0) {
@@ -717,6 +746,20 @@ export default function ModelSelectModal({
                       ) : (
                         <>
                           {model.name}
+                          {/* live 目录行的倍率徽章（详情页 ModelRow 同口径）：
+                              0x 或激活的 promotion → 绿 free；其余带倍率出 Nx。 */}
+                          {model.isLive && typeof model.rateMultiplier === "number" && (
+                            <span
+                              className={`shrink-0 rounded px-1 text-[9px] font-normal leading-none ${
+                                model.rateMultiplier === 0 || model.promotion
+                                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                                  : "bg-surface-2 text-text-muted font-mono"
+                              }`}
+                              title={`${translate("Credit multiplier")}: ${model.rateMultiplier}x${model.originalRateMultiplier ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x` : ""}`}
+                            >
+                              {model.rateMultiplier === 0 || model.promotion ? "free" : `${model.rateMultiplier.toFixed(2)}x`}
+                            </span>
+                          )}
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       )}
