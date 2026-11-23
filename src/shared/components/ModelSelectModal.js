@@ -19,7 +19,12 @@ const PROVIDER_ORDER = [
   ...Object.keys(APIKEY_PROVIDERS),
 ];
 
-// Providers that need no auth — always show in model selector (exclude hidden ones)
+// Providers that need no auth — candidates for the model selector (exclude
+// registry-hidden ones). Whether each actually appears is decided per-mount by
+// the user's topology visibility (see isTopologyVisibleFor below): the picker
+// must agree with the providers page / usage topology canvas, so a noAuth
+// channel the user hid from the topology (or that defaults hidden) must not
+// resurface here.
 const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(
   (id) => FREE_PROVIDERS[id].noAuth && !FREE_PROVIDERS[id].hidden
 );
@@ -65,8 +70,24 @@ export default function ModelSelectModal({
   const [providerNodes, setProviderNodes] = useState([]);
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
+  // 拓扑可见性（与供应商页 / 用量拓扑同一口径，2026-11-23 用户报）：noAuth
+  // 免费渠道此前无条件进选择器，用户在拓扑里藏掉后仍会冒出来。
+  const [topologyVisibility, setTopologyVisibility] = useState({});
+  const [showCommunityProviders, setShowCommunityProviders] = useState(true);
   // live 目录按供应商分组缓存：{ [providerId]: models }
   const [liveCatalogModels, setLiveCatalogModels] = useState({});
+
+  // noAuth 渠道的拓扑可见性 — 与 providers/page.js 的 topologyVisibleFor 和
+  // UsageStats 的 isTopologyVisible 完全同语义（三处必须一起改）：
+  // setting===false 隐藏 / setting===true 显示 / 未设置看 topologyHiddenByDefault。
+  const isTopologyVisibleFor = (info, id) => {
+    const setting = topologyVisibility?.[id];
+    return setting === false
+      ? false
+      : setting === true
+        ? true
+        : !info.topologyHiddenByDefault;
+  };
 
   // 每个 live 供应商取它所有已连接账号的 connection id。
   const liveConnectionIdsByProvider = useMemo(() => {
@@ -190,6 +211,24 @@ export default function ModelSelectModal({
     if (isOpen) fetchDisabledModels();
   }, [isOpen]);
 
+  // 拓扑可见性设置（2026-11-23 用户报）：选择器与供应商页/拓扑图口径统一，
+  // 失败时保持默认（community 显示、无隐藏）—— 宁多显示不可静默吞渠道。
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/settings", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
+      const s = await res.json();
+      setTopologyVisibility(s?.topologyVisibility || {});
+      setShowCommunityProviders(s?.showCommunityProviders !== false);
+    } catch (error) {
+      console.error("Error fetching settings for selector:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) fetchSettings();
+  }, [isOpen]);
+
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);
 
   // Group models by provider with priority order
@@ -223,10 +262,16 @@ export default function ModelSelectModal({
       .filter((p) => p.isActive !== false)
       .map((p) => p.provider);
 
-    // No-auth providers: filter by kindFilter as well
-    const noAuthIds = kindFilter
-      ? NO_AUTH_PROVIDER_IDS.filter((id) => (AI_PROVIDERS[id]?.serviceKinds || ["llm"]).includes(kindFilter))
-      : NO_AUTH_PROVIDER_IDS;
+    // No-auth providers: topology visibility first (same semantics as the
+    // providers page toggle / usage topology — hidden there, hidden here),
+    // then the community toggle (公益站), then kindFilter.
+    const noAuthIds = NO_AUTH_PROVIDER_IDS.filter((id) => {
+      const info = AI_PROVIDERS[id];
+      if (!isTopologyVisibleFor(info, id)) return false;
+      if (!showCommunityProviders && info?.community === true) return false;
+      if (kindFilter) return (info?.serviceKinds || ["llm"]).includes(kindFilter);
+      return true;
+    });
 
     // Connected providers + no-auth providers
     const connectedIds = new Set([
@@ -234,11 +279,15 @@ export default function ModelSelectModal({
       ...noAuthIds,
     ]);
 
-    // Unconnected standard providers that match kindFilter
+    // Unconnected standard providers that match kindFilter. A topology-hidden
+    // noAuth provider must not slip back in here: it leaves noAuthIds above,
+    // and without this guard it would resurface as an "unconnected" group.
     const unconnectedIds = Object.keys(allProviders).filter((id) => {
       if (connectedIds.has(id)) return false;
       const p = allProviders[id];
       if (!p || p.hidden) return false;
+      if (p.noAuth && !isTopologyVisibleFor(p, id)) return false;
+      if (p.noAuth && !showCommunityProviders && p.community === true) return false;
       if (kindFilter) {
         const kinds = p.serviceKinds || ["llm"];
         return kinds.includes(kindFilter);
@@ -505,7 +554,7 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, activeProviders, liveCatalogModels]);
+  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, activeProviders, liveCatalogModels, topologyVisibility, showCommunityProviders]);
 
   // Filter combos by search query (and hide combos when kindFilter is set — combos are LLM-only by design)
   const filteredCombos = useMemo(() => {

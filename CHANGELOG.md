@@ -4,6 +4,8 @@
 
 ## Unreleased（随下一版发布）
 
+- **拓扑隐藏的供应商不再出现在组合模型选择器（2026-11-23 用户报）**：OpenCode Free / MiMo Code Free / MiniMax Code Free 这几个 noAuth 免费渠道在供应商页拓扑里藏掉后，组合编辑的「添加模型」弹窗里照样冒出来——ModelSelectModal 此前把 noAuth 渠道无条件并进「已连接」组（「仅已连接」开关也挡不住），从不读拓扑可见性设置。修复：选择器打开时拉 /api/settings，noAuth 渠道入选改按三处统一口径过滤——`topologyVisibility`（setting===false 隐藏 / ===true 显示 / 未设置看 `topologyHiddenByDefault`，与供应商页 topologyVisibleFor、用量拓扑 isTopologyVisible 同语义）+ `showCommunityProviders`（公益站开关，与拓扑图一致）；同时守住未连接组分支，被藏的 noAuth 渠道不再以「未连接」身份绕回来。auth 型供应商无拓扑开关，不受影响；media-providers 等 kindFilter 用法同享过滤（只作用于 noAuth/community 渠道入选）。拉取失败保持默认不吞渠道。测试：model-select-modal-topology-hidden 契约（4 例，readFileSync 源码断言模式）。
+
 - **QwenWork 目录 id 双前缀根治（2026-11-23 用户报「数据完全是乱的」）**：`/api/providers/[id]/models` 的 qwenwork resolver 此前返回带 provider 前缀的 id（`qwenwork/qwen4-max`），而详情页 11-22 的「实时目录整体替换」（liveCatalogOnly）把这些行原样塞进模型列表、渲染再拼一层 alias → 模型行显示 `qw/qwenwork/qwen4-max` / `qwc/qwenwork-cn/flash` 双前缀；由此在这些行上做的操作全部落了错键——详情页导入的自定义模型、禁用清单（NAS qw/qwc 名下各 ~10 条带前缀键）、连接上的 `modelLock_qwenwork/*`。qoder 家族无此问题（其页面用 mergeQoderLivePricing 按裸键 join 静态行，带前缀 id 是它 join 的输入）。修复三处：① route 的 resolveQwenWorkCatalog 改发裸键 id（`id: m.id`），与 v1/models、组合选择器、导入按钮三个消费方的 `<alias>/<裸键>` 口径对齐（注释写明与 qoder 的口径差异，防回改）；② 组合选择器 live 行剥前缀兼容裸键（主）与旧带前缀（防御）两种形态；③ 详情页「获取模型」导入的 strip 正则补 `qwenwork(-cn)/`（治缓存响应里的旧格式）。/v1/models 本就对任意前缀剥除，无需改。**数据清洗（部署后执行）**：NAS DB kv.disabledModels 的 qw/qwc 名下删带前缀错键与旧目录死键（lite/flagship/qmodel_latest/qwork-*——今天 live 目录不再返回，留着只会隐藏真模型），保留用户明确禁用的在线裸键；连接 modelLock_qwenwork/* 三条同删；桌面实例无 qwenwork 错键（custom/alias 表均为 0）。测试：qwenwork-catalog-bare-id 契约（4 例）+ passthrough-live 契约复跑（5 例）+ qwenwork-provider/qoder-cn 回归全绿。
 
 
