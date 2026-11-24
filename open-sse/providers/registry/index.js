@@ -183,6 +183,8 @@ import p180 from "./qwenwork-cn.js";
 import p181 from "./numes.js";
 import p182 from "./atlascloud.js";
 import p183 from "./junie.js";
+import p184 from "./autoclaw.js";
+import p185 from "./autoclaw-cn.js";
 
 export default [
   p0,
@@ -369,4 +371,6 @@ export default [
   p181,
   p182,
   p183,
+  p184,
+  p185,
 ];

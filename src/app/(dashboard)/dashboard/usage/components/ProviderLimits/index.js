@@ -202,6 +202,8 @@ const KNOWN_PROVIDER_NAMES = {
   "qwenwork": "QwenWork",
   "qwenwork-cn": "QwenWork CN",
   "crowllm": "CrowLLM",
+  "autoclaw": "AutoClaw",
+  "autoclaw-cn": "AutoClaw CN",
 };
 
 export default function ProviderLimits() {

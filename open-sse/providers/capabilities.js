@@ -582,6 +582,23 @@ export const PROVIDER_CAPABILITIES = {
   "junie": {
     "junie-lite": { reasoning: true, thinkingFormat: "qwen", contextWindow: 229370 },
   },
+  // AutoClaw（智谱澳龙）国际/国内两线同一模型目录：zai_/zaicoding_ 前缀的
+  // 路由 id 不命中任何 canonical/家族 pattern（会落 DEFAULT 200K 且无
+  // reasoning）。上游 1M 窗口；思考变体只有 low/high/max（无关闭档，见
+  // thinkingLevels.js），走 openai reasoning_effort，executor 再钳一次。
+  // max_tokens 族在 executor 里一律剥掉（上游 406），maxOutput 仅作展示。
+  "autoclaw": {
+    "zai_auto":           { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_auto-fast":      { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_glm-5.3-flash":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zaicoding_glm-5.3":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+  },
+  "autoclaw-cn": {
+    "zai_auto":           { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_auto-fast":      { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_glm-5.3-flash":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zaicoding_glm-5.3":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+  },
   // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
   // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压

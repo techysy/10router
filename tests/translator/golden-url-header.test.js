@@ -39,6 +39,11 @@ const SPECIALIZED = new Set([
   // 永不执行。真实形状锁在 unit/junie-provider.test.js（headers/buildUrl 走
   // transport.baseUrl）。
   "junie",
+  // autoclaw / autoclaw-cn 走 AutoclawExecutor（按 token JWT source_id 选域、
+  // 签名头每次现算、请求体整形）——DefaultExecutor 锁出的形状永不执行。真实
+  // 形状锁在 unit/autoclaw-provider.test.js。
+  "autoclaw",
+  "autoclaw-cn",
 ]);
 
 // Phiên bản app được nướng vào vài header (đọc từ package.json lúc chạy):

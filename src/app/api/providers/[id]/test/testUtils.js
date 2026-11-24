@@ -26,6 +26,8 @@ import {
   JUNIE_UPSTREAM_MODEL,
 } from "open-sse/shared/junie/constants.js";
 import { fetchMeooPoints, resolveMeooProjectAk, getMeooControlKey } from "open-sse/services/meooAk.js";
+import { autoclawPost, autoclawRegionFor, autoclawRegionConfig, isAutoclawDeadLogin } from "open-sse/shared/autoclaw/client.js";
+import { AUTOCLAW_PATHS } from "open-sse/shared/autoclaw/constants.js";
 import { QODER_USERINFO_URL, QODER_CN_USERINFO_URL } from "open-sse/shared/qoder/constants.js";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
 import {
@@ -871,6 +873,73 @@ async function testJunieConnection(connection, effectiveProxy = null, options = 
   }
 }
 
+// AutoClaw（智谱澳龙，intl + CN）: no model-free chat probe exists and every
+// chat turn spends credits, so the truthful cheap check is the account
+// plane's signed user-profile read on the token's own region (JWT
+// source_id). Envelope code 0 = valid; 401/403 or a dead-login code → one
+// refresh through the rotating refresh token, and the new pair rides back
+// via newTokens so the caller persists it.
+async function testAutoclawConnection(connection, effectiveProxy = null) {
+  if (!connection.accessToken && !connection.refreshToken) {
+    return { valid: false, error: "No access token", refreshed: false };
+  }
+  let accessToken = connection.accessToken;
+  let refreshed = false;
+  let newTokens = null;
+
+  const tryRefresh = async () => {
+    if (!connection.refreshToken) return false;
+    const merged = await refreshProviderCredentials(connection.provider, connection, console);
+    if (!merged?.accessToken) return false;
+    accessToken = merged.accessToken;
+    refreshed = true;
+    newTokens = {
+      accessToken: merged.accessToken,
+      ...(merged.refreshToken ? { refreshToken: merged.refreshToken } : {}),
+      ...(merged.expiresIn ? { expiresIn: merged.expiresIn } : {}),
+    };
+    return true;
+  };
+
+  if (isTokenExpired(connection) && connection.refreshToken) {
+    const ok = await tryRefresh();
+    if (!ok) return { valid: false, error: "Token expired and refresh failed", refreshed: false };
+  }
+
+  const region = autoclawRegionFor(connection.provider, connection);
+  const probe = (token) => autoclawPost(
+    autoclawRegionConfig(region).accountHost,
+    AUTOCLAW_PATHS.userProfile,
+    {},
+    {
+      region,
+      accessToken: token,
+      deviceId: connection.providerSpecificData?.deviceId || null,
+      fetchImpl: (url, init) => fetchWithConnectionProxy(url, init, effectiveProxy),
+    },
+  );
+  const isAuthFailure = isAutoclawDeadLogin;
+
+  try {
+    try {
+      await probe(accessToken);
+    } catch (e) {
+      if (!isAuthFailure(e) || refreshed || !connection.refreshToken) throw e;
+      const ok = await tryRefresh();
+      if (!ok) return { valid: false, error: "Token invalid or expired", refreshed: false };
+      await probe(accessToken);
+    }
+    return { valid: true, error: null, refreshed, ...(newTokens ? { newTokens } : {}) };
+  } catch (err) {
+    return {
+      valid: false,
+      error: isAuthFailure(err) ? "Token invalid or expired" : `AutoClaw test failed: ${err.message}`,
+      refreshed,
+      ...(newTokens ? { newTokens } : {}),
+    };
+  }
+}
+
 async function testOAuthConnection(connection, effectiveProxy = null, options = {}) {
   // Qoder's test is model-aware and needs the live catalog — handled here, not
   // via OAUTH_TEST_CONFIG (which qoder-cn was never in, so it answered "Provider
@@ -892,6 +961,10 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
   // one minimal chat completion (see testJunieConnection).
   if (connection.provider === "junie") {
     return testJunieConnection(connection, effectiveProxy, options);
+  }
+  // AutoClaw: signed account-plane profile read (no credit-spending chat probe).
+  if (connection.provider === "autoclaw" || connection.provider === "autoclaw-cn") {
+    return testAutoclawConnection(connection, effectiveProxy);
   }
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };

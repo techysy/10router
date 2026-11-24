@@ -199,6 +199,19 @@ export async function PATCH(request) {
       }
     }
 
+    // Auto daily check-in for AutoClaw（智谱澳龙，intl + CN; task-center daily_signin）
+    if (Object.prototype.hasOwnProperty.call(body, "autoclawCheckin")) {
+      if (settings.autoclawCheckin === true) {
+        import("@/sse/services/autoclawCheckin.js")
+          .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
+          .catch((error) => console.warn("[AutoclawCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/autoclawCheckin.js")
+          .then(({ stopAutoclawCheckin }) => stopAutoclawCheckin())
+          .catch((error) => console.warn("[AutoclawCheckin] stop failed:", error.message));
+      }
+    }
+
     // Auto daily credit claim for Meoo (login-equivalent action + ledger verdict)
     if (Object.prototype.hasOwnProperty.call(body, "meooCheckin")) {
       if (settings.meooCheckin === true) {
