@@ -94,6 +94,13 @@ export const AUTOCLAW_OAUTH_HOSTS = {
   google: "accounts.google.com",
   zai: "chatglm.cn",
 };
+// Registrable domains each vendor's authorize page may live on (exact host or
+// a subdomain of it). The intl build's zai vendor lands on z.ai (chat.z.ai),
+// the CN account system on chatglm.cn / bigmodel.cn.
+export const AUTOCLAW_OAUTH_TRUSTED_DOMAINS = {
+  google: ["accounts.google.com"],
+  zai: ["chatglm.cn", "z.ai", "bigmodel.cn", "zhipuai.cn"],
+};
 export function autoclawRedirectUri(vendor = AUTOCLAW_DEFAULT_VENDOR, port = AUTOCLAW_OAUTH_PORTS[0]) {
   return `http://localhost:${port}/auth/callback-${vendor}`;
 }

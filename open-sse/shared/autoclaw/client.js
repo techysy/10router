@@ -20,6 +20,7 @@ import {
   AUTOCLAW_REFRESH_FALLBACK_CODE,
   AUTOCLAW_DAILY_SIGNIN_TASK,
   AUTOCLAW_OAUTH_HOSTS,
+  AUTOCLAW_OAUTH_TRUSTED_DOMAINS,
   AUTOCLAW_OAUTH_VENDORS,
   AUTOCLAW_BUSINESS_CODES,
   AUTOCLAW_HTTP_TIMEOUT_MS,
@@ -284,12 +285,14 @@ export function normalizeAutoclawVendor(vendor) {
   return AUTOCLAW_OAUTH_VENDORS.includes(vendor) ? vendor : AUTOCLAW_OAUTH_VENDORS[0];
 }
 
-/** https + no credentials + no port + exact vendor host (main.cjs isTrustedOAuthUrl). */
+/** https + no credentials + no port + vendor's trusted domain (exact or subdomain). */
 export function isTrustedAutoclawAuthorizeUrl(url, vendor) {
   try {
     const u = new URL(url);
     if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
-    return u.hostname.toLowerCase() === AUTOCLAW_OAUTH_HOSTS[normalizeAutoclawVendor(vendor)];
+    const host = u.hostname.toLowerCase();
+    const domains = AUTOCLAW_OAUTH_TRUSTED_DOMAINS[normalizeAutoclawVendor(vendor)] || [];
+    return domains.some((d) => host === d || host.endsWith(`.${d}`));
   } catch {
     return false;
   }
@@ -326,7 +329,9 @@ export async function getAutoclawOAuthUrl({ vendor, navigateUri, captchaVerifyPa
   const authorizeUrl = String(data.oauth_url || data.url || data.login_url || data.auth_url || data.verify_url || "").trim();
   if (!authorizeUrl) throw new AutoclawApiError("AutoClaw 未返回授权页地址", { data });
   if (!isTrustedAutoclawAuthorizeUrl(authorizeUrl, v)) {
-    throw new AutoclawApiError(`授权链接不在预期 host（${AUTOCLAW_OAUTH_HOSTS[v]}），已拒绝`, { data });
+    let got = "?";
+    try { got = new URL(authorizeUrl).hostname; } catch { /* unparsable */ }
+    throw new AutoclawApiError(`授权链接 host（${got}）不在 ${v} 的可信域名（${AUTOCLAW_OAUTH_TRUSTED_DOMAINS[v].join(" / ")}）内，已拒绝`, { data });
   }
   let state = null;
   try { state = new URL(authorizeUrl).searchParams.get("state"); } catch { /* checked above */ }
