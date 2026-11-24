@@ -67,30 +67,39 @@ describe("服务端 expiring 排序（client route）", () => {
     expect(ROUTE).toMatch(/"earliestPackageExpiry"/);
   });
 
-  it("排序语义：有到期时间的在前（升序），没有的沉底，并列按 provider/name", () => {
+  it("排序语义：未来的在前（升序），已过期/没有的沉底，并列按 provider/name（2026-11-24 用户报：已过期 0 额度账户不得排最前）", () => {
     // 直接复刻 route.js 里的 expiring 分支语义做纯函数验证（route 本体依赖
     // DB，单测跑不动——语义钉住，route 里改动语义时这里会红）。
+    const now = Date.now();
     const expiryTime = (c) => {
       const t = c?.earliestPackageExpiry ? new Date(c.earliestPackageExpiry).getTime() : NaN;
-      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+      return Number.isFinite(t) && t > now && new Date(t).getFullYear() <= 2099
+        ? t
+        : Number.POSITIVE_INFINITY;
     };
     const sort = (list) =>
       [...list].sort((a, b) => {
-        const diff = expiryTime(a) - expiryTime(b);
-        if (diff !== 0) return diff;
+        const ta = expiryTime(a);
+        const tb = expiryTime(b);
+        if (ta !== tb) return ta - tb;
         return (
           (a.provider || "").localeCompare(b.provider || "") ||
           (a.name || "").localeCompare(b.name || "")
         );
       });
 
-    const soon = { provider: "meoo", name: "a", earliestPackageExpiry: new Date(Date.now() + 24 * 3600 * 1000).toISOString() };
-    const later = { provider: "meoo", name: "b", earliestPackageExpiry: new Date(Date.now() + 8 * 24 * 3600 * 1000).toISOString() };
+    const soon = { provider: "meoo", name: "a", earliestPackageExpiry: new Date(now + 24 * 3600 * 1000).toISOString() };
+    const later = { provider: "meoo", name: "b", earliestPackageExpiry: new Date(now + 8 * 24 * 3600 * 1000).toISOString() };
     const none = { provider: "qoder", name: "c" };
     const otherProviderTie = { provider: "aaaa", name: "z", earliestPackageExpiry: soon.earliestPackageExpiry };
+    // 已过期（窗口已回血）与永久（9999 哨兵）同无到期日期，一起沉底。
+    const expired = { provider: "meoo", name: "d", earliestPackageExpiry: new Date(now - 3 * 24 * 3600 * 1000).toISOString() };
+    const sentinel = { provider: "opencode", name: "e", earliestPackageExpiry: "9999-12-31T00:00:00.000Z" };
 
-    const sorted = sort([none, later, otherProviderTie, soon]);
-    expect(sorted.map((c) => c.name)).toEqual(["z", "a", "b", "c"]);
+    const sorted = sort([expired, none, later, sentinel, otherProviderTie, soon]);
+    // 沉底组（expired/none/sentinel 均 Infinity）内部按 provider 字典序决胜：
+    // meoo(d) < opencode(e) < qoder(c)。
+    expect(sorted.map((c) => c.name)).toEqual(["z", "a", "b", "d", "e", "c"]);
   });
 });
 

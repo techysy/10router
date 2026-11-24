@@ -84,15 +84,28 @@ function sortConnections(connections, sort) {
   // looked dead. The connection row already persists the routing-side
   // earliest-package expiry (earliestPackageExpiry, written by the usage
   // refresh path), so the server can sort the WHOLE list before paging.
-  // Never-expiring (Infinity) sink to the bottom in provider/name order.
+  // EXPIRED dates rank as "no date" (sink to the bottom): a window whose
+  // resetAt is in the past has already refilled, so it is not "about to
+  // reset/expire" — same rule as the client-side fallback in
+  // sortVisibleConnections (2026-11-24 用户报：已过期 0 额度的账户排在最前).
+  // Also matches the sentinel rule downstream (year-9999 = permanent).
   if (sort === "expiring") {
+    const now = Date.now();
     const expiryTime = (c) => {
       const t = c?.earliestPackageExpiry ? new Date(c.earliestPackageExpiry).getTime() : NaN;
-      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+      // Expired or sentinel → Infinity, exactly like the client fallback and
+      // the expiryExtractor's isPerpetual rule.
+      return Number.isFinite(t) && t > now && new Date(t).getFullYear() <= 2099
+        ? t
+        : Number.POSITIVE_INFINITY;
     };
     return list.sort((a, b) => {
-      const diff = expiryTime(a) - expiryTime(b);
-      if (diff !== 0) return diff;
+      // Compare VALUES, not the difference: Infinity - Infinity is NaN and a
+      // NaN comparator result is treated as "equal", which would silently
+      // skip the provider/name tiebreak below.
+      const ta = expiryTime(a);
+      const tb = expiryTime(b);
+      if (ta !== tb) return ta - tb;
       return (
         (a.provider || "").localeCompare(b.provider || "") ||
         (a.name || "").localeCompare(b.name || "")
