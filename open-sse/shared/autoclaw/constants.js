@@ -9,7 +9,7 @@
 //
 //   | provider     | login                              | account host              | chat host / path                                              |
 //   |--------------|------------------------------------|---------------------------|---------------------------------------------------------------|
-//   | autoclaw     | Google / z.ai web OAuth            | autoglm-api.autoglm.ai    | autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/v1/chat/completions |
+//   | autoclaw     | Z.AI web OAuth                     | autoglm-api.autoglm.ai    | autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/v1/chat/completions |
 //   | autoclaw-cn  | +86 phone SMS code (no OAuth link) | autoglm-api.zhipuai.cn    | autoglm-acceleration-api.zhipuai.cn/autoclaw-proxy/proxy/autoclaw/chat/completions (no /v1) |
 //
 // Tokens do NOT cross domains (intl token on the CN chat host → 401 and vice
@@ -86,19 +86,19 @@ export const AUTOCLAW_REGIONS = {
 // client"). Nothing listens there from the dashboard, so the user pastes
 // the dead-page URL back (paste-callback, same shape as croli / junie).
 export const AUTOCLAW_OAUTH_PORTS = [18432, 19654, 19723, 53699];
-export const AUTOCLAW_OAUTH_VENDORS = ["google", "zai"];
-export const AUTOCLAW_DEFAULT_VENDOR = "google";
+// AutoClaw unified its account system: new users register via Z.AI, and the
+// Google sign-in path was retired — only the zai vendor remains.
+export const AUTOCLAW_OAUTH_VENDORS = ["zai"];
+export const AUTOCLAW_DEFAULT_VENDOR = "zai";
 // The authorize page must live on the vendor's own host (main.cjs
 // isTrustedOAuthUrl) — handing a code to any other host leaks the account.
 export const AUTOCLAW_OAUTH_HOSTS = {
-  google: "accounts.google.com",
-  zai: "chatglm.cn",
+  zai: "chat.z.ai",
 };
 // Registrable domains each vendor's authorize page may live on (exact host or
 // a subdomain of it). The intl build's zai vendor lands on z.ai (chat.z.ai),
 // the CN account system on chatglm.cn / bigmodel.cn.
 export const AUTOCLAW_OAUTH_TRUSTED_DOMAINS = {
-  google: ["accounts.google.com"],
   zai: ["chatglm.cn", "z.ai", "bigmodel.cn", "zhipuai.cn"],
 };
 export function autoclawRedirectUri(vendor = AUTOCLAW_DEFAULT_VENDOR, port = AUTOCLAW_OAUTH_PORTS[0]) {

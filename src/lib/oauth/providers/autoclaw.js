@@ -1,4 +1,4 @@
-// AutoClaw（智谱澳龙）国际版 — account-plane web OAuth (Google / z.ai),
+// AutoClaw（智谱澳龙）国际版 — account-plane web OAuth (Z.AI),
 // wire-compatible with the desktop client's AuthApiAdapter (ported from
 // hj01857655/AutoClaw2api internal/oauth + hubo1989/opencode-autoclaw-auth):
 //
@@ -7,8 +7,8 @@
 //   POST …/userapi/overseasv1/{vendor}-oauth-url
 //        { source_id, device_id, navigate_uri, ali_captcha_verify_param? }
 //        → data.oauth_url (vendor authorize page, carries the upstream state)
-//   browser → accounts.google.com (z.ai: chatglm.cn) → 302 to
-//        http://localhost:18432/auth/callback-{vendor}?code=&state=
+//   browser → chat.z.ai → 302 to
+//        http://localhost:18432/auth/callback-zai?code=&state=
 //   POST …/userapi/overseasv1/{vendor}-oauth-login
 //        { source_id, device_id, code, state, navigate_uri }
 //        → { access_token, refresh_token, user_id }
@@ -144,7 +144,7 @@ export function autoclawIdentityEmail(profile, userId) {
 
 /** createProviderConnection payload (route + tests share it). */
 export function autoclawIntlConnectionPayload(r) {
-  const name = autoclawDisplayName(r.profile, `AutoClaw ${r.vendor === "zai" ? "z.ai" : "Google"} 账号`);
+  const name = autoclawDisplayName(r.profile, "AutoClaw Z.AI 账号");
   return {
     provider: "autoclaw",
     authType: "oauth",

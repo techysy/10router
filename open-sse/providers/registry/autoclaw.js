@@ -1,4 +1,4 @@
-// AutoClaw 国际版（智谱澳龙 / AutoGLM 桌面端，Google / z.ai 账号）。
+// AutoClaw 国际版（智谱澳龙 / AutoGLM 桌面端，Z.AI 账号）。
 //
 // Unofficial, reverse-engineered desktop protocol (ported from
 // hj01857655/AutoClaw2api + hubo1989/opencode-autoclaw-auth — see
@@ -6,7 +6,7 @@
 //
 // Sign-in is the account plane's web OAuth (dashboard AutoclawOAuthModal +
 // /api/oauth/autoclaw/* routes, not the generic OAuthModal):
-//   POST autoglm-api.autoglm.ai/userapi/overseasv1/{google|zai}-oauth-url
+//   POST autoglm-api.autoglm.ai/userapi/overseasv1/zai-oauth-url
 //        { source_id, device_id, navigate_uri, ali_captcha_verify_param }
 //        → authorize URL (carries state). The Aliyun slider captcha is ON
 //        upstream, so the receipt is produced in the user's browser first.
@@ -36,14 +36,14 @@ export default {
     textIcon: "AC",
     website: "https://autoglm.ai",
     notice: {
-      text: "Sign in with your own AutoClaw (Zhipu AutoGLM) international account (Google or z.ai). Unofficial reverse-engineered desktop API — accounts may be restricted; do not keep the AutoClaw desktop app signed in to the same account while 10Router uses it.",
+      text: "Sign in with your own AutoClaw (Zhipu AutoGLM) international account (Z.AI account; Google sign-in was retired upstream). Unofficial reverse-engineered desktop API — accounts may be restricted; do not keep the AutoClaw desktop app signed in to the same account while 10Router uses it.",
       signupUrl: "https://autoglm.ai",
     },
   },
   category: "oauth",
   authModes: ["oauth"],
   hasOAuth: true,
-  authHint: "用你自己的 AutoClaw 国际版账号登录：先退出 AutoClaw 桌面端，点登录、完成滑块验证、在打开的 Google / z.ai 页面授权，浏览器会跳到一个打不开的 localhost:18432 页面——把地址栏里那一整段地址复制回来，粘到弹窗里点连接就行。",
+  authHint: "用你自己的 AutoClaw 国际版账号登录：先退出 AutoClaw 桌面端，点登录、完成滑块验证、在打开的 Z.AI 页面授权，浏览器会跳到一个打不开的 localhost:18432 页面——把地址栏里那一整段地址复制回来，粘到弹窗里点连接就行。",
   transport: {
     baseUrl: AUTOCLAW_CHAT_URL_INTL,
     headers: {},
@@ -56,7 +56,7 @@ export default {
   },
   oauth: {
     accountBaseUrl: "https://autoglm-api.autoglm.ai",
-    redirectUri: "http://localhost:18432/auth/callback-google",
+    redirectUri: "http://localhost:18432/auth/callback-zai",
     refreshUrl: "https://autoglm-api.autoglm.ai/userapi/v1/refresh",
     refreshLeadMs: AUTOCLAW_REFRESH_LEAD_MS,
   },

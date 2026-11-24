@@ -1,6 +1,6 @@
 "use client";
 
-// AutoClaw（智谱澳龙）国际版网页登录弹窗（Google / z.ai）。
+// AutoClaw（智谱澳龙）国际版网页登录弹窗（Z.AI 账号）。
 //
 // 账号面的 oauth-url 受阿里云滑块验证保护（2026-11-24 实测 enabled:true，
 // 缺回执 → 400001），回执只能由用户浏览器里的 Aliyun Captcha SDK 产出，所以
@@ -12,7 +12,7 @@
 //      与 junie / croli 同形）。
 // SDK 调用形态移植自 hubo1989/opencode-autoclaw-auth 的本地引导页。父组件以
 // 条件挂载方式渲染（卸载即重置状态）。
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
 import { Button, Input, Modal } from "@/shared/components";
@@ -44,19 +44,11 @@ function loadCaptchaSdk() {
 }
 
 export default function AutoclawOAuthModal({ isOpen, onClose, onAdded }) {
-  const [vendor, setVendor] = useState("google");
   const [phase, setPhase] = useState("idle"); // idle | captcha | authorize | connecting
   const [flow, setFlow] = useState(null); // { flowId, authUrl, redirectUri }
   const [callbackUrl, setCallbackUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // The captcha callback fires outside React's render cycle — read the vendor
-  // through a ref kept in step with the picker.
-  const vendorRef = useRef("google");
-  const chooseVendor = (v) => {
-    vendorRef.current = v;
-    setVendor(v);
-  };
 
   const requestAuthUrl = useCallback(async (captchaVerifyParam) => {
     setBusy(true);
@@ -65,7 +57,7 @@ export default function AutoclawOAuthModal({ isOpen, onClose, onAdded }) {
       const res = await fetch("/api/oauth/autoclaw/oauth-start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vendor: vendorRef.current, captchaVerifyParam: captchaVerifyParam || null }),
+        body: JSON.stringify({ vendor: "zai", captchaVerifyParam: captchaVerifyParam || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || translate("Login failed"));
@@ -156,21 +148,6 @@ export default function AutoclawOAuthModal({ isOpen, onClose, onAdded }) {
 
         {phase === "idle" && (
           <>
-            <div className="flex gap-2">
-              {[
-                { id: "google", label: "Google" },
-                { id: "zai", label: "z.ai" },
-              ].map((v) => (
-                <Button
-                  key={v.id}
-                  size="sm"
-                  variant={vendor === v.id ? "primary" : "secondary"}
-                  onClick={() => chooseVendor(v.id)}
-                >
-                  {v.label}
-                </Button>
-              ))}
-            </div>
             <Button onClick={start} disabled={busy} fullWidth>
               {busy ? translate("Preparing…") : translate("Start sign-in")}
             </Button>

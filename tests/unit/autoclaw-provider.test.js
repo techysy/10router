@@ -108,7 +108,7 @@ describe("AutoClaw registry", () => {
   });
 
   it("carries the fixed TokenServer loopback redirect for the intl OAuth", () => {
-    expect(PROVIDER_OAUTH["autoclaw"].redirectUri).toBe("http://localhost:18432/auth/callback-google");
+    expect(PROVIDER_OAUTH["autoclaw"].redirectUri).toBe("http://localhost:18432/auth/callback-zai");
     expect(autoclawRedirectUri("zai")).toBe("http://localhost:18432/auth/callback-zai");
   });
 
@@ -158,17 +158,17 @@ describe("AutoClaw wire helpers", () => {
     expect(stripAutoclawModelPrefix("glm-5.3")).toBe("glm-5.3");
   });
 
-  it("only trusts https authorize URLs on the vendor's exact host", () => {
-    expect(isTrustedAutoclawAuthorizeUrl("https://accounts.google.com/o/oauth2/auth?state=x", "google")).toBe(true);
+  it("only trusts https authorize URLs on Z.AI / Zhipu domains", () => {
     expect(isTrustedAutoclawAuthorizeUrl("https://chatglm.cn/oauth?state=x", "zai")).toBe(true);
     expect(isTrustedAutoclawAuthorizeUrl("https://chat.z.ai/oauth?state=x", "zai")).toBe(true);
     expect(isTrustedAutoclawAuthorizeUrl("https://www.chatglm.cn/oauth?state=x", "zai")).toBe(true);
     expect(isTrustedAutoclawAuthorizeUrl("https://evilz.ai/?state=x", "zai")).toBe(false);
     expect(isTrustedAutoclawAuthorizeUrl("https://chat.z.ai.evil.com/?state=x", "zai")).toBe(false);
-    expect(isTrustedAutoclawAuthorizeUrl("https://chat.z.ai/?state=x", "google")).toBe(false);
-    expect(isTrustedAutoclawAuthorizeUrl("http://accounts.google.com/?state=x", "google")).toBe(false);
-    expect(isTrustedAutoclawAuthorizeUrl("https://evil.example/?state=x", "google")).toBe(false);
-    expect(isTrustedAutoclawAuthorizeUrl("https://accounts.google.com:8443/?state=x", "google")).toBe(false);
+    expect(isTrustedAutoclawAuthorizeUrl("https://accounts.google.com/o/oauth2/auth?state=x", "zai")).toBe(false);
+    expect(isTrustedAutoclawAuthorizeUrl("https://chat.z.ai/?state=x", "google")).toBe(true); // unknown vendor normalizes to zai
+    expect(isTrustedAutoclawAuthorizeUrl("http://chat.z.ai/?state=x", "zai")).toBe(false);
+    expect(isTrustedAutoclawAuthorizeUrl("https://evil.example/?state=x", "zai")).toBe(false);
+    expect(isTrustedAutoclawAuthorizeUrl("https://chat.z.ai:8443/?state=x", "zai")).toBe(false);
   });
 
   it("injects the 2.x banner and neutralizes foreign harness identities", () => {
@@ -285,19 +285,19 @@ describe("AutoClaw intl — captcha-gated web OAuth (paste-callback)", () => {
   });
 
   it("mints the authorize URL with the captcha receipt and the registered loopback redirect", async () => {
-    const authorize = "https://accounts.google.com/o/oauth2/v2/auth?client_id=x&state=up-state-1";
+    const authorize = "https://chat.z.ai/oauth/authorize?client_id=x&state=up-state-1";
     const fetchImpl = vi.fn().mockResolvedValue(envelope({ oauth_url: authorize }));
     const { startAutoclawOAuth } = await import("../../src/lib/oauth/providers/autoclaw.js");
-    const r = await startAutoclawOAuth({ vendor: "google", captchaVerifyParam: "receipt-1" }, { fetchImpl });
+    const r = await startAutoclawOAuth({ vendor: "zai", captchaVerifyParam: "receipt-1" }, { fetchImpl });
     expect(r.authUrl).toBe(authorize);
-    expect(r.redirectUri).toBe("http://localhost:18432/auth/callback-google");
+    expect(r.redirectUri).toBe("http://localhost:18432/auth/callback-zai");
     expect(typeof r.flowId).toBe("string");
 
     const [url, opts] = fetchImpl.mock.calls[0];
-    expect(url).toBe(`${AUTOCLAW_GLOBAL_HOST}/userapi/overseasv1/google-oauth-url`);
+    expect(url).toBe(`${AUTOCLAW_GLOBAL_HOST}/userapi/overseasv1/zai-oauth-url`);
     const body = JSON.parse(opts.body);
     expect(body).toMatchObject({
-      navigate_uri: "http://localhost:18432/auth/callback-google",
+      navigate_uri: "http://localhost:18432/auth/callback-zai",
       ali_captcha_verify_param: "receipt-1",
       source_id: "autoclaw",
     });
@@ -309,13 +309,13 @@ describe("AutoClaw intl — captcha-gated web OAuth (paste-callback)", () => {
   it("explains a missing captcha receipt (upstream 400001) instead of a raw code", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(envelope(null, 400001, "请求数据有问题,请检查后重试"));
     const { startAutoclawOAuth } = await import("../../src/lib/oauth/providers/autoclaw.js");
-    await expect(startAutoclawOAuth({ vendor: "google" }, { fetchImpl })).rejects.toThrow(/滑块安全验证/);
+    await expect(startAutoclawOAuth({ vendor: "zai" }, { fetchImpl })).rejects.toThrow(/滑块安全验证/);
   });
 
   it("refuses an authorize URL on an unexpected host", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(envelope({ oauth_url: "https://phish.example/auth?state=s" }));
     const { startAutoclawOAuth } = await import("../../src/lib/oauth/providers/autoclaw.js");
-    await expect(startAutoclawOAuth({ vendor: "google", captchaVerifyParam: "r" }, { fetchImpl })).rejects.toThrow(/host/);
+    await expect(startAutoclawOAuth({ vendor: "zai", captchaVerifyParam: "r" }, { fetchImpl })).rejects.toThrow(/host/);
   });
 
   it("exchanges the pasted callback on oauth-login and builds the connection", async () => {
@@ -365,19 +365,19 @@ describe("AutoClaw intl — captcha-gated web OAuth (paste-callback)", () => {
 
   it("rejects a callback whose state does not match the minted one", async () => {
     const fetchImpl = vi.fn(async (url) => {
-      if (url.endsWith("-oauth-url")) return envelope({ oauth_url: "https://accounts.google.com/auth?state=good" });
+      if (url.endsWith("-oauth-url")) return envelope({ oauth_url: "https://chat.z.ai/auth?state=good" });
       throw new Error(`unexpected ${url}`);
     });
     const { startAutoclawOAuth, completeAutoclawOAuth } = await import("../../src/lib/oauth/providers/autoclaw.js");
-    const flow = await startAutoclawOAuth({ vendor: "google", captchaVerifyParam: "r" }, { fetchImpl });
-    await expect(completeAutoclawOAuth({ flowId: flow.flowId, callbackUrl: "http://localhost:18432/auth/callback-google?code=c&state=evil" }, { fetchImpl }))
+    const flow = await startAutoclawOAuth({ vendor: "zai", captchaVerifyParam: "r" }, { fetchImpl });
+    await expect(completeAutoclawOAuth({ flowId: flow.flowId, callbackUrl: "http://localhost:18432/auth/callback-zai?code=c&state=evil" }, { fetchImpl }))
       .rejects.toThrow(/state/);
     expect(fetchImpl.mock.calls.some(([u]) => u.endsWith("-oauth-login"))).toBe(false);
   });
 
   it("parses callback URLs, bare query strings and provider errors", async () => {
     const { parseAutoclawCallback } = await import("../../src/lib/oauth/providers/autoclaw.js");
-    expect(parseAutoclawCallback("http://localhost:18432/auth/callback-google?code=a&state=b")).toEqual({ code: "a", state: "b" });
+    expect(parseAutoclawCallback("http://localhost:18432/auth/callback-zai?code=a&state=b")).toEqual({ code: "a", state: "b" });
     expect(parseAutoclawCallback("code=a&state=b")).toEqual({ code: "a", state: "b" });
     expect(() => parseAutoclawCallback("http://localhost:18432/?error=access_denied")).toThrow(/access_denied/);
     expect(() => parseAutoclawCallback("")).toThrow();

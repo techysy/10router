@@ -6,7 +6,7 @@ import { getClientIp } from "@/lib/auth/loginLimiter";
 export const dynamic = "force-dynamic";
 
 // POST /api/oauth/autoclaw/oauth-start — 第一步：带浏览器产出的滑块回执调账号面
-// {vendor}-oauth-url，铸授权页（Google / z.ai）。返回 { flowId, authUrl }。
+// {vendor}-oauth-url，铸授权页（Z.AI）。返回 { flowId, authUrl }。
 // 限流：单 IP 20 次/10 分钟（每次铸授权页都会消耗一次验证回执）。
 export async function POST(request) {
   try {
