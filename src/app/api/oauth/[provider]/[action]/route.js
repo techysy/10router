@@ -236,6 +236,17 @@ export async function GET(request, { params }) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "qr" && provider === "xiaohuanxiong") {
+      // 小浣熊 mp 登录 URL（/login/mp?code=…）在普通浏览器打不开，必须渲染成
+      // 二维码图给微信扫。data= 携带完整 mp URL，返回 SVG。
+      const data = request.nextUrl.searchParams.get("data") || "";
+      if (!data) return NextResponse.json({ error: "missing data" }, { status: 400 });
+      const { qrSvgData } = await import("@/lib/oauth/qr.js");
+      return new NextResponse(qrSvgData(data), {
+        headers: { "Content-Type": "image/svg+xml", "Cache-Control": "no-store" },
+      });
+    }
+
     if (action === "ide-status") {
       // Detect whether the IDE is installed locally (used by import-token UX).
       if (provider !== "trae" && provider !== "trae-cn" && provider !== "windsurf") {
@@ -277,6 +288,7 @@ export async function GET(request, { params }) {
         "grok-cli",
         "glm",
         "muse",
+        "xiaohuanxiong",
       ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {

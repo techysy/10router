@@ -77,6 +77,9 @@ export const OPENAI_CONFIG = { ...PROVIDER_OAUTH["openai"] };
 // GitHub Copilot OAuth Configuration (Device Code Flow)
 export const GITHUB_CONFIG = { ...PROVIDER_OAUTH["github"] };
 
+// 商汤小浣熊 OAuth Configuration (微信小程序扫码，复用 device_code 流)
+export const XIAOHUANXIONG_CONFIG = { ...PROVIDER_OAUTH["xiaohuanxiong"] };
+
 // Kiro OAuth Configuration (multi-method: AWS Builder ID / IDC / Social / Import Token)
 export const KIRO_CONFIG = { ...PROVIDER_OAUTH["kiro"] };
 

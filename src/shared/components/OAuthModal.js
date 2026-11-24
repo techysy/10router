@@ -280,6 +280,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "muse",
         "minimax-code",
         "minimax-code-global",
+        "xiaohuanxiong",
       ];
       if (deviceCodeProviders.includes(provider)) {
         setIsDeviceCode(true);

@@ -37,6 +37,7 @@ import zed from "./zed.js";
 import glm from "./glm.js";
 import muse from "./muse.js";
 import { minimaxCode, minimaxCodeGlobal } from "./minimax-code.js";
+import xiaohuanxiong from "./xiaohuanxiong.js";
 
 // Provider configurations
 const PROVIDERS = {
@@ -74,6 +75,7 @@ const PROVIDERS = {
   muse,
   "minimax-code": minimaxCode,
   "minimax-code-global": minimaxCodeGlobal,
+  xiaohuanxiong,
 };
 
 export { PROVIDERS };

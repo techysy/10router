@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **New provider: SenseTime Raccoon (商汤小浣熊)**: sign in by scanning a QR code with WeChat (confirm inside the Raccoon mini-program); nothing needs to be installed on the server. Once connected you can run Raccoon, SenseNova, Qwen4 Max, GLM 5.3, Kimi K3.1 Pro and DeepSeek V4.1 Flash through its OpenAI-compatible API under the `xhx/` prefix. The connection's usage panel shows the points balance (available / daily / monthly / reward / top-up) and task progress (registration pack, desktop login, mobile login, invite count) — Raccoon grants points for tasks and referrals automatically, there is no daily check-in to click. Credentials last ~30 days; re-scan when they expire.
+
 - **Time-window sticky rotation for combos**: with a combo's "Round Robin" strategy, every request used to hop to the next model — in group-assistant use (many people interleaving) a conversation kept switching models mid-thread. Within an active period the same model now keeps answering; only after the idle window (default 5 minutes, adjustable in Settings, overridable per combo on its card) does the ring step to the next one. A per-request switch mode is still available in Settings.
 
 - **New provider: Junie (JetBrains free lane)**: sign in with your own JetBrains account (a free account is enough) to use the free Junie Lite lane — one model for small tasks, served by JetBrains. Click sign-in, approve on the opened page, and the browser lands on a page that won't load — copy the whole address from the address bar, paste it into the connection box, and connect. Only sign in with your own account.

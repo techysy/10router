@@ -1597,5 +1597,12 @@
     "format": "openai",
     "clientId": "junie-cli",
     "tokenUrl": "https://oauth.account.jetbrains.com/oauth2/token"
+  },
+  "xiaohuanxiong": {
+    "baseUrl": "https://xiaohuanxiong.com/api/web/llm/v2/chat/completions",
+    "validateUrl": "https://xiaohuanxiong.com/api/web/llm/v2/model_catalog",
+    "format": "openai",
+    "clientId": "raccoon-desktop",
+    "tokenUrl": "https://xiaohuanxiong.com/api/web/auth/v1/login_with_authorization_code"
   }
 }
