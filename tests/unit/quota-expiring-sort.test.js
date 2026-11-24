@@ -100,6 +100,51 @@ describe("前端接线（index.js / quotaPageCache.js）", () => {
     expect(INDEX).not.toMatch(/sort: "priority"/);
   });
 
+  it("index.js 从 utils 引用的每个标识符都在 import 清单里（2026-11-24 全页连接消失的回归：漏 import 运行时 ReferenceError 被 catch 吞掉、页面保持空缓存——CI 只跑源码契约发现不了，必须钉住 import 完整性）", () => {
+    // 提取 `import { ... } from "./utils"` 的命名清单。
+    const importBlock = INDEX.match(/import\s*\{([^}]*)\}\s*from\s*"\.\/utils"/);
+    expect(importBlock).toBeTruthy();
+    const imported = new Set(
+      importBlock[1]
+        .split(",")
+        .map((s) => s.trim().replace(/^type\s+/, ""))
+        .filter(Boolean),
+    );
+    // INDEX 里每个来自 utils 的裸标识符引用：找出所有在 INDEX 中出现、且是
+    // utils 导出名的标识符，逐一核对在 import 清单里。utils 的导出名单从
+    // utils.js 源码抓（export function/const/…）。
+    const utilsFile = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    const exported = new Set();
+    for (const m of utilsFile.matchAll(/^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+      exported.add(m[1]);
+    }
+    // utils.js 也可能用 export { a, b } 形式，补抓。
+    for (const m of utilsFile.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+      for (const name of m[1].split(",")) {
+        const n = name.trim().split(/\s+as\s+/).pop().trim();
+        if (n) exported.add(n);
+      }
+    }
+    expect(exported.size).toBeGreaterThan(10);
+    // INDEX 里每个被引用的 utils 导出名：只要名字出现在 INDEX 正文（import
+    // 块之外）且属于 utils 导出面，就必须在 import 清单里。
+    const body = INDEX.replace(importBlock[0], "");
+    const missing = [];
+    for (const name of exported) {
+      const used = new RegExp(`\\b${name}\\b`).test(body);
+      if (used && !imported.has(name)) missing.push(name);
+    }
+    expect(missing).toEqual([]);
+  });
+
   it("连接缓存键包含 expiringFirst（默认序页面不得顶替 Resets first 序）", () => {
     expect(CACHE).toMatch(/expiringFirst === true \? 1 : 0/);
     expect(INDEX).toMatch(/connectionsCacheKey\(\{ page: targetPage, pageSize, accountFilter, providerFilter, expiringFirst \}\)/);
