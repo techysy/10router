@@ -1597,5 +1597,15 @@
     "format": "openai",
     "clientId": "junie-cli",
     "tokenUrl": "https://oauth.account.jetbrains.com/oauth2/token"
+  },
+  "quwork": {
+    "baseUrl": "https://llm.quwork.cn/v1/chat/completions",
+    "validateUrl": "https://llm.quwork.cn/v1/models",
+    "headers": {
+      "X-QurWork-Env": "prod",
+      "X-QurWork-Version": "1.7.5"
+    },
+    "timeoutMs": 180000,
+    "format": "openai"
   }
 }
