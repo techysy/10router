@@ -23,7 +23,8 @@ import quworkRegistry from "open-sse/providers/registry/quwork.js";
 import registry from "open-sse/providers/registry/index.js";
 import quworkOAuth from "@/lib/oauth/providers/quwork";
 import { testQuworkConnection } from "../../src/app/api/providers/[id]/test/quworkConnection.js";
-import { getQuworkUsage } from "open-sse/services/usage/quwork.js";
+import { getQuworkUsage, quworkQuotasFromSelf, quworkCheckinToday, quworkTimeToIso } from "open-sse/services/usage/quwork.js";
+import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
 
 function res(status, body) {
   const text = typeof body === "string" ? body : JSON.stringify(body);
@@ -181,12 +182,13 @@ describe("QuWork connection test + usage", () => {
     expect(waf.error).toMatch(/405/);
   });
 
-  it("usage shows the points balance as a display-only message, through the given proxy", async () => {
+  it("usage reports the points balance as a tracker quota (no top-level message), through the given proxy", async () => {
     const fetch = vi.fn(async () => res(200, { success: true, data: { points_entitlement: { total_points: 1500 } } }));
     const u = await getQuworkUsage("acc", {}, PROXY, fetch);
-    expect(u.quotas).toEqual({});
+    expect(u.message).toBeUndefined();
+    expect(u.quotas["Balance （积分）"]).toMatchObject({ total: 1500, used: 0, isCreditBalance: true, remainingPercentage: 100 });
     expect(u.quwork.points).toBe(1500);
-    expect(u.message).toContain("1,500");
+    expect(u.quwork.summary).toContain("1,500");
     expect(fetch.mock.calls[0][2]).toBe(PROXY);
     expect(fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer acc");
   });
@@ -307,10 +309,68 @@ describe("QuWork WeChat bind + invite/redeem activation", () => {
   it("usage message appends WeChat status and the account's own invite code", async () => {
     const fetch = vi.fn(async () => res(200, { success: true, data: { points_entitlement: { total_points: 2000 }, wechat_bound: true, aff_code: "Xy9", inviter_id: 34 } }));
     const u = await getQuworkUsage("acc", {}, PROXY, fetch);
-    expect(u.message).toContain("微信：已绑定");
-    expect(u.message).toContain("邀请码 Xy9");
+    expect(u.quwork.summary).toContain("微信：已绑定");
+    expect(u.quwork.summary).toContain("邀请码 Xy9");
     expect(u.quwork).toMatchObject({ points: 2000, wechatBound: true, affCode: "Xy9", inviterId: "34" });
     const v = await getQuworkUsage("acc", {}, PROXY, async () => res(200, { success: true, data: { points_entitlement: { total_points: 1 }, wechat_bound: false } }));
-    expect(v.message).toContain("微信：未绑定");
+    expect(v.quwork.summary).toContain("微信：未绑定");
+  });
+});
+
+describe("QuWork quota tracker rows", () => {
+  const NOW = Date.parse("2026-11-24T08:00:00Z"); // 16:00 Beijing, day 2026-11-24
+
+  it("headline Balance row = current balance (stored-value pool), with permanent/limited detail rows", () => {
+    const q = quworkQuotasFromSelf({ points_entitlement: { total_points: 2199.95, permanent_points: 2000, limited_points: 199.95 } }, { nowMs: NOW });
+    expect(q["Balance （积分）"]).toEqual({
+      used: 0, total: 2199.95, remainingPercentage: 100, resetAt: null, unlimited: true, isCreditBalance: true, summarizesDetail: true,
+    });
+    expect(q["永久积分"]).toEqual({ used: 0, total: 2000, resetAt: null, detailOnly: true, recurring: false });
+    expect(q["限时积分"]).toMatchObject({ total: 199.95, detailOnly: true, resetAt: null });
+    // balance routing / quotaBalance reads the headline row
+    expect(extractConnectionBalance({ quotas: q })).toBe(2199.95);
+  });
+
+  it("limited points with an expiry ride the headline as expiringBatch", () => {
+    const q = quworkQuotasFromSelf({ points_entitlement: { total_points: 300, limited_points: 100, limited_expires_at: 1796000000 } }, { nowMs: NOW });
+    const iso = new Date(1796000000 * 1000).toISOString();
+    expect(q["限时积分"].resetAt).toBe(iso);
+    expect(q["Balance （积分）"].expiringBatch).toEqual({ remaining: 100, resetAt: iso });
+  });
+
+  it("an active subscription becomes a used/total detail row with its expiry", () => {
+    const q = quworkQuotasFromSelf({ points_entitlement: { total_points: 50, active_subscription: { plan_name: "月卡", total_points: 1000, remaining_points: 400, expires_at: "2026-12-01T00:00:00Z" } } }, { nowMs: NOW });
+    expect(q["月卡"]).toEqual({ used: 600, total: 1000, resetAt: "2026-12-01T00:00:00.000Z", detailOnly: true, recurring: false });
+  });
+
+  it("zero balance reads as depleted and carries no detail rows", () => {
+    const q = quworkQuotasFromSelf({ points_entitlement: { total_points: 0, permanent_points: 0, limited_points: 0 } }, { nowMs: NOW });
+    expect(Object.keys(q)).toEqual(["Balance （积分）"]);
+    expect(q["Balance （积分）"]).toMatchObject({ total: 0, remainingPercentage: 0, unlimited: false });
+  });
+
+  it("checkinToday only when today's (Beijing) claim closed as claimed/done; otherwise absent (unknown)", () => {
+    expect(quworkCheckinToday({ day: "2026-11-24", outcome: "done" }, NOW)).toBe(true);
+    expect(quworkCheckinToday({ day: "2026-11-24", outcome: "claimed" }, NOW)).toBe(true);
+    expect(quworkCheckinToday({ day: "2026-11-24", outcome: "wechat_required" }, NOW)).toBeUndefined();
+    expect(quworkCheckinToday({ day: "2026-11-23", outcome: "done" }, NOW)).toBeUndefined();
+    expect(quworkCheckinToday(null, NOW)).toBeUndefined();
+    const q = quworkQuotasFromSelf({ points_entitlement: { total_points: 10 } }, { lastClaim: { day: "2026-11-24", outcome: "done" }, nowMs: NOW });
+    expect(q["Balance （积分）"].checkinToday).toBe(true);
+    const q2 = quworkQuotasFromSelf({ points_entitlement: { total_points: 10 } }, { nowMs: NOW });
+    expect("checkinToday" in q2["Balance （积分）"]).toBe(false);
+  });
+
+  it("normalizes epoch seconds, epoch ms and date strings", () => {
+    expect(quworkTimeToIso(1796000000)).toBe(quworkTimeToIso(1796000000000));
+    expect(quworkTimeToIso("2026-12-01T00:00:00Z")).toBe("2026-12-01T00:00:00.000Z");
+    expect(quworkTimeToIso(0)).toBeNull();
+    expect(quworkTimeToIso("nope")).toBeNull();
+  });
+
+  it("usage errors keep the message (tracker shows the reason) and no quotas", async () => {
+    const u = await getQuworkUsage("acc", {}, null, async () => res(405, "<html>"));
+    expect(u.quotas).toEqual({});
+    expect(u.message).toMatch(/405/);
   });
 });
