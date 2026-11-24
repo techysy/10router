@@ -34,6 +34,11 @@ const SPECIALIZED = new Set([
   // amazonquick 只跑自己的 AmazonQuickExecutor（EventStream 会话桥接），URL/headers
   // 锁在 unit/amazonquick-provider.test.js——同 kiro/perplexity-web 的口径。
   "amazonquick",
+  // junie 的 JunieExecutor 覆写 buildHeaders（叠三枚 Free-license 头）并在
+  // transformRequest 里做模型映射——golden 这里用 DefaultExecutor 锁出的形状
+  // 永不执行。真实形状锁在 unit/junie-provider.test.js（headers/buildUrl 走
+  // transport.baseUrl）。
+  "junie",
 ]);
 
 // Phiên bản app được nướng vào vài header (đọc từ package.json lúc chạy):

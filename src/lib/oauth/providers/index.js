@@ -18,6 +18,7 @@ import qwenworkCn from "./qwenwork-cn.js";
 import meoo from "./meoo.js";
 import croli from "./croli.js";
 import nous from "./nous.js";
+import junie from "./junie.js";
 import github from "./github.js";
 import kiro from "./kiro.js";
 import cursor from "./cursor.js";
@@ -53,6 +54,7 @@ const PROVIDERS = {
   meoo,
   croli,
   nous,
+  junie,
   github,
   kiro,
   cursor,

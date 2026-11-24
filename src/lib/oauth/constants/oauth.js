@@ -146,6 +146,12 @@ export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 // open-sse/services/tokenRefresh refreshNousToken.
 export const NOUS_CONFIG = { ...PROVIDER_OAUTH["nous"] };
 
+// Junie (JetBrains) OAuth Configuration (Authorization Code + PKCE)
+// Public CLI client (client_id "junie-cli", no secret); the inference
+// credential is the id_token, refresh tokens rotate single-use — see
+// src/lib/oauth/providers/junie.js and tokenRefresh refreshJunieToken.
+export const JUNIE_CONFIG = { ...PROVIDER_OAUTH["junie"] };
+
 // Trae (ByteDance marscode) OAuth — authorization_code flow with local callback.
 //   1) POST GetLoginGuidance {loginTraceID} → {Result.LoginHost}
 //   2) Browser opens ${loginHost}/authorization?client_id=...&login_trace_id=...&auth_callback_url=${cb}

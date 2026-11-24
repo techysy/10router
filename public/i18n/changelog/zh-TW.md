@@ -6,6 +6,8 @@
 
 ### ✨ 新增
 
+- **新增供應商 Junie（JetBrains 免費車道）**：用你自己的 JetBrains 帳號登入（免費帳號就行）即可使用免費的 Junie Lite 車道——一個做小任務的模型，由 JetBrains 提供服務。點登入、在打開的頁面點批准，瀏覽器會跳到一個打不開的頁面——把網址列裡那一整段網址複製回來，貼到連接框裡點連接就行。只許用自己的帳號登入。
+
 - **新增供應商 Numes**：OpenAI 相容推理市場——前沿與開源模型由多家獨立供應商提供，按請求計費，餘額支援美元或比特幣（Key 建立時固定幣種）。模型 ID 與 OpenRouter 同形態（`作者/模型名`），帶 `:free` 後綴的完全免費（GLM-5.3、GLM-5.3-Flash、DeepSeek V4.1 Flash、Kimi K3.1 Pro、Nemotron 3 Ultra 550B），不帶後綴只路由到計費端點。已預置 34 款主力模型，其餘目錄模型填 ID 即用；思考檔位走標準 OpenAI reasoning_effort。
 
 ### 🐛 修復

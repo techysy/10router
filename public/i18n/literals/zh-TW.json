@@ -1,4 +1,6 @@
 {
+  "Sign in with your own JetBrains account (a free account is enough) to use the free Junie Lite lane — one model for small tasks, served by JetBrains. Only sign in with your own account.": "用你自己的 JetBrains 帳號登入（免費帳號即可）使用免費的 Junie Lite 車道——一個做小任務的模型，由 JetBrains 提供服務。只許用自己的帳號登入。",
+  "用你自己的 JetBrains 账号登录（免费账号就行）：点登录、在打开的页面点批准，浏览器会跳到一个打不开的页面——把地址栏里那一整段地址复制回来，粘到下方框里点连接就行。": "用你自己的 JetBrains 帳號登入（免費帳號就行）：點登入、在打開的頁面點批准，瀏覽器會跳到一個打不開的頁面——把網址列裡那一整段網址複製回來，貼到下方框裡點連接就行。",
   "No credentials needed — veoaifree.com free tier (about 6 requests/hour per IP)": "無需憑證——veoaifree.com 免費檔（每 IP 每小時約 6 次請求）",
   "Nous Portal API key — create one in the Portal dashboard; or use OAuth device-code sign-in (recommended, no card needed for free models)": "Nous Portal API Key——在 Portal 控制台建立；或使用 OAuth 裝置碼登入（建議，免費模型無需綁卡）",
   "Paste the full Cookie header of a logged-in lingxi.kdocs.cn session (wps_sid / kso_sid …). Capture it in CreditDaddy's 网页会话 page and sync, or copy it from browser devtools. No signature needed (the web client's X-Pop-Token is desktop-SDK-only). While the session lives, 对话-mode turns do not deduct 灵点; the model multipliers only bite on Pro/Max subscriptions.": "貼上已登入 lingxi.kdocs.cn 工作階段的完整 Cookie 請求標頭（wps_sid / kso_sid …）。在 CreditDaddy 的「網頁工作階段」頁擷取並同步，或從瀏覽器 devtools 複製。無需簽章（網頁客戶端的 X-Pop-Token 僅桌面 SDK 使用）。工作階段存活期間，對話模式輪次不扣靈點；模型倍率僅對 Pro/Max 訂閱生效。",

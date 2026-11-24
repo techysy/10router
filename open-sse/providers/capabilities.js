@@ -575,6 +575,13 @@ export const PROVIDER_CAPABILITIES = {
     "tencent/hy4-flash:free":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
     "upstage/solar-mini4:free":    { reasoning: true, contextWindow: 524288, maxOutput: 131072 },
   },
+  // Junie 免费车道：用户侧键 junie-lite 不命中任何 canonical/家族 pattern，
+  // 不声明会落 DEFAULT（200K 且无 reasoning）。后端当前是 Qwen3.6-27B，
+  // 窗口按 CLI 本地日志 AgentParameters 的 maxContextLength=229370 声明；
+  // JetBrains 换后端时随 shared/junie/constants.js 一起改。
+  "junie": {
+    "junie-lite": { reasoning: true, thinkingFormat: "qwen", contextWindow: 229370 },
+  },
   // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
   // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压

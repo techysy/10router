@@ -349,6 +349,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         redirectUri = "http://localhost:1455/auth/callback";
       } else if (provider === "xai") {
         redirectUri = "http://127.0.0.1:56121/callback";
+      } else if (provider === "junie") {
+        // JetBrains 只登记了 CLI 的回环地址 http://localhost:62345（无路径）
+        // ——授权后浏览器跳到这个打不开的地址，用户复制地址栏完整 URL
+        // 粘贴回来即 paste-callback（与 croli 同形）。
+        redirectUri = "http://localhost:62345";
       } else if (provider === "croli") {
         // Clerk 只登记 127.0.0.1 回环（任意端口通配）——localhost 是另一个 host
         // 字符串，OAuth 精确匹配直接拒（invalid_request: redirect_uri 不匹配
@@ -733,7 +738,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       ? `${placeholderUrl.replace("code=...", "token=...")} or copied token`
       : provider === "croli"
         ? `http://127.0.0.1:${window.location.port || (window.location.protocol === "https:" ? "443" : "80")}/callback?code=...`
-        : placeholderUrl;
+        : provider === "junie"
+          ? "http://localhost:62345/?code=..."
+          : placeholderUrl;
 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
