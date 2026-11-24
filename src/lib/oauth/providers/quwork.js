@@ -8,6 +8,7 @@ import {
   quworkPointsFromSelf,
   quworkConnectionName,
   quworkIdentity,
+  quworkDeviceIdentifier,
   QUWORK_PHONE_RE,
 } from "open-sse/shared/quwork/client.js";
 
@@ -31,13 +32,16 @@ const quwork = {
 
   /** Step 2: SMS code → token pair, in OAuth token-response shape. */
   exchangeToken: async (config, code, phone) => {
-    const cred = await quworkLoginByCode(phone, code);
+    // 记下登录用的 device_identifier：/api/user/activate 要求同一个设备标识。
+    const deviceId = quworkDeviceIdentifier();
+    const cred = await quworkLoginByCode(phone, code, { deviceId });
     return {
       access_token: cred.accessToken,
       refresh_token: cred.accessToken,
       llm_token: cred.llmToken,
       expires_in: Math.max(60, Math.floor((cred.accessExpiresAt - Date.now()) / 1000)),
       _quworkUser: { uid: cred.uid, nickname: cred.nickname, phone: cred.phone },
+      _quworkDeviceId: deviceId,
     };
   },
 
@@ -105,6 +109,7 @@ const quwork = {
         quworkNickname: user.nickname || "",
         quworkPhoneMasked: phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : "",
         ...(account ? {} : { quworkTokenOnly: true }),
+        ...(tokens._quworkDeviceId ? { quworkDeviceId: tokens._quworkDeviceId } : {}),
         loginAt: new Date().toISOString(),
       },
     };

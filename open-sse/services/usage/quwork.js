@@ -1,7 +1,7 @@
 // QuWork 积分（展示用）：/api/user/self → points_entitlement.total_points 为
 // 当前余额。只做展示，不进 quotas（不参与路由判定）。账号 token 由通用
 // tokenRefresh（quwork 刷新器）续期；网络走调用方传入的通用连接代理配置。
-import { quworkSelfInfo, quworkPointsFromSelf } from "../../shared/quwork/client.js";
+import { quworkSelfInfo, quworkPointsFromSelf, quworkAccountFromSelf } from "../../shared/quwork/client.js";
 
 const fmt = (v) => (Number.isFinite(v) ? v.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : "—");
 
@@ -16,12 +16,15 @@ export async function getQuworkUsage(accessToken, providerSpecificData = {}, pro
     const parts = [`剩余积分 ${fmt(p.remaining)}`];
     if (p.limited !== null) parts.push(`限时 ${fmt(p.limited)}`);
     if (p.permanent !== null) parts.push(`永久 ${fmt(p.permanent)}`);
+    const acct = quworkAccountFromSelf(self);
+    parts.push(`微信：${acct.wechatBound ? "已绑定" : "未绑定"}`);
+    if (acct.affCode) parts.push(`邀请码 ${acct.affCode}`);
     const claim = psd.quworkLastClaim;
     if (claim?.message) parts.push(`签到：${claim.message}（${claim.day}）`);
     return {
       plan: "QuWork",
       quotas: {},
-      quwork: { points: p.remaining, limited: p.limited, permanent: p.permanent },
+      quwork: { points: p.remaining, limited: p.limited, permanent: p.permanent, wechatBound: acct.wechatBound, affCode: acct.affCode, inviterId: acct.inviterId },
       message: `QuWork ${parts.join(" · ")}`,
     };
   } catch (e) {

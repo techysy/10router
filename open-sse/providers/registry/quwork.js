@@ -32,7 +32,7 @@ export default {
   transport: {
     baseUrl: "https://llm.quwork.cn/v1/chat/completions",
     validateUrl: "https://llm.quwork.cn/v1/models",
-    headers: { "X-QurWork-Env": "prod", "X-QurWork-Version": "0.2.2-rc.1" },
+    headers: { "X-QurWork-Env": "prod", "X-QurWork-Version": "1.7.5" },
     timeoutMs: 180000,
     format: "openai",
   },
@@ -61,9 +61,18 @@ export default {
     userInfoUrl: "https://llm.rrzu.com/api/user/self",
     dailyRewardStatusUrl: "https://llm.rrzu.com/api/user/daily-reward/status",
     dailyRewardClaimUrl: "https://llm.rrzu.com/api/user/daily-reward/claim",
+    activateUrl: "https://llm.rrzu.com/api/user/activate",
+    wechatExchangeUrl: "https://llm.rrzu.com/api/oauth/wechat",
+    wechatBindUrl: "https://llm.rrzu.com/api/user/wechat/bind",
+    inviteSummaryUrl: "https://llm.rrzu.com/api/user/invite/summary",
+    // 微信开放平台扫码登录（网站应用）。扫码后浏览器落到 redirectUri（QuWork 自己的
+    // 页面，10Router 拦截不到），由用户把回调地址（或 code）粘回来。
+    wechat: { appId: "wxac3315fe86ebb901", redirectUri: "https://llm.rrzu.com/oauth/wechat" },
     inferenceBaseUrl: "https://llm.quwork.cn/v1",
     modelConfigUrl: "https://img1.rrzuji.cn/qurvis-package/latest/qurvis-desktop-model-config.json",
-    clientVersion: "0.2.2-rc.1",
+    // 桌面端版本号。/api/user/activate 拒绝 < 1.6.5（client_version_too_low），
+    // 故与当前桌面端 1.7.5 对齐（推理网关/账号网关共用此头）。
+    clientVersion: "1.7.5",
     platform: "qurvis",
     // 阿里云验证码 2.0（与 QuWork 桌面端一致）
     captcha: { region: "cn", prefix: "1hms8d", sceneId: "10vzkucv" },

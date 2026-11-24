@@ -12,6 +12,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
 import CooldownTimer from "./CooldownTimer";
+import QuworkAccountModal from "../components/QuworkAccountModal";
 
 function formatExpiry(iso) {
   if (!iso) return "";
@@ -302,6 +303,18 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const [quworkClaimResult, setQuworkClaimResult] = useState(null);
   const showQuworkDailyClaim = connection.provider === "quwork" && !connection.external;
 
+  // QuWork 账号弹窗：微信绑定 / 邀请码·兑换码 / 我的邀请码（仅有账号 token 的连接）。
+  const [showQuworkAccount, setShowQuworkAccount] = useState(false);
+  const showQuworkAccountBtn = showQuworkDailyClaim && connection.providerSpecificData?.quworkTokenOnly !== true;
+  const quworkPsd = connection.provider === "quwork" ? connection.providerSpecificData || {} : {};
+  const quworkAccountBits = connection.provider === "quwork" && typeof quworkPsd.quworkWechatBound === "boolean"
+    ? [
+      quworkPsd.quworkWechatBound ? "微信已绑定" : "微信未绑定",
+      quworkPsd.quworkAffCode ? `我的邀请码 ${quworkPsd.quworkAffCode}` : "",
+      quworkPsd.quworkInviterId ? `邀请人 ${quworkPsd.quworkInviterId}` : "",
+    ].filter(Boolean)
+    : [];
+
   const handleQuworkDailyClaim = async () => {
     if (quworkClaiming) return;
     setQuworkClaiming(true);
@@ -500,6 +513,12 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </span>
             </p>
           )}
+          {quworkAccountBits.length > 0 && (
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-text-muted">
+              <span className="material-symbols-outlined shrink-0 text-[12px]">{quworkPsd.quworkWechatBound ? "verified_user" : "person_alert"}</span>
+              <span>{quworkAccountBits.join(" · ")}</span>
+            </p>
+          )}
           {connection.provider === "quwork" && connection.providerSpecificData?.quworkAccessError && !quworkClaimResult && (
             <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
               <span className="material-symbols-outlined shrink-0 text-[12px]">warning</span>
@@ -596,6 +615,22 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 <span className="text-[10px] leading-tight">每日领积分</span>
               </button>
             </Tooltip>
+          )}
+          {showQuworkAccountBtn && (
+            <Tooltip text="QuWork 账号：绑定微信、填写邀请码/兑换码、查看我的邀请码">
+              <button
+                type="button"
+                onClick={() => setShowQuworkAccount(true)}
+                aria-label="QuWork 账号"
+                className="flex w-full flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              >
+                <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
+                <span className="text-[10px] leading-tight">账号</span>
+              </button>
+            </Tooltip>
+          )}
+          {showQuworkAccount && (
+            <QuworkAccountModal isOpen={showQuworkAccount} onClose={() => setShowQuworkAccount(false)} connection={connection} />
           )}
           {showMeooDailyClaim && (
             <Tooltip text="每日首次登录 Meoo 自动赠送 2000 积分 — 点击触发登录动作并核验到账">
