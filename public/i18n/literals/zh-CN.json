@@ -2321,5 +2321,8 @@
   "Delete Connection": "删除连接",
   "Remove pushed quota card": "移除推送额度卡",
   "Amazon Quick has no public API key: calls ride your logged-in quick.aws.com web session — just paste a Copy as cURL from your browser and the rest is extracted automatically. Usage draws on your Quick plan's monthly agent hours.": "Amazon Quick 没有公开 API Key：调用走你已登录的 quick.aws.com 网页会话——在浏览器里 Copy as cURL 整段粘贴即可，其余自动识别。用量走你的 Quick 套餐每月 agent 小时。",
-  "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。"
+  "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。",
+  "Sign in with your QuWork phone number (SMS code after a slider captcha) or paste llm_token + access token. QuWork's gateways reject non-mainland-China IPs (HTTP 405): if this server is outside mainland China, set a mainland proxy in Settings (outbound proxy) or on the connection. Daily reward points can be claimed from the connection card or automatically (Experimental).": "用 QuWork 手机号登录（滑块验证后收短信验证码），或粘贴 llm_token + access token。QuWork 网关拒绝非中国大陆 IP（HTTP 405）：若本服务器不在中国大陆，请在设置（出站代理）或该连接上配置国内代理。每日签到积分可在连接卡上领取，或自动领取（实验功能）。",
+  "QuWork auto daily reward": "QuWork 自动每日签到",
+  "Automatically claim the QuWork daily sign-in points for every QuWork connection with an account token (checks status first, never blind-claims)": "为每个带账号 token 的 QuWork 连接自动领取每日签到积分（先查状态，绝不盲领）"
 }

@@ -43,6 +43,7 @@ import {
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
 import { testCroliConnection } from "./croliConnection.js";
+import { testQuworkConnection } from "./quworkConnection.js";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 
 // OAuth provider test endpoints
@@ -1953,6 +1954,8 @@ export async function testSingleConnection(id, options = {}) {
   // no model request is issued and no trial credits are spent.
   if (connection.provider === "croli") {
     result = await testCroliConnection(connection, effectiveProxy);
+  } else if (connection.provider === "quwork") {
+    result = await testQuworkConnection(connection, effectiveProxy);
   } else if (connection.provider === "meoo") {
     // Meoo routes here regardless of authType: the paste-key import stores
     // authType "oauth" (line ~101 of import-apikey), but its probe is the

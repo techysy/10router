@@ -31,6 +31,7 @@ import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import CapyLoginModal from "../components/CapyLoginModal";
+import QuworkLoginModal from "../components/QuworkLoginModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
@@ -98,6 +99,7 @@ export default function ProviderDetailPage() {
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [showCapyLoginModal, setShowCapyLoginModal] = useState(false);
+  const [showQuworkLoginModal, setShowQuworkLoginModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
   const [showMeooImportApikey, setShowMeooImportApikey] = useState(false);
@@ -205,6 +207,11 @@ export default function ProviderDetailPage() {
     // Capy has no browser-OAuth authorize URL: login is the dashboard email-code flow.
     if (providerId === "capy") {
       setShowCapyLoginModal(true);
+      return;
+    }
+    // QuWork: phone + SMS (slider captcha popup) or pasted tokens — no browser-OAuth URL.
+    if (providerId === "quwork") {
+      setShowQuworkLoginModal(true);
       return;
     }
     if (isOAuth) {
@@ -3044,6 +3051,13 @@ export default function ProviderDetailPage() {
         <CapyLoginModal
           isOpen
           onClose={() => setShowCapyLoginModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "quwork" && showQuworkLoginModal && (
+        <QuworkLoginModal
+          isOpen
+          onClose={() => setShowQuworkLoginModal(false)}
           onAdded={refreshAfterConnectionChange}
         />
       )}

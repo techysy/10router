@@ -130,6 +130,11 @@ export const GITLAB_CONFIG = { ...PROVIDER_OAUTH["gitlab"] };
 // CodeBuddy (Tencent) OAuth Configuration (Browser OAuth Polling Flow)
 export const CODEBUDDY_CONFIG = { ...PROVIDER_OAUTH["codebuddy-cn"] };
 
+// QuWork（quwork.cn）— 手机号短信直登（阿里云滑块 + /api/sendVerifyCode +
+// /api/user/client/login），账号 token 经 refreshUrl 续期。端点由 registry 条目的
+// oauth 块携带。
+export const QUWORK_CONFIG = { ...PROVIDER_OAUTH["quwork"] };
+
 // CodeBuddy International — same shape as CN, .ai domain (mirror of codebuddy-cn).
 export const CODEBUDDY_INTL_CONFIG = { ...PROVIDER_OAUTH["codebuddy-intl"] };
 

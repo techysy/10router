@@ -181,6 +181,14 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
+  // QuWork daily reward auto-claim (status-gated). Account-token renewal is
+  // the generic background OAuth refresh (REFRESH_HANDLERS.quwork).
+  if (settings.quworkCheckin === true) {
+    import("@/sse/services/quworkCheckin.js")
+      .then(({ startQuworkCheckin }) => startQuworkCheckin())
+      .catch((e) => console.log("[QuworkCheckin] scheduler start failed:", e.message));
+  }
+
   // Croli daily check-in and server-claimable rewards are opt-in. The scheduler
   // never creates model conversations; successful user chats report their own event.
   if (settings.croliCheckin === true) {

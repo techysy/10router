@@ -314,6 +314,11 @@ export async function POST(request, { params }) {
         const results = await runCodebuddyCheckinTick();
         return NextResponse.json({ success: true, results });
       }
+      if (provider === "quwork") {
+        const { runQuworkCheckinTick } = await import("@/sse/services/quworkCheckin.js");
+        const results = await runQuworkCheckinTick({ skipIfCheckedToday: false });
+        return NextResponse.json({ success: true, results });
+      }
       if (provider === "qoder" || provider === "qoder-cn") {
         const { claimAllQoderAccounts } = await import("@/sse/services/qoderCheckin.js");
         const results = await claimAllQoderAccounts(provider);

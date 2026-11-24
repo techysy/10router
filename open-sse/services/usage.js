@@ -38,6 +38,7 @@ import { getMiniMaxCodeUsage } from "./usage/minimax-code.js";
 import { getCursorUsage } from "./usage/cursor.js";
 import { getTraeUsage } from "./usage/trae.js";
 import { getCroliUsage } from "./usage/croli.js";
+import { getQuworkUsage } from "./usage/quwork.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -140,6 +141,7 @@ const USAGE_HANDLERS = {
   // 前端（网页会话线，未考古）。intl 连接给指路文案而不是空 "not implemented"。
   "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
   croli: (c) => getCroliUsage(c.accessToken, c.proxyOptions),
+  quwork: (c) => getQuworkUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   trae: (c) =>
     String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
       ? getTraeUsage(c.accessToken, c.proxyOptions)
