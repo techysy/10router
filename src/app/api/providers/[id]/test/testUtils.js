@@ -43,6 +43,7 @@ import {
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
 import { testCroliConnection } from "./croliConnection.js";
+import { fetchOrcaTermBilling, refreshOrcaTermToken } from "open-sse/shared/orcaterm/auth.js";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 
 // OAuth provider test endpoints
@@ -872,6 +873,26 @@ async function testJunieConnection(connection, effectiveProxy = null, options = 
 }
 
 async function testOAuthConnection(connection, effectiveProxy = null, options = {}) {
+  if (connection.provider === "orcaterm") {
+    let tokens = null;
+    let accessToken = connection.accessToken;
+    try {
+      if (isTokenExpired(connection)) {
+        tokens = await refreshOrcaTermToken(connection.refreshToken || accessToken, null, effectiveProxy);
+        // OrcaTerm renews only after the access token expires. A proactive renewal
+        // can therefore return null while the old grant remains valid; confirm it
+        // with the read-only billing endpoint before treating the account as dead.
+        if (tokens?.accessToken) accessToken = tokens.accessToken;
+      }
+      await fetchOrcaTermBilling(accessToken, effectiveProxy);
+      return {
+        valid: true, refreshed: !!tokens?.accessToken, newTokens: tokens, error: null,
+        ...(options.model ? { warning: "Account verified; model access is checked when sending a request" } : {}),
+      };
+    } catch (error) {
+      return { valid: false, error: error.message, refreshed: !!tokens, newTokens: tokens };
+    }
+  }
   // Qoder's test is model-aware and needs the live catalog — handled here, not
   // via OAUTH_TEST_CONFIG (which qoder-cn was never in, so it answered "Provider
   // test not supported" for an otherwise healthy account).
@@ -2045,5 +2066,12 @@ export async function testSingleConnection(id, options = {}) {
     })();
   }
 
-  return { valid: result.valid, error: result.error, refreshed: !!result.refreshed, latencyMs, testedAt: new Date().toISOString() };
+  return {
+    valid: result.valid,
+    error: result.warning || result.error,
+    warning: result.warning || null,
+    refreshed: !!result.refreshed,
+    latencyMs,
+    testedAt: new Date().toISOString(),
+  };
 }

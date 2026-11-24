@@ -26,6 +26,7 @@ import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
 import CroliCreditsPanel from "./CroliCreditsPanel";
 import DumateQrModal from "../components/DumateQrModal";
+import OrcaTermOAuthModal from "@/shared/components/OrcaTermOAuthModal";
 import LingxiCaptureModal from "../components/LingxiCaptureModal";
 import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
@@ -1493,7 +1494,7 @@ export default function ProviderDetailPage() {
     setModelTestResults({});
     setOneByOneResults({});
     setOneByOneSummary(null);
-    fetchConnections();
+    refreshAfterConnectionChange();
     setShowOAuthModal(false);
   };
 
@@ -2956,6 +2957,14 @@ export default function ProviderDetailPage() {
           onSuccess={handleOAuthSuccess}
           onClose={() => setShowOAuthModal(false)}
         />
+      ) : providerId === "orcaterm" ? (
+        showOAuthModal && (
+          <OrcaTermOAuthModal
+            isOpen
+            onSuccess={handleOAuthSuccess}
+            onClose={() => setShowOAuthModal(false)}
+          />
+        )
       ) : providerId === "gitlab" ? (
         <GitLabAuthModal
           isOpen={showOAuthModal}

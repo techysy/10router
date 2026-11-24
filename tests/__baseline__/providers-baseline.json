@@ -1597,5 +1597,16 @@
     "format": "openai",
     "clientId": "junie-cli",
     "tokenUrl": "https://oauth.account.jetbrains.com/oauth2/token"
+  },
+  "orcaterm": {
+    "baseUrl": "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
+    "format": "openai",
+    "headers": {
+      "X-Product": "orcaterm",
+      "Origin": "https://orcaterm.com",
+      "Referer": "https://orcaterm.com/terminal",
+      "X-Referer": "https://orcaterm.com/terminal"
+    },
+    "tokenUrl": "https://orcaterm.com/oauth/wechat/exchange"
   }
 }
