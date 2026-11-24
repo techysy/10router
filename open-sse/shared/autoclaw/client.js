@@ -423,7 +423,12 @@ async function autoclawGet(host, path, accessToken, { region, fetchImpl, proxyOp
     throw new AutoclawApiError(`AutoClaw 登录已失效（HTTP ${res.status}）`, { status: res.status, signIn: "expired" });
   }
   const env = await res.json().catch(() => null);
-  if (!env || env.code !== 0) {
+  // The task-list endpoint answers a bare `{ data: [...] }` with no `code`
+  // (live-verified 2026-11-24 on the CN managed host); the asset plane uses
+  // the usual `{ code: 0, data }` envelope. Accept both, reject any explicit
+  // non-zero code.
+  const bareData = env && !("code" in env) && "data" in env;
+  if (!env || (!bareData && env.code !== 0)) {
     throw new AutoclawApiError(env?.msg || `AutoClaw ${path.split("?")[0]} 失败（HTTP ${res.status}）`, { code: env?.code ?? null, status: res.status });
   }
   return env.data;
