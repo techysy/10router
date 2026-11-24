@@ -39,7 +39,10 @@ export default function QuworkAccountModal({ isOpen, onClose, connection, onChan
   }, [connectionId]);
 
   useEffect(() => {
-    if (isOpen) load();
+    if (!isOpen) return undefined;
+    // Deferred so the effect body itself never sets state synchronously.
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
   }, [isOpen, load]);
 
   const post = async (path, body) => {
