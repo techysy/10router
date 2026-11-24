@@ -157,6 +157,10 @@ export async function handleChat(request, clientRawRequest = null) {
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    // Time-window sticky (per-combo override wins): within the idle window the
+    // same member keeps answering — group assistants (Hermes/openclaw) interleave
+    // requests, so per-request rotation switched members mid-conversation.
+    const comboStickyWindowMinutes = comboStrategies[modelStr]?.stickyWindowMinutes ?? settings.comboStickyWindowMinutes;
     const retryOnEmpty = comboStrategies[modelStr]?.retryOnEmpty ?? settings.comboRetryOnEmpty ?? false;
     const retryOnEmptyLimit = comboStrategies[modelStr]?.retryOnEmptyLimit ?? settings.comboRetryOnEmptyLimit;
 
@@ -191,6 +195,7 @@ export async function handleChat(request, clientRawRequest = null) {
           // loop + auto-switch stay active below it.
           comboStrategy: "fallback",
           comboStickyLimit,
+          comboStickyWindowMinutes,
           retryOnEmpty,
           retryOnEmptyLimit,
         });
@@ -199,7 +204,7 @@ export async function handleChat(request, clientRawRequest = null) {
       // fall through to the normal handleComboChat below
     }
 
-    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit}, window: ${comboStickyWindowMinutes}m)`);
     return handleComboChat({
       body,
       models: augmentedModels,
@@ -211,6 +216,7 @@ export async function handleChat(request, clientRawRequest = null) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
+      comboStickyWindowMinutes,
       retryOnEmpty,
       retryOnEmptyLimit
     });
@@ -290,9 +296,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
 
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
+      const comboStickyWindowMinutes = comboStrategies[modelStr]?.stickyWindowMinutes ?? chatSettings.comboStickyWindowMinutes;
       const retryOnEmpty = comboStrategies[modelStr]?.retryOnEmpty ?? chatSettings.comboRetryOnEmpty ?? false;
       const retryOnEmptyLimit = comboStrategies[modelStr]?.retryOnEmptyLimit ?? chatSettings.comboRetryOnEmptyLimit;
-      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit}, window: ${comboStickyWindowMinutes}m)`);
       return handleComboChat({
         body,
         models: augmentedModels,
@@ -304,6 +311,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboName: modelStr,
         comboStrategy,
         comboStickyLimit,
+        comboStickyWindowMinutes,
         retryOnEmpty,
         retryOnEmptyLimit
       });

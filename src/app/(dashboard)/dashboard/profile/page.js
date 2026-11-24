@@ -383,8 +383,9 @@ export default function ProfilePage() {
   };
 
   const updateComboStickyLimit = async (limit) => {
+    // 0 = no per-request cap (time-window sticky governs switching alone)
     const numLimit = parseInt(limit);
-    if (isNaN(numLimit) || numLimit < 1) return;
+    if (isNaN(numLimit) || numLimit < 0) return;
 
     try {
       const res = await fetch("/api/settings", {
@@ -397,6 +398,24 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error("Failed to update combo sticky limit:", err);
+    }
+  };
+
+  const updateComboStickyWindow = async (minutes) => {
+    const num = parseFloat(minutes);
+    if (isNaN(num) || num <= 0) return;
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comboStickyWindowMinutes: num }),
+      });
+      if (res.ok) {
+        setSettings(prev => ({ ...prev, comboStickyWindowMinutes: num }));
+      }
+    } catch (err) {
+      console.error("Failed to update combo sticky window:", err);
     }
   };
 
@@ -1878,20 +1897,41 @@ export default function ProfilePage() {
               />
             </div>
 
-            {/* Combo Sticky Round Robin Limit */}
+            {/* Combo Sticky Window (time-window sticky, primary) */}
+            {settings.comboStrategy === "round-robin" && (
+              <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                <div>
+                  <p className="font-medium">Combo Sticky Window</p>
+                  <p className="text-sm text-text-muted">
+                    Minutes a combo keeps answering with the same model before rotating (idle time between requests)
+                  </p>
+                </div>
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={settings.comboStickyWindowMinutes ?? 5}
+                  onChange={(e) => updateComboStickyWindow(e.target.value)}
+                  disabled={loading}
+                  className="w-20 text-center"
+                />
+              </div>
+            )}
+
+            {/* Combo Sticky Round Robin Limit (per-request cap, 0 = window only) */}
             {settings.comboStrategy === "round-robin" && (
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div>
                   <p className="font-medium">Combo Sticky Limit</p>
                   <p className="text-sm text-text-muted">
-                    Calls per combo model before switching
+                    Max consecutive calls per combo model (0 = no cap, window only)
                   </p>
                 </div>
                 <Input
                   type="number"
-                  min="1"
+                  min="0"
                   max="100"
-                  value={settings.comboStickyRoundRobinLimit || 1}
+                  value={settings.comboStickyRoundRobinLimit ?? 0}
                   onChange={(e) => updateComboStickyLimit(e.target.value)}
                   disabled={loading}
                   className="w-20 text-center"
@@ -1904,7 +1944,7 @@ export default function ProfilePage() {
                 ? translate(`Currently distributing requests across all available accounts with ${settings.stickyRoundRobinLimit || 3} calls per account.`)
                 : translate("Currently using accounts in priority order (Fill First).")}
               {settings.comboStrategy === "round-robin"
-                ? ` Combos rotate after ${settings.comboStickyRoundRobinLimit || 1} call${(settings.comboStickyRoundRobinLimit || 1) === 1 ? "" : "s"} per model.`
+                ? ` Combos keep one model while active (idle window: ${settings.comboStickyWindowMinutes ?? 5} min), then rotate to the next.`
                 : " Combos always start with their first model."}
               {" "}
               {translate("Note: Per-provider strategies (such as Earliest Expiry First or specific fallback/round-robin) take precedence over these global defaults.")}

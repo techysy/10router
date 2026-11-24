@@ -103,9 +103,26 @@ export function reorderByCapabilities(models, required) {
 
 /**
  * Track rotation state per combo (for round-robin strategy)
- * @type {Map<string, { index: number, consecutiveUseCount: number }>}
+ * @type {Map<string, { index: number, consecutiveUseCount: number, lastUsedAt: number }>}
  */
 const comboRotationState = new Map();
+
+// Default idle window (minutes) for time-window sticky rotation: within the
+// window every request pins to the same combo member; only after the combo has
+// been idle longer than the window does the ring step to the next member.
+// Motivation (2026-11-24 用户报): group assistants (Hermes / openclaw) interleave
+// requests from many people — per-request count stickiness still switches members
+// mid-conversation. An idle window is the sticky-session semantics that fits:
+// a burst of activity keeps one member; quiet periods rotate the ring fairly.
+export const DEFAULT_COMBO_STICKY_WINDOW_MINUTES = 5;
+
+// Idle-window rotation granularity: the ring steps one member per window expiry,
+// never zero or several at once, however long the quiet stretch was. This keeps
+// distribution fair (N idle windows → N steps) and predictable to reason about.
+function normalizeStickyWindowMinutes(windowMinutes) {
+  const parsed = Number.parseFloat(windowMinutes);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_COMBO_STICKY_WINDOW_MINUTES;
+}
 
 // Trailing run of items after the last assistant/model turn = the current user
 // turn. It may span several messages (e.g. text + image split across blocks),
@@ -203,11 +220,16 @@ export function detectRequiredCapabilities(body) {
   return required;
 }
 
+/**
+ * Per-request count cap for sticky rotation. 0/absent = no count cap — the
+ * idle window alone governs switching (the default since the time-window
+ * sticky change). A positive value caps consecutive requests per member even
+ * inside the window (old pre-window behavior, still available as a cap).
+ */
 function normalizeStickyLimit(stickyLimit) {
   const parsed = Number.parseInt(stickyLimit, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : Number.POSITIVE_INFINITY;
 }
-
 function rotateModelsFromIndex(models, currentIndex) {
   const rotatedModels = [...models];
   for (let i = 0; i < currentIndex; i++) {
@@ -222,38 +244,50 @@ function rotateModelsFromIndex(models, currentIndex) {
  * @param {string[]} models - Array of model strings
  * @param {string} comboName - Name of the combo
  * @param {string} strategy - "fallback" or "round-robin"
- * @param {number|string} [stickyLimit=1] - Requests per combo model before switching
+ * @param {number|string} [stickyLimit=0] - Max consecutive requests per combo model
+ *   (0/absent = no cap; the idle window below governs switching)
+ * @param {number|string} [stickyWindowMinutes=5] - Idle window: within it the same
+ *   member keeps answering; only idle time beyond the window steps the ring
  * @returns {string[]} Rotated models array
  */
-export function getRotatedModels(models, comboName, strategy, stickyLimit = 1) {
+export function getRotatedModels(models, comboName, strategy, stickyLimit = 0, stickyWindowMinutes = DEFAULT_COMBO_STICKY_WINDOW_MINUTES) {
   if (!models || models.length <= 1 || strategy !== "round-robin") {
     return models;
   }
 
   const rotationKey = comboName || "__default__";
   const normalizedStickyLimit = normalizeStickyLimit(stickyLimit);
-  const existingState = comboRotationState.get(rotationKey);
-  const state = typeof existingState === "number"
-    ? { index: existingState, consecutiveUseCount: 0 }
-    : (existingState || { index: 0, consecutiveUseCount: 0 });
+  const normalizedWindowMs = normalizeStickyWindowMinutes(stickyWindowMinutes) * 60_000;
+  const state = comboRotationState.get(rotationKey) || { index: 0, consecutiveUseCount: 0, lastUsedAt: 0 };
 
-  const currentIndex = state.index % models.length;
-  const rotatedModels = rotateModelsFromIndex(models, currentIndex);
-  const nextUseCount = state.consecutiveUseCount + 1;
+  const now = Date.now();
+  const windowExpired = state.lastUsedAt > 0 && now - state.lastUsedAt >= normalizedWindowMs;
 
-  if (nextUseCount >= normalizedStickyLimit) {
-    comboRotationState.set(rotationKey, {
-      index: (currentIndex + 1) % models.length,
-      consecutiveUseCount: 0,
-    });
-  } else {
-    comboRotationState.set(rotationKey, {
-      index: currentIndex,
-      consecutiveUseCount: nextUseCount,
-    });
+  // Time-window sticky (primary): idle time beyond the window steps the ring
+  // exactly one member, however long the quiet stretch was. Within the window
+  // (or on the very first request, lastUsedAt=0) the current member stays.
+  let currentIndex = state.index % models.length;
+  let consecutiveUseCount = state.consecutiveUseCount;
+  if (windowExpired) {
+    currentIndex = (currentIndex + 1) % models.length;
+    consecutiveUseCount = 0;
   }
 
-  return rotatedModels;
+  // Per-request count cap (secondary, opt-in): after a member has served its
+  // full burst allowance, the NEXT request starts the next member even inside
+  // the window (pre-window switching semantics). Infinity by default.
+  if (consecutiveUseCount + 1 > normalizedStickyLimit) {
+    currentIndex = (currentIndex + 1) % models.length;
+    consecutiveUseCount = 0;
+  }
+
+  comboRotationState.set(rotationKey, {
+    index: currentIndex,
+    consecutiveUseCount: consecutiveUseCount + 1,
+    lastUsedAt: now,
+  });
+
+  return rotateModelsFromIndex(models, currentIndex);
 }
 
 /**
@@ -378,16 +412,19 @@ export function isZeroContentResponse(data) {
  * @param {Object} options.log - Logger object
  * @param {string} [options.comboName] - Name of the combo (for round-robin tracking)
  * @param {string} [options.comboStrategy] - Strategy: "fallback" or "round-robin"
- * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
+ * @param {number|string} [options.comboStickyLimit=0] - Max consecutive requests per combo model
+ *   (0/absent = no cap; the idle window governs switching)
+ * @param {number|string} [options.comboStickyWindowMinutes] - Idle window minutes for time-window
+ *   sticky rotation (default DEFAULT_COMBO_STICKY_WINDOW_MINUTES)
  * @param {boolean} [options.retryOnEmpty=false] - Opt-in (issue #10): when a model answers 2xx with an
  *   empty content-filtered stream, fall through to the next model instead of returning the blank answer
  * @param {number} [options.retryOnEmptyLimit=2] - How many models ONE request may burn on empty answers
  *   before the gate stops engaging (each replay re-bills the full input context)
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, retryOnEmpty = false, retryOnEmptyLimit = DEFAULT_EMPTY_RETRY_LIMIT }) {
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 0, comboStickyWindowMinutes, autoSwitch = true, retryOnEmpty = false, retryOnEmptyLimit = DEFAULT_EMPTY_RETRY_LIMIT }) {
   // Apply rotation strategy if enabled
-  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
+  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit, comboStickyWindowMinutes);
 
   // Auto-switch: float models that satisfy the request's required capabilities to the front.
   if (autoSwitch) {

@@ -218,9 +218,12 @@ export default function CombosPage() {
       const updated = { ...comboStrategies };
       const next = { ...(updated[comboName] || {}), ...patch };
       // Prune to keep settings clean: default strategy with no extras = no entry.
-      // retryOnEmpty is an extra that must survive the default "fallback" strategy.
+      // retryOnEmpty / stickyWindowMinutes are extras that must survive the
+      // default "fallback" strategy (stickyWindowMinutes keeps a per-combo idle
+      // window pinned even when the strategy falls back to the global one).
       const isDefaultStrategy = !next.fallbackStrategy || next.fallbackStrategy === "fallback";
-      if (isDefaultStrategy && !next.retryOnEmpty) {
+      const hasExtras = !!next.retryOnEmpty || next.stickyWindowMinutes != null;
+      if (isDefaultStrategy && !hasExtras) {
         delete updated[comboName];
       } else {
         updated[comboName] = next;
@@ -523,6 +526,30 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                   onChange={(v) => onSetStrategy({ retryOnEmpty: v })}
                 />
                 <span>{translate("Retry on empty")}</span>
+              </label>
+            )}
+            {/* Per-combo sticky window (minutes): overrides the global idle window
+                while this combo is round-robin. Empty = use the global setting.
+                Only shown for round-robin — fallback/fusion/router don't rotate. */}
+            {current === "round-robin" && (
+              <label
+                className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted"
+                title={translate("Minutes this combo keeps answering with the same model while active; after the idle window it rotates to the next. Empty = use the global setting (Settings page).")}
+              >
+                <span className="material-symbols-outlined text-[13px]">schedule</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={strategy.stickyWindowMinutes ?? ""}
+                  placeholder={translate("global")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onSetStrategy({ stickyWindowMinutes: v === "" ? null : parseFloat(v) || null });
+                  }}
+                  className="w-14 rounded border border-border bg-transparent px-1 py-0.5 text-center text-[11px] text-text-main focus:border-primary focus:outline-none"
+                />
+                <span>min</span>
               </label>
             )}
           </div>
