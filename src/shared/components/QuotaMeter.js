@@ -42,12 +42,16 @@ export const TONE_TEXT = {
 /**
  * The one date phrase on quota UI. A FUTURE reset/expiry is a countdown whose
  * precision follows magnitude — "5h 20m 后重置" says what "10-01 重置" cannot
- * for a rolling window; a past expiry stays an absolute "09-20 已过期". The
- * slot lives in the translation (word order differs by language); locales
- * without the key fall back to English, so the phrase never drops out.
+ * for a rolling window; a past expiry stays an absolute "09-20 已过期"; a
+ * used-up pack (0 left, expiry ahead) renders the absolute "{date} 到期" — its
+ * date is a record, not a deadline, and a countdown over 0 credits is noise
+ * (2026-11-24 用户报). The slot lives in the translation (word order differs
+ * by language); locales without the key fall back to English, so the phrase
+ * never drops out.
  */
-export function quotaDateWord(resets, iso, { expired = false } = {}) {
+export function quotaDateWord(resets, iso, { expired = false, usedUp = false } = {}) {
   if (expired) return translate("expired {date}").replace("{date}", shortDate(iso));
+  if (usedUp) return translate(resets ? "resets {date}" : "expires {date}").replace("{date}", shortDate(iso));
   const duration = shortDuration(iso);
   if (duration) return translate(resets ? "resets in {duration}" : "expires in {duration}").replace("{duration}", duration);
   return translate(resets ? "resets {date}" : "expires {date}").replace("{date}", shortDate(iso));

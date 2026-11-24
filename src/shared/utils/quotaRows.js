@@ -354,6 +354,27 @@ export function isExpiredPack(row, now = Date.now()) {
 }
 
 /**
+ * A one-shot pack that is USED UP while its expiry is still ahead — 0 remaining,
+ * date not yet passed. Its date is a record, not a deadline: nothing future is
+ * left to count down to, so surfaces that print "Xh Ym后过期" for it are
+ * ticking a balance that no longer exists (2026-11-24 user report, CodeBuddy
+ * 赠送包 0/100 still reading "9h 42m后过期" in the 已用完/已过期 section).
+ * A drained CYCLE window is not this — it refills, its reset countdown is the
+ * point. An already-expired pack is not either — isExpiredPack's
+ * "{date} 已过期" wording takes over there.
+ */
+export function isUsedUpPack(row, now = Date.now()) {
+  if (isResettingRow(row) || row?.unlimited === true) return false;
+  if (isExpiredPack(row, now)) return false;
+  const total = Number((row?.totalNum ?? row?.total) || 0);
+  if (!(total > 0)) return false;
+  const remaining = Number.isFinite(row?.remainingNum)
+    ? Number(row.remainingNum)
+    : Math.max(0, total - Number(row?.used || 0));
+  return remaining <= 0;
+}
+
+/**
  * History in the per-pack details: a ONE-SHOT pack that is used up or expired.
  * It can never come back, so it is folded away instead of paginated through
  * (CodeBuddy accounts carry dozens of spent 0/100 bonus packs). A cycle window

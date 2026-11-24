@@ -15,7 +15,7 @@ import { translate } from "@/i18n/runtime";
 // which is what made this look like an intermittent blank page. The named
 // export is preserved for ProviderLimitCard / QuotaProgressBar / index.js.
 import { translateQuotaName } from "@/shared/utils/quotaName";
-import { isExpiredPack, isResettingRow, isSpentPack, meterTone } from "@/shared/utils/quotaRows";
+import { isExpiredPack, isResettingRow, isSpentPack, isUsedUpPack, meterTone } from "@/shared/utils/quotaRows";
 import QuotaMeter, { TONE_TEXT, meterSolid, quotaDateWord } from "@/shared/components/QuotaMeter";
 import { cn } from "@/shared/utils/cn";
 
@@ -76,8 +76,13 @@ function QuotaDetailRow({ quota, now, onHide }) {
   const tone = meterTone(quota, quota.pct);
   const resets = isResettingRow(quota);
   const expired = isExpiredPack(quota, now);
+  // A used-up one-shot pack (0 remaining, expiry still ahead) has no future to
+  // count down to — its date renders as the absolute "{date} 到期" like a
+  // calendar entry, never "Xh Ym后过期" (2026-11-24 用户报：0 积分的赠送包
+  // 还在逐包明细里倒计时).
+  const usedUp = isUsedUpPack(quota, now);
   const hasDate = Boolean(quota.resetAt) && new Date(quota.resetAt).getFullYear() <= 2099;
-  const countdown = hasDate ? formatResetTime(quota.resetAt) : "-";
+  const countdown = hasDate && !usedUp ? formatResetTime(quota.resetAt) : "-";
   const dateTitle = hasDate
     ? [fullDateTime(quota.resetAt), countdown !== "-" ? countdown : null].filter(Boolean).join(" · ")
     : undefined;
@@ -107,7 +112,7 @@ function QuotaDetailRow({ quota, now, onHide }) {
           </span>
           {hasDate ? (
             <span className="text-text-muted" title={dateTitle}>
-              {quotaDateWord(resets, quota.resetAt, { expired })}
+              {quotaDateWord(resets, quota.resetAt, { expired, usedUp })}
             </span>
           ) : null}
           {onHide ? (

@@ -27,6 +27,7 @@ import {
   isExpiredPack,
   isResettingRow,
   isSpentPack,
+  isUsedUpPack,
   shortDate,
   shortDuration,
   isStoredValueRow,
@@ -384,6 +385,36 @@ describe("isSpentPack — what folds into 已用完 / 已过期", () => {
   it("unlimited and zero-allowance rows are never folded away", () => {
     expect(isSpentPack({ name: "Pro", recurring: false, unlimited: true, used: 5, total: 0 }, NOW)).toBe(false);
     expect(isSpentPack({ name: "Plan Credits", recurring: false, used: 0, total: 0 }, NOW)).toBe(false);
+  });
+});
+
+describe("isUsedUpPack — 0 余额但未到期的包不再倒计时（2026-11-24 用户报）", () => {
+  const NOW = Date.parse("2026-09-29T12:00:00Z");
+
+  it("a drained one-shot pack with its expiry still ahead is used up", () => {
+    // CodeBuddy 赠送包 0/100，9h 42m 后才到期 —— 日期是记录，不是期限。
+    expect(
+      isUsedUpPack({ name: "Bonus Pack 1", recurring: false, used: 100, total: 100, resetAt: "2026-09-29T21:42:00Z" }, NOW)
+    ).toBe(true);
+    expect(
+      isUsedUpPack({ name: "Bonus Pack 1", recurring: false, used: 0, total: 0, remainingNum: 0, resetAt: "2026-09-30T00:00:00Z" }, NOW)
+    ).toBe(false);
+  });
+
+  it("a pack with credit left is not", () => {
+    expect(
+      isUsedUpPack({ name: "Bonus Pack 19", recurring: false, used: 94.81, total: 100, resetAt: "2026-10-15T00:00:00Z" }, NOW)
+    ).toBe(false);
+  });
+
+  it("a drained CYCLE window is not used up — it refills", () => {
+    expect(isUsedUpPack({ name: "Monthly", recurring: true, used: 500, total: 500, resetAt: "2026-10-05T00:00:00Z" }, NOW)).toBe(false);
+  });
+
+  it("an already-expired pack is not used up — expired wording takes over", () => {
+    expect(
+      isUsedUpPack({ name: "Bonus Pack 2", recurring: false, used: 100, total: 100, resetAt: "2026-09-20T00:00:00Z" }, NOW)
+    ).toBe(false);
   });
 });
 
