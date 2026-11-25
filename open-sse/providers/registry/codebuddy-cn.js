@@ -38,18 +38,18 @@ export default {
       sanitizeToolSchema: true,
     },
     headers: {
-      // 2026-11-18 对齐官方 CLI 2.185.0（npm @tencent-ai/codebuddy-code，解包
-      // 分析其请求头构造）：新版不再发 "CLI/x.y.z CodeBuddy/x.y.z" 形态的 UA，
-      // 版本信息改走 X-IDE-Version / X-Client-Version / X-Product-Version 独立头。
-      // 过渡期双发：旧 UA 保留（现网实测仍 200，WAF 尚未拒），新头补齐 ——
-      // 上游不认识的头会忽略，认识的规则得到满足。旧 UA 被拒时删掉那行即可。
-      "User-Agent": "CLI/2.185.0 CodeBuddy/2.185.0",
+      // 2026-11-25 对齐官方 CLI 2.186.0（npm @tencent-ai/codebuddy-code 2.186.0
+      // 解包）：UA 模板未变——buildUserAgent 仍是 `${platform}/${platformVersion}`
+      // + `${productName}/${productVersion}`，platform=CLI、productName=CodeBuddy、
+      // 版本全部回退到包版本 2.186.0；X-IDE/X-Client/X-Product-Version 三头
+      // 继续发且默认值仍回退链 ideVersion→platformVersion→包版本。纯版本平移。
+      "User-Agent": "CLI/2.186.0 CodeBuddy/2.186.0",
       "X-Product": "SaaS",
       "X-IDE-Type": "CLI",
       "X-IDE-Name": "CLI",
-      "X-IDE-Version": "2.185.0",
-      "X-Client-Version": "2.185.0",
-      "X-Product-Version": "2.185.0",
+      "X-IDE-Version": "2.186.0",
+      "X-Client-Version": "2.186.0",
+      "X-Product-Version": "2.186.0",
       "x-requested-with": "XMLHttpRequest",
       "x-codebuddy-request": "1",
     },
@@ -166,8 +166,8 @@ export default {
     stateUrl: "https://copilot.tencent.com/v2/plugin/auth/state",
     tokenUrl: "https://copilot.tencent.com/v2/plugin/auth/token",
     refreshUrl: "https://copilot.tencent.com/v2/plugin/auth/token/refresh",
-    // OAuth 轮询的 UA 与 transport 同步升到 2.185.0。
-    userAgent: "CLI/2.185.0 CodeBuddy/2.185.0",
+    // OAuth 轮询的 UA 与 transport 同步升到 2.186.0。
+    userAgent: "CLI/2.186.0 CodeBuddy/2.186.0",
     platform: "CLI",
     pollInterval: 5000,
   },

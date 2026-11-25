@@ -54,7 +54,18 @@ export default {
   transport: {
     baseUrl: "https://ds.croli.net/v1/chat/completions",
     validateUrl: "https://ds.croli.net/v1/models",
-    headers: {},
+    headers: {
+      // 2026-11-25：上游开始按客户端版本放行免费模型——旧指纹（无版本头，node
+      // fetch 缺省 UA "node"）走 claude-opus-5.5 等免费模型被 403「请将 Croli
+      // 升级到最新版本 (0.0.18 及以上) 后使用免费模型」。官方桌面端 0.0.19
+      // 安装包解包：croli-server.exe（Rust）对外的 reqwest 客户端固定发
+      // User-Agent croli/<版本>（全二进制唯一 UA 字符串）；设备签名四头
+      // x-croli-device-id/-timestamp/-nonce/-signature 只出现在它本地
+      // loopback 代理（free_device/proxy.rs）的入站校验上，直连网关的
+      // csk_ Bearer 调用不携带——所以 10Router 只需补 UA 版本指纹。
+      // latest.yml（electron-updater manifest）为准：0.0.19（2026-11-24 构建）。
+      "User-Agent": "croli/0.0.19",
+    },
     timeoutMs: 120000,
   },
   modelsFetcher: { url: "https://ds.croli.net/v1/models", type: "openai" },
