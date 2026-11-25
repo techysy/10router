@@ -34,5 +34,9 @@ export default {
     // GLM-5.3 thinking 不可关闭（canonical 能力行已标 thinkingCanDisable:false），
     // 与 glm.js / glm-cn.js 同 id 同能力，CreditDaddy 原样转发 model 字段。
     { id: "glm-5.3", name: "GLM 5.3" },
+    // GLM-5.4（2026-11-25）：能力走 canonical 行（vision/video/pdf/1M/131072，
+    // reasoning effort 可调），CreditDaddy 原样转发 model 字段——上游没放就 402/400，
+    // free 线模型面先行，不挡上游上架。
+    { id: "glm-5.4", name: "GLM 5.4" },
   ],
 };
