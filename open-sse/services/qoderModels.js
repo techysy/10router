@@ -33,7 +33,7 @@ import {
   QODER_CN_USERINFO_URL,
   QODER_IDE_VERSION,
   QODER_CN_CATALOG_VERSION,
-  QODER_CN_CATALOG_CLIENT_TYPE,
+  QODER_CATALOG_CLIENT_TYPE,
   QODER_CLIENT_TYPE,
 } from "../shared/qoder/constants.js";
 
@@ -216,16 +216,19 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
   const headers = {
     Accept: "application/json",
     "Accept-Encoding": "identity",
-    // CN reads the catalog at a higher Cosy-Version AND the desktop
-    // Cosy-Clienttype, which is how the version-gated `fast` and the
-    // desktop-gated `hmodel` (HungerG) reach us at all — see
-    // QODER_CN_CATALOG_VERSION / QODER_CN_CATALOG_CLIENT_TYPE. Chat keeps
-    // signing at QODER_IDE_VERSION / QODER_CLIENT_TYPE.
+    // The catalog read uses a different fingerprint than chat: the client type
+    // for BOTH regions and, for CN, a higher Cosy-Version. That is how the
+    // version-gated `fast` and the client-type-gated `hmodel` (HungerG) reach
+    // us at all — see QODER_CN_CATALOG_VERSION / QODER_CATALOG_CLIENT_TYPE.
+    // Chat keeps signing at QODER_IDE_VERSION / QODER_CLIENT_TYPE: the gate is
+    // on catalog visibility, not on inference admission.
     ...buildCosyHeaders(
       Buffer.alloc(0),
       modelListUrl,
       creds,
-      isCn ? { cosyVersion: QODER_CN_CATALOG_VERSION, clientType: QODER_CN_CATALOG_CLIENT_TYPE } : null,
+      isCn
+        ? { cosyVersion: QODER_CN_CATALOG_VERSION, clientType: QODER_CATALOG_CLIENT_TYPE }
+        : { clientType: QODER_CATALOG_CLIENT_TYPE },
     ),
   };
 

@@ -31,6 +31,15 @@ export default {
     // Ultimate/Performance/Efficient stay: the INTL catalog prices them
     // (1.6x / 1.1x / 0.3x) and badges render from that live data.
     { id: "auto", name: "Auto" },
+    // HungerG（`hmodel`）与 Fast（`fast`）：2026-11-25 live 探测，国际站官方
+    // 选型器同样有这两行（HungerG 带 Free 徽章 / 0x，Fast 0.6x），但目录按
+    // Cosy-Clienttype 门控——CLI 指纹（ct=5）不下发，ct=0 才下发（见
+    // QODER_CATALOG_CLIENT_TYPE）。在此之前这两行国际站根本取不到
+    // model_config，选了必报 `model_config ... not yet known`。
+    // hmodel：price_factor 0 + tags:[free] + is_free:true，1M、is_vl、
+    // is_reasoning；status 常为 busy（官方免费档高峰期排队）。
+    { id: "hmodel", name: "HungerG", rateMultiplier: 0 },
+    { id: "fast", name: "Fast", rateMultiplier: 0.6 },
     // 2026-11-07: QoDuck（lmodel）— app 场景独占的免费模型，同 qoder-cn 行；
     // 国际版 app 端同样可见（用户界面截图 2026-11-07）。2026-11-11 转正为
     // Qwen4-Max-Preview（key qmodel_latest），lmodel 行撤下 —— live 目录已无此 key。

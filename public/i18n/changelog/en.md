@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **HungerG (free tier) and Fast are usable on international Qoder**: the ×0 HungerG row just enabled on Qoder CN is published by the official international catalog too, and now works here as well; Fast (×0.6) is added at the same time. The catalog read moves from the command-line client's identity (ct=5) to one both regions publish under (ct=0) — on either side the catalog then differs by exactly those two rows, every other field unchanged. The desktop client's identity (ct=10) is deliberately not used: internationally it also publishes two models upstream gives no public specification for, and listing those would only mislead. Existing Qoder connections need no re-login — just "Refresh model list" on the provider page.
+
 - **HungerG (free tier) is usable on Qoder CN**: the official ×0 HungerG model now works through 10Router (free, 1M context, image input, labelled "Free" upstream). It was previously only visible in the official desktop client's catalog — our catalog read used the command-line client's identity, so the row never appeared. Existing Qoder CN connections need no re-login; just "Refresh model list" on the provider page. It's an official free tier and can queue at peak times (handled the same way as other Qoder models).
 
 - **GLM-5.4 added for Qoder / Qoder CN**: the official catalog shipped GLM-5.4 (×0.8, 1M context, image input, labelled "New" upstream), selectable on both the CN and international sides. It shares GLM-5.3's price but is a separate model with its own catalog row. Existing Qoder connections need no re-login — just "Refresh model list" on the provider page.

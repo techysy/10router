@@ -38,10 +38,11 @@ export default {
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
     // HungerG（客户端 2026-11-25 截图里的 Free/0x 条目）= 上游 key `hmodel`。
-    // 目录读取已改用桌面指纹（QODER_CN_CATALOG_CLIENT_TYPE），这一行才拿得到。
+    // 目录读取已改用 QODER_CATALOG_CLIENT_TYPE，这一行才拿得到。
     // 实测（2026-11-25，三号交叉）：
-    //   - ct=5 的 CN 目录 14 条**没有** hmodel；ct=10 是 15 条，且其余 14 行
-    //     与 ct=5 逐字段完全一致（15 个字段零差异），所以切过去不影响别的行。
+    //   - ct=5 的 CN 目录 14 条**没有** hmodel；ct=0 与 ct=10 都是 15 条，
+    //     且其余 14 行与 ct=5 逐字段完全一致（18 个字段零差异），所以切过去
+    //     不影响别的行。选 ct=0 而不是 ct=10 是为了国际版（见 constants）。
     //   - 聊天用**我们原有的 cli 形状 + ct=5 签名**即可放行：备用号与 auto
     //     交错跑，hmodel 4/4 次出正文、auto 2/2 次正常；响应帧形状与 auto
     //     不同（id 为 `hex.hex`、首帧无 reasoning_content）—— 不是被静默
@@ -58,7 +59,7 @@ export default {
     // 快速 = `fast`，0.6x。2026-11-25 live 探测：CN 目录按客户端指纹决定下发
     // 哪些行——ct=5 下 1.0.0 只有 13 条（无 fast）、≥1.2.0 才有 14 条；ct=10
     // 下 15 条（fast + hmodel 都在）。catalog 读取已改用
-    // QODER_CN_CATALOG_VERSION + QODER_CN_CATALOG_CLIENT_TYPE；在此之前这行
+    // QODER_CN_CATALOG_VERSION + QODER_CATALOG_CLIENT_TYPE；在此之前这行
     // 永远取不到 model_config，聊天必报 `model_config for "fast" not yet known`。
     { id: "fast", name: "快速", rateMultiplier: 0.6 },
     { id: "qmodel_38max", name: "Qwen3.8-Max", rateMultiplier: 0.5, discountNote: "每晚 22:00—次日 8:00 错峰 4 折（10 PM-8 AM UTC+8）" },

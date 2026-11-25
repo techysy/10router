@@ -456,15 +456,13 @@ const QODER_NAME_ALIASES = {
   // DeepSeek-V4.1-Flash 1017 不再出现在目录，别名移除（dead row 会被 audit 判）。
   "DeepSeek-Flash": "dfmodel",
   "MiniMax-M3.1-Flash": "mmodel",
+  // HungerG（`hmodel`）双端官方选型器都有（Free 徽章 / 0x），目录按
+  // Cosy-Clienttype 门控，QODER_CATALOG_CLIENT_TYPE 起才下发。
+  "HungerG": "hmodel",
 };
 const QODER_CN_NAME_ALIASES = {
   ...QODER_NAME_ALIASES,
   "快速": "fast",
-  // HungerG 只在 CN 注册。国际站的桌面指纹目录同样下发 hmodel，但我们的
-  // 国际站目录读取刻意保持 CLI 指纹：实测 ct=10 会连带带出 `fast`/
-  // `smodel`/`cmodel` 三行国际站未注册的 key，让它们漏进选择器变成死行；
-  // CN 侧 ct=10 相对 ct=5 只多 hmodel 一行，其余逐字段一致，所以那边能切。
-  "HungerG": "hmodel",
   "Step-5-Preview": "jmodel",
   "Qwen3.7-Flash": "q37fmodel",
   "GLM-5.2": "gm51model",
@@ -908,10 +906,19 @@ export const PROVIDER_CAPABILITIES = {
     "qmodel":         { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.7-Plus
     "qfmodel":        { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // Qwen3.8-Flash
     "qmodel_38max":   { vision: true, reasoning: true, thinkingFormat: "qwen", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Qwen3.8-Max
+    // HungerG（`hmodel`，2026-11-25 双端 live 探测）：is_vl/is_reasoning true、
+    // 1M、price_factor 0 + tags:[free]。底座未知，thinkingFormat 取条目自己声明
+    // 的 `format:"openai"`（不猜家族）；max_output_tokens 上游一律回 0，按
+    // qoder 行的众数 65536 保守夹（宁小勿大），待上游给出真实上限再抬。
+    "hmodel":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
+    // Fast（`fast`，国际版 2026-11-25 与 CN 同批上架）：虚拟路由档，同 CN 的
+    // 快速与 auto/efficient 形状。注意双端 is_reasoning 不同（CN true / intl
+    // false），但那是 model_config 选择用的旗标，不代表模型不能推理。
+    "fast":           { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },
     // lmodel（QoDuck）2026-11-11 转正为 Qwen4-Max-Preview（key qmodel_latest），
     // INTL live 目录已无 lmodel —— 行随注册表撤下；CN 侧（app 场景 key 可能仍
     // 下发）保留独立行。
-  }, { ...QODER_NAME_ALIASES, "Auto": "auto", "Ultimate": "ultimate", "Performance": "performance", "Efficient": "efficient" }),
+  }, { ...QODER_NAME_ALIASES, "Auto": "auto", "Ultimate": "ultimate", "Performance": "performance", "Efficient": "efficient", "Fast": "fast" }),
   "qoder-cn": aliased({
     // 虚拟档：家族随上游路由漂移，给保守超集（与 INTL 侧的 auto/efficient 同形状）。
     "auto":           { vision: true, reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // 虚拟档：家族随上游路由漂移，给保守超集
