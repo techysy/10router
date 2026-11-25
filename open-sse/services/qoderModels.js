@@ -32,6 +32,7 @@ import {
   QODER_CN_JOB_TOKEN_EXCHANGE_URL,
   QODER_CN_USERINFO_URL,
   QODER_IDE_VERSION,
+  QODER_CN_CATALOG_VERSION,
   QODER_CLIENT_TYPE,
 } from "../shared/qoder/constants.js";
 
@@ -214,7 +215,10 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
   const headers = {
     Accept: "application/json",
     "Accept-Encoding": "identity",
-    ...buildCosyHeaders(Buffer.alloc(0), modelListUrl, creds),
+    // CN reads the catalog at a higher Cosy-Version so the version-gated rows
+    // its registry already lists (`fast`) actually arrive — see
+    // QODER_CN_CATALOG_VERSION. Chat keeps signing at QODER_IDE_VERSION.
+    ...buildCosyHeaders(Buffer.alloc(0), modelListUrl, creds, isCn ? { cosyVersion: QODER_CN_CATALOG_VERSION } : null),
   };
 
   const controller = new AbortController();

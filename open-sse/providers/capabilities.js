@@ -439,6 +439,9 @@ const QODER_NAME_ALIASES = {
   "Kimi-K3.1-Pro": "kmodel_latest",
   "Kimi-K2.8-Preview": "kmodel",
   "GLM-5.3": "gmodel",
+  // 2026-11-25 live 探测双端：GLM-5.4 是独立 key `gmodel_latest`（0.8x、
+  // tags:[new]），不是 GLM-5.3 的别名。
+  "GLM-5.4": "gmodel_latest",
   "GLM-5.3-Flash": "gfmodel",
   "DeepSeek-V4-Pro": "dmodel",
   // Qoder 2026-10 起把 dfmodel 显示为 DeepSeek-V4.1-Flash-1017（客户端模型卡确认）。
@@ -885,6 +888,7 @@ export const PROVIDER_CAPABILITIES = {
     "dmodel":         { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4-Pro（live 1M）
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
+    "gmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 }, // GLM-5.4（2026-11-25 live 双端 gmodel_latest，is_vl true；maxOutput 跟 canonical glm-5.4 行）
     "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash（live 1M）
     "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro
     "kmodel":         { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 256000, maxOutput: 65536 },  // Kimi-K2.8-Preview
@@ -905,6 +909,7 @@ export const PROVIDER_CAPABILITIES = {
     "dmodel":         { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4-Pro
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
+    "gmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 }, // GLM-5.4（2026-11-25 live CN gmodel_latest，is_vl true）
     "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash
     "gm51model":      { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 48000 },       // GLM-5.2
     "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro

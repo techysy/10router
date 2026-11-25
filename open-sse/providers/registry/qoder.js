@@ -50,6 +50,10 @@ export default {
     { id: "kmodel_latest", name: "Kimi-K3.1-Pro" },
     { id: "kmodel", name: "Kimi-K2.8-Preview" },
     { id: "gmodel", name: "GLM-5.3" },
+    // GLM-5.4 = 上游 key `gmodel_latest`（0.8x、tags:[new]、is_vl true）。
+    // 2026-11-25 live 探测双端同构，国际版 1.0.0 目录即已下发，无需 CN 那样的
+    // catalog 版本门。
+    { id: "gmodel_latest", name: "GLM-5.4", rateMultiplier: 0.8 },
     { id: "gfmodel", name: "GLM-5.3-Flash" },
     { id: "dmodel", name: "DeepSeek-V4-Pro" },
     // Qoder 界面上 dfmodel 就是「DeepSeek-Flash / DeepSeek-V4.1-Flash-1017」

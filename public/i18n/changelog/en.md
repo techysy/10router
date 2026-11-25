@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **GLM-5.4 added for Qoder / Qoder CN**: the official catalog shipped GLM-5.4 (×0.8, 1M context, image input, labelled "New" upstream), selectable on both the CN and international sides. It shares GLM-5.3's price but is a separate model with its own catalog row. Existing Qoder connections need no re-login — just "Refresh model list" on the provider page.
+
 - **CodeBuddy CN (Tencent WorkBuddy) catalog & badge alignment**: the official client shipped GLM-5.4 (0.69x, 1M context, multimodal, no badge); every other model’s multiplier and badge was checked line-by-line and is unchanged — Hy4 flash “limited-time free” (0.00x, daily free credits Nov 16–30), DeepSeek “night discount”, GLM 5.3 / 5.3 Flash / Kimi “subscription priority” all stay. Existing CodeBuddy CN connections need no re-login — just “Refresh model list”.
 
 - **Loomy catalog update**: the official client shipped a new model — DeepSeek V4.1 Flash 1017 (×2.0, 1M context, image input), priced the same as DeepSeek V4.1 Flash. Spark-X2.6's limited-time free period has ended; its credit multiplier is restored to the official ×2.5. The delisted DeepSeek V4 Flash 0731 and MiMo V2.5 are removed. All multipliers now match the official client labels (GLM 5.3 Flash ×0.8, Qwen 3.8 Flash ×0.8). Existing Loomy connections need no re-login — just "Refresh model list".
@@ -29,6 +31,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 - **New provider: Numes**: an OpenAI-compatible inference marketplace — frontier and open-source models served by independent providers, billed per request from a USD or Bitcoin balance (the key's currency is fixed at creation). Model ids are OpenRouter-shaped (`author/model`); ids suffixed `:free` cost nothing (GLM-5.3, GLM-5.3-Flash, DeepSeek V4.1 Flash, Kimi K3.1 Pro, Nemotron 3 Ultra 550B), while a plain id only routes to priced endpoints. 34 flagship models are pre-listed and everything else in the catalog works by id; reasoning tiers ride the standard OpenAI reasoning_effort.
 
 ### 🐛 Fixed
+
+- **Qoder CN "Fast" chats again**: upstream only publishes that tier to newer client versions, and our catalog read used a lower one, so its model config was never fetched and picking 快速 failed with `model_config for "fast" not yet known`. The catalog is now read at a version that includes it; the chat request signature is unchanged. Its ×0.6 multiplier label was added too.
 
 - **DuMate per-pack details no longer stack suffixes**: packs sharing a name used to render as 「Daily credits·2·2·2·2·2·2·2」 — the marker was re-appended on every collision — and now number in order instead (Daily credits, ·2, ·3 …). A month of daily grants is readable again.
 

@@ -37,7 +37,11 @@ export default {
     // publishes none of them (only Auto + the model keys below). Chat still
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
-    { id: "fast", name: "快速" },
+    // 快速 = `fast`，0.6x。2026-11-25 live 探测：CN 目录只在 Cosy-Version
+    // ≥1.2.0 时下发这一行（1.0.0 返回 13 条，≥1.2.0 返回 14 条），所以
+    // catalog 读取已升到 QODER_CN_CATALOG_VERSION —— 否则这行永远取不到
+    // model_config，聊天必报 `model_config for "fast" not yet known`。
+    { id: "fast", name: "快速", rateMultiplier: 0.6 },
     { id: "qmodel_38max", name: "Qwen3.8-Max", rateMultiplier: 0.5, discountNote: "每晚 22:00—次日 8:00 错峰 4 折（10 PM-8 AM UTC+8）" },
 
     // 2026-11-18 客户端截图 + live 目录探测（GET /algo/api/v2/model/list）：
@@ -56,6 +60,10 @@ export default {
     // 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
     { id: "dfmodel", name: "DeepSeek-Flash", rateMultiplier: 0.1 },
     { id: "gmodel", name: "GLM-5.3", rateMultiplier: 0.8 },
+    // GLM-5.4（2026-11-25 客户端截图 + live 目录探测）= 上游 key
+    // `gmodel_latest`，0.8x、tags:[new]、is_vl/is_reasoning 均 true。与 GLM-5.3
+    // 同价但目录里是独立 key，不是同一个模型的两种写法。
+    { id: "gmodel_latest", name: "GLM-5.4", rateMultiplier: 0.8 },
     { id: "gfmodel", name: "GLM-5.3-Flash", rateMultiplier: 0.1 },
     { id: "gm51model", name: "GLM-5.2" },
     { id: "kmodel_latest", name: "Kimi-K3.1-Pro", rateMultiplier: 1.0 },
