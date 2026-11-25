@@ -120,6 +120,12 @@ export default {
     { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.69, subPriority: true },
     { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08, subPriority: true },
     { id: "glm-5.2", name: "GLM-5.2", rateMultiplier: 0.79, discountNote: "每晚 23:00—次日 8:00 积分限时立减，非高峰错峰更省" },
+    // GLM-5.4（客户端 2026-11-25 第五版清单新上）：0.69x、无徽章。与 glm-5.3
+    // 同价但**不带**「订阅优先」标签（截图卡面只有倍率）。能力走 canonical
+    // glm-5.4 行（1M/131072、全模态，zai 形状——provider 未声明 thinkingFormat
+    // 覆盖时由 capability 行给出 zai；本 provider 的 transport 写死 openai，
+    // resolveFormat 让 transport 覆盖 capability，与 CN 网关 openai 形状一致）。
+    { id: "glm-5.4", name: "GLM-5.4", rateMultiplier: 0.69 },
     { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.08 },
     // 2026-10-08 现网探测：hy5-preview / glm-5.4 / kimi-k2.7-code / muse-spark-1.3
     // 回 11102。minimax-m2.7 当日曾按「返回 200 且回显自身 id」短窗收录，
