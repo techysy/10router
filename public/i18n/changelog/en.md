@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **CodeBuddy CN (Tencent WorkBuddy) catalog & badge alignment**: the official client shipped GLM-5.4 (0.69x, 1M context, multimodal, no badge); every other model’s multiplier and badge was checked line-by-line and is unchanged — Hy4 flash “limited-time free” (0.00x, daily free credits Nov 16–30), DeepSeek “night discount”, GLM 5.3 / 5.3 Flash / Kimi “subscription priority” all stay. Existing CodeBuddy CN connections need no re-login — just “Refresh model list”.
+
 - **Loomy catalog update**: the official client shipped a new model — DeepSeek V4.1 Flash 1017 (×2.0, 1M context, image input), priced the same as DeepSeek V4.1 Flash. Spark-X2.6's limited-time free period has ended; its credit multiplier is restored to the official ×2.5. The delisted DeepSeek V4 Flash 0731 and MiMo V2.5 are removed. All multipliers now match the official client labels (GLM 5.3 Flash ×0.8, Qwen 3.8 Flash ×0.8). Existing Loomy connections need no re-login — just "Refresh model list".
 
 - **New models on QwenWork CN**: GLM-5.4 (launch promo, 1.2x, strong at coding/multi-step/visual tasks) and Ling-3.1-Flash (limited 90% off, 0.1x, long-horizon reasoning) are now live in the QwenWork CN catalog (verified against the official client, 2026-11-25); the static roster and capability table follow — GLM-5.4 corrected to multimodal (text+image+video+PDF, 1M context) and Ling-3.1-Flash corrected to a 1M context window. The official "Now Live" / "90% OFF" badges pass through from the live catalog. The international QwenWork gateway has not shipped these yet; the picker follows automatically once it does.
