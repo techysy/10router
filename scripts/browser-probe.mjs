@@ -114,6 +114,7 @@ const child = spawn(
     `--user-data-dir=${profile}`,
     "--no-first-run",
     "--no-default-browser-check",
+    "--no-proxy-server",
     "--disable-gpu",
     "--hide-scrollbars",
     "--window-size=1600,1400",

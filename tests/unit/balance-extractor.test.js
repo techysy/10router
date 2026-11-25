@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractConnectionBalance } from "../../open-sse/services/usage/balanceExtractor.js";
+import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "../../open-sse/config/providerCategories.js";
 
 describe("extractConnectionBalance", () => {
   it("extracts DeepSeek CNY balance", () => {
@@ -42,5 +43,12 @@ describe("extractConnectionBalance", () => {
     expect(extractConnectionBalance(null)).toBeNull();
     expect(extractConnectionBalance({})).toBeNull();
     expect(extractConnectionBalance({ quotas: {} })).toBeNull();
+  });
+});
+
+describe("getProviderQuotaCategory", () => {
+  it("classifies minimax-code and minimax-code-global as PURE_BALANCE", () => {
+    expect(getProviderQuotaCategory("minimax-code")).toBe(PROVIDER_QUOTA_TYPES.PURE_BALANCE);
+    expect(getProviderQuotaCategory("minimax-code-global")).toBe(PROVIDER_QUOTA_TYPES.PURE_BALANCE);
   });
 });

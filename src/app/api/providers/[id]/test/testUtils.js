@@ -1,14 +1,33 @@
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { testProxyUrl } from "@/lib/network/proxyTest";
+import { applyNodeCustomHeaders } from "open-sse/executors/base.js";
+import { geoRedirectNote } from "open-sse/utils/error.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, USAGE_SUPPORTED_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel, getModelUpstreamId } from "open-sse/config/providerModels.js";
 import { CODEX_CLI_VERSION } from "open-sse/config/appConstants.js";
+import { ANTIGRAVITY_IDE_USER_AGENT } from "open-sse/providers/shared.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import {
+  amazonQuickListConversationsUrl,
+  buildAmazonQuickHeaders,
+  resolveAmazonQuickCredentials,
+} from "open-sse/shared/amazonquick/constants.js";
+import { AMAZONQUICK_TIERS } from "open-sse/services/amazonquickModels.js";
+import { resolveQwenWorkModels } from "open-sse/services/qwenworkModels.js";
+import { qwenworkSite } from "open-sse/shared/qwenwork/constants.js";
+import {
+  JUNIE_CHAT_URL,
+  JUNIE_FREE_HEADERS,
+  JUNIE_UPSTREAM_MODEL,
+} from "open-sse/shared/junie/constants.js";
+import { fetchMeooPoints, resolveMeooProjectAk, getMeooControlKey } from "open-sse/services/meooAk.js";
+import { autoclawPost, autoclawRegionFor, autoclawRegionConfig, isAutoclawDeadLogin } from "open-sse/shared/autoclaw/client.js";
+import { AUTOCLAW_PATHS } from "open-sse/shared/autoclaw/constants.js";
 import { QODER_USERINFO_URL, QODER_CN_USERINFO_URL } from "open-sse/shared/qoder/constants.js";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
 import {
@@ -25,6 +44,7 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
+import { testCroliConnection } from "./croliConnection.js";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 
 // OAuth provider test endpoints
@@ -293,7 +313,7 @@ async function resolveCloudCodeProjectId(connection, accessToken, effectiveProxy
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "User-Agent": connection.provider === "antigravity"
-          ? "antigravity/ide/2.22.0 darwin/arm64"
+          ? ANTIGRAVITY_IDE_USER_AGENT
           : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0",
       },
       body: JSON.stringify({ metadata: { ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" } }),
@@ -408,7 +428,12 @@ async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProx
   };
 }
 
-async function refreshOAuthToken(connection) {
+// Token refresh for the connection-test path. MUST ride the same connection
+// proxy as every probe around it (#146): with a proxy configured, a bare
+// fetch to oauth2.googleapis.com/claude/kiro from a blocked egress reads as
+// "refresh failed" and the test misjudges healthy credentials as expired.
+// Exported for unit tests.
+export async function refreshOAuthToken(connection, effectiveProxy = null) {
   const provider = connection.provider;
   const refreshToken = connection.refreshToken;
   if (!refreshToken) return null;
@@ -416,7 +441,7 @@ async function refreshOAuthToken(connection) {
   try {
     if (provider === "gemini-cli" || provider === "antigravity") {
       const config = provider === "gemini-cli" ? GEMINI_CONFIG : ANTIGRAVITY_CONFIG;
-      const response = await fetch("https://oauth2.googleapis.com/token", {
+      const response = await fetchWithConnectionProxy("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -425,7 +450,7 @@ async function refreshOAuthToken(connection) {
           grant_type: "refresh_token",
           refresh_token: refreshToken,
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
@@ -436,7 +461,7 @@ async function refreshOAuthToken(connection) {
     }
 
     if (provider === "claude") {
-      const response = await fetch(CLAUDE_CONFIG.tokenUrl, {
+      const response = await fetchWithConnectionProxy(CLAUDE_CONFIG.tokenUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
@@ -444,7 +469,7 @@ async function refreshOAuthToken(connection) {
           refresh_token: refreshToken,
           client_id: CLAUDE_CONFIG.clientId,
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
@@ -457,27 +482,27 @@ async function refreshOAuthToken(connection) {
       const region = psd.region || connection.region;
       if (clientId && clientSecret) {
         const endpoint = `https://oidc.${region || "us-east-1"}.amazonaws.com/token`;
-        const response = await fetch(endpoint, {
+        const response = await fetchWithConnectionProxy(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clientId, clientSecret, refreshToken, grantType: "refresh_token" }),
-        });
+        }, effectiveProxy);
         if (!response.ok) return null;
         const data = await response.json();
         return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
       }
-      const response = await fetch(KIRO_CONFIG.socialRefreshUrl, {
+      const response = await fetchWithConnectionProxy(KIRO_CONFIG.socialRefreshUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "User-Agent": "kiro-cli/1.0.0" },
         body: JSON.stringify({ refreshToken }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const data = await response.json();
       return { accessToken: data.accessToken, expiresIn: data.expiresIn || 3600, refreshToken: data.refreshToken || refreshToken };
     }
 
     if (provider === "cline") {
-      const response = await fetch(CLINE_CONFIG.refreshUrl, {
+      const response = await fetchWithConnectionProxy(CLINE_CONFIG.refreshUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
@@ -485,7 +510,7 @@ async function refreshOAuthToken(connection) {
           grantType: "refresh_token",
           clientType: "extension",
         }),
-      });
+      }, effectiveProxy);
       if (!response.ok) return null;
       const payload = await response.json();
       const data = payload?.data || payload;
@@ -530,6 +555,142 @@ function isTokenExpired(connection) {
 // appear as their own key in the raw /model/list catalog — for these, a
 // non-empty catalog IS the availability check.
 const QODER_VIRTUAL_MODELS = new Set(["auto", "efficient"]);
+
+/**
+ * Meoo: the FULL two-stage chain, because a healthy ledger alone lies —
+ * the control-plane credential (OAuth token or pasted meoo_ak_ key) reads
+ * balance/check-in fine while every chat 401s "项目服务 AK 格式非法"
+ * when the account has no project (2026-11-14/15 真机两踩). The test walks
+ * control plane → project AK → gateway:
+ *   1. points ledger proves the control-plane credential;
+ *   2. resolveMeooProjectAk proves a project exists with cloud services on
+ *      (its MEOO_NO_PROJECT / MEOO_CLOUD_NOT_ENABLED messages ARE the fix);
+ *   3. a selected model sends a 1-token chat through the gateway (points
+ *      cost ≈ nothing; same trade oxion makes) — without one, a GET /models
+ *      with the fresh AK proves the gateway accepts it.
+ */
+async function testMeooConnection(connection, effectiveProxy = null, options = {}) {
+  const psd = connection.providerSpecificData || {};
+  const credential =
+    (typeof connection.accessToken === "string" && connection.accessToken.trim()) ||
+    getMeooControlKey({ providerSpecificData: psd });
+  if (!credential) {
+    return { valid: false, error: "No Meoo control-plane credential (OAuth token or meoo_ak_ key)", refreshed: false };
+  }
+
+  let account;
+  try {
+    account = await fetchMeooPoints(credential, { proxyOptions: effectiveProxy });
+  } catch (err) {
+    return { valid: false, error: `Meoo control plane: ${err.message}`, refreshed: false };
+  }
+  if (!account || typeof account.availableBalance !== "number") {
+    return { valid: false, error: "Meoo control plane returned no points account", refreshed: false };
+  }
+
+  let resolved;
+  try {
+    resolved = await resolveMeooProjectAk(credential, {
+      projectUrlId: psd.projectUrlId || "",
+      proxyOptions: effectiveProxy,
+    });
+  } catch (err) {
+    // MEOO_NO_PROJECT / MEOO_CLOUD_NOT_ENABLED messages read as instructions —
+    // surface them verbatim; serverTranslate carries the zh pair.
+    return { valid: false, error: err.message || "Meoo project service AK could not be resolved", refreshed: false };
+  }
+  // resolveMeooProjectAk returns the OBJECT { projectApiKey, projectUrlId,
+  // projectName } — interpolating it into Bearer rendered "[object Object]"
+  // and the gateway 401'd「项目服务 AK 无效」. That gateway leg was dead code
+  // until the baseUrl fix above activated it (2026-11-15 真机直连 AK 探测
+  // 200 全通——账号本身没问题，纯粹是这里没用 .projectApiKey）。
+  const projectAk = resolved.projectApiKey;
+
+  // config/providers.js 的 meoo 条目是顶层 baseUrl（无 transport 子对象）——
+  // 读 transport.baseUrl 恒为 undefined，逐个测试永远走「Gateway URL missing」
+  // 假成功分支（valid:true + error 文案 → 红字挂成功徽章，2026-11-15 用户报告）。
+  const gatewayUrl = PROVIDERS["meoo"]?.baseUrl;
+  if (!gatewayUrl) return { valid: true, error: "Gateway URL missing; control plane + project AK verified", refreshed: false };
+
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${projectAk}` };
+  let res;
+  try {
+    if (options.model) {
+      const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
+      const model = stripThinkingSuffix(getModelUpstreamId(connection.provider, options.model));
+      res = await fetchWithConnectionProxy(gatewayUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+      }, effectiveProxy);
+    } else {
+      const modelsUrl = gatewayUrl.replace(/\/chat\/completions$/, "") + "/models";
+      res = await fetchWithConnectionProxy(modelsUrl, { headers }, effectiveProxy);
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      error: "Endpoint unreachable — the provider may be under maintenance, try again later",
+      maintenance: true,
+    };
+  }
+
+  if (res.status === 401 || res.status === 403) return { valid: false, error: "Invalid project service AK" };
+  if (res.status === 429) return { valid: true, error: "Model rate-limited (quota exhausted)" };
+  const bodyText = await res.text().catch(() => "");
+  if (!res.ok) {
+    return {
+      valid: false,
+      error: parseProviderErrorMessage(bodyText, `API returned ${res.status}`),
+      maintenance: res.status >= 500,
+    };
+  }
+  return { valid: true, error: null };
+}
+
+// Capy 连接探针:铸 session JWT(Clerk 会话活着)+ 列模型(模型访问开通)。
+// 中性链路,不建 jam、不需要设备在线;模型参数做可用性核对。
+async function testCapyConnection(connection, effectiveProxy = null, options = {}) {
+  const psd = connection.providerSpecificData || {};
+  const sessionId = psd.sessionId;
+  const clientJwt = connection.refreshToken;
+  const orgId = psd.orgId;
+  if (!sessionId || !clientJwt || !orgId) {
+    return { valid: false, error: "Capy connection missing session context", refreshed: false };
+  }
+  const proxyFetch = (url, init) => fetchWithConnectionProxy(url, init, effectiveProxy);
+  try {
+    const { mintCapySessionJwt, capyModels } = await import("open-sse/shared/capy/client.js");
+    const minted = await mintCapySessionJwt({ clientJwt, sessionId }, { fetchImpl: proxyFetch });
+    const models = await capyModels(minted.jwt, orgId, { fetchImpl: proxyFetch });
+    const list = Array.isArray(models) ? models : (models?.items ?? []);
+    if (!Array.isArray(list) || list.length === 0) {
+      return { valid: false, error: "Capy 会话未能获取模型列表（模型访问未开通）", refreshed: false };
+    }
+    const model = options?.model;
+    if (model) {
+      const bare = model.startsWith("capy/") ? model.slice(5) : model;
+      const available = list.some((m) => (m.id || m) === bare || String(m.id || m).endsWith("/" + bare));
+      if (!available) {
+        return { valid: false, error: "Model " + JSON.stringify(model) + " is not available on this Capy account", refreshed: false };
+      }
+    }
+    return {
+      valid: true,
+      error: null,
+      refreshed: true,
+      newTokens: { accessToken: minted.jwt, refreshToken: minted.rotatedClientJwt ?? clientJwt },
+    };
+  } catch (e) {
+    const status = e?.status;
+    const revoked = status === 401 || status === 403;
+    return {
+      valid: false,
+      error: revoked ? "Token invalid or expired" : "Capy test failed: " + (e.message || e),
+      refreshed: false,
+    };
+  }
+}
 
 async function testQoderConnection(connection, effectiveProxy = null, options = {}) {
   const { model } = options;
@@ -583,12 +744,227 @@ async function testQoderConnection(connection, effectiveProxy = null, options = 
   }
 }
 
+async function testQwenWorkConnection(connection, effectiveProxy = null, options = {}) {
+  const { model } = options;
+
+  let catalog = null;
+  try {
+    // forceRefresh: a Test button must reflect the account NOW, not the 1h cache.
+    catalog = await resolveQwenWorkModels(connection, { proxyOptions: effectiveProxy, forceRefresh: true });
+  } catch {
+    catalog = null;
+  }
+
+  if (catalog && Array.isArray(catalog.models)) {
+    const nonEmpty = catalog.models.length > 0;
+    if (model) {
+      const available = catalog.models.some((m) => m.id === model);
+      return available
+        ? { valid: true, error: null, refreshed: false }
+        : { valid: false, error: `Model "${model}" is not available on this QwenWork account`, refreshed: false };
+    }
+    return nonEmpty
+      ? { valid: true, error: null, refreshed: false }
+      : { valid: false, error: "No models available on this QwenWork account", refreshed: false };
+  }
+
+  // Catalog unavailable (COSY signing needs a userId, or a transient
+  // failure): fall back to the account-context probe so a good token is
+  // not marked broken.
+  if (!connection.accessToken) return { valid: false, error: "No access token", refreshed: false };
+  const userinfoUrl = qwenworkSite(connection.provider).userInfoUrl;
+  try {
+    const res = await fetchWithConnectionProxy(
+      userinfoUrl,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${connection.accessToken}`, Accept: "application/json" },
+      },
+      effectiveProxy,
+    );
+    if (!res.ok) {
+      const revoked = res.status === 401 || res.status === 403;
+      return { valid: false, error: revoked ? "Token invalid or expired" : `QwenWork account-context error (${res.status})`, refreshed: false };
+    }
+    return model
+      ? { valid: true, warning: "Credential OK, but model availability could not be verified (catalog unavailable)", error: null, refreshed: false }
+      : { valid: true, error: null, refreshed: false };
+  } catch (err) {
+    return { valid: false, error: `QwenWork test failed: ${err.message}`, refreshed: false };
+  }
+}
+
+// Junie (JetBrains) free lane: the credential is the JBA id_token
+// (stored in the accessToken slot) and the lane exposes no /models or
+// userinfo probe — the cheapest truthful test is one minimal
+// non-streaming chat completion (max_tokens 1; the free lane has no
+// metered quota). An expired/401 id_token is refreshed once through the
+// rotating refresh token and the new pair rides back via newTokens so
+// the caller persists it (refresh tokens are single-use).
+async function testJunieConnection(connection, effectiveProxy = null, options = {}) {
+  if (!connection.accessToken && !connection.refreshToken) {
+    return { valid: false, error: "No access token", refreshed: false };
+  }
+
+  let accessToken = connection.accessToken;
+  let refreshed = false;
+  let newTokens = null;
+
+  const tryRefresh = async () => {
+    if (!connection.refreshToken) return false;
+    const merged = await refreshProviderCredentials("junie", connection, console);
+    if (!merged?.accessToken) return false;
+    accessToken = merged.accessToken;
+    refreshed = true;
+    newTokens = {
+      accessToken: merged.accessToken,
+      ...(merged.idToken ? { idToken: merged.idToken } : {}),
+      ...(merged.refreshToken ? { refreshToken: merged.refreshToken } : {}),
+      ...(merged.expiresIn ? { expiresIn: merged.expiresIn } : {}),
+    };
+    return true;
+  };
+
+  if (isTokenExpired(connection) && connection.refreshToken) {
+    const ok = await tryRefresh();
+    if (!ok) return { valid: false, error: "Token expired and refresh failed", refreshed: false };
+  }
+
+  const probe = async (token) =>
+    fetchWithConnectionProxy(
+      JUNIE_CHAT_URL,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...JUNIE_FREE_HEADERS,
+        },
+        body: JSON.stringify({
+          model: JUNIE_UPSTREAM_MODEL,
+          messages: [{ role: "user", content: "hello" }],
+          max_tokens: 1,
+          stream: false,
+        }),
+      },
+      effectiveProxy,
+    );
+
+  try {
+    let res = await probe(accessToken);
+    if ((res.status === 401 || res.status === 403) && !refreshed && connection.refreshToken) {
+      const ok = await tryRefresh();
+      if (!ok) return { valid: false, error: "Token invalid or expired", refreshed: false };
+      res = await probe(accessToken);
+    }
+    if (!res.ok) {
+      const revoked = res.status === 401 || res.status === 403;
+      return {
+        valid: false,
+        error: revoked ? "Token invalid or expired" : `Junie lane error (${res.status})`,
+        refreshed,
+        ...(newTokens ? { newTokens } : {}),
+      };
+    }
+    return { valid: true, error: null, refreshed, ...(newTokens ? { newTokens } : {}) };
+  } catch (err) {
+    return { valid: false, error: `Junie test failed: ${err.message}`, refreshed, ...(newTokens ? { newTokens } : {}) };
+  }
+}
+
+// AutoClaw（智谱澳龙，intl + CN）: no model-free chat probe exists and every
+// chat turn spends credits, so the truthful cheap check is the account
+// plane's signed user-profile read on the token's own region (JWT
+// source_id). Envelope code 0 = valid; 401/403 or a dead-login code → one
+// refresh through the rotating refresh token, and the new pair rides back
+// via newTokens so the caller persists it.
+async function testAutoclawConnection(connection, effectiveProxy = null) {
+  if (!connection.accessToken && !connection.refreshToken) {
+    return { valid: false, error: "No access token", refreshed: false };
+  }
+  let accessToken = connection.accessToken;
+  let refreshed = false;
+  let newTokens = null;
+
+  const tryRefresh = async () => {
+    if (!connection.refreshToken) return false;
+    const merged = await refreshProviderCredentials(connection.provider, connection, console);
+    if (!merged?.accessToken) return false;
+    accessToken = merged.accessToken;
+    refreshed = true;
+    newTokens = {
+      accessToken: merged.accessToken,
+      ...(merged.refreshToken ? { refreshToken: merged.refreshToken } : {}),
+      ...(merged.expiresIn ? { expiresIn: merged.expiresIn } : {}),
+    };
+    return true;
+  };
+
+  if (isTokenExpired(connection) && connection.refreshToken) {
+    const ok = await tryRefresh();
+    if (!ok) return { valid: false, error: "Token expired and refresh failed", refreshed: false };
+  }
+
+  const region = autoclawRegionFor(connection.provider, connection);
+  const probe = (token) => autoclawPost(
+    autoclawRegionConfig(region).accountHost,
+    AUTOCLAW_PATHS.userProfile,
+    {},
+    {
+      region,
+      accessToken: token,
+      deviceId: connection.providerSpecificData?.deviceId || null,
+      fetchImpl: (url, init) => fetchWithConnectionProxy(url, init, effectiveProxy),
+    },
+  );
+  const isAuthFailure = isAutoclawDeadLogin;
+
+  try {
+    try {
+      await probe(accessToken);
+    } catch (e) {
+      if (!isAuthFailure(e) || refreshed || !connection.refreshToken) throw e;
+      const ok = await tryRefresh();
+      if (!ok) return { valid: false, error: "Token invalid or expired", refreshed: false };
+      await probe(accessToken);
+    }
+    return { valid: true, error: null, refreshed, ...(newTokens ? { newTokens } : {}) };
+  } catch (err) {
+    return {
+      valid: false,
+      error: isAuthFailure(err) ? "Token invalid or expired" : `AutoClaw test failed: ${err.message}`,
+      refreshed,
+      ...(newTokens ? { newTokens } : {}),
+    };
+  }
+}
+
 async function testOAuthConnection(connection, effectiveProxy = null, options = {}) {
   // Qoder's test is model-aware and needs the live catalog — handled here, not
   // via OAUTH_TEST_CONFIG (which qoder-cn was never in, so it answered "Provider
   // test not supported" for an otherwise healthy account).
   if (connection.provider === "qoder" || connection.provider === "qoder-cn") {
     return testQoderConnection(connection, effectiveProxy, options);
+  }
+  if (connection.provider === "capy") {
+    // Capy: session JWT 只有 60 秒寿命,config 驱动的单请求探针表达不了
+    // 「铸 session JWT → 列模型」两步链。专用探针顺带触发 clientJwt 轮换,
+    // 新值随 newTokens 交回 testSingleConnection 持久化(与 capyRefreshHandler 同律)。
+    return testCapyConnection(connection, effectiveProxy, options);
+  }
+  // QwenWork: same catalog-based test (see testQwenWorkConnection).
+  if (connection.provider === "qwenwork" || connection.provider === "qwenwork-cn") {
+    return testQwenWorkConnection(connection, effectiveProxy, options);
+  }
+  // Junie: the free lane has no token-validation endpoint — the probe is
+  // one minimal chat completion (see testJunieConnection).
+  if (connection.provider === "junie") {
+    return testJunieConnection(connection, effectiveProxy, options);
+  }
+  // AutoClaw: signed account-plane profile read (no credit-spending chat probe).
+  if (connection.provider === "autoclaw" || connection.provider === "autoclaw-cn") {
+    return testAutoclawConnection(connection, effectiveProxy);
   }
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
@@ -605,7 +981,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
 
   const tokenExpired = isTokenExpired(connection);
   if (config.refreshable && tokenExpired && connection.refreshToken) {
-    const tokens = await refreshOAuthToken(connection);
+    const tokens = await refreshOAuthToken(connection, effectiveProxy);
     if (tokens) {
       accessToken = tokens.accessToken;
       refreshed = true;
@@ -654,7 +1030,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
     }
 
     if (initial.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
-      const tokens = await refreshOAuthToken(connection);
+      const tokens = await refreshOAuthToken(connection, effectiveProxy);
       if (tokens?.accessToken) {
         const retry = await runProbe(tokens.accessToken);
         if (retry.valid) {
@@ -688,7 +1064,7 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
       return initial;
     }
 
-    const tokens = await refreshOAuthToken(connection);
+    const tokens = await refreshOAuthToken(connection, effectiveProxy);
     if (!tokens?.accessToken) {
       return { valid: false, error: "Token invalid or revoked", refreshed: false };
     }
@@ -721,8 +1097,15 @@ async function testOAuthConnection(connection, effectiveProxy = null, options = 
       };
     }
 
+    // Geo-redirect short-circuit (issue #101): a region-redirected probe
+    // (agent.minimax.io → CN domain from CN networks) fails auth regardless of
+    // token validity — refresh here would only churn tokens on a network
+    // problem. Surface the actionable message instead.
+    const geoNote = geoRedirectNote(testUrl, res);
+    if (geoNote) return { valid: false, error: geoNote, refreshed: false };
+
     if (res.status === 401 && config.refreshable && !refreshed && connection.refreshToken) {
-      const tokens = await refreshOAuthToken(connection);
+      const tokens = await refreshOAuthToken(connection, effectiveProxy);
       if (tokens) {
         const retryUrl = config.buildUrl ? config.buildUrl(tokens.accessToken) : testUrl;
         const retryHeaders = config.noAuth
@@ -807,7 +1190,10 @@ export async function probeOpenAIModelsEndpoint(connection, effectiveProxy, opti
     try {
       res = await fetchWithConnectionProxy(config.baseUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+        headers: applyNodeCustomHeaders(
+          { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          connection,
+        ),
         body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
       }, effectiveProxy);
     } catch (err) {
@@ -842,7 +1228,7 @@ export async function probeOpenAIModelsEndpoint(connection, effectiveProxy, opti
   let res;
   try {
     res = await fetchWithConnectionProxy(validateUrl, {
-      headers: { Authorization: `Bearer ${connection.apiKey}` },
+      headers: applyNodeCustomHeaders({ Authorization: `Bearer ${connection.apiKey}` }, connection),
     }, effectiveProxy);
   } catch (err) {
     // Network-level failure (DNS, timeout, TLS, connection reset) — the
@@ -884,7 +1270,7 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
     if (!modelsBase) return { valid: false, error: "Missing base URL" };
     try {
       const res = await fetchWithConnectionProxy(`${modelsBase.replace(/\/$/, "")}/models`, {
-        headers: { "Authorization": `Bearer ${connection.apiKey}` },
+        headers: applyNodeCustomHeaders({ "Authorization": `Bearer ${connection.apiKey}` }, connection),
       }, effectiveProxy);
       return { valid: res.ok, error: res.ok ? null : "Invalid API key or base URL" };
     } catch (err) {
@@ -904,12 +1290,12 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
       const probeModel = model || connection.defaultModel || "claude-3-haiku-20240307";
       const res = await fetchWithConnectionProxy(messagesUrl, {
         method: "POST",
-        headers: {
+        headers: applyNodeCustomHeaders({
           "x-api-key": connection.apiKey,
           "anthropic-version": "2023-06-01",
           "content-type": "application/json",
           "Authorization": `Bearer ${connection.apiKey}`,
-        },
+        }, connection),
         body: JSON.stringify({
           model: probeModel,
           max_tokens: 1,
@@ -939,6 +1325,32 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403 && res.status !== 404;
         return { valid, error: valid ? null : "Invalid API token or Account ID" };
+      }
+      case "amazonquick": {
+        // Read-only probe, deliberately NOT a minimal chat: a chat turn
+        // burns the account's monthly agent hours, while ListConversations
+        // rides the same qbsproxy service + cookie session and validates
+        // all three credential values (cookie, awsAccountId, csrf) at once.
+        const creds = resolveAmazonQuickCredentials(connection);
+        if (creds.missing.length > 0) {
+          return { valid: false, error: `Missing credential field(s): ${creds.missing.join(", ")}` };
+        }
+        if (model && !AMAZONQUICK_TIERS.some((t) => t.id === model)) {
+          return { valid: false, error: `Model "${model}" is not an Amazon Quick tier (fast / smart / advanced)` };
+        }
+        const res = await fetchWithConnectionProxy(
+          amazonQuickListConversationsUrl(creds.awsAccountId, creds.csrf),
+          { method: "GET", headers: buildAmazonQuickHeaders(creds) },
+          effectiveProxy,
+        );
+        if (res.ok) return { valid: true, error: null };
+        const revoked = res.status === 401 || res.status === 403;
+        return {
+          valid: false,
+          error: revoked
+            ? "Session expired or invalid — paste a fresh Copy as cURL from a logged-in quick.aws.com tab"
+            : `Amazon Quick test failed (${res.status})`,
+        };
       }
       case "azure": {
         const psd = connection.providerSpecificData || {};
@@ -1101,6 +1513,24 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const res = await fetchWithConnectionProxy("https://api.siliconflow.com/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "atlascloud": {
+        // /v1/models is public (200 with or without a key) and proves nothing
+        // about the credential — the gate is a minimal chat turn: 401/403 on a
+        // bad key (verified live 2026-11-23), anything else means the key
+        // authenticated. max_tokens 16 to clear any floor a reasoning model
+        // sets; one call per explicit "Check" press, ~free.
+        const res = await fetchWithConnectionProxy("https://api.atlascloud.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          body: JSON.stringify({
+            model: model || "deepseek-ai/deepseek-v4-flash",
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 16,
+          }),
+        }, effectiveProxy);
+        const authed = res.status !== 401 && res.status !== 403;
+        return { valid: authed, error: authed ? null : "Invalid API key" };
+      }
       case "hyperbolic": {
         const res = await fetchWithConnectionProxy("https://api.hyperbolic.xyz/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
@@ -1135,6 +1565,22 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const res = await fetchWithConnectionProxy("https://llm.chutes.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
+      case "lingxi": {
+        // Live check = the tasks endpoint (same liveness probe CreditDaddy's
+        // lingxi line uses; it carries the full WPS session jar and answers
+        // 200 with data.tasks[] when the session is alive, 401/403 when dead).
+        const res = await fetchWithConnectionProxy("https://lingxi.kdocs.cn/api/public/v1/tasks", {
+          method: "GET",
+          headers: {
+            Cookie: connection.apiKey || connection.accessToken,
+            Referer: "https://lingxi.kdocs.cn/",
+            Accept: "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+          },
+        }, effectiveProxy);
+        const valid = res.status === 200;
+        return { valid, error: valid ? null : "WPS session expired — re-capture from a logged-in lingxi.kdocs.cn browser" };
+      }
       case "grok-web": {
         const token = connection.apiKey.startsWith("sso=") ? connection.apiKey.slice(4) : connection.apiKey;
         const randomHex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -1167,6 +1613,21 @@ export async function testApiKeyConnection(connection, effectiveProxy = null, op
         const data = await res.json().catch(() => null);
         const valid = !!(data && data.user);
         return { valid, error: valid ? null : "Session expired — re-paste cookie" };
+      }
+      case "dumate": {
+        // Live check = the gateway token exchange; tokenFor also runs the
+        // silent passport relogin and returns the rotated cookie blob, which is
+        // persisted here since the request-path refresh can't reach this row.
+        try {
+          const { tokenFor } = await import("open-sse/shared/dumate/token.js");
+          const r = await tokenFor(connection.apiKey, { force: true, proxyOptions: effectiveProxy });
+          const patch = { accessToken: r.token, expiresAt: new Date(r.exp).toISOString() };
+          if (r.raw !== connection.apiKey) patch.apiKey = r.raw;
+          await updateProviderConnection(connection.id, patch);
+          return { valid: true, error: null };
+        } catch (e) {
+          return { valid: false, error: String(e.message || e).slice(0, 200) };
+        }
       }
       case "opencode-go": {
         const res = await fetchWithConnectionProxy("https://opencode.ai/zen/go/v1/chat/completions", {
@@ -1366,12 +1827,19 @@ case "llm7": {
         // (verified with a bogus Bearer on 2026-10-25: 200), so the generic
         // /models probe cannot discriminate — fall back to a 1-token chat ping
         // (same shape as the codebuddy/dots pattern), judged auth-only.
+        // Strip the "(high)"-style thinking suffix first: getModelUpstreamId
+        // preserves it by design, the upstream rejects the decorated id, and a
+        // perfectly good key tests invalid (same trap antigravity #82 hit).
+        const { stripThinkingSuffix } = await import("open-sse/translator/concerns/thinkingUnified.js");
         const baseUrl = PROVIDERS[connection.provider]?.baseUrl;
         if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const probeModel = options.model
+          ? stripThinkingSuffix(getModelUpstreamId(connection.provider, options.model))
+          : getDefaultModel(connection.provider);
         const res = await fetchWithConnectionProxy(baseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
-          body: JSON.stringify({ model: options.model ? getModelUpstreamId(connection.provider, options.model) : getDefaultModel(connection.provider), messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+          body: JSON.stringify({ model: probeModel, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
         }, effectiveProxy);
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
@@ -1431,26 +1899,37 @@ case "llm7": {
       }
       case "systemone-pure":
       case "drex":
+      case "nace":
       case "v1m":
-      case "thx": {
-        // Pure System One decision providers (drex / v1m / thx — serviceKinds
-        // is systemone-only). The decision endpoint itself is the only
-        // validator: no /models, no chat surface, so without this case the
-        // Test button answered "Provider test not supported" for a healthy
-        // key and the row stayed "unknown" forever. Minimal typed decision in
-        // (same shape as the model ping). Endpoint honors the connection-level
+      case "thx":
+      case "gemini-decision": {
+        // Pure System One decision providers (drex / v1m / thx / gemini-decision
+        // — serviceKinds is systemone-only). The decision endpoint itself is the
+        // only validator: no /models, no chat surface, so without this case the
+        // Test button answered "Provider test not supported" for a healthy key
+        // and the row stayed "unknown" forever. Minimal typed decision in (same
+        // shape as the model ping). Endpoint honors the connection-level
         // providerSpecificData.baseUrl override, mirroring handleSystemoneCore.
         // Dual-surface providers that merely list a systemone kind (codiv,
         // openrouter) keep their own probes above — do not add them here.
+        //
+        // 方言同 systemoneCore/validate（#110）：Gemini Decision 走 x-goog-api-key
+        // + input 字段；Drex 系走 Bearer + state。400 也 NOT 一律 pass —— Google
+        // 对无效 key 返回 400 + API_KEY_INVALID（2026-11-12 实测），需读 body。
         const cfg = AI_PROVIDERS[connection.provider]?.systemoneConfig;
         const baseUrl = connection.providerSpecificData?.baseUrl || cfg?.baseUrl;
         if (!baseUrl) return { valid: false, error: "Provider test not supported" };
+        const isGoogle = cfg?.authHeader === "x-goog-api-key";
+        const probeHeaders = { "Content-Type": "application/json" };
+        if (isGoogle) probeHeaders["x-goog-api-key"] = connection.apiKey;
+        else probeHeaders["Authorization"] = `Bearer ${connection.apiKey}`;
+        const probeInputField = isGoogle ? "input" : "state";
         const res = await fetchWithConnectionProxy(baseUrl.replace(/\/$/, ""), {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${connection.apiKey}` },
+          headers: probeHeaders,
           body: JSON.stringify({
             model: model || getDefaultModel(connection.provider) || "test",
-            state: "Customer: I was charged twice for my order this morning.",
+            [probeInputField]: "Customer: I was charged twice for my order this morning.",
             questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
           }),
         }, effectiveProxy);
@@ -1458,8 +1937,20 @@ case "llm7": {
         // carrying a full decision body (so "any non-auth status" would green
         // an empty key), and 404 also means "endpoint moved". Accept only a
         // real 2xx, or the request-shaped 4xx that can only happen once auth
-        // passed (400/422 = payload/model rejected).
-        const valid = res.ok || res.status === 400 || res.status === 422;
+        // passed (400/422 = payload/model rejected) — except a key-rejection
+        // 400: Google answers a bad key with 400 + API_KEY_INVALID, which must
+        // fail (same rule as /api/providers/validate).
+        let valid = res.ok || res.status === 400 || res.status === 422;
+        if (valid && res.status === 400) {
+          let reason = "";
+          try {
+            const errBody = await res.json();
+            const err = errBody?.error || {};
+            reason = (err.details || []).map((d) => d?.reason).filter(Boolean)[0]
+              || String(err.reason || err.status || err.message || "");
+          } catch { /* body not JSON: keep status-based verdict */ }
+          if (/API_KEY_INVALID|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason)) valid = false;
+        }
         return { valid, error: valid ? null : "Invalid API key" };
       }
       default:
@@ -1531,7 +2022,18 @@ export async function testSingleConnection(id, options = {}) {
   // sk- key → /models, session cookie → Preview model — lives in the apikey
   // path's provider switch. Route xiaomi-mimo there regardless of authType,
   // otherwise the Test button reports "Provider test not supported".
-  if (isKeyLike || connection.provider === "xiaomi-mimo" || connection.provider === "mimo-desktop") {
+  // Croli verifies OAuth connectivity through its read-only balance endpoint;
+  // no model request is issued and no trial credits are spent.
+  if (connection.provider === "croli") {
+    result = await testCroliConnection(connection, effectiveProxy);
+  } else if (connection.provider === "meoo") {
+    // Meoo routes here regardless of authType: the paste-key import stores
+    // authType "oauth" (line ~101 of import-apikey), but its probe is the
+    // two-stage chain in testMeooConnection, not OAUTH_TEST_CONFIG — which has
+    // no meoo entry and answered "Provider test not supported" for healthy
+    // accounts (2026-11-15 user report).
+    result = await testMeooConnection(connection, effectiveProxy, options);
+  } else if (isKeyLike || connection.provider === "xiaomi-mimo" || connection.provider === "mimo-desktop") {
     result = await testApiKeyConnection(connection, effectiveProxy, options);
   } else {
     result = await testOAuthConnection(connection, effectiveProxy, options);

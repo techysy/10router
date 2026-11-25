@@ -437,7 +437,9 @@ export function stopXaiProxy() {
 
 // ───────────────────────────────────────────────────────────────────────────
 // Trae dynamic-port proxy. Singleton session (one connect at a time per provider).
-// Callback path = /callback with params refreshToken + loginHost.
+// Callback path = /authorize（授权页只认它，见 TRAE_CONFIG.callbackPath 注释；
+// /callback 是老版本 10router 发出去过的路径，作为兼容一并接受）.
+// Callback params: refreshToken|authCode|authCodeInfo + loginHost.
 // ───────────────────────────────────────────────────────────────────────────
 
 let traeProxyServer = null;
@@ -445,9 +447,11 @@ let traeProxyTimeout = null;
 let traeProxyPort = null;
 let traeSession = null;
 
-export function registerTraeSession({ state }) {
+export function registerTraeSession({ state, provider }) {
   if (!state) return false;
-  traeSession = { state, status: "pending", createdAt: Date.now() };
+  // provider 随会话落栈（#99 拆线）：trae-cn 的回调要换票/建连在 trae-cn 名下，
+  // 而不是被硬编码到 trae。
+  traeSession = { state, provider: provider || "trae", status: "pending", createdAt: Date.now() };
   return true;
 }
 export function getTraeSessionStatus(state) {
@@ -467,7 +471,7 @@ export function startTraeProxy() {
     }
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, "http://localhost");
-      if (url.pathname !== TRAE_CONFIG.callbackPath && url.pathname !== "/auth/callback") {
+      if (url.pathname !== TRAE_CONFIG.callbackPath && url.pathname !== "/callback" && url.pathname !== "/auth/callback") {
         res.writeHead(404);
         res.end("Not found");
         return;
@@ -494,14 +498,29 @@ export function startTraeProxy() {
         stopTraeProxy();
         return;
       }
+      // 只有带授权参数的回调才进 exchange 流程。授权页（trae.cn/trae.ai）在渲染登录 UI
+      // 前会用 GET 预检 auth_callback_url 可达性（2026-11-12 实测复现），IDE 的 WebView
+      // 也可能探一次——裸 GET（无 authCode/refreshToken/isRedirect 等参数）绝不能进
+      // exchangeTokens：trae 的 paste-token 分支会把路径串误判成导入的 Cloud-IDE-JWT，
+      // 写入一条垃圾连接（"Account N"）并 finally stopTraeProxy 杀掉代理——用户随后完成
+      // 登录，授权页 302 回调时端口已死，浏览器报 ERR_CONNECTION_REFUSED（本轮全部 9 条
+      // "Account N" 垃圾连接即此 bug 所产，DB 实证）。
+      const hasAuthPayload = ["authCode", "auth_code", "AuthCode", "authCodeInfo", "auth_code_info", "AuthCodeInfo", "refreshToken", "refresh_token", "RefreshToken", "error", "error_code", "isRedirect"]
+        .some((k) => url.searchParams.has(k));
+      if (!hasAuthPayload) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(true, "Callback endpoint is alive. Complete the sign-in on the authorization page."));
+        return;
+      }
       // Pass the raw callback query to exchangeTokens → parseTraeCallback
       const rawCallback = `${url.pathname}?${url.searchParams.toString()}`;
       try {
         const { exchangeTokens } = await import("../providers.js");
         const { createProviderConnection } = await import("@/models");
-        const tokenData = await exchangeTokens("trae", rawCallback);
+        const proxyProvider = session.provider || "trae";
+        const tokenData = await exchangeTokens(proxyProvider, rawCallback);
         const connection = await createProviderConnection({
-          provider: "trae",
+          provider: proxyProvider,
           authType: "oauth",
           ...tokenData,
           expiresAt: tokenData.expiresIn

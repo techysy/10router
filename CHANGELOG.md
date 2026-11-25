@@ -2,6 +2,303 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
+## Unreleased（随下一版发布）
+
+- **AutoClaw（智谱澳龙）供应商：autoclaw（国际）+ autoclaw-cn（国内）**（2026-11-24）：AutoGLM 桌面端（AutoClaw）的云端账号与对话网关，**非官方逆向协议**，移植自 hj01857655/AutoClaw2api（docs/dual-domain-protocol.md + internal/{oauth,lanes,account}）并与 hubo1989/opencode-autoclaw-auth 交叉核对。两套互不相通的账号体系 → 两张卡（同 qwenwork / qwenwork-cn 的拆线口径）：国际版 z.ai 网页 OAuth（账号面 autoglm-api.autoglm.ai，对话 …/autoclaw-proxy/proxy/autoclaw/v1/chat/completions），国内版 +86 手机验证码（账号面 autoglm-api.zhipuai.cn，对话走桌面端管理网关 autoglm-acceleration-api.zhipuai.cn/…/autoclaw/chat/completions，无 /v1）。落地件：registry p184/p185（category oauth、4 模型 zai_auto / zai_auto-fast / zai_glm-5.3-flash / zaicoding_glm-5.3 + passthroughModels）；open-sse/shared/autoclaw（常量 + 账号面客户端：X-Auth-* md5 签名每次现算、X-Version/X-Tm/X-Product/X-Channel/X-Lang 身份头、显式 User-Agent（缺 UA 上游 WAF 405）、信封按 body.code 判、业务码人话化）；AutoclawExecutor 继承 DefaultExecutor（按 token JWT source_id 选域——agent* = 国内，国内 token 挂在国际卡下也打国内网关；Bearer 双头 Authorization + X-Authorization；X-Request-Model 发完整路由 id、body model 剥 zai_ 前缀；max_tokens 族禁发（上游 406 空 body）；注入 2.x 身份 banner 并中和外来 harness 身份句；reasoning_effort 钳到上游 low/high/max；国内加 X-Agent-Id: main；不发 X-Harness-Type）；刷新 refreshAutoclawToken（/userapi/v1/refresh，code 400002 回落 /agent-refresh；host 顺序按 refresh JWT source_id；body 带 JWT 内 device_id；refresh token 按单次轮换处理——dedupRefresh 去重、框架 persistRefreshedCredentials 原子落库；所有域都判死（401/403/400000 用户未登录）才报 invalid_grant）。登录：国内版 AutoclawSmsModal + /api/oauth/autoclaw-cn/sms-send|sms-login（Loomy/Capy 两步同形，验证码按 **数字** 发、agent-login/ 带尾斜杠，限流同 loomy）；国际版 AutoclawOAuthModal + /api/oauth/autoclaw/captcha-config|oauth-start|oauth-complete——**账号面 2026-11-24 实测开启阿里云滑块验证**（oauth-captcha-config enabled:true，oauth-url 缺 ali_captcha_verify_param 回 400001），回执只能由浏览器里的 Aliyun Captcha SDK 产出，故不走通用 OAuthModal：弹窗内加载 SDK 弹滑块 → 回执换授权页（host 白名单 z.ai / chatglm.cn + 必带 state（账号体系统一后 Google 登录已移除））→ 授权后跳打不开的 localhost:18432/auth/callback-{vendor} → 粘贴回调（junie/croli 同形，state 与铸页时一致才换票）。device_id 为本机稳定 64 hex（machineId 派生），url/login/refresh 同一份。积分卡：/agent-assetmgr/api/v2/wallets 总额 + 非零分类钱包 detailOnly + daily_signin 状态行（读不到不报 0）。每日签到：autoclawCheckin 调度器（任务面 autoclaw-task-complete daily_signin，幂等，~2h tick，北京时间日界，设置键 autoclawCheckin 默认关，实验页开关）+ 手动 POST /api/oauth/{autoclaw|autoclaw-cn}/checkin。连接测试：签名 user-profile 读（不花积分），401/400000 先刷一次再探。能力表两卡各钉 4 行（1M 窗口、reasoning、openai 格式、不可关思考），thinkingLevels 钉 low/high/max。图标取 AutoGLM 官网 favicon（autoclaw-cn 走 ICON_ALIASES）。门禁：golden-url-header SPECIALIZED 加两 id；providers/alias 基线重快照；capabilities 审计零问题。实测（无凭据可做的部分）：captcha-config 200 enabled:true；oauth-url 签名通过（400001 而非 400002）；两域 chat 路径 401 Invalid token（路径/WAF 通过）；两域 refresh 对垃圾 token 回 400000。**未实测**：带真实账号的登录、对话、刷新轮换、钱包与签到响应形状。
+
+- **组合轮询时间窗粘滞（2026-11-24 用户报「组合的负载均衡轮询没有粘滞」）**：组合 round-robin 策略此前默认每请求轮换成员（comboStickyRoundRobinLimit 默认 1）——组合卡上也没有按组合的粘滞入口，用户群助手场景（Hermes / openclaw，多人请求交错）下会话不停换模型。改为**时间窗粘滞**为主：活跃时段内固定同一成员，空闲超过窗口（默认 5 分钟）才沿环 step 一个成员（无论安静多久只 step 一次，分布公平）；每请求数上限改为 0 = 不限（旧计数语义保留为可选项，设 >0 即恢复）。落地件：combo.js getRotatedModels 重写（state 增 lastUsedAt，窗口过期优先、计数上限次之，switching 时机与旧语义对齐 = 服满 N 次后下一次切）、settingsRepo 默认值（comboStickyRoundRobinLimit 1→0、新增 comboStickyWindowMinutes:5）、settings route 重置条件补新键、五个 handler（chat×2/fetch/tts/search/imageGeneration）统一传 comboStickyWindowMinutes（per-combo comboStrategies[name].stickyWindowMinutes 覆盖全局）、profile 页全局窗口/计数两个输入、组合卡 round-robin 时显示按组合窗口输入（空 = 用全局；prune 规则 stickyWindowMinutes 与 retryOnEmpty 同列 extras 存活）。测试：combo-routing 重写 7 例（窗口 step/单 step/按组合覆盖/计数上限/窗内计数切换/独立状态/fallback 不动），eslint 零新增（4 错 1 警均存量）。
+
+- **Junie 供应商（#166，PR by monkey2jack）**（2026-11-24 合入）：JetBrains 免费车道（Junie Lite，每个 JetBrains 账号自带的常驻免费档，无卡无订阅）。车道为标准 OpenAI chat/completions 端点，但只认 JBA OAuth 登录的 **id_token** 当推理凭证（access_token 403 NO_LICENSE，live 实测），并要求三枚 Free-license 头（`X-Forced-License-Free: true` 为决定性一枚）+ 流式必带 `stream_options.include_usage=true`（否则 400）——从官方 CLI 二进制逆推（IngrazzioLicenseHeadersKt.applyIngrazzioHeaders）并 live 验证。落地件：registry p183（category oauth、静态单模型 junie-lite，车道无 /models 端点）+ JunieExecutor 继承 DefaultExecutor（Free 头叠加、模型映射单点、include_usage 回填、401 反应式刷新走 refreshJunieToken）；OAuth 走 CLI 同款 authorization-code + PKCE 公开客户端 junie-cli，回环地址 http://localhost:62345 无服务——粘贴回调（croli 同形，OAuthModal 与 authHint 各有引导文案）；id_token 存 accessToken/idToken 双槽、expiresAt 取 id_token 自身 exp claim；refresh token 单次轮换（Nous 同纪律，dedupRefresh 去重，expiresIn 从 id_token exp 推导），网关须为唯一刷新方（同账号别再登官方 CLI）。能力表钉一行（junie-lite 不命中任何 pattern，落 DEFAULT 会 200K 剥 reasoning——按 CLI 日志 maxContextLength=229370 声明，JetBrains 换后端随 shared/junie/constants.js 一起改）；上游后端 JetBrains 可随时换（官方文档 GPT-6 Luna，本账号 CLI 日志实跑 Qwen/Qwen3.6-27B-FP8）。连接级测试探针 = 一次最小非流式补全（max_tokens 1，免费车道无计量配额），过期/401 先刷一次再探，新令牌经 newTokens 回传持久化。门禁修复（本仓合入时补）：golden-url-header 的 SPECIALIZED 排除集加 junie（JunieExecutor 覆写 buildHeaders，DefaultExecutor 锁出的形状永不执行，真实行为锁在 unit/junie-provider.test.js）；audit-pricing EXEMPT_PROVIDERS 加 junie（免费车道按 0 计费，A 段 NO PRICING 会 gate 红）。三基线快照由 PR 自带（137 providers / 321 aliases），capabilities 审计零问题。
+
+- **额度页沙漏按钮（Resets first）失效与样式异常根治（2026-11-23 用户报）**：①「点了没效果」——排序此前只有客户端一跳：sortVisibleConnections 只重排当前页、只认卡上配额的 resetAt（配额未落地/已过期的卡并列），且并列比较器 `a - b` 在两侧都是 Infinity 时得 NaN 被当作相等、provider/name 决胜永不触发，回退序 ≈ 默认序；翻页序则完全没实现——服务端 /api/providers/client 不认 `sort=expiring`，前端也从不传（utils 里 sortRequestFromExpiringFirst 是死代码）。修复四处：服务端实现 expiring 排序（按连接行持久化的 earliestPackageExpiry 跨页排序，无到期时间沉底；字段进 SAFE_FIELDS 白名单随 sanitize 下发，无凭据）；前端把 expiringFirst 接进 sort 参数与连接缓存键（默认序缓存页不再顶替 Resets first 序）；客户端兜底排序补行级 earliestPackageExpiry 回退 + 过期 resetAt（窗口已回血）不再当「最早到期」+ NaN 比较器根治。②「样式乱（粉底小方块）」——cn() 是裸拼接无 tailwind-merge，方钮 `CONTROL + w-8 + px-0 + ACTIVE` 里 px-2.5 挤压 16px 图标、ACTIVE 与 CONTROL 同属性色类按样式表顺序随机赢；方钮（沙漏/全部刷新/偏好）改专用 ICON_BTN 常量，无内边距冲突、色类整组切换（与分段控件「壳无色、色走状态类」同规）。测试：quota-expiring-sort（14 例：route 契约+排序语义纯函数+前端接线契约+兜底排序行为+方钮样式契约）+ 配额页 8 个既有测试文件 104 例全绿。
+
+- **拓扑隐藏的供应商不再出现在组合模型选择器（2026-11-23 用户报）**：OpenCode Free / MiMo Code Free / MiniMax Code Free 这几个 noAuth 免费渠道在供应商页拓扑里藏掉后，组合编辑的「添加模型」弹窗里照样冒出来——ModelSelectModal 此前把 noAuth 渠道无条件并进「已连接」组（「仅已连接」开关也挡不住），从不读拓扑可见性设置。修复：选择器打开时拉 /api/settings，noAuth 渠道入选改按三处统一口径过滤——`topologyVisibility`（setting===false 隐藏 / ===true 显示 / 未设置看 `topologyHiddenByDefault`，与供应商页 topologyVisibleFor、用量拓扑 isTopologyVisible 同语义）+ `showCommunityProviders`（公益站开关，与拓扑图一致）；同时守住未连接组分支，被藏的 noAuth 渠道不再以「未连接」身份绕回来。auth 型供应商无拓扑开关，不受影响；media-providers 等 kindFilter 用法同享过滤（只作用于 noAuth/community 渠道入选）。拉取失败保持默认不吞渠道。测试：model-select-modal-topology-hidden 契约（4 例，readFileSync 源码断言模式）。
+
+- **QwenWork 目录 id 双前缀根治（2026-11-23 用户报「数据完全是乱的」）**：`/api/providers/[id]/models` 的 qwenwork resolver 此前返回带 provider 前缀的 id（`qwenwork/qwen4-max`），而详情页 11-22 的「实时目录整体替换」（liveCatalogOnly）把这些行原样塞进模型列表、渲染再拼一层 alias → 模型行显示 `qw/qwenwork/qwen4-max` / `qwc/qwenwork-cn/flash` 双前缀；由此在这些行上做的操作全部落了错键——详情页导入的自定义模型、禁用清单（NAS qw/qwc 名下各 ~10 条带前缀键）、连接上的 `modelLock_qwenwork/*`。qoder 家族无此问题（其页面用 mergeQoderLivePricing 按裸键 join 静态行，带前缀 id 是它 join 的输入）。修复三处：① route 的 resolveQwenWorkCatalog 改发裸键 id（`id: m.id`），与 v1/models、组合选择器、导入按钮三个消费方的 `<alias>/<裸键>` 口径对齐（注释写明与 qoder 的口径差异，防回改）；② 组合选择器 live 行剥前缀兼容裸键（主）与旧带前缀（防御）两种形态；③ 详情页「获取模型」导入的 strip 正则补 `qwenwork(-cn)/`（治缓存响应里的旧格式）。/v1/models 本就对任意前缀剥除，无需改。**数据清洗（部署后执行）**：NAS DB kv.disabledModels 的 qw/qwc 名下删带前缀错键与旧目录死键（lite/flagship/qmodel_latest/qwork-*——今天 live 目录不再返回，留着只会隐藏真模型），保留用户明确禁用的在线裸键；连接 modelLock_qwenwork/* 三条同删；桌面实例无 qwenwork 错键（custom/alias 表均为 0）。测试：qwenwork-catalog-bare-id 契约（4 例）+ passthrough-live 契约复跑（5 例）+ qwenwork-provider/qoder-cn 回归全绿。
+
+
+- **组合模型选择器接 passthrough 供应商 live 目录（2026-11-23 用户报）**：组合编辑的「添加模型」弹窗里 QwenWork / QwenWork CN 只显示用户手建的 4 个别名，而供应商详情页「可用模型」已是最新 live 目录——两边数据源不一致。根因：ModelSelectModal 只对 LIVE_CATALOG_PROVIDERS（cursor/zed）及兼容节点拉 live 目录，qwenwork/qwenwork-cn 是 passthroughModels 供应商、走 passthrough 分支（别名+自定义+静态表），从不碰 live 目录。修复：两 id 加入 LIVE_CATALOG_PROVIDERS，passthrough 分支合并 live 目录行——live 行 id 自带 provider 前缀（qwenwork-cn/flash），剥前缀重拼 alias 保证 value 形状仍是 `<alias>/<modelKey>`（qwc/flash，与路由一致）；按 value 去重且静态表值先入 seen（qwen4-max 两边都有），别名/custom 行保持在前；倍率徽章与详情页 ModelRow 同口径（0x 或激活 promotion → 绿 free，其余 Nx 字面量），倍率不可判（null）不带徽章不臆造过滤；拉取失败/为空回退现状可选池不清空。tier 档位键（frontier:false 的 flash/pro 等）由 qwenworkModels chat-modes 分拣已在目录侧滤除，选择器不重复判。测试：model-select-modal-passthrough-live 契约（5 例，readFileSync 源码断言模式）。
+
+- **Numes 供应商**（2026-11-23 接入）：OpenAI 兼容推理市场（numes.ai/docs：「one OpenAI-compatible API for every model, paid by card or Bitcoin」）。base URL `https://api.numes.ai/api/v1`（/chat/completions + /models），Bearer 鉴权；GET /models 无鉴权 401 → 不接 modelsFetcher（dashboard 动态拉取无凭据必空），静态锚定 34 款（5 款 `:free` 免费档 + 29 款主力）+ `passthroughModels` 透传其余目录。模型 id 是 OpenRouter 形态 `author/model`（接入当日 309 个），`:free` 后缀走免费端点（裸 id 只路由计费端点）、`:e2ee` 走加密推理信封（非普通 chat，未接）、`:batch` 批处理；reasoning 双形状（`reasoning:{effort}` 与 OpenAI `reasoning_effort` 简写都收，docs/features/reasoning）→ transport thinkingFormat:"openai"。503 service_unavailable 是平台过载常态（接入当日多次实测），默认重试表（503×3 退避）已覆盖。能力表钉 6 行：点号 claude-haiku-5.5（canonical 只有横杠键，落 *claude*haiku* 会压成 200K/claude-budget）、腾讯 hy4/hy4-flash（无任何 pattern 命中，会落地板）、deepseek-v4.1-flash:free 与 glm-5.3-flash:free（冒号后缀失配 canonical、裸落族 pattern 丢 vision 图片被剥）、nemotron-3-ultra:free（pattern 128K → 实际 1M）；`audit-capabilities --check` 零问题。实测（测试 key）：GET /models 200（309 模型）+ chat 非流式/流式双通（z-ai/glm-5.3:free 答 pong，SSE 标准 OpenAI 分块 + 末帧 usage + [DONE]）。logo 取官网 favicon.svg 原图（自带 prefers-color-scheme 明暗双色适配），providerIcon ICON_EXTENSIONS 登记 svg 扩展名（bai 先例）。三基线重快照（135 providers / 318 aliases）。
+
+- **模型行倍率 tooltip 带上上游促销官方文案（2026-11-23 用户报）**：QwenWork CN 会员限免模型（price_factor 0 + 活动 promotion，badge.zh「会员限免」）的面板行此前只说「积分倍率: 0x — 走免费额度」，不说免费从哪来（会员结余，不是长期免费额度）。promotion 对象本就随 live 目录透传到模型行（route → ModelRow），本次在 offPeak.js 新增 promotionBadgeNote 纯函数（取读者语言的促销徽章文案；无促销或 active:false 返回空），ModelRow 的 0x 免费分支与 Nx 折扣分支 tooltip 各补一段「(会员限免)/(限时1折)」——徽章本体不动（`free` 永为字面量的家规），Qoder 错峰促销行同享此说明。测试：promotionBadgeNote 纯函数断言 + ModelRow tooltip 接线源码契约（promo-free-badge）+ qwenwork 目录 promotion 透传契约（qwenwork-provider）。
+
+- **CrowLLM 额度卡名称更正（2026-11-23 用户报）**：免费额度页卡片标题兜底走 CSS `capitalize` 把 provider id 渲染成「Crowllm」，与 registry display.name「CrowLLM」不一致。KNOWN_PROVIDER_NAMES 补 `crowllm` 条目一行修复。重复计数侧（卡面 219.98 实际 109.99）根因在 CreditDaddy 仓的 crowllmClient——余额行已含赠送、Gift 拆分行未标 detailOnly 进了加性池，CD 侧已同步修复（Gift 行 detailOnly: true，对齐 longcat summary+detail 模式）。
+
+## v1.8.3 (2026-11-22)
+
+### ✨ 新增
+
+- **新增供应商 QwenWork + QwenWork CN（千问办公，2026-11-21）**：阿里办公 Agent（国际 gateway.qwenwork.ai / 国内 gateway.qwenwork.cn）与 Qoder 同协议族——设备码登录（PKCE + nonce + machine_id，授权页在网关域名下、需带 client_id/redirect_uri 且要选团队）、COSY 信封签名、agent_chat_generation SSE、/algo/api/v2/model/list 的 qwork 场景目录。落地件：registry p178/p179（category oauth、passthroughModels、静态档位+直通键兜底）；QwenWorkService 继承 QoderService（授权 URL 补 client_id/redirect_uri、poll 的 200 空体判 pending、userinfo 改走 account-context 的 data.user）；独立 QwenWorkExecutor（qwork 场景请求体：slim model_config、business.product=qoder_work、session_type=qoder_work、QwenWork 前导 system 文本块、request 三 id 合一；COSY 指纹经 buildCosyHeaders 新增的可选 site 覆盖注入——版本 1.1.59 / clientType 6 / Cosy-Scene: qwork / Cosy-Business-Product: qoder_work，Qoder 默认值不变）；qwenworkModels 目录服务（设备令牌直签，无 PAT/jobToken 层）；刷新走 /api/v1/deviceToken/refresh（{refresh_token, target:"c"}，单次轮换，REFRESH_HANDLERS 双 id 注册）；额度卡读 account-context 的 plan/quota；模型路由四处（provider 页 / v1/models / 连接测试 / 校验）接线，连接测试为目录感知（治「Provider test not supported」）。与 Qoder 的关键差异：聊天用设备令牌直打、令牌可刷新、目录场景是 qwork 不是 chat。 **2026-11-22 目录根因已修**：直通模型不走 model/list——官方客户端用 chat-modes-v2（GET /api/desktop/chat-modes），已双源接入并按 frontier 分拣 tier/直通，国际站直通 6 个全部上线（见修复段）。**剩余已知**：Free 账户对直通模型 403（权利门，付费档解锁）。
+
+- **CrowLLM 供应商**（2026-11-21 接入，全部信息来自公开 /api/status、/api/pricing、/v1/models 与端点探测）：one-hub/new-api 家族 OpenAI 兼容网关，API 与站点同域 Bearer key；/v1/models 公开可拉（183 模型 / 19 家厂商）→ passthroughModels 动态透传全量 + 静态锚定 4 个重点免费行。`:free` 后缀即零倍率（40 个），用户点名的 **qwen4-max:free** 只有免费版（model_ratio=0），24h 实测成功率 91.26%、平均延迟 27.5s（偏慢）。无签到/赠送机制（服务端 checkin_enabled=false 下发）→ 不接每日任务调度器；注册页带 Cloudflare Turnstile 但 /api/*、/v1/* 当前裸 curl 直通（服务端调用不受盾影响，规则可能变，接入后观测）；/v1/messages 端点存在但官方 supported_endpoint 矩阵未列 anthropic → 暂按纯 OpenAI 协议接入，claude 协议面待真 key 实测。**获取 API 入口 = 邀请码池轮换**：用户 4 码（xGk0/quJ8/tEjJ/6CNM）getter 随机取一条（同 croli 口径）；此前误挂的 emqU 经用户澄清非其所有，连同错误注释一并清除；/console/token 是 one-hub 惯例 key 页路径但 SPA 无法无浏览器渲染验证、未实锤，弃用。
+
+- **Capy 供应商（#156，PR by Duseus）**（2026-11-21）：agent 平台——**无补全接口**，一次请求 = 一轮真实 jam 执行（登录时建一次持久化 jamId 复用，绑定设备掉线不影响调用；事件流实为一页即关、从本次 messageId 起按 cursor 轮询至终止信号），合成 OpenAI 响应返回。Clerk Native API 邮箱验证码两步登录（code-send/code-login 限流对齐 loomy 口径：单邮箱 3 条/10 分钟 + 单 IP 10 条/小时 / 验码 6 次 + 20 次/10 分钟），铸 session JWT 必须带 `Origin: capy://app`（缺 azp claim 全 401 的坑写入隧道文件头）；能列出模型的会话才落连接（模型访问未开通的废连接直接拒）。**无头设备** = 设备码配对自动批准 + wss 隧道（`ready` 是客户端发出的、事件体是二进制帧 streamId+JSON——两坑入档），不再依赖 Capy 桌面端在线；隧道按 (orgId, deviceId) 单例，token 被拒重配对一次。工具调用靠提示词模拟：`<tool_call>` 反向解析回 tool_calls，未闭合/截断 fail closed 绝不泄漏半截可执行调用。免费广告档三模型（particle-1 / glm-5.3-flash-ads / deepseek-v4.1-flash-ads）全 0 计费，能力按私有 API 实测单独声明（`-ads` 落 DEFAULT 会剥 vision 且把 65536 上限压成 64K），capy-ai 别名共享同表、audit 白名单留地板值；付费档 Claude/GPT-6.2/Gemini 等 9 家 + passthroughModels。真机端到端三免费模型全通（设备离线态，5-9s）。合并解冲突一处：audit 白名单与 main 侧 crowllm 目录提交双保留。连接级测试探针补齐（铸 session JWT + 列模型，不建 jam、不需要设备在线；此前 Test 按钮报 Provider test not supported）。**信任模型注记（2026-11-21 发版审查收口）**：无头隧道的 machine RPC 实现了 bash 与文件读写（与桌面运行时同面；文件 handler 放行绝对路径，worktreeBase 只约束 worktree_ensure 的根注册）——隧道另一端（Capy 云端 agent）可在宿主机执行命令/读写文件，且所有经 Capy 路由的对话都会到达该 agent，客户端流量被提示注入即可触达这些 RPC。这是无头 jam 能跑的前提（桌面端产品同面暴露，只是流量来源不同）；部署上不想要此能力就不要配对设备/吊销设备令牌——无 `capyd_` token 不会拨隧道。隧道文件头注释已按实现重写（旧注释宣称 headless 不实现终端/文件编辑，与实现矛盾）。
+
+- **流式上游终态追踪（#159，PR by Duseus）**：流式/非流式两条链路新增 `onCompletedResponse` 生命周期 hook——只有上游**原生终态帧**才算完成（openai finish_reason stop/tool_calls/function_call、claude message_delta stop_reason、gemini finishReason STOP、responses status completed），HTTP 200、EOF、网关合成的 `[DONE]` 一律不算；cleanTerminal 门控还要求无 incomplete/restoreLost/parseFailures。回调异步触发不阻塞流。用途见 Croli #158 的真实回合上报。
+
+- **settings 事务原子读改写（#160，PR by Duseus）**：`mutateSettingsMap(key, mutator)`——对形如 `{ [subKey]: {...} }` 的 settings map 键做事务内原子 read-modify-write，两个调用方并发更新不同 subKey 不再互相覆盖（per-connection 签到状态等场景）。
+
+- **Meoo 邀请码池轮换 + 调度偏好大额/小额优先**：邀请池 3 条（用户 2026-11-22 提供：2i2N6e2y / ycDdBjLV / Raxntxwk，croli 5 码池同款 getter，页面加载换一条归因分散）；meoo/qwenwork/qwenwork-cn 归入 PURE_BALANCE 分类——调度偏好下拉新增「大额优先（highest-first）/小额优先（lowest-first）」，排序消费连接持久化的 quotaBalance（无余额账号排最后；余额由 extractConnectionBalance 全 provider 提取链既有供给）。
+- **删除连接确认改样式化弹窗**（用量页）：原生 confirm() 在 Electron 壳里渲染成 OS 原生框（用户 2026-11-22 报「太原生」）——改 ConfirmModal（danger 变体，删除连接/移除推送卡两分支），按钮走 Confirm/Cancel 词典。
+- **QwenWork 官方客户端图标**：本机安装的官方客户端 window-icon 256×256 双站（国际站白底绿标 / CN 绿底白标），替换官网 favicon 版。
+- **Croli 额度卡钱包行接 translate 四语**（ea0deead9）：钱包行/Credits 单位/「与每日试用额度分开」此前硬编码英文。
+- **QwenWork apikey 通道 + 储值单值卡/降级文案（#164）**：authModes 补 apikey（CD sk-key 场景经 /api/providers 建连接此前 400 Invalid provider）+ features.usageApikey；额度卡在 quota.total/used 为 null（个人版余额制）时按储值单值卡（isCreditBalance）渲染；access 过期（CD access-only 约 7 天）卡面降级为重同步指引，不渲染死数字。
+
+### 🎨 界面
+
+- **CrowLLM / Token Harbor 移入「免费」分组**（2026-11-21 用户定版）：两者形态一致——apikey 接入 + 轮换的 `:free` 零倍率模型集，正是 freeTier 分组的语义（deepai / dots / api-airforce 同组）；providers 页把 free + freeTier 合并渲染成「免费」列表后从付费 API Key 组消失。`free` 组是 noAuth 直连型（devin-cli / opencode 那批）不适用；freeTier+apikey 的详情页连接渲染是现成路径。providers 基线不快照 category，快照复验 byte-for-byte 一致。
+
+### 🐛 修复
+
+- **QwenWork 目录请求对齐官方客户端 + 国际版目录已知问题（2026-11-21）**：对表社区实测实现 dsh-qwenwork-connector 后补齐三处差异——目录 URL 加 `?Encode=1`；目录请求合并官方桌面客户端身份头（qwenworkClientHeaders：User-Agent qoderwork/1.2.1、X-QwenWork-* 一组）；连接未存 machineId 时以 sha256(provider:userId) 派生稳定值（OAuth 框架不回传 initiate 的 extras，此前每次请求随机生成）。**但实测国际站目录仍只下发 qwork-auto/advanced/ultimate 三档**，同账号桌面客户端「模型设置」页有 11 个（3 档 + 8 直通）；CN 站目录 13 条与客户端完全一致、无此问题。根因未定位，已在上游 PR 中向作者提出。目录日志现打印合并后全部 key 便于诊断；场景合并（qwork+chat+app）为防御性兜底——实测两站目录都在 qwork 单场景（CN 13 条、chat=0、无 app）。 **2026-11-22 根因落定并修复**：直通模型不在 model/list——官方客户端走 chat-modes-v2（GET /api/desktop/chat-modes，Bearer 设备令牌 + 客户端身份头，无 COSY；客户端日志实锤 modeCount=11）。qwenworkModels 已双源合并（chat-modes 字段优先、frontier:false tier 键分拣、fail-open 回退 model/list），国际站直通全部上线；倍率随 price_factor 下发（0.x 档位 → 2.6 直通），qwenwork/qwenwork-cn 纳入 Qoder 家族实时目录叠加面。
+
+- **移动端顶栏与抽屉自适应三连修**（2026-11-21 用户连续两截图 + 全量审计收口）：① 顶栏窄屏堆叠——带链接的父级面包屑被 flex 压窄后 CJK 逐字换行成竖排（「提供商」三字竖排实锤），h1 因嵌套 flex 拿不到宽度约束整串溢出、画进右侧半透明公告/捐赠胶囊底下（视觉「堆一起」）；修法 = href 面包屑与箭头 <sm 整体隐藏（层级导航由汉堡菜单承担，页面内有「返回提供商」）、min-w-0 贯通到 truncate 元素、图标 shrink-0。② 供应商主页顶栏——全局搜索框固定 160px + 右侧功能钮把 flex-1 标题列挤到 0 宽（只剩 shrink-0 页图标）；公告/捐赠 <sm 隐藏（窄屏本就只剩图标、信息量≈0）+ 搜索框收窄 120px（393px 机型预算 358px ≤ 360 最小屏）。③ Drawer 固定 400-800px 宽在手机上左缘被裁（唯一使用方 usage 请求详情 lg=600px 超宽 207px）→ <sm 全宽、sm+ 恢复。全量审计（宽表格/Modal/页面标题行/grid/长文案/聊天组件各层）结论入档；同病灶识别口诀：固定宽元素 + flex-1 标题同排超视口 → 标题列压 0 宽溢出画进半透明钮底下；CJK 文本无 min-w-0/truncate 约束时逐字竖排。
+
+- **Nous OAuth 401 反应式刷新缺失（2026-11-21 用户指出，排查确认）**：Nous 的单次轮换刷新本来只接在**主动路径**（REFRESH_HANDLERS.nous → refreshNousToken，请求前 5 分钟 lead + 后台 5 分钟 tick 都走它，轮换值由 persistRefreshedCredentials 落库，`x-nous-refresh-token` 头携带、dedupRefresh 同 token 并发去重）——而 chatCore 的 **401 反应式路径走的是 `executor.refreshCredentials`，DefaultExecutor 的 refresher 表没有 nous 条目**，401 时静默返回 null。危害场景：access token 被服务端单方面吊销而 refresh token 还活着时，存储的 expiresAt 距过期还很远（>30 分钟后台 lead 不触发、5 分钟请求前 lead 不触发），该连接每次请求都 401、最长几小时无法自愈。修复 = refresher 表补 `nous` 条目（复用同一个 refreshNousToken，两条路径共享 dedup 去重与 invalid_grant 不可恢复判定→needs-reauth 标记），并把 proxyOptions 透传到 proxyAwareFetch（与其余 refresher 一致）。`nous-provider.test.js` 补 3 例：executor 路径的轮换对 + 头携带断言、invalid_grant 原样上抛、无 refreshToken 不发网请求。
+
+- **发版前审查收口（2026-11-21，33 提交全量复审）**：① Capy 邮箱验证码错一次不再作废整个 flow——`loginCapyByCode` 改为验码失败保留 flow 供重试（不再 takeFlow 预删），Clerk 首因子尝试上限 + 路由限流（6 次/10 分钟邮箱 + 20 次/IP）兜住爆破面；失败响应若轮换了 clientJwt 会回写 flow（`CapyApiError` 新增 `rotatedJwt` 字段，`clerkRequest` 错误路径带回），否则真实 Clerk 轮换后重试会拿旧 token 打 401 死循环；flow 仍是一次性（成功即耗，测试断言补齐）。② Trae 明细桶行与汇总行同名（`group_name` 恰为「积分」且无到期日）会覆盖 `summarizesDetail` 汇总行、丢掉大数与分母——撞名时明细行改「积分（无到期日）」让位。③ CrowLLM 陈旧清扫加上游目录可信下限：`remoteIds` 覆盖不过半锚点（上游抖动/部分故障短返回）则跳过本轮 auto-disable，避免拿 5/40 的目录禁掉 35 个好模型。④ `capy-tunnel.test.js` worktree 断言可移植化——`worktree_ensure` 记录的是 `path.resolve()` 后的根，Windows 上 POSIX 形输入落到当前盘符（`F:\tmp\...`），期望值改 resolve 后比对（CI 不受影响，本地红不是回归）。⑤ `tunnel.js` 的 `require("os")` 改顶部 `import os`——模块本就顶部导入 fs/path，惰性加载的「非 Node 宿主」理由不成立，且 `require` 在裸 Node ESM 下是 ReferenceError（被 catch 吞掉后设备名恒回退 `10router-headless`）。⑥ 移除 `CapyExecutor.#cleanupJam` 死方法——引用了未导入的 `capyDeleteJams`，一旦接线即 ReferenceError。⑦ Capy 隧道信任模型写入 tunnel.js 文件头与 Capy 条目（见新增段注记）。
+
+- **LongCat 思考开关修复（0e2c9abe3）**：官方开关是 thinking {type:enabled|disabled}（2026-11《模型参数参考》），此前发 reasoning_effort 被上游静默忽略——客户端「关思考」从未生效。修法按 tokenrouter 先例：longcat / longcat-intl 注册表声明 provider 级 thinkingFormat:"longcat"，thinkingUnified 新增 longcat 分支——off → thinking:{type:"disabled"}，非 off → {type:"enabled"}；budget 字段形状待真账号实测再接，levels 暂无线格式。providerFmt 优先于 caps 行的 openai，转售商（crowllm 等）不受影响。providers 基线随 transport 字段重打（+2 行），longcat-thinking-toggle.test.js 4 例。
+
+- **QwenWork price_factor 0 无促销时不再出免费徽章（31db1627）**：用户质疑「你确定是免费吗」→ 消耗实证——intl 账户 2136-token 的 qwork-auto 对话真实扣减 ~0.52 积分（699.5867 → 699.0657）。model/list 给 intl 档位发的 price_factor 0 语义是「无独立倍率」（计费走账户积分池），不是免费——与 CN 站 0 带显式 promotion（会员限免/限时1折）不同。修法：price_factor 0 仅在 promotion active 时映射为免费（CN 口径保留），否则 rateMultiplier 置 null 不出误导徽章。
+
+- **QwenWork 卡片邮箱掩码 + 标题对齐注册表名（c250e7832）**：老问题「邮箱又显示出来了」——卡片副标题 getConnectionLabel 对 qwenwork 走 qoder 同款隐私口径：profile displayName 优先（CN 账户有余师洋等），Free 账户无名字时掩码邮箱（tec****@gmail.com，新增 maskEmailLabel 助手，短 local 用 Math.min(3, at) 防泄漏 @）；卡片标题 KNOWN_PROVIDER_NAMES 补 qwenwork/QwenWork CN——此前落 capitalize(qwenwork) 兜底显示「Qwenwork」。qoder-cn.test.js 补 QwenWork 标签 1 例 + 掩码助手断言（含 ab@**** 泄漏案例）。
+
+- **发版前审查二巡收口（2026-11-22，f09706b7e 之后约 20 提交增量、open-sse 与 src 两路并行复审）**：无阻断项，落地五件——① **croli 手动签到不再抹兄弟账号的当日行**：`/api/croli/checkin` 带 connectionId 时 saveResults 的 mutator 只返回本 tick 的行，整图替换把不在本轮的其他 croli 连接的 croliLastClaim 行一并抹掉，下一个 2 小时调度 tick（skipIfCheckedToday）找不到当日行就对上游重跑签到——恰是 #160 mutateSettingsMap 要防的那类覆盖；修复=作用域 tick 只替换自己 id 集内的行，兄弟行按全量连接宇宙保留（已删连接的残留行顺带 GC），新增 croli-checkin-save.test.js 三例锁定语义。② **CroliCreditsPanel 自动签到确认改样式化弹窗**：新面板的 window.confirm 在 Electron 壳渲染成 OS 原生框（de2d9fab4 同病灶，同版自打脸），换 ConfirmModal（primary variant，禁用直通不弹窗），顺修面板一处 HEAD 已存在的 react/no-unescaped-entities。③ **refreshQwenWorkToken 无过期兜底**：刷新响应缺 expires_in/expires_at（或 expires_at 已成过去时被钳成 0）时 expiresIn 落 undefined，mergeRefreshedCredentials 保留旧 expiresAt——行永久「待刷新」，每请求 + 5 分钟后台 tick 都重转单次轮换刷新令牌；修复=落 30 天 floor（QoderService.parseExpiry 同款兜底约定）。④ **croli 注册表 oauth 对象 4 个重复键清除**（resourceUrl/balanceUrl/bootstrapUrl/opsHomeUrl 双块同值，last-wins 下改第一块会被静默忽略，两块必然漂移）。⑤ qwenwork 执行器注释纠偏——`refreshCredentials` 返回 null 镜像的是 **qoder** 的「不做反应式刷新」立场而非 nous（nous 恰好有反应式条目）：单次轮换令牌在并发 401 风暴下反应式刷新会连环轮换，过期由 pre-dispatch checkAndRefreshToken 覆盖（含已过期行）。
+
+- **QwenWork/qwenwork-cn 能力表对齐 2026-11-22 目录（19 个 dead rows 审计红收口，aa3581cc7 遗留）**：目录整体替换只修剪了注册表 roster，PROVIDER_CAPABILITIES 两张表还是替换前形态（lite/flash/pro/flagship 四短档 + qwork-lite + 烧毁的 qmodel_latest 代号 + Economy/Standard/Advanced/Flagship 英文别名）——capability audit 连红 7 个 run 且把后面的回归门步骤一并跳过。修剪为现役键：intl=qwork-auto/advanced/ultimate 三档（补 标准/高级/旗舰 显示名别名）、CN=flash/pro 两档（补两别名）；直通键走 canonical 行不落 floor（探针验证全部 roster id 解析正常）。顺修审计脚本去重键的字面 NUL 字节（模板串里应为 \x00 转义，字面字节让 grep 把整个文件当二进制）。
+
+## v1.8.2 (2026-11-20)
+
+### ✨ 新增
+
+- **fnOS 管理面板：重启面板自身 + dsh 同款日志查看器**（2026-11-19 用户报「面板没有重启的能力，日志也没有对齐 dsh 一样的模式」）：① 运维卡新增「重启面板」按钮——面板进程无法在自己体内 exec 替换，detached 子进程接力：kill 自己（等 SIGTERM 优雅退场，最多 2s 强杀兜底）→ 用 `process.execPath`/`__filename` 原样 re-exec 自己并重写 panel.pid。刻意不走 `cmd/main start`：那会从 TRIM_* env 重推 APP_DIR/SRC_DIR，面板自发子进程 env 里未必有它们，一旦落进 /var/apps 默认布局就 "server dir not found" 退出——面板杀了起不来。全程零 env 依赖。② 日志卡从「仅 panel.log 50 行」升级为 dsh 同款三源查看器：面板事件 / 主应用日志（`10router.log` nohup 全量）/ 按天调用日志（`logs/app-YYYY-MM-DD.log` 滚动文件），带行数选择（50-2000，2MB 尾窗纪律不变）、关键字过滤、日期下拉（目录枚举 app-*.log 即得，比 dsh 的内容扫描便宜）、错误红/警告黄着色、贴底自动跟随滚动（上翻历史不打断）。`/api/logs?file=…&lines=…&date=…&grep=…` 与 dsh 面板参数面一致。面板双 cmd 路径（@appcenter + /var/apps）都要同步替换才生效。**注**：面板进程本身不随 server 热替换重启——cmd/ 层独立于 server/ 产物，部署脚本需带 cmd 段。
+
+- **Nous Portal 供应商（#155）**（2026-11-20）：Hermes 同款设备码 OAuth——公开客户端（无 secret、无需配置回调），授权后浏览器停在与 Hermes 一致的「复制此 URL」页，粘贴回仪表盘完成换票；刷新令牌每次使用即轮换、只由网关刷新，同一账号勿同时登录 Hermes CLI。免费档 `qwen/qwen4-max:free` 等无需绑卡即可用，实时目录 400+ 模型全量透传，付费模型按 Portal 套餐计费。卡片归位 OAuth 区（初版误放免费额度区——它是有免费与付费方案的完整 OAuth 供应商）；说明卡词典跟进见修复段。
+
+- **Croli 供应商（#156）**（2026-11-20，CD 侧全链实测）：Clerk OAuth（Google / GitHub / 邮箱，PKCE S256 无 secret）+ 粘贴回调流（loopback redirect_uri，antigravity 同款）；凭据链 Clerk JWT（24h 短命 + refresh 轮换）→ `relay/api/deepseek/sk` 领网关 key（幂等，同账号恒回同一把 `csk_`）→ ds.croli.net OpenAI 兼容 + /v1/messages anthropic 兼容（claude 系走 group/auto-* 池化路由，gpt 系直连）。credits 池双通道自动化：每日签到 +100（连续加成）+ 每日首次对话 +200——签到由调度器（`croliCheckin`，实验页开关卡）执行；+200 事件 **2026-11-22 起改由真实完成的用户回合上报**（#158，合成 say-hi 探针移除，不再烧 trial 额度）：消费 stream 终态追踪的 `onCompletedResponse` hook，内部压缩回合排除，事件幂等（`pendingEventId` 先写后发、服务端按 eventId 去重）、ops/home 任务门控不可领不发、per-connection inflight 串行。模型目录为上游 11 个探活中的 6 个可用子集（claude-sonnet-5 / claude-opus-5.5 / gpt-6-luna / gpt-6.1-sol / gpt-5.6-luna / gpt-5.6-sol；claude-fable-5-2、deepseek-v4-flash、gemini-4-argon 等 5 个实测不可用剔除；上游校验 max_tokens ≥ 16）。注册引导走 5 码邀请池轮换（getter 每次面板 API 序列化求值，页面加载即换一条，归因分散）。**#157 开户修正（b92a540a8）**：新账号 credits 账户可能未开户——仅对精确 `account_not_found` 走一次官方 provisioning 链（resource 目录 → bootstrap）再重试，其余 404 一律普通失败不误建号；开户逻辑收敛进 `open-sse/services/croli.js`（credential 字符校验 + 20s 超时 + redirect:error）。**#158 原生积分账户（b26d2cc5b，squash 解冲突直落 main）**：任务中心 + 积分面板（CroliCreditsPanel）+ 钱包余额卡（usage/croli，fail-soft、纯信息性不参与路由）+ `/api/croli/[action]` 路由（tasks 读 / checkin 手动触发 / invite-code / auto-checkin 开关；继承 deny-by-default 会话保护，POST 自带 sec-fetch-site + origin 双跨站检查）。
+
+### 🐛 修复
+
+- **Claude Code 工具卡两个开关改用统一 Toggle（#153）**：Filter naming 与 Exa MCP 两处是原生 `<input type="checkbox">`，与仪表盘全线 ~50 处 `Toggle` 组件风格不一（accent-primary 小方块 vs 滑动开关）。换 `<Toggle size="sm">`：`handleCcFilterNamingToggle` 从事件签名 `(e) => e.target.checked` 改布尔签名 `(checked)`（Toggle 的 onChange 直接给布尔），外层 `<label>` 改 `<div>`（Toggle 是 button，嵌 label 会双触发）。文字与 Tooltip 原样保留。issue 的两处行号属实；其「17 处用 Toggle」低估了实际规模（实为 ~50 处），「token-saver 卡片已全部用 Toggle」不实（TokenSaverClient 自身还有 2 个原生 checkbox，另列待办）。CoworkToolCard 的 3 个 checkbox 是多选插件清单，不属本 issue 的「开关」语义，不动。
+
+- **输入框 placeholder 不随语言切换（#154）**：i18n 运行时引擎的 `createTreeWalker` 只挂 `SHOW_TEXT`，纯 DOM 文本节点被翻译，但 `placeholder`/`title`/`aria-label` 等属性根本不在扫描面——issue 建议的「给扫描器加属性遍历」不采纳，仓库既有的正确姿势一直是显式 `translate()`（全库 116 处 `title={translate(...)}` 先例，且 `RuntimeI18nProvider` 的 locale-tick 重渲染天然让 JSX 属性随切换重新求值，无需刷新）。补齐漏网的 5 处属性：MitmToolCard / MitmServerCard / AntigravityToolCard 的 sudo 密码框、CodexToolCard 别名框（`Alias (e.g. claude)`）、BasicChatPageClient 消息框（`Message AI`），zh-CN 补 1 条词典（另两条本已存在）、zh-TW 补 3 条；`runtime.js` 在 `processElement` 头注释写明「属性不在扫描面，必须显式 translate」防再犯。
+
+- **Trae CN 额度卡到期桶重做**（2026-11-19 用户报「trae 的额度卡也有问题」）：旧形态把 `user_entitlement_pack_list` 按名称归并、到期取最早，三宗实锤问题——①归并行「1d 22h后过期」的倒计时只对桶内最早那一小撮包成立，整行余额读起来像明天全死（实际多个到期日被压成一行）；②「每月登录积分」带 `giftPack` 被折叠出正文，meta 说「4 个资源包」正文只列 3 行，像丢数据；③逐包明细展开后与正文完全重复，零增量信息。改为「名称 + 到期日」分桶（Lingxi/MiniMax 账本到期桶先例）：汇总行「积分」带 `summarizesDetail`（大数 + 分段条分母，总额仍优先信服务端 `usage_summary`），桶行 `detailOnly` 进逐包明细——同名同日并格（`· N 包`）、到期升序 FIFO、超 19 格并进「更远到期 · N 包」、无到期日包排最后且无 countdown。行名刻意避开「余额」（STORED_VALUE_RE 会退化成无分母单值卡，丢掉 X/Y 总额）与「资源包」（hasCollectionRow 特殊逻辑）。`utils.js` trae 分支直通 `detailOnly`/`summarizesDetail`/`expiringBatch`/`unit` 旗标。`trae-usage.test.js` 8 例全部重写（分桶形状 / 并格 / 溢出 / 排序 / 秒毫秒戳 / parseQuotaData 直通 / 逐包明细门），quota-card 相邻 155 例 + trae 全线 46 例无回归。
+
+- **供应商详情页说明卡跟随界面语言（#155/#156 跟进）**：registry 的 `display.notice.text` 是 translate() 的 key——英文原文查 `public/i18n/literals/<locale>.json`，缺条目就原样渲染英文，中文界面上就是英文蓝卡（用户截图实锤）。Croli / CrowLLM 两条补 zh-CN / zh-TW（强制口径）+ ja / ko（Croli 调度卡条目同款 courtesy）四语，`provider-notice-i18n` 测试加 Croli / CrowLLM 两块（14 例），`audit-notice-i18n` 全 registry 44 条 notice 覆盖归零（此前 42/44）。
+
+- **Croli 授权 redirect_uri 改 127.0.0.1 回环**：Clerk 应用只登记 127.0.0.1 回环（任意端口通配），OAuthModal 通用分支生成的 `http://localhost:<端口>/callback` 是另一个 host 字符串、OAuth 精确匹配直接 invalid_request 拒在授权第一步（2026-11-21 用户实测，连登录页都没到）。croli 加专用分支（codex/xai 先例同款），antigravity 走 localhost 不动（其 Google 侧登记的正是 localhost）；换票 authorize/exchange 同用存量 redirectUri 两端天然一致，粘贴 placeholder 同步对齐回环形状（不再显示 192.168.x 误导地址）。
+
+- **authHint 接 translate + Cookie 类提示补词典（#155 跟进）**：供应商授权操作提示此前硬编码中文（日语/韩语界面也显示中文），现接 translate 并补齐 Cookie 类提示四语词典条目。
+
+## v1.8.1 (2026-11-19)
+
+### ✨ 新增
+
+- **账号会话池（#150，PR #151/#152 线，2026-11-16→11-18）**：桌面壳内 Chrome 多 profile 式「账号槽」——同一站点多个登录身份互不串味（`persist:auth-slot-<n>` 持久分区）。一期落地壳内站点登录窗 + capture/clear API（对齐 `[id]` 子路由，集合路由上永远 404 的坑已修）+ 槽位徽标；随后「打开服务网址」泛化为任意网址 × 账号槽（槽是身份不是站点）、「前往」菜单带选槽开窗、选择器并入「最近打开」；**OAuth 授权弹窗同样走槽**——`window.open` 特征串 `authslot=N` 由壳路由进对应分区（`action: allow` 保留 opener 句柄），回调页 `/callback` 经 postMessage 跨分区回传仪表盘自动完成 exchange（Antigravity 类停在「Copy This URL」手动页的场景在壳内不再需要手动复制；跨分区下 BroadcastChannel/localStorage 失效由 postMessage 兜住，手动粘贴链保留作兜底）。仪表盘会话池管理弹窗支持逐槽 打开/清除/重命名。槽数 9→6 收口（用户定版）：三处事实源（`cookieSiteRegistry.SESSION_POOL_SLOTS` / `desktop/main.js` / OAuthModal `AUTH_SLOT_COUNT`）同号联动 + 注释互指，越界 clamp 兼容旧数据，面板读 API 返回的 `slots` 字段自动跟随。
+- **Meoo Qwen4-Max 正式版上架**（2026-11-18 live 目录探测）：网关 `/models` 实锤 `qwen4-max`（GA）上架、`qwen4-max-preview` 下架，与官网选择器一致（「超贵」= premium 档）；registry / `meooModels.js` 静态规格表 / `providers/meoo.json` 手工快照 / 测试四处同号（1M 上下文 / 131K 输出 / vision）。能力走 `*qwen*max*` 通配无需新行；小写 id 铁律沿用（大写形式网关 400）。
+- **Dots（小红书）免费徽章 + 官方定价核验**（2026-11-18）：官方 docs 挂出 dots3-note-prev 定价（USD/1M 输入 $0.14 / 输出 $0.28）但明示「当前免费体验，暂不收费，恢复收费前将提前告知」——registry 新增 **`freeTrial` 旗标**（数据驱动：`constants/providers.js` 透传 → 供应商卡片挂绿色「免费」徽章，恢复收费删旗标即消失；sensenova 收费状态未核验不挂），pricing 按实际计费 0 记（同 StepAudio Music / ACE Music 限时免费口径），官方价写进注释。官方 Messages 端点（`/v1/messages`）live 探测上游未就绪（逐字复刻官方文档示例也 400 `provider.client_bad_request`；错误 id 得 403 证明绑定层已放行）——transports 双端点接线暂缓（接了反而把 Claude 格式请求从可用的转译路径切到死端点），接线预案与 30 秒复探法在档。
+
+- **Qoder Qwen4-Max 正式版上架 + Preview 拆独立 key**（2026-11-18 客户端截图 + **live 目录探测** `GET /algo/api/v2/model/list`）：上游 key `qmodel_latest` = Qwen4-Max（0.4x/1M），`qmodel_latest_preview` = Qwen4-Max-Preview（0.1x/原价 0.5x）；CN/国际双端同步，能力行复用 Qwen4 家族档（1M/65536，qwen 思考格式）。探测走本机一次性实例读 NAS 库（凭据解密 + COSY 签名），未动 NAS 数据。
+
+- **CodeBuddy Hy4 与 Hy4 flash 拆分为两个独立模型（11-18 客户端截图纠正）**：第四版把 Hy4 与 Hy4 flash 都挂了限免 `promoFreeUntil` 11-30，但用户截图确认两者是**独立模型**——选择器里 Hy4 = 0.29x 无徽章正常计费，「限时免费」只属于 Hy4 flash（0.00x，Nov 16-30 每日赠送额度）。CN 侧撤掉 hy4 的 promoFreeUntil（保留 0.29x 原价）；intl 侧新增缺失的 `hy4-flash` 行（0.00x + 限免窗口），`hy4-preview` 从误记的 0.00x+限免改为 Hy4 本体 0.29x。断言三处重写（codebuddy-cn/intl-models、promo-free-badge）。
+
+### ✨ 新增
+
+- **Codex 线 GPT-6.2 全家族上架**（2026-11-18 上游元数据，GET /api/providers/<conn>/models 原始字段 + models.dev 7 家网关同源佐证）：`gpt-6.2-sol` / `gpt-6.2-astra` 双系 + `[1m]` 长上下文变体（上游 max_context_window 872k）+ `-review` 自动 review 变体（照 gpt-5.6-*-review）。能力按上游原值：sol 500k 且 text+image+**audio**（家族首个 audioInput）、astra 272k；定价 sol 2/10、astra 8/40（官方 Standard 短上下文档，2026-11-18 经 CPA codex-proxy-rs v3.52.0 核验列交叉验证；>272K 长档才翻倍至 4/15、16/60——models.dev 聚合价取的正是长档，初版误采、常规流量成本会多算一倍，已订正）。上游 supported_reasoning_levels 含 ultra（六档）——registry 行先照 6.1 家族五档，ultra 透传策略待现网验证再议。available_in_plans 无 free 档（6.1 有）——不挂免费。CLI 指纹 0.169.0（minimal_client_version 0.166.0 背书）。
+- **Codex 工具 schema 清洗补全（ZCode 77-tool 400）**：responses 校验器在 pattern 之外还拒一批 JSON Schema 2020-12 关键字——`stripCodexUnsupportedPatterns` 扩展剥除 `uniqueItems / unevaluatedProperties / unevaluatedItems / additionalItems / dependentSchemas / dependentRequired / contains / minContains / maxContains / propertyNames / patternProperties / $comment / $schema`（$ref/$defs 保留；properties 键是属性名不受清单误伤）。此前客户侧只能手工 patch 构建产物 chunks/{5210,2380}.js 且覆盖安装即冲掉——现在常驻 dispatch 路径清洗器。
+
+- **compatible 节点 per-endpoint 自定义请求头（#149）**：节点可配 opt-in 的 `customHeaders`（JSON），随该端点的**每个请求**发送——chat 路径 `buildHeaders` 末尾合并（自定义可覆盖默认鉴权头，x-api-key/Authorization/token 都行），连接测试路径（testApiKeyConnection 两分支 + 通用探针）同源合并，保证测试与真实请求同构。host / content-length / connection / transfer-encoding / expect 五个结构头拒绝；节点新建/编辑弹窗给 JSON 编辑器（非法 JSON/非字符串值阻断保存），POST/PUT 路由收纳并同步进连接 psd，编辑弹窗清空即解除。
+- **compatible 节点官网地址 → favicon logo + 控制台链接**：节点可填 website——详情页头部亮站点 favicon（远程 URL 走普通 img，绕开 next/image remotePatterns 配置），标题旁自动出现「注册 / 了解更多」外链；供应商墙卡片与配额页卡图标同源取 favicon（favicon 404 自动回落原图标/字标），建行与节点编辑同步 psd.website。
+
+- **MiniMax Code 算力币到期桶出卡**（11-17 实测收口）：配额卡此前的 Credits 行只有一笔裸余额（membership 接口仅回 total/purchased/free 三个汇总数，无到期字段）——「到期包」的逐包明细在另一个端点上：MiniMax 官方客户端「积分明细」页读的 `GET /minimax-cloud/api/v1/credit/details`（分页 page_number/page_size/include_expired，逐包 credit_type 1=购买 / 2=签到赠送、granted/consumed/remaining_amount 千分位字符串、granted_at_ms/expire_at_ms）。四账号实测逐包 remaining 求和与 membership 汇总吻合到分位（#187 连 2000 的购买包都齐），账本即余额构成。落地形态与灵犀到期桶同款：同日到期并格（`Credits · 12-16` / `· 2 packs`）、升序 FIFO、耗尽/过期包剔除；Credits 储值行挂 `summarizesDetail` + `expiringBatch`（大数右侧「最早批次余额 · Xd后到期」通道），桶行 `detailOnly` 进逐包明细、`recurring:false` 一次性包语义（驱动连接行「最早到期」徽标与到期优先调度）；账本不可达时维持原储值单值卡（fail-soft）。签名走既有 signedAccountRequest（新增路径 query 合并不覆盖 mcode 参数）；测试 `minimax-code-credit-ledger.test.js` 14 例（解析容错 / 并格排序 / 分页拉全 / 404 收缩 / 出卡形状 / 徽标接线 / parseQuotaData 直通）。
+
+### 🎨 界面
+
+- **配额卡供应商图标改为跳转仪表盘详情页**：卡片左上角 logo 此前点击直达供应商官网（1.4.0 引入，2026-11-17 用户定版收口），现在改为打开仪表盘内该供应商的管理页（`/dashboard/providers/[id]`）——账号/模型/调度策略都在那里配置，从配额页进供应商管理从两步变一步；官网/控制台外链保留在详情页头部（Web console / Get API Key / Sign up），不在配额卡片重复出口。新增 `getProviderPagePath`（与 `getProviderWebsite` 同一归一口径：id/别名，兼容节点按 providerNode 路由），注册表不认识的 provider（自定义推送卡）保持纯图标、不渲染假链接；全部 41 个带用量追踪的 provider 的详情页路径与详情页官网外链由测试逐个钉住，悬停提示改「打开提供商页面」。
+
+### 🧹 目录校准
+
+- **CodeBuddy 目录第四版（CN + 国际，11-16 客户端截图，六张拼全）**：Hy3 从客户端模型选择器消失，按「客户端清单为准」下架（`codebuddy-intl` 撤行 + `codebuddy-intl-models.test.js` 断言撤行 + 加入 client-dropped 名册）。**证据等级辨析**：11-05 kimi-k2.7 错撤的教训是「积分页缺席 ≠ 下线」（积分页按订阅档位过滤）；本版撤行依据是**客户端模型选择器本身**——它是客户端目录的直接呈现，证据等级高于积分页。现网 11102 与否待凭据恢复后补记。Hy4 限免窗口续期：卡片文案「Nov 16-30: Receive a daily free allowance」→ `promoFreeUntil` 11-15 → 11-30、note 同步（`promo-free-badge.test.js` 边界断言改 11-29/11-30）。Kimi-K3.1-Pro-Highspeed 拼写经客户端 tooltip 印证（Kimi-K3.1-Pro-Highspeed），摘掉 11-05 版的「待现网复核」。客户端新上的 **Max（1.33x，独立列表项）** 与 **Hy4 flash（new + Free now + 0.00x，卡片 300K）** 暂不收录——Max 是路由型目标（11-05 Auto 教训：五次探测全落 glm-5.2，无稳定能力行与计费口径不建行）；hy4-flash 的 id 拼写未经现网探测（hy4 本名 9-30 曾 11102，flash 后缀成立与否未知）。两者待探测后另行处理。三语用户日志同步。
+- **CN 侧同日换代（copilot.tencent.com，三张截图）**：Hy3 同口径下架（两侧同日）；Hy4 限免续窗 11-15 → 11-30（卡片「11月16日-11月30日，每日赠送免费额度」）；**新增 `hy4-flash`**（客户端「Hy4 flash 正式发布」banner：Agent 任务又快又省 + 限时免费体验——0.00x 同窗每日赠送、卡片 **960K** 上下文与 hy4 的 1M 不同窗；id 按命名惯例推断，rateMultiplier 暂记 0 交 promoFree 表达免费窗，窗口结束前现网复核回填原价；capabilities 补 `codebuddy-cn/hy4-flash` 行 960K/64000 并移除 hy3 行，audit 过）；Kimi-K3.1-Pro 新带「订阅优先」标签（subPriority: true，第四版新见）；CN 预设档首次记录（快速 0.15 / 均衡 0.50 / 极致 1.00——presets 参考数据，不建模型行，与 intl 的 fast/balanced/primary 数值不同 = 两侧独立计价又一例证）。测试：codebuddy-cn-models 三处断言重写 + 撤行名册收 hy3、promo-free-badge intl+CN 段续窗/hy4-flash 边界、paid-tier-badge 订阅优先名册收 K3.1-Pro。三门禁 byte-for-byte 不变、capability audit 无 invariant broken。
+- **Gemini API 一线补 Gemini 4 Hydrogen / Carbon**（gemini.google.com 官方模型选择器 11-16 状态）：官方 UI 语义清晰——快速解答=3.5 Flash-Lite / 日常帮助=**4 Hydrogen**（默认档）/ 深度研究=3.1 Pro / 代码与分析=4 Argon / 高难任务=**4 Carbon**（带 Pro 档升级墙，SGD 139.99/月；用户实测截图确认）。registry/gemini.js 两行上架（chat 主线置顶）；能力走 `*gemini-4*` 通配（vision/pdf/reasoning/search/1M/1M + gemini-level thinking 低中高），不另建精确行；计价已有 Gemini 4 模式（$2/$10，gemini-4-argon.test.js 的 google/commandcode/vertex 用例覆盖 Carbon）无新行。audit 过、providers/alias 基线 byte-for-byte 不变（gemini 模型行变更不进 alias 基线枚举）。
+
+- **MIT → AGPL-3.0（自 v1.8.1 起）**：v1.8.0 及更早的已发布版本永远维持 MIT（不可溯及）；自 v1.8.1 起本仓库整体改为 **GNU Affero General Public License v3.0**。动机：协议逆向 / 指纹对齐 / 签到链路 / executor 接入等真机调试成果（#57 复盘确认竞品以 AGPL 护同类资产）要求任何二次利用——**含网络服务形态（AGPL §13）**——同样开源，防止被闭源拿走；同时 AGPL→MIT 单向不可行，上游主线（decolua/9router 仍为 MIT）不能再吸收我们的实现，而我们吸收上游依旧合法。上游派生部分的 MIT 声明按其条款原文保留于 LICENSE 头部。程序层配套随 1.8.1 累计：root/`cli/`/`desktop/` 三处 `package.json` license 字段、fnOS fpk 安装向导协议步骤（`fnos-packaging/wizard/install`）、桌面安装器协议页、`license` npm 元数据。
+
+### 🐛 修复
+
+- **连接测试的 token 刷新走连接级出站代理（#146）**：testUtils 的刷新路径此前对 gemini-cli/antigravity/claude/kiro/cline 用裸 fetch——代理环境下刷新 POST 直连 oauth2.googleapis.com 等被拦，健康凭据被误判为「刷新失败/token 过期」。现在 `refreshOAuthToken` 穿 `effectiveProxy`（与周边探测同一 `fetchWithConnectionProxy` 通道，顺带获得 15s 超时），`testOAuthConnection` 四个调用点全部透传；codex/xai/minimax 系走共享 oauthCredentialManager（其自身代理化是另一个面，保持现状）。新增行为测试 5 例钉住代理/直连双路径。
+- **MiniMax Code 调度偏好「到期优先调度」补到供应商详情页本体**：上一笔补漏（385384906）把选项加进了 ConnectionsCard——但供应商详情页的连接表是 page.js 自建（ConnectionRow 直拼），ConnectionsCard 只被 media-providers 详情页引用，用户在 MiniMax Code 页看到的下拉仍是四档（11-17 用户截图实测）。本笔把 earliest-expiry 补进 page.js 的 PURE_BALANCE 下拉（排在手动优先之后），`handleBalanceStrategyChange` 增到期优先臂（earliestExpiryFirst=true + balanceStrategy 归 priority 不写 override，与 ConnectionsCard 同语义），其余各臂显式清 earliestExpiryFirst；回显链 earliestExpiryFirst 压过 balanceStrategy，重进页面不再打回「手动优先」。顺带 browser-probe 默认 `--no-proxy-server`（本机 clash 系统代理吞 127.0.0.1，探针被 RST）+ 新增调度偏好下拉 DOM 探针（scripts/probes/provider-strategy-dropdown.js）。
+
+## v1.8.0 (2026-11-16)
+
+### ✨ 新增
+
+- **WPS 灵犀产品线（全新供应商，web-cookie）**：executor 双调用一轮（建会话 → `/completions` SSE → OpenAI chunk 转换，流内 UserUnauthorized 合成 401 走 needs-reauth）；Cookie 罐接入三通道——供应商页 Capture Session（书签签 / 粘贴，ot 单次令牌 owner-scoped）、CreditDaddy 同步（transfer cookie 行 apiKey 双写）、浏览器直接粘贴；**原生每日签到**（任务面板状态门控绝不盲打 claim，当日奖励走连签日历绝不读 `total_claimed_credits` 周期累计；`lingxiCheckin` 调度器 2h 轮询 + 按日 doneMap + 连接行手动按钮 + 配额卡「今日已签到」徽章）；配额卡原生出卡——智点余额 + 到期桶（同日并格 / 升序 FIFO / >19 桶溢出并入「更远到期」）+ 头部最早到期倒计时（`expiringBatch` 通道）+ 连接行「最早到期」徽标（桶行严禁 `isCreditBalance`——永久余额语义会让 expiryExtractor 跳过，#136 实修）；重捕获按钮 🍪 cookie + Re-capture；供应商页 CreditDaddy 提示条（Loomy 同款 textLink）；模型 auto / plan_pro / plan_max + plans 端点 11 档；顺修 `testMeooConnection` 的 AK 探测（`resolveMeooProjectAk` 返回对象必须取 `.projectApiKey`，#139——`Bearer [object Object]` 假 401）。
+- **Meoo 秒悟产品线（全新供应商，multi-account ready）**：OAuth（CLI 同款 PKCE 客户端）与粘贴控制面 Key 双通道接入；项目服务 AK 自动解析 + 失效自愈（refresh 链路重解析 + refresh-ak 手动补取），账号缺项目时供应商页提示条直接给出修法。积分账户完整呈现——余额大数 + `activeGrants` 批次有效期（订阅 / 登录赠送 / 邀请奖励逐包 `expiresDate`，批次级而非聚合级）；实验性页新增「每日自动领积分」开关（`meooCheckin` 调度器：2h tick + 10min 抖动、按日 doneMap、登录等价动作 + `totalGranted` 增量核验，无领取端点的现实下这是唯一正确姿势）；模型行价格倾向徽章（便宜 / 适中 / 较贵 / 超贵三颗点，官网逐一比对）；连接测试 `testMeooConnection` 走通「控制面 → 项目 AK → 网关」全链路（选模型时 1-token 真实探针）；AK 解析遍历全部项目——共享云服务配额墙（PRO/MAX）的 `QUOTA_EXCEEDED` 打 `akLeg` 标记按「key 有效、暂无 AK」收下，不再硬拒（#141）；0 连接时双 auth 分支补 `meoo_ak_` 粘贴入口（#142）。贡献起点：monkey2jack #111（邀请链接 / 官方图标）。
+- **DuMate 百度搭子产品线（全新供应商，web-cookie）**：扫码登录全链路不拉起浏览器（getqrcode → unicast 长轮询 → qrbdusslogin → quickLogin，`isBaiduUrl` SSRF 白名单）；配额卡按积分池语言呈现——订阅窗折叠进余额大数右侧、加油包逐包明细、签到行不占正文；额度包可见性稳定键（kind/packageType/source/总额/有效期 组合，包过期重排不丢隐藏偏好）；显示名定版「DuMate」。贡献：Duseus #113（配额卡 / 官方图标 / 可读模型名）+ #116（cookie 续期与登录持久化加固）。
+- **Gemini Decision 1 供应商**（#110）：System One 决策模型；模型测试与连接测试走 Gemini Decision 专用方言（`input` 字段 + `x-goog-api-key`），System One probe 400 读 body——Google 假 key 不再误放行；AI Studio 官方 logo。
+- **渠道级隐私脱敏规则**（#117 收尾）：`privacy.rules` 透传至 `createRedactionContext`（引擎 `{...DEFAULT_RULES, ...rules}` 早已支持，渠道配置此前静默无效）；四类 opt-in 规则进 `SECRET_PATTERNS` 统一门控——email(MAIL) / connectionStrings(PWD，补 ASSIGNMENT_RE 抓不到的 URL 内嵌凭据) / privateRanges(IPS，RFC1918+CGNAT 含 100.64/10) / cnMobile(TEL，边界断言排时间戳)；编辑弹窗内置规则 JSON 编辑器（校验失败阻断保存），保存不再写死布尔抹掉已配置规则。
+- **CreditDaddy 协同深化**：Meoo 登录授权放 CreditDaddy 完成——上游 OAuth 应用只注册回环 redirect_uri，仪表盘发起必然 invalid_redirect_uri，`oauthLoginHidden` 旗标撤下登录按钮（authModes 保留 oauth，CD 推送凭证照常刷新/传输）；账户传输 `importAccounts` 接收控制面 Key 行（`psd.meooControlKey`，去重以 Key 优先），CD 推送行与手动粘贴行同构；Loomy 供应商页 notice.text + 内联 `textLink`（CreditDaddy 最新版下载）。
+- **每日赠送优先调度完整落地（四连 + 收尾）**：偏好回显修复、烧尽自动关闭（`dailyGrantAutoDisabled` 戳）、0 点 `dailyGrantReset` 调度器自动重开（只重开带戳的号）；烧尽保护改为资格规则——覆盖最后一个账号（钉住 / 单账号 / 池缩减不再绕过），有余额兄弟账号的生效锁参与重试时间；relay 接力语义保留。
+- **模型选择器可读性**：组合页模型名人类可读化；兼容节点 live 目录进选择器。
+- **Antigravity 模型目录跟进**（IDE 2026-11-16 清单）：Gemini 4 Hydrogen 分档家族收录（High/Medium/Low，`*gemini-4*` 通配自动带齐能力/思维档位）；Orchestrator 与 Carbon 缺上游实体 id 证据 / 官方标记不可用，暂缓收录。
+- **Antigravity 竞品身份句改写扩表 + 指纹对齐 2.32.1**（11-16 晚补登，社区情报 Magpie @magpie_router）：Google 自当日起按**系统提示词的身份句**拒绝 Hermes、OpenCode、Codex CLI、pi 四家客户端——报的不是额度耗尽而是假 429 Quota Exhausted，健康账号被误冷却。Hermes/OpenCode 此前已覆盖，本次补齐剩余两家：Codex CLI 开场句（`You are Codex, based on GPT-5…in the Codex CLI`）归一为中性助手句 + 遗留 harness 段落按 opencode 同款大小写映射改名（Codex→Antigravity）；pi 开场句（`…running inside pi, a coding agent harness`）仅按整句归一——刻意不做词级替换（裸 `pi` 会误伤 API/pip/π）。改写统一在 antigravity executor `transformRequest` 的 `systemInstruction` 咽喉点生效，直连与 MITM 通道全覆盖。指纹同步对齐官方 IDE **2.32.1**（原 2.29.0）：共享 UA 常量、MITM `ideVersion` 改写、连接测试探针三处对齐——探针处由硬编码字面量改为引用共享常量，消灭 2.22/2.29 并存的漂移根源；providers baseline 重生成。
+- **社区导航收纳**：侧边栏社区入口折叠成单行手风琴（8 行折 1 行）；飞书群²入口；项目主页 / 提交 Issue 归右上角聚合菜单（HeaderMenu）。
+- **供应商墙分组**：Loomy 移入 OAuth 提供商组（会话凭据语义——CreditDaddy 本机导入 / 手机直登 / 粘贴 session，与「免费档 Key」不同类；2026-11-15 用户定版）。
+
+### 🐛 修复
+
+- **Responses 终态丢内容（#119 学习合并 + #115）**：choice index 与 tool-call index 是两个命名空间且典型上游全走 choice 0——`response.completed` 按 output_index 装配时互相覆盖。现在按宣告顺序分配独立输出位（reasoning / message / function_call 各自映射），所有 delta/done/终态引用同一对 index/id，id-only 调用先补 added 再完成兜底项；Responses 命名空间工具（`{type:"namespace"}`）对 Chat 上游 flatMap 展开，`_customToolNames` 以 Set 判定。
+- **多账号尝试隔离（#120 学习合并）**：预处理与翻译器原地改写嵌套结构（文本模型剥图、RTK、工具结果压缩），fallback/fusion 共享 body 的嵌套引用会被污染——`stripContinuityFields` 入口 `structuredClone`，每次尝试独立请求体，调用方原始请求不再被改写。
+- **调度锁合并判定（#121 学习合并）**：`getModelLockUntil` 取模型锁与 `modelLock___all` 的更晚失效时间——过期模型字段（惰性清理残留）不再遮蔽有效账号锁（GitHub 月度限额）；重试时间按所请求模型计算。
+- **用量导入保留原始 key 身份（#123 学习合并）**：备份打码 key 重新 hash 会造出不存在的身份（重导不去重 = 重复计数，命名 key 统计归属断线）——`apiKeyIdentity(key, suppliedHash)` 统一解析：摘要校验后直用、打码值拒绝派生、旧明文兼容；批次先验后写；SQLite 读取兼容无 `apiKeyHash` 列的旧库。
+- **备份恢复保留组合禁用状态（#118 学习合并）**：exportDb/importDb 补 `disabledModels` 列，旧备份缺字段持久化为空数组。
+- **DuMate 配额卡三连（#124/#125/#126 学习合并）**：增量包 `detailOnly` 修复双计；订阅行 `giftPack`（烧完后不再驱动到期/健康判定）；`completeQuotaBreakdown` 双和校验（明细不完整时保留权威余额条，status/汇总行剔除，fail-closed）；额度包可见性稳定键（过期重排不丢隐藏偏好，模糊旧键退役）；余额与签到行退出逐包明细。
+- **每日赠送烧尽保护覆盖最后一个账号（#122 学习合并）**：耗尽保护从「relay 仅多账号池激活」改为资格规则——钉住 / 单账号 / 池缩减不再绕过去烧永久积分；`dailyGrantUnavailable` 按兄弟账号生效锁计算最早恢复点，无可恢复才落到次日。
+- **fnOS 管理面板（#97）**：面板日志频繁崩溃根因修复（async 回调同步抛错 → Node unhandledRejection 进程级崩溃；URL parse 移出 try + `.catch()` 包裹 + 崩溃自愈）；定时自动更新健壮化（孤儿 update GC、outcome 记账、开机补跑）+ **重启前排水探测**——`/api/health` 透出 `activeRequests`（在途 relay 请求总数，零 IO 直读注册表 global），面板 swap 前轮询等排空：定时轮排不空整轮延后走既有重试、手动轮等满窗后按用户指令继续；总览与更新合并为单页（EXDEV 跨卷重命名修复、版本缓存）；日志改读面板自身事件、孤儿标签清理、生命周期状态对齐。
+- **Trae**：FlashX 4001 降级处理、豆包 SOLO 归位（#109）、浏览器登录裸 GET 预检不再误杀回调代理。
+- **杂项**：媒体页 DraggableCard 抑制 anchor 拖拽劫持；System One core 输入字段按 authHeader 推导；follow 上游 v0.5.119 四项（CLI 版本自动跟随 / qoder enable:false / gemini-4 计价 / engines 下限）；简繁字典全量扫描清零（translate 字面量 22 条 + TW 镜像 129 条）。
+
+## v1.7.1 (2026-11-11)
+
+### ✨ 新增
+
+- **Trae 直连非沙箱通道（直连问答模式）**：此前 Trae 执行器硬编码 `agent_type: "solo_agent_remote"` 与 `env: "remote"`，导致所有请求强制在远端分配云端沙箱容器，受制于 SOLO 容器并发（`solo_agent_parallel_limit: running=2`）且响应延迟高。现在对普通文本模型默认走轻量直连非沙箱通道（`agent_type: "chat"`，`env: "local"`），只有显式声明 solo/work/agent 任务时才启用远程沙箱；模型名称规范化映射为服务端要求的 TitleCase/PascalCase（如 `Doubao-Seed-Code`），事件流全面兼容 `plan_item`、`delta`、`message` 与 `content` 块。
+- **Qoder / Qoder CN 接入 Qwen4-Max-Preview**：QoDuck 转正为阿里千问新一代基座模型 Qwen4-Max-Preview，全产品全档位上线；上游端点复用 `qmodel_latest`，限时 0.1x（原价 0.5x）倍率透传；下线失效的 `lmodel` 旧 key。
+- **用量统计展示真实模型名（Qoder 代号翻译）**：用量/健康度视图此前直接显示 Qoder 上游的内部代号（`kmodel_latest`、`lmodel`、`qmodel_latest`…），可读性差。现在「最近的请求」、模型/账号/API Key/端点四张统计表、节点健康度下钻、请求明细与请求日志统一显示映射后的真实产品名（如 `kmodel_latest` → **Kimi-K3.1-Pro**、`qmodel_latest` → **Qwen4-Max-Preview**），退役模型展示静态退役名，原始代号保留在悬浮提示/副标签里便于对账。实现为纯读取层映射（`src/shared/utils/modelDisplayName.js`）——存储与请求链路一律不变，历史用量无需迁移自动全覆盖。
+- **模型类型分布图家族归并补漏**：`lmodel`、`q37fmodel` 归入 `qwen` 家族，`jmodel` 归入 `step` 家族，解决此前以独立碎片曲线展示的问题。
+- **捐赠弹窗新增署名备注提示**：扫码打赏新增提示，提醒赞助者在支付备注中留下 GitHub 用户名，以便准确署名加入项目贡献者列表。
+- **用量逐包明细优先置顶展示「套餐内 Credits」**：月度核心订阅套餐（Plan Credits）置顶于明细首位，不再被大量近期到期的短期赠送包挤到底部。
+
+### 🐛 修复
+
+- **免密部署局域网 OAuth 导入 401 修复（#104）**：无凭据部署环境下放行导入请求到路由层做 GCM 校验，彻底修复局域网及 CreditDaddy 远程导入被 guard 误拦的问题。
+- **MiniMax 全球版地域重定向检测与连接代理（#101）**：增加 geo-redirect 探测与友好诊断提示，模型测试不再误报 token 错误。
+- **DeepSeek 思考方言档位全透传（#106）**：放宽方言限制，完美兼容 river.ai 等拒绝非标档位的渠道。
+- **反代指纹与请求头升级**：CodeBuddy 升级至 2.182.0，Antigravity 升级至 2.29.0，全面对齐最新官方客户端。
+
+## v1.7.0 (2026-11-07)
+
+### ✨ 新增
+
+- **组合页双栏网格（2xl+ 视口）**：组合数量增长后单列列表过长；宽屏自动两列、窄屏保持单列。卡片拖拽换位是 id 语义（拖到目标卡即换位），网格逐行铺排与顺序数组一致，跨列拖放成立。
+- **Qoder/Qoder-CN 接入 QoDuck（lmodel，app 场景独占免费模型）**（#100）：Qoder 的模型目录按场景返回多个数组，此前只解析 `chat` 场景，只在 `app` 场景发布的 QoDuck 一直报 "model_config not yet known" 无法调用。现在 `app` 场景独占条目并入目录（chat 同名优先、`app` 内部同 key 去重），CN/国际双端实测 `qoder-cn/lmodel`、`qoder/lmodel` 均 200。注册表新增 QoDuck 行 + 能力行（vision/reasoning 按上游 `is_vl/is_reasoning`，窗口按 `context_config` 上限 1M）；限免语义如实呈现——live 目录 `price_factor 0` + `original_price_factor 0.5` 透传为 `originalRateMultiplier`，免费徽章 tooltip 保留「原价 0.5x — 个人版限时每日赠送尝鲜额度」，不再把限免抹成永久免费。
+- **Trae 新版授权落地（#99 情报一，muskke/trae-api-proxy v0.5 考古）**：登录链路升级为 PKCE + AuthCode 双形态——authorize URL 带 `code_challenge`（S256，老客户端忽略无害双发），回调同时认旧 `refreshToken` 与新 `authCode` / `authCodeInfo` JSON（带 ExpireAt 过期校验）；AuthCode 走新端点 `/trae/api/v3/oauth/ExchangeToken`（`CodeVerifier` + `DeviceInfo`，`PlatformCode=IDE_PC`，`DevicePublicKey` 每次现生成 EC P-256 SPKI PEM），host 按代际分表（国际 `growsg/grow-normal.trae.ai` + USTTP 的 `grow-normal.traeapi.us`，国内 `api.trae.cn`/`api.trae.com.cn`）。PKCE verifier 不能走 config（exchangeTokens 会重跑 prepareConfig），服务端按 `loginTraceID` 挂 pending 表传递，10 分钟 TTL。国际账号面（旧 ExchangeToken 刷新 / GetUserInfo）host 换代：`grow-normal.trae.ai` / `grow-normal.traeapi.us` 优先，`api.trae.ai`（pay/ent 已 404）与 marscode 族保留兜底；host 判不出时回调 `userRegion` 兜底定站。回调代理的换票/建连 provider 不再硬编码 `trae`——`trae-cn` 登录落 `trae-cn` 卡。本机回调代理会话带 provider。
+- **Trae 执行器：设备指纹 + 国际 core host 换站重试（#99 落地要点 3/4）**：请求头补齐社区在同款 web remote 端点的实测组合——`x-uid` / `x-device-id` / `x-machine-id` / `x-request-id`；设备指纹按账号派生（uid → sha256 → 16 位数字 device_id + uuid 形 machine_id，同账号稳定、跨账号不同），多账号不再共享硬编码设备号（4017 风控主要触发面，trae2api-hub v1.4.3 同款修法）。国际 core host 不再写死单一域名：候选链 `core-normal.trae.ai` → `traeapi.us` → `coresg-`/`coreva-`（registry/env 配置优先），`createSession` 失败按序换站重试，胜出 host 供 events 流使用。`traeapi.us` 加入国际站 host 后缀表。
+- **Trae 拆线：国内站 / 国际站两条供应商（#99，方案 A）**：原单条目 `trae` 的 `loginSites` 站点分叉收敛为 `trae`（国际站 trae.ai）+ `trae-cn`（国内站 trae.cn）两条 registry 条目——两端账号与 refresh token 不互通（20101），数据面 / 账号面主机也完全分叉。executor 同类双例（`TraeExecutor("trae-cn")`），连接落库 `psd.site` 仍是最终权威，老连接（含 `trae`+site=cn）零迁移；国内 SOLO 数据面修正为 `trae-api-cn.mchost.guru`（`core-normal.trae.cn` 不解析、`api.trae.com.cn` 只承接 CloudIDE/OAuth/pay，trae2api-hub / Trae2api-cn 双源实测）；国内模型目录对齐 #54 的 TRAE 2.3.87413 remote 采集（20 款）。登录弹窗去掉「站点选择」卡片（条目即站点），oauth 侧新增 `traeCn` 钉死 cn；顺带修复 #69 的隐藏断点——`prepareConfig` 此前只收 config，弹窗传上的 `meta.region` 从未生效，现在按 `(config, meta)` 接住。`trae-cn` 与 `trae` 共用同一本机回调代理（单例按 state 匹配）与同一 token 刷新器（站点按 `psd.site` 选 origins）；CreditDaddy 账号同步后续按 `TENROUTER_PROVIDER_MAP` 以 id 对接（`trae` → 国际，`trae-cn` → 国内）。基线重排：providers-baseline / alias-baseline / oauth-urls-baseline；`tests/unit/trae-cn-region.test.js` 补 4 例钉住条目钉站与 meta 修复。
+- **fnOS 管理面板（#97，fpk 专属）**：`fnos-packaging` 新增独立管理进程 `cmd/dashboard.js`（Node stdlib 零依赖，默认仅监听 `127.0.0.1:20125`，可选 `PANEL_TOKEN` 鉴权），与主应用同生命周期但 restart 不中断——定时自动更新的调度器跑在这里。能力：npm latest 快速更新（aria2c 16 线程分段 + 断点续传，缺失回退 Node 原生；HTTP CONNECT 后显式 `tls.connect` 握手；60s 停滞看门狗）、tgz/zip 双魔数校验、浏览器上传离线安装、同卷三步热覆盖 + 健康检查/版本核验失败自动回滚上一版、每日 HH:mm 定时自动更新（错窗补跑一次、失败 2h 重试当日上限 3 次）、日志关键字过滤、`sudo -l` 折行解析。`cmd/main` 负责拉起；`uninstall_init` 卸载清理、`upgrade_callback` 升级后换新版面板。目标版本一律服务端从 npm 解析，绝不信请求体（延续 #9 纪律）。纯函数逻辑（semver/魔数/调度/sudo 解析）抽在 `cmd/dashboard-lib.js`，20 条 vitest 用例钉死。
+- **媒体提供商 → 音乐（全新分类）**：侧栏媒体提供商新增「音乐」入口，与图像/语音/视频同列。收录两类形态：
+  - **ACE Music（acemusic.ai）** — 托管版 ACE-Step，走标准 OpenAI Chat Completions，整曲以 base64 MP3 放在 `message.audio[]` / `delta.audio[]`（OpenAI audio 方言，整曲单帧 ~600KB）。上游 id 自带 `acemusic/` 命名空间，registry 存裸 id + `upstreamModelId` 映射，客户端只看到一层前缀。
+  - **StepFun StepAudio 3 Music（stepaudio-3-music-preview，限免）** — 官方原生 `/v1/audio/music` 异步任务（submit 拿 task_id → 每 5s 轮询到 SUCCESS/FAILED），由 `musicConfig.mode: "stepfun-async"` 分派；`caption` 必填、`lyrics` 可选，多行 prompt 自动识别为歌词。
+- **`POST /v1/audio/music` 统一音乐端点**：两条上游形态归一为 `{ data: [{ url, format }], content, model }`，`url` 是可直接播放/下载的 `data:audio/*`。示例卡内置播放器与下载按钮；JSON 视图对 `data:` URI 与 `b64_json` 一视同仁地掩码（此前 3MB base64 直接把响应框卡死）。
+- **音乐模型在每一层「算不算有效内容」的判定里都被认可**：`hasValuableContent`（流式逐帧过滤）、`isZeroContentResponse`（combo 是否顺延）、`inspectNonStream` / `createStreamScanner`（空响应重试门禁）、`parseSSEToOpenAIResponse`（上游强制流式转 JSON）——任何一处漏判，整首歌都会被静默丢弃。
+- **Qoder 模型目录同步**：Kimi-K3.1-Pro / Kimi-K2.8-Preview / MiniMax-M3.1-Flash / Step-5-Preview（CN 侧 `jmodel`）/ CN「快速」档（`fast`）；能力表与显示名同步。
+- **CodeBuddy CN / intl 目录换代 + CLI 指纹升级 2.180.0**（2026-11-05，以客户端「内置模型」清单为准，新增 id 全部现网探测 200 验证）：
+  - **CN（copilot.tencent.com）**：旧一代模型移除（`glm-5v-turbo` / `glm-5.3-flashx` / `glm-5.1` / `minimax-m3` / `kimi-k2.7` / `kimi-k2.6`），倍率按客户端「消耗速度」逐条刷新（GLM-5.3 0.79→0.69、5.3-Flash 0.06→0.08、Step-5-Preview 0.43→0.33）；`hy4` 转正（预览版 id 退役）；新增 `kimi-k3.1-pro`(0.97) / `minimax-m3.1-flash`(0.08) / `mimo-v2.6-pro`(0.13，注意 id 不带 `xiaomi-` 前缀——`xiaomi-mimo-v2.6-pro` 实测 11102)。折扣三类落地：限时免费（Hy3/Hy4 至 11-15，`promoFreeNote` 携带「每日赠送免费额度」口径）、订阅优先（`subPriority`）、夜间折扣（GLM-5.2 与两张 DeepSeek 卡——**立减**而非免费，`discountNote` 悬停说明，不用会亮 free 徽章的 `nightFree` 表达）。
+  - **intl（codebuddy.ai）**：按带徽章客户端清单第三代全量重排——GPT-6 家族回归且首次公布倍率（6.1-Sol / 6-Sol 1.33、6-Luna 0.07，Astra 维持实测 6.67），新增 Kimi-K3.1-Pro(0.97，Highspeed 1.56)/MiniMax-M3.1-Flash(0.08)，GLM-5.3 与 CN 同步降至 0.69；移除 5.5 / 5.4 / 5.3-Codex / Gemini-3.5-Flash / GLM-5.2 / Kimi-K2.6 及 Claude 全系 paidTier 行。徽章三态建模：Free now（限时免费窗口）/ Pro Only（`proOnly` 标记，仅 Pro 订阅可用）/ 无徽章。预设档（自动 0.15 / 快速 0.34 / 均衡 0.59 / 优选 3.31）确认非模型 id，以 `presets` 参考数据记录不建目录行。
+  - **CN/intl 独立计费定则**：两侧目录与倍率各自独立（`glm-5.3` 同 id 两侧异价、`hy3` intl 永久 0 vs CN 0.05+限免），删除「重叠 id 倍率必须一致」的旧断言；能力表随之增删（CN 补 auto/新三模型、intl 补 auto，清掉 8 条死行，`audit-capabilities --check` 全绿）。
+  - **指纹**：反代请求头对齐官方 CLI 2.180.0（npm `@tencent-ai/codebuddy-code`，2026-11-04 发布；解包确认新版不再发 `CLI/x.y.z CodeBuddy/x.y.z` 形态 UA，版本改走 `X-IDE-Version` / `X-Client-Version` / `X-Product-Version` 独立头）。过渡期旧 UA 双发（现网实测仍 200），`.script/` 探针同步。
+- **模型选择弹窗底部栏**：显示已选数量与「完成」按钮，支持多选场景下不逐次关窗（`closeOnSelect: false`）。
+- **LongCat-2.5 正式版收录（长猫 / 美团）**：官方 2026-11 正式发布——按《模型参数参考》页声明 1,048,576 上下文、max_tokens 上限 262,144、thinking_budget 上限 262,144，保留多模态输入（image_url + video_url）与思考开关；国内站（longcat）与国际站（longcat-intl）同时收录，2.5-Preview 保留不下线，老配置不失效。能力行按正式版文档放宽（Preview 期口径为 1M / 128K），小写裸 id 同步单列一行防转售商目录大小写回落。定价与同族 Preview 同档（目录价 0.75 / 2.95 / 0.015 每百万 Token）——官方按量付费页当前挂的是「限时折扣价」（0.3 / 1.2 / 0.006），不随促销改价以免成本估算起落；要改价需连同 `tests/unit/pricing-first-party-vs-reseller.test.js` 里钉死的 longcat 断言一起改。
+- **发版说明自动审计**（`scripts/audit-release-notes.mjs`，`npm run audit:release-notes -- <notes.md>` 或 `--tag vX.Y.Z` 直取线上说明）：逐条校验六大骨架——版本标题 / 主题行 / ⚠️ 升级须知 / ✨ 新增 / 🐛 修复 / **📦 安装六大渠道表** / **Full Changelog 比较链接**——缺任一项即退出码 1 并列出缺项。落地自 v1.6.5 说明漏写安装表与比较链接的实测事故；`docs/zh-CN/release-prep/release-checklist.md` 步骤 7 同步加为强检查项。
+- **主题选择弹窗 + 四套新主题（Gruvbox / Nord / Dracula / Glass 浅深）**：顶栏主题按钮改为右上角锚定弹出面板，分组「经典（浅/深）→ 毛玻璃（深/浅）→ 风格化」，组内迷你预览即点即所见；「跟随系统」改为经典/毛玻璃两组的组内开关（store 新增 `systemFamily` 决定 system 的深浅映射，与首帧脚本两处同步；玻璃组卡片深在前，深浅映射用显式 pair 不按数组下标推）。Glass 三层结构：html 实底 + 半透明 `--color-bg` 薄纱 + 场景彩色光斑，侧栏/卡片/弹窗真磨砂（`--glass-blur` 10px，玻璃下网格提亮保「看得见模糊」），浅玻璃光斑降饱和。暗色系主题（gruvbox/nord/dracula/glass-dark）同挂 `.dark`（dark: 变体层）+ `.theme-*`（token 层，token 块排 `.dark` 之后取胜）；brutal 保持裸类 `.brutal`。锚定面板 portal 到 body——否则被后续 Card 的 backdrop-filter stacking context 整体压住。侧栏品牌图标固定珊瑚橙（`.brand-mark`）。修复首版引入的四处问题：暗色主题侧栏 vibrancy 白底浅字不可读、brutal 类名不匹配整套装不上、Glass 因 `bg-bg` 全不透明与默认浅色无异、设置页面板层级。
+
+### 🐛 修复
+
+- **Trae 浏览器登录进「登录失败/网络错误」死页（#99 用户报障，Windows 1.7.0 桌面版）**：授权页（CN `www.trae.cn` 与 intl `www.trae.ai` 同款逻辑，真机浏览器双端实测 2026-11-08）在渲染登录 UI 前用 `^http://127.0.0.1:(\d+)/authorize$` 白名单正则校验 `auth_callback_url`，路径不是 `/authorize` 就直接进失败页且**不发任何换票请求**——错误文案是兜底串（「网络错误，请刷新页面重试」），与真实原因（回调路径被拒）完全无关。10router 本机回调代理此前用 `/callback`：代理侧一切正常（监听/换票/建连都通），只有真开授权页才翻车，所以 1.7.0-test.14 的形状级验证全部通过、真账号一登录就挂。`TRAE_CONFIG.callbackPath` 改为 `/authorize`（官方客户端与 cockpit-tools 同款），代理同时保留 `/callback` 兼容老版发出去的回调；`trae-authcode.test.js` 补回归钉（callbackPath + buildAuthUrl 产出的 auth_callback_url 必须命中授权页正则）。
+- **同名资源包互相覆盖，逐包明细只剩 1 条**：外部推送方（CreditDaddy 的 LongCat 资源包）按种类复用同一显示名（「获赠资源包」/「资源包」），只有 push key 区分；而下游处处拿 name 当身份——认领路径用 `Object.fromEntries(rows.map(r => [r.name, r]))` 建 map、按 name 的可见性键、`parseQuotaData` 把 map key 直接当显示名——同名行于是互相覆盖：CD 侧显示「3 个资源包」，10Router 卡面只剩「逐包明细 (1)」（用户 2026-11-03 实测）。快照转行时给重名组编号（「获赠资源包 1/2/3」，与仓库既有「赠送包 N / Bonus Pack N」同族命名一致），独苗行不动名，推送卡与连接卡两条渲染路径同源同结果。
+- **Loomy「每日赠送积分优先」调度 + 双槽额度卡**：永久积分与每日赠送积分（每日登录刷新 5000）混在一个池里排序，导致每日额度没烧完就轮到别的账号、白白作废。新增 `Daily Grant First` 调度偏好（PURE_BALANCE / GENERIC 下拉）：有每日剩余的账号按剩余降序优先，耗尽的按永久积分升序殿后（先烧零头），无配对数据的账号保持手动优先级。每日/永久双值由 usage 侧 `extractDailyGrantAndPermanent` 识别并持久化到连接行（`dailyGrantRemaining/Total`、`permanentBalance`），背景刷新与面板拉取双路径同步写入。额度卡改「总额在外 + 内部双槽」：大数显示永久+每日当日可用总额，段式轨道按两槽剩余占比分段，双槽明细行沿用既有 QuotaRow 形态（`findDualSlotPair` 判定，非配对 provider 不受影响）。
+- **个人/免费档 antigravity 账号陷入开户死循环（#98）**：`loadCodeAssist` 未返回项目时无条件 fallthrough 到 `onboardUser`，而消费级账号（standard-tier / Jio 等捆绑 Pro）在 Google 侧只会被分到共享项目——`onboardUser` 固定 `done:true` 且无 project_id，每轮 token 刷新（~30 分钟）重放无效开户调用，单号一天 48~96 次，是 Google 风控（Term #3 封禁）的可叠加自动化特征。三处修复：antigravity 无项目时直接返回官方消费级共享哨兵 `aicode-consumers`（报告者实测配额/聊天链路全部正常），跳过开户；`tokenRefresh` 补传 `provider`（旧调用漏参导致短路分支永不触发，按 gemini-cli 走错端点）；`ONBOARD_MAX_ATTEMPTS=0` 可真正关闭开户重试（原 `|| 2` 把 0 兜回 2）。
+- **推理-only 响应被客户端整轮丢弃（#96）**：上游只返回 `reasoning_content`、`content` 为空且无工具调用时，Hermes Agent 等客户端判为空回复并丢弃整轮。现在组合成员会把这种响应视为软失败并顺延到下一模型；单模型场景把思考内容提升为正文兜底。
+  - 提升必须在 `finish_reason` **之前**下发：原先补发在 `[DONE]`/flush 处，流变成 `finish:stop → delta.content → [DONE]`，违反 OpenAI 流式约定，官方 SDK 的累积器会停止读取，提升等于没做。
+  - 组合判定要能看穿这次提升：`handleNonStreamingResponse` 在 combo 看到响应之前就已把 reasoning 写进 content，只看 `content !== ""` 会让备用模型永远不被调用（实测 `handleComboChat` 一次即返回那段思考文本）。现按「content 与 reasoning 完全一致」识别回显。
+  - 翻译链路补认工具调用（Claude `content_block_start(tool_use)` / `input_json_delta`、Gemini `functionCall`）：此前只认 OpenAI delta，工具轮会被追加一段合成正文污染工具结果。
+- **音乐端点三处安全与静默丢失**：
+  - StepFun 审核拦截 / 轮询超时 / 空音频此前统一映射 502/504，会把健康账号冷却 30 秒；改为业务失败直接返回，只有 5xx 才走账号冷却。
+  - `/v1/audio/music` 在缺 `musicConfig` 时落入 chat 分支，等于把音乐端点变成第二个 chat 端点（传任意聊天模型会真的执行）。新增 `isMusicModel` 守卫，容忍裸 id / 单前缀 / 双前缀。
+  - acemusic 计价只登记了命名空间形态，裸 id 查不到行时 `calculateCost` 静默返回 0；两个键都补齐。同时补上 `checkApiKeyModelAccess`（与 chat 端点同一份 per-key 白名单）与 `x-connection-id` 连接固定。
+- **免密面板（requireLogin=false）的 OAuth 传输被 guard 拦死，局域网导出与 CD 远程通道全 401**：`/api/oauth/transfer/*` 在 ALWAYS_PROTECTED 名单里只认 JWT / CLI token，而免密部署的浏览器按设计没有 JWT，回环例外又只覆盖本机请求——NAS 局域网打开仪表盘点「导出 OAuth 账号」直接报「会话已过期」（2026-11-07 实测），CreditDaddy 从 Windows 远程走传输通道同理被挡。现按 import-usage 同款「自带凭据即放行到 route 自验」模式：POST 携带 `x-10r-password` 头的交给路由（export 内部 bcrypt 重验面板密码、import 由传输口令的 GCM 封印把关），空头不算凭据仍 401；跨站页无法伪造自定义头（preflight 不放行），猜错密码过不了 bcrypt——`/api/auth/verify-password` 在免密模式下本就是远程可达的同级口，未新增暴露类。
+
+### 🧪 测试与工程
+
+- **上游配额/用量调用的防突发收紧**：`/api/usage/[connectionId]` 此前每次调用都直打供应商 console——每个仪表盘标签页各跑各的 5 分钟定时器，开两个标签就是双倍上游调用。现包上与聚合路由 `/api/usage/quotas` 同款的服务端缓存（配额结果 5 分钟新鲜、错误 30 秒冷却、force 尊重 30 秒最小间隔、同连接并发合并为一次上游调用；`src/lib/usageResultCache.js`，消费方拿到的 body 为深拷贝）。背景配额刷新（auth.js，expire-first 调度）不再同一 tick 全量并发，按队列位置错峰——首个立即、其后每连接 1.5s / 敏感集（antigravity / gemini-cli）12s + jitter，与 backgroundTokenRefresh 共用同一 `SENSITIVE_PROVIDERS` 与 `BG_REFRESH_*` 旋钮。
+- **测试构建版本严格 N+1 门禁**：`scripts/test-build-version.mjs` 持久化轮次账本，拒绝重复或倒退使用已烧掉的 `test.N`；新增 `--next` 自动严格递增。
+- **fpk 热替换两道门禁**：`scripts/fpk-deploy-gate.mjs`（构建侧预检：体积 / 条目数 / node_modules 实体文件数 / 绝对符号链接投毒 / 版本号必须 `-test.N` / BUILD_ID / 按 commit 标记，全部从 tar 包内提取验证，不过闸不许上传）+ `scripts/fpk-hot-replace.sh`（NAS 侧解包复检 → 原子交换 → stop/start 同会话 → health 轮询 90s + /login、/dashboard 冒烟，失败自动 stop+回滚+start）。落地自 2026-11-07 两次 symlink node_modules 毒包致 NAS 死服事故；用法与红线见 `docs/zh-CN/fnos-hot-replace-deploy.md` §7。
+- 该门禁自身的测试改为只读隔离（`TEST_BUILD_ROUND_FILE` 指向临时账本）：原先读被 gitignore 的真实账本，在干净 checkout/CI 上必然失败，且在 `--force` 路径下改写并回退仓库四个版本文件，与并行 worker 互相踩。
+- `snapshot-inventory.mjs` 输出按键排序：此前按 vitest 报告顺序落盘（取决于文件发现与 worker 调度），每次重基线都重写整个文件——上一版 6500 行变更实际只对应 25 个新增测试。
+
+## v1.6.6 (2026-11-03)
+
+### ✨ 新增
+
+- **狂野派主题（Neo-Brutalism，#95，感谢 @805889095-eng）**：第三主题上线，切换四态循环（跟随系统 → 浅色 → 深色 → 狂野派）并以 `MODE_META` 单一事实源驱动全部切换面；奶油纸底 + 2.5px 硬黑描边 + 零模糊硬投影；全站实色贴纸化兜底（状态色系 alpha tint 转实色、热力图专属阶梯、公告/捐赠色卡、二维码与捐赠图标按钮硬投影、渐变拍平）；首屏主题闪烁与手机地址栏跟色修复（首帧内联脚本与运行时同步 `meta theme-color`）；i18n 全跟进（zh-CN/zh-TW「主题：狂野派」、Profile 页标签与悬停提示）。
+- **公告同源接口 `/api/announcements`**：服务端静态内置 `announcements.json` 离线兜底 + 后台非阻塞从 GitHub/jsDelivr 静默同步（SWR），前端优先读同源接口——彻底解决国内网络直连 raw.githubusercontent.com 被阻断与 Gitee 镜像 404 导致的「无法加载公告: Failed to fetch」，首访未读红点即时可用；standalone 产物同步携带内置公告。
+- **连接级隐私脱敏开关（#90 三期）**：连接编辑弹窗可直接开关隐私脱敏管道（与引擎 `privacyEnabledFor` 同一真值表），连接列表 🔒 徽章标识生效状态；PUT 路由深合并 `providerSpecificData` 保证部分补丁安全。
+
+### 🐛 修复
+
+- **测试版误报「已是最新版本」**：版本比较升级为完整 SemVer 2.0.0 规范（新增 `src/shared/utils/semver.js`，正式版高于预发布），修复旧比较器遇 `1.6.2-test.45` 等预发布标签时 `Number("2-test")` 产生 NaN 而误判无更新；`/api/version` 与桌面壳 GitHub 兜底路径（`releaseUpdater.isNewerVersion`）同口径。
+- **组合模型选择器混入未配置供应商**：`ModelSelectModal` 的免登供应商收集补 `hidden` 过滤并加「hidden 且无活跃连接一律不进候选池」防守——未安装的 Devin CLI 等本地 CLI 工具不再以其 35 个静态模型常驻组合选择器。
+- **小红书 Dots3（dots3-note-prev）能力补全**：按官方规格声明 512K 上下文 / 最大输出 64000 / 多模态视觉 / 思考推理，不再回落 DEFAULT_CAPABILITIES（200K、图片被剥）；同步从能力审计白名单移除。
+- **流式客户端断开即时中止上游**（吸收上游 #5374/#4914）：移除 500ms 延迟 abort 定时器，客户端断开瞬间同步 `abort()`，杜绝上游空跑浪费 token 与定时器竞态。
+- **Gemini 3.6/3.7/3.8 分档模型 MINIMAL 400 修复**（吸收上游 #5355）：分档 Flash 家族声明 `low/medium/high` 档位集，`reasoning_effort: "none"/"minimal"` 钳位为 `low`，不再触发 Google「Thinking level MINIMAL is not supported」400。
+- **狂野派发版审计修复**：状态边框兜底选择器收紧为透明度变体（不误伤实色 `border-red-500` 与 `hover:border-*` 交互态）；Profile 页主题选项接入 `MODE_META` i18n；捐赠渠道图标/「打开」按钮与侧栏主 logo 补齐硬黑描边投影，`--shadow-warm` 由同色橙改为硬黑消除阴影融化。
+
+## v1.6.5 (2026-10-29)
+
+### ✨ 新增
+
+- **讯飞 Loomy 内置收录 + 手机验证码直登 + 积分额度卡**：免费额度区块原生收录 Loomy（8 个实测模型，spark-x2.6 免费倍率），手机号验证码两步直登换 14 天会话、无需安装客户端；连接自动探测积分卡（永久积分 + 每日赠送积分），100002 自动补 first-login 初始化；验证码下发与校验按 IP+手机号滑动窗口限流，防短信轰炸与验证码爆破。
+- **桌面端后台定时检查更新 + 静默预下载（#81）**：桌面托盘版支持启动 30 秒首检及每 6 小时静默后台探测；Windows 安装版在后台自动预下载最新安装包并完成 SHA256 校验，用户点击「检查更新」时直接进入就绪态秒装；Portable 与 macOS 仅气泡提醒；「设置 → 安全」关闭自动检查时定时器静默空转，不主动产生任何查询；加固前后台下载并发互斥与同版本气泡去重。
+- **火山引擎豆包联网搜索与单页抓取 Provider（#84）**：
+  - 新增 Web Search 联网搜索能力，Query 自动安全截断至官方 100 字符上限，多片段纯文本过滤归一化。
+  - 新增 Web Fetch 单网页正文抓取能力，支持纯文本智能提取与 markdown 请求降级。
+  - 内置火山双层错误映射层（`ResponseMetadata.Error` 700429→429、10406/10412 额度耗尽→403 等），Body 级错误精准转换为真实 HTTP 状态码并驱动既有多账号平滑轮询。
+- **安全审计收尾与全链路加固（#43）**：
+  - **Host 头校验与 DNS Rebinding 阻断**：受信本机路径（`isLocalRequest`）实施严格 Host 校验，拦截恶意网页通过重绑定域名（如 `rebind.attacker.com -> 127.0.0.1`）穿透免密路径；新增 `TRUSTED_HOSTS` 环境变量白名单支持，校验回退对齐 `NEXT_PUBLIC_BASE_URL`（与 oidc/saml 同款）。
+  - **登录防爆破限流架构声明**：明确记录网络防爆破与内存限流权衡（Accepted Tradeoff），防止高频爆破时的磁盘 I/O 放大与写锁竞争，严格基于 `custom-server` 签名 IP 隔离桶。
+  - **API Key 废弃时间表与告警**：正式公布 `LEGACY_FALLBACK_SECRET` 与旧格式 `sk-<random8>` 废弃时间表（计划于 v2.0.0 彻底移除），运行时提供非阻塞迁移提示。
+  - **Windows Root CA ACL 与状态口 CORS**：全量测试钉死权限加固与状态口安全面。
+- **模型生态演进与上游能力吸收**：
+  - 支持 Claude 5.5（Sonnet 5.5 / Haiku 5.5 / Opus 5.5）全套点号模型思考配置与无缝转换。
+  - 收录 OpenAI GPT-6.1 Terra（500k 上下文）与 Nace Drex 决策平台（console.nace.ai）。
+  - 接入 CommandCode CLI 1.88.0 会话头族支持与 NVIDIA NIM reasoning 别名规范化。
+  - Gemini Protobuf Schema 严格执行类型谓词约束（`enforceTypeConstraints`），规避空 items 或非对象属性导致的结构体序列化异常。
+
+### 🐛 修复
+
+- **桌面打包丢失 `updateScheduler.js` 缺陷**：`desktop/package.json` 的 `build.files` 显式登记决策模块并加入回归测试钉，防止打包后启动崩溃。
+- **桌面更新复用判定失效修复**：修复 `checkForUpdates` 初始化重置导致预下载安装包无法秒装的问题。
+- **非流式 SSE 错误拦截**：解析非流式响应首帧错误结构，防止上游异常被误作为正常回复输出。
+- **组合条目启用/禁用开关 + 402 计费冷却 30 分钟（#91）**：组合编辑器每个条目可一键禁用（置灰保留排序位，调度零耗时跳过），活动渠道额度耗尽不必删条目；402 欠费从 2 分钟冷却升为 30 分钟计费档，期间请求直落下一健康渠道。
+- **兼容节点 per-endpoint 自定义鉴权头（#92）**：/models 发现与 chat 推理鉴权头不一致的上游（如讯飞 Loomy）可在节点或连接级配置模板（如 token: {apiKey}），「从 /models 导入」开箱即用。
+- **隐私脱敏管道（#90）**：出站密钥脱敏 + 入站占位符还原全链路（连接级显式开关，默认关闭），正则特征包 + 确定性占位符保上游缓存命中。
+- **全量发布审查收尾**：隐私挂载行为化修正（深克隆 + `stats.redacted` 判定，杜绝把统计对象当请求体发出）、Responses 同格式透传与并行工具调用窗口还原补齐；桌面后台预下载与手动下载互斥（在途 AbortController，防并发写同一临时文件）；Gemini 无 type 仅 items 的 schema 先推断 array，防删空后 Antigravity 400；积分卡 `dailyConsumedPoints=0` 如实直读（与 CreditDaddy 同口径修正）。
+
+## v1.6.2 (2026-10-28)
+
+### ✨ 新增
+
+- **Qoder 10605 排队等位与全局队列快速失败**：上游 10605 是按 modelKey 的全局排队（实测多账号同一 queueCount），换账号绕不开。现在对齐官方客户端行为：执行器收到 10605 先按 retryAfterSeconds 排队重试（≤2 轮 / 90s 预算，重签 COSY 重发同一 body），浅队列直接被放行；预算耗尽后按 (provider, model) 快速失败标记，账号游走不再串行重学同一判定；429 文本携带 waitTime（队列排空估算），冷却按真实窗口而非 30s 轮询间隔。
+- **网页版生图/多媒体提供商生态**：接入 UC（uc-web，Clerk 会话铸造）、Grok Imagine（grok-web 网页版订阅，图像 + 视频载荷）、Veo AI Free（veoaifree-web，免登录）、Muse Web / ChatGPT Web / Gemini Web（后三者为执行器存根，暂从添加目录隐藏）。
+- **组合页面卡片拖拽排序、快速置顶与顺序持久化（#89）**：拖拽 / 置顶写入 `comboCardOrder`，`/v1/models` 组合列表同序输出。
+- **Oxion AI 供应商**（oxionai.com USD 预付聚合网关）。
+- **连接测试选中模型即发真实生成探测**：对齐 antigravity #82 语义，探活通过后按所选模型追加最小生成请求；通用探针下沉 default 分支，registry 声明 validateUrl 即可测。
+- **上游错误 JSON 墙解包 + 服务端字典本地化**：OpenAI 兼容网关 503 不再透传原始 body；错误模式层原位改写 + 逐测路由本地化，`/api/models/test` 单模型 ping 接入服务端字典。
+
+### 🐛 修复
+
+- **Qoder 错误不再转为正常正文（#88）**：首帧拦截触发回退且流中传播结构化错误； Responses/Claude 翻译器在终态错误帧后丢弃后续 delta / 重复 error 帧。
+- **Claude 缓存计量口径、环境代理内网穿透与 opencode 会话纯度（#87）**：canonicalizeUsage 不再重复计入 cached_tokens；内网判断的 fc/fd/fe80 前缀只对真实 IPv6 字面量生效（fda.gov 等公网域名不再被误判绕过代理）；会话 id 翻译保持确定性。
+- **CodeBuddy Intl 会话头族硬化**：uuid5 会话 id、幂等头写入、body 会话字段透传。
+- **MiniMax Code 配额分类修正为积分余额**（原误标订阅），且无连接时隐藏「领取积分」入口。
+- **连接批量删除 / 应用代理 / 全选等国际化补齐**；部分失败告警文案一并本地化。
+- **媒体生成健壮性**：grok-web 媒体请求补上声明未用的图像/视频回合超时（此前上游挂起只能靠客户端 abort）；uc-web 的 Clerk `__client` 轮换 cookie 现已持久化回连接（原先只写内存，轮换链必断）。
+- **多媒体提供商视频路径清理**：`/v1/videos/*` 透明代理需要 videoConfig.baseUrl，四个执行器驱动型 provider（grok-web / uc-web / muse-web / veoaifree-web）此前宣告无消费者的 `executorDriven` 旗标会 500 崩溃——现在隐藏 video kind（图像/对话不受影响），待执行器桥接落地后再放开。
+
 ## v1.6.1 (2026-10-24)
 
 ### ✨ 新增

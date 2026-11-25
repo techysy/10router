@@ -1,6 +1,7 @@
 // Re-export from open-sse with localDb integration
 import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
 import { parseModel as parseModelCore, resolveModelAliasFromMap, resolveModelAliasCore, getModelInfoCore, isCodexBareSlug } from "open-sse/services/model.js";
+import { filterDisabledComboModels } from "open-sse/services/combo.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 
 // Local provider alias overrides (HMR-friendly, applied on top of open-sse map)
@@ -109,7 +110,8 @@ export async function getComboModels(modelStr) {
 
   const combo = await getComboByName(modelStr);
   if (combo && combo.models && combo.models.length > 0) {
-    return combo.models;
+    // issue #91 方案 A：过滤手动禁用的条目（旁挂 disabledModels，models 排序位不动）
+    return filterDisabledComboModels(combo.models, combo.disabledModels);
   }
   return null;
 }

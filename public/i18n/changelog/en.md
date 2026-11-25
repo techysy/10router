@@ -2,6 +2,235 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
+## Unreleased (ships with next release)
+
+### ✨ New
+
+- **New providers: AutoClaw + AutoClaw CN (智谱澳龙, unofficial)**: use your own AutoClaw (Zhipu AutoGLM desktop) account — international (sign in with z.ai: pass the slider check, authorize, then paste the localhost:18432 address the browser lands on) or China (+86 phone SMS code). Models: AutoClaw Auto / Auto Fast / GLM-5.3 Flash (free) / GLM-5.3 Coding, 1M context, reasoning low/high/max. Credits balance card and an optional daily sign-in (Experimental page). This is a reverse-engineered desktop API: accounts may be restricted, and do not keep the AutoClaw desktop app signed in to the same account while 10Router uses it.
+
+- **Time-window sticky rotation for combos**: with a combo's "Round Robin" strategy, every request used to hop to the next model — in group-assistant use (many people interleaving) a conversation kept switching models mid-thread. Within an active period the same model now keeps answering; only after the idle window (default 5 minutes, adjustable in Settings, overridable per combo on its card) does the ring step to the next one. A per-request switch mode is still available in Settings.
+
+- **New provider: Junie (JetBrains free lane)**: sign in with your own JetBrains account (a free account is enough) to use the free Junie Lite lane — one model for small tasks, served by JetBrains. Click sign-in, approve on the opened page, and the browser lands on a page that won't load — copy the whole address from the address bar, paste it into the connection box, and connect. Only sign in with your own account.
+
+- **New provider: Numes**: an OpenAI-compatible inference marketplace — frontier and open-source models served by independent providers, billed per request from a USD or Bitcoin balance (the key's currency is fixed at creation). Model ids are OpenRouter-shaped (`author/model`); ids suffixed `:free` cost nothing (GLM-5.3, GLM-5.3-Flash, DeepSeek V4.1 Flash, Kimi K3.1 Pro, Nemotron 3 Ultra 550B), while a plain id only routes to priced endpoints. 34 flagship models are pre-listed and everything else in the catalog works by id; reasoning tiers ride the standard OpenAI reasoning_effort.
+
+### 🐛 Fixed
+
+- **Zero-credit quota packs no longer count down**: in the per-pack details' "Used up / expired" section, a pack whose credits were fully spent but whose expiry is still ahead used to keep an "expires in Xh Ym" countdown — meaningless over a balance of zero. Such packs now show the absolute expiry date instead (e.g. "expires 09-30"); countdowns are reserved for packs that still have credit. The card header's "N resource packs (available)" countdown already counted only packs with balance and is unchanged.
+
+- **"Resets first" sort button on the quota page fixed**: the hourglass button in the quota page toolbar previously did nothing when clicked, and rendered as a squashed pink chip while active — the sort only worked within the current page and lacked the data to sort by, the page order never followed it across pages, and the button's styles clashed. Accounts are now genuinely ordered by their earliest quota reset/expiry time (across pages; only future reset/expiry times count — expired or permanent accounts sink to the end), and the button's active state renders correctly.
+
+- **QwenWork model list "double prefix" fix**: model ids on the QwenWork / QwenWork CN provider pages used to render as `qw/qwenwork/…`, `qwc/qwenwork-cn/…` — a doubled prefix (the extra layer came from the catalog route). Imports, disables and locks made from those rows stored invalid keys, which hid models and made them unpickable in combos. Ids are now normalized to the correct `qw/qwen4-max`, `qwc/flash` shape, and the malformed keys stored server-side are cleaned up automatically. Manually added models are unaffected; models that were wrongly hidden become visible again after a refresh (if one was wrongly disabled, restore it with "+" on the provider page).
+
+- **The combo model picker now shows QwenWork's latest models**: when adding models to a combo, QwenWork (intl / CN) used to list only the handful of models you had added by hand, out of sync with the provider detail page's live catalog; the picker now fetches the account's current model list and shows the same rate badges as the detail page (free / Nx). Manually added models and their order are unchanged, and the previous list is kept if the catalog fetch fails.
+
+- **CrowLLM quota card fixes**: ① the card title's casing is corrected (Crowllm → CrowLLM); ② quota is no longer double-counted — the wallet balance already includes the gift credit, but the card used to add the two together and show a doubled figure (219.98 where the real balance is 109.99). The headline number now reflects the true balance, and the gift credit remains visible in the per-pack breakdown (that side is fixed in CreditDaddy and takes effect as it ships).
+
+- **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.
+
+## v1.8.3 (2026-11-22)
+
+### ✨ New
+
+- **New providers: QwenWork + QwenWork CN （千问办公）**: Alibaba's all-in-one workplace agent (international at qwenwork.ai, China at qwenwork.cn) joins as OAuth providers — sign in with your own account via device code, pick the team whose plan to use on the authorization page, and call its models (system tiers — Standard / Advanced / Flagship, varying slightly by site — plus direct models like Qwen4-Max, DeepSeek V4.1 Flash, GLM-5.3 and more, all 1M context) with your plan's credits. The live per-account catalog, credit quota card and automatic token refresh (single-use rotating refresh tokens — the gateway is the only refresher, so don't sign the same account into the desktop app at the same time) are all wired up. 2026-11-22 update: the intl catalog root cause is fixed — the direct models ride a different endpoint (chat-modes-v2, not model/list), now integrated and matching the official client picker: all 6 intl direct models are listed and usable (Qwen4-Max / Qwen3.8-Max / DeepSeek-V4.1-Flash / GLM-5.3-Flash / Kimi-K3.1-Pro / MiniMax-M3.1-Flash) plus 3 system tiers; model rows now carry rate-multiplier badges (0.x light → 2.6x paid) and the official client icons. Remaining known issue: Free-plan accounts get 403 on the direct models (paid tiers unlock them). Also: tier rows no longer show a misleading free badge (live test — they bill from the credit pool); the rate-multiplier chip on each row IS the pricing mark, and connection subtitles now mask the email.
+
+- **New provider: CrowLLM**: an aggregator gateway with 180+ models behind a single API key; models suffixed `:free` cost nothing (40 of them, including the Qwen 4 Max free variant — 91%+ measured daily success rate, latency on the slow side). The "Get API Key" entry rotates through an invite-link pool so new-account attribution doesn't pile onto one code.
+
+- **New provider: Capy**: an agent platform — each request is one real agent run (threads are reused after login, **no need to keep the official desktop app running**; the headless device serves the agent's command and file operations just like the desktop app does — deployments that don't want that simply don't pair a device). Sign in with an email code; three free all-zero-priced models are included (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Measured 5-9s per turn — good for conversation, not a "fast model" in the usual sense.
+
+### 🎨 UI
+
+- **CrowLLM / Token Harbor moved into the Free group**: both are "paste an API key and go, with a batch of free models" providers, which matches the free-tier group's profile; they now appear in the providers page Free list and no longer duplicate in the paid API-key group.
+
+### 🐛 Fixed
+
+- **Mobile header and drawer fixes**: ① on narrow screens the provider detail top bar stacked the breadcrumb vertically and piled the announcement/donate icons over the title — narrow screens now show just the icon + title (hierarchy navigation lives in the sidebar menu); ② the providers page search box was wide enough to push the page title out of view — the search box is narrower and the announcement/donate buttons now appear on wider screens; ③ the usage request-details drawer overflowed the screen on phones — it now goes full-width on narrow screens.
+
+- **LongCat thinking toggle now works**: turning thinking off had no effect on LongCat (the parameter format did not match the official API and was silently ignored); the switch is now sent in the official shape.
+
+- **Nous connections self-heal faster**: when the upstream revoked just the access token, it used to take hours to recover; the gateway can now refresh immediately on detection.
+
+- **Meoo invite pool + new scheduling preferences**: Meoo onboarding now rotates through 3 invite links (attribution spread); Meoo / QwenWork gain highest-balance-first / lowest-balance-first scheduling preferences, ranked by each account's credit balance.
+
+- **Styled delete confirmation**: deleting a connection from the quota tracker no longer pops the raw native dialog; it uses the same styled confirm modal as the rest of the dashboard.
+
+- **QwenWork supports the API Key channel**: CD sk-key scenarios can create connections via API Key (previously rejected as Invalid provider); when the access token expires, the quota card shows a re-sync hint instead of stale numbers.
+
+## v1.8.2 (2026-11-20)
+
+### ✨ New
+
+- **New provider: Nous Portal (Hermes)**: sign in with your own Nous Portal account via device code — the same public OAuth client Hermes Agent uses (no secret, no redirect setup). Free models such as `qwen/qwen4-max:free` work with no credit card on the account; the full live catalog (400+ models) is available, and paid models follow your Portal plan. Refresh tokens rotate on every use and are refreshed only by the gateway, so don't sign the same account into Hermes CLI at the same time.
+
+- **fnOS management panel: panel restart + log viewer upgrade**: ① "Service ops" gains a "Restart panel" button — the management panel itself can now be restarted in one click (the main app is untouched); ② the logs card matches the dsh panel: switch between panel events / main app log / daily request log, with line count, date and keyword filters; error lines render red, warnings yellow; the view follows the newest lines without interrupting scrollback.
+
+- **New provider: Croli**: sign in with Google / GitHub / email through Clerk, then paste the callback URL to finish authorization. New accounts come with a credits pool: daily check-in +100 (streak bonuses), while the first-conversation gift of +200 is reported automatically when a real conversation turn completes (no synthetic probe messages) — toggleable in the dashboard; the credits panel now shows the native task center and wallet balance. Six live-probed models ship at launch (Claude Sonnet 5 / Opus 5.5, GPT-6-Luna / 6.1-Sol, GPT-5.6-Luna / 5.6-Sol).
+
+### 🐛 Fixed
+
+- **Nous Portal card moved to OAuth providers**: it was initially listed under Free tier; it is a full OAuth provider (free and paid plans), so its card now sits with the other OAuth providers. Sign-in and models are unchanged.
+
+- **Claude Code tool card switches unified**: the "Filter naming" and "Exa MCP" switches were raw browser checkboxes; they now use the same slide toggle as the rest of the dashboard. Behavior unchanged. (#153)
+
+- **Input placeholders now follow the UI language**: grey hint text in a few input boxes (sudo password, alias, chat input — 5 spots) stayed English after switching language; they now translate like everything else. (#154)
+
+- **Trae CN quota card expiry breakdown rebuilt**: credit packs are no longer merged by name into a few rows — they are now grouped by name + expiry date (same name & same day merge into one cell, soonest-expiring first). Fixes three problems: a merged row's "expires in 1d 22h" countdown only applied to its earliest sliver of credits, making the whole row look dead tomorrow; the monthly login grant was collapsed away so the "N resource packs" count disagreed with the rows shown; and the per-pack details just repeated the card body. The headline number and segmented bar stay the same; the details now list real expiry buckets.
+
+- **Provider detail info card now follows the UI language**: the blue info card on newly added providers was English-only; translations for simplified/traditional Chinese, Japanese and Korean are now in place.
+
+- **Croli sign-in fixed**: authorization used to be rejected outright by Clerk ("redirect_uri does not match"); it now initiates with the registered loopback shape, so the full "authorize → paste callback → gateway key claimed automatically" flow works.
+
+- **Authorization hints now follow the UI language**: provider authorization instructions used to be Chinese-only; they now translate (simplified/traditional Chinese, Japanese and Korean dictionaries in place).
+
+## v1.8.1 (2026-11-19)
+
+### ✨ New
+
+- **Account session pool (desktop)**: multiple logged-in identities on the same site no longer bleed into each other — Chrome-style "account slots". Pick a slot in the in-shell login window, manage slots (open / clear / rename) in the dashboard's session-pool modal, and open any URL — including the "go to" menu and the service URL — in a chosen slot. **OAuth popups open per slot too**: flows that stall on a "Copy This URL" page (Google/Antigravity) now hand the callback back to the dashboard automatically inside the shell — no manual URL copying. 6 slots per site for now.
+- **Codex GPT-6.2 family ships**: `gpt-6.2-sol` / `gpt-6.2-astra` plus `[1m]` extended-context and `-review` variants. Capabilities mirror upstream: Sol 500k window with audio input (a family first), Astra 272k; pricing follows the official Standard short-context tier — Sol $2/$10, Astra $8/$40 (prices double only past 272K). Upstream requires CLI >= 0.166 — the new 0.169.0 fingerprint clears the gate, and the advanced JSON-Schema keywords behind the 77-tool 400 are now stripped on the request path.
+- **Dots (Xiaohongshu) free badge**: the official pricing page now lists dots3-note-prev ($0.14 input / $0.28 output per 1M tokens) while explicitly stating the service is free during the trial — the provider card shows a green "Free" badge and usage is billed at the actual $0. When Dots starts charging they will announce it in advance; the badge then retires and official prices apply.
+- **Custom headers + website logo for compatible nodes**: OpenAI/Anthropic-compatible nodes can configure per-request custom headers (optional JSON — overrides the default auth header, structural headers ignored), so gateway endpoints that demand an extra token header finally work, and the connection test exercises the same headers as real traffic. A node can also declare its website: the providers wall, detail page and quota cards show the site's favicon as its logo (falling back to the generic glyph if it 404s), and the detail page gains a console link.
+
+- **MiniMax Code credit expiry detail**: the quota card now shows per-batch expiries beside the Credits balance — buckets merged by expiry day (e.g. "12-05 · used 796 / of 1000"), with the earliest expiring batch's remaining and countdown beside the headline number; the connection row's earliest-expiry badge and earliest-expiry-first routing pick the signal up too. When your daily check-in credits (valid about a month) lapse is now visible at a glance.
+
+### 🧹 Catalog recalibration
+
+- **MiniMax Code scheduling preference gains Earliest Expiry First**: the dropdown previously offered only priority/balance/round-robin — the data chain was already complete (usage emits ledger expiry buckets; the auth.js sort branch doesn't care about quota category), the gap was UI-only. Pick Earliest Expiry and accounts sort ascending by their soonest-expiring bucket (check-in credits in same-day/limited buckets burn first); balance strategy resets to avoid double-priority.
+- **CodeBuddy catalog, 4th edition (CN + international, Nov 16 client screenshots)**: both sides rotated the same day — Hy3 has disappeared from the client pickers and is retired per the client-list-is-authority rule; the Hy4 free-now window is renewed (Nov 16-30 daily free allowance); CN gains Hy4 flash (official release, free-now 0.00x, 960K context card; id spelling pending a live probe); CN's Kimi-K3.1-Pro now carries the subscriber-priority tag. On the international side Max (1.33x) stays unlisted for now (a routing-style target with no stable capability row or billing semantics). **The Gemini API lane also gains Gemini 4 Hydrogen / Carbon** — the official model picker's Nov 16 state (daily help = Hydrogen default, hard tasks = Carbon behind the Pro tier), with capabilities and pricing riding the existing Gemini 4 channel; no configuration needed.
+
+### 🎨 UI
+
+- **Quota card provider logos now open the provider management page**: the logo in each card's top-left used to jump straight to the provider's website; it now opens that provider's page inside the dashboard — accounts, models and scheduling all live there, one click closer from the quota view. The website / console link stays at the top of the provider page for when you need official resources.
+
+### 📄 License
+
+- **License change: starting with v1.8.1, this project adopts AGPL-3.0** (previously MIT). Released versions up to v1.8.0 remain MIT. AGPL requires any reuse — including offering it as a network service — to be released under the same license, protecting this project's reverse-engineering work from being taken closed-source. Everyday use and self-hosting are unaffected; the MIT notice for upstream-derived portions is preserved per its terms.
+
+## v1.8.0 (2026-11-16)
+
+### ✨ New
+
+- **WPS Lingxi provider line (new)**: paste a WPS session cookie and go — the provider page walks you through Capture Session (bookmarklet or direct paste), or sync one from CreditDaddy's web sessions. The quota card speaks the credit language: a balance headline plus **per-day expiry buckets** (same-day packs merge, soonest first, far-out packs collapse into a "further expiry" row) and a countdown to the earliest expiry; connection rows carry an earliest-expiry badge and one-click re-capture (🍪). **Native daily check-in** — flip the Experimental toggle and every Lingxi connection claims its daily credits automatically (100/day, 200 on day seven); manual check-in lives on the connection row, and the quota card shows "Checked in today · N-day streak". Free-tier chat does not deduct credits.
+- **Meoo provider line (new)**: connect via OAuth or by pasting a control-plane key; the per-project service AK resolves itself and self-heals. The quota card shows the full points ledger — balance plus **per-batch expiry** (subscription / daily-login / invite grants each carry their own expiry; daily grants roll on a 6-day window). The Experimental page adds an auto daily-claim toggle (login-equivalent action + ledger delta verdict), model rows carry price-tendency badges (cheap / moderate / pricey / premium, matching the official picker), and the connection test walks the whole chain (control plane → project AK → gateway), telling you exactly how to fix a missing project. **Nov 16 additions**: a dedicated meoo_ak_ paste entry also appears with zero connections, and the shared-cloud quota wall (a PRO/MAX feature) no longer blocks the key — the AK lands on whichever project still has an instance.
+- **DeepAI Code provider line (new)** (Nov 16 addition): paste the long-lived API key the desktop app issues at Google/Apple sign-in — it is stored locally in `deepai-account.bin` and the provider-page notice gives the exact path; no session refresh to babysit. The 27-model catalog resolves live per connection so new models surface automatically: 11 unmetered free models plus 16 that spend the daily Theos grant. The quota card speaks Theos — balance headline + daily-grant detail + next refresh time. Auth rides a custom `Api-Key` header plus the Theos billing-lane header.
+- **DeepAI Code panel-native browser sign-in (Meoo-style)** (Nov 16 addition): adding a connection now runs the browser sign-in inside the panel — open the DeepAI sign-in page (Google/Apple), paste the callback address from the address bar back into the panel, and the server exchanges the key and creates the connection. Nothing to install locally, no key to copy; an existing key can still be pasted manually in the same dialog.
+- **DeepAI Code: no-desktop sign-in + free/quota model labels** (Nov 16 addition): the API key no longer requires installing the desktop app — the deepai-auth helper runs the same browser sign-in flow the app uses (desktop_auth callback + exchange) and prints the long-lived key after one login; the provider notice is localized. Model rows now label every model: a green Free badge for unmetered models and a Quota N badge showing the per-request Theos cost. The billing-lane header tracks the desktop's current value (4) and requests carry an explicit User-Agent (upstream rejects the Node default UA).
+- **Antigravity model catalog refresh**: the Gemini 4 Hydrogen tiered family (High / Medium / Low) added, matching the IDE's 2026-11-16 model list.
+- **Antigravity identity-sentence rewrites completed + fingerprint bumped to 2.32.1** (Nov 16, evening): Google started rejecting Codex CLI and pi clients by their system-prompt identity sentences (a fake 429 quota-exhausted, not a real quota limit) — both openers are now normalized into a neutral description; leftover Codex harness sections rename case-preserving (Codex → Antigravity), while pi deliberately gets no word-level rename to protect API/pip from collateral. Together with the earlier Hermes / OpenCode / Claude SDK rules, all four competing identity sentences are now covered. The client fingerprint aligns with the official IDE 2.32.1.
+- **DuMate provider line (new)**: web-cookie sign-in with QR-code login (no spawned browser). The quota card speaks the credit-pool language — subscription window folded beside the balance headline, top-up packs itemised, check-in state off the body. Pack hide-preferences now use a stable composite key so expiring / reordered packs no longer inherit each other's visibility. Display name finalised as "DuMate".
+- **Gemini Decision 1 provider** (#110): System One decision models answering with calibrated probabilities; model and connection tests speak the dedicated dialect (`input` field + `x-goog-api-key`), fake keys no longer pass validation.
+- **Channel-level privacy redaction rules** (#117): beyond the default key / PEM / JWT / credential-assignment scans, opt-in rules now cover emails, database connection strings (credentials embedded in `postgresql://user:pass@host` URLs), private-range IPs (RFC1918 + CGNAT — Tailscale's 100.64/10 included) and CN mobile numbers. The edit dialog gained a rules JSON editor (invalid JSON blocks saving), and toggling the switch no longer wipes configured rules.
+- **CreditDaddy integration deepened**: Meoo sign-in now happens in CreditDaddy (the dashboard's doomed OAuth entry is gone; CD sync + pasted keys remain), account transfer accepts control-key rows (CD-pushed connections are identical to pasted ones), and the Loomy page links CreditDaddy's latest download.
+- **Daily-grant-first scheduling completed**: drained accounts auto-disable and reopen at midnight; exhaustion protection now covers the LAST account — pinned accounts, single-account pools and shrunken pools can no longer burn permanent credits; when a funded sibling is merely cooling down, the retry time follows its lock instead of midnight.
+- **Model picker readability**: human-readable model names on the combos page; compatible nodes expose their live model catalog in the picker.
+- **Community navigation tidy-up**: sidebar community links fold into a single accordion row; Feishu group ² entry; project home / issue filing moved to the top-right menu; the Loomy page explains the CreditDaddy workflow and invite-code support.
+- **Provider wall grouping**: Loomy moved into the "OAuth Providers" group — its credential is an interactive login session rather than a free-tier key, so the new grouping matches intuition.
+
+### 🐛 Fixed
+
+- **Responses lost content at completion**: reasoning / text / tool calls previously collided on one output_index (upstreams typically emit everything on choice 0), so `response.completed` overwrote earlier items — output positions are now allocated independently in announcement order; Responses-namespace tools expand correctly for Chat upstreams.
+- **Multi-account fallback pollution**: a failed attempt's preprocessing (media stripping for text models, RTK compression) mutated the shared request body, so a vision fallback received truncated input — every attempt now owns its body.
+- **Combined cooldown judgement**: a requested model's unlock time is the LATER of its model lock and the account-wide lock — stale model-lock fields no longer hide a live account lock (GitHub monthly quota).
+- **Usage imports keep the original key identity**: masked keys in backups were re-hashed into a non-existent identity — re-imports neither deduplicated (double counting) nor attributed named keys; digests are now used as-is and masks refuse to derive.
+- **Backup restore keeps combo disabled models**: `disabledModels` survive restore (legacy backups compatible).
+- **DuMate quota card**: incremental-pack double counting fixed; the authoritative balance bar survives an incomplete breakdown; a spent subscription no longer flags accounts with usable top-ups as rate-limited.
+- **fnOS management panel (#97)**: root cause of the frequent panel log crashes (sync throws inside async callbacks escalating to process death) + crash self-healing; scheduled auto-update hardened; **auto-updates now drain active/streaming requests before restarting** (a busy round defers and retries instead of killing in-flight chats); overview and update merged into one page; logs now read panel events.
+- **Trae**: FlashX 4001 downgrade handling, Doubao SOLO session re-homing, browser login preflight no longer kills the callback proxy.
+- **Misc**: media-page card dragging no longer hijacked by links; zh-CN/zh-TW dictionary gaps scanned to zero (22 + 129 entries).
+
+## v1.7.1 (2026-11-11)
+
+### ✨ New
+- **Trae direct non-sandbox channel**: Standard chat requests no longer force-allocate a remote SOLO container sandbox. They now route through a lightweight direct channel (`agent_type: "chat"`), eliminating container allocation latency and the SOLO parallel sandbox limit (`running=2`), while explicit solo/work tasks still spin up the cloud sandbox automatically.
+- **Qoder supports Qwen4-Max-Preview**: QoDuck has graduated to Alibaba Qwen's latest frontier base model Qwen4-Max-Preview, live across all plans; routed via `qmodel_latest` with 0.1x limited-time multiplier; retired `lmodel` key delisted.
+- **Usage stats show real model names**: Qoder's internal codenames (`kmodel_latest` etc.) in usage views and node health now display as their real product names — Kimi-K3.1-Pro, Qwen4-Max-Preview, etc. Historical usage is covered seamlessly; hover to see the raw codename.
+- **Dashboard & donation enhancements**: Priority pin for monthly "Plan Credits" in quota breakdown; backer note reminder in donation modal; LAN OAuth import fix for passwordless deployments.
+
+## v1.7.0 (2026-11-07)
+
+### ✨ New
+- **Trae split into China / International providers**: Trae CN (trae.cn) and international (trae.ai) accounts never interoperate — they are now two separate provider cards ("Trae" for international, "Trae (China)" for domestic), each with its own model catalog and sign-in entry. The site picker in the login dialog is gone, existing connections migrate with no action, and the CN data plane now points at the current official gateway.
+- **Trae authorization upgraded**: sign-in now speaks the current official PKCE + authorization-code flow (both legacy and new callback shapes accepted), token/account endpoints moved to the current gateway hosts, executor requests carry per-account device fingerprints (no more shared hardcoded device id), and the international data plane fails over across gateway hosts. Existing connections need no action.
+
+- **Media providers → Music**: a new Music category in the sidebar that generates full songs.
+  - **ACE Music**: hosted ACE-Step — a song in tens of seconds, returned as a playable, downloadable MP3.
+  - **StepFun StepAudio 3 Music** (free for a limited time): the official async API. A one-line description gets lyrics written for you; multi-line text is sung as-is.
+  - The example card has a built-in player and download button, so you can switch model, connection and prompt and try it on the spot.
+- **Qoder catalog sync**: Kimi-K3.1-Pro, Kimi-K2.8-Preview, MiniMax-M3.1-Flash; the CN site also gains Step-5-Preview and the "Fast" tier.
+- **CodeBuddy catalog refresh + proxy fingerprint bump**: both CN and international now mirror the latest client model lists — adds Kimi-K3.1-Pro / MiniMax-M3.1-Flash / Xiaomi MiMo-V2.6-Pro (CN) and the GPT-6 family (intl, with first published multipliers), drops retired models on both sides, and refreshes every credit multiplier. The three badge types render faithfully: Free now (Hy3/Hy4 daily allowance through Nov 15), Sub priority, and night discounts. The proxy request fingerprint now matches the official CLI 2.180.0.
+- **Model selector footer**: shows how many models are selected plus a Done button, so multi-select no longer reopens the dialog on every click.
+- **LongCat-2.5 GA**: LongCat (Meituan) LongCat-2.5 — 1M context, 256K max output, image and video input, thinking toggle as before. Available on both the CN and international sites; 2.5-Preview stays online.
+- **Release-notes audit script**: `npm run audit:release-notes` checks before publishing that the notes include the 📦 Install channel table and the Full Changelog compare link, and fails loudly when either is missing.
+- **Theme picker + four new themes**: the theme button in the header now opens a picker anchored at the top-right — switch instantly with live mini previews. New: Gruvbox, Nord, Dracula, and Glass light/dark (iOS-style frosted sidebar and cards, with colorful page blobs showing through). Groups are Classic / Glass / Stylized; "Follow system" now lives inside Classic and Glass as a per-group toggle; the sidebar brand icon stays coral orange.
+- **fnOS management panel**: the fpk ships a standalone management panel (bound to the NAS loopback by default, exposed per deployment via the fnOS gateway): one-click quick update (multi-thread segmented download + resume, automatic rollback to the previous build on failure), browser upload install for offline NASes, a daily auto-update schedule you can set, plus service ops — main-app status, log filtering, restart.
+
+
+### 🐛 Fixed
+
+- **Trae browser sign-in "Login Failed / network error" fixed**: the official authorization page only accepts an `/authorize` callback URL, but we were sending `/callback`, so the popup died on a "Login Failed, network error" screen before showing any login UI. Now aligned with the official client (`/authorize`); browser sign-in reaches the QR / phone-number login screen on both the China and international sites.
+- **Reasoning-only answers were discarded as empty (#96)**: some upstreams end a turn with thinking content and no body text, which clients like Hermes Agent treat as an empty reply and drop. Combos now fall through to the next model; a single model promotes the thinking into the body instead — emitted before the finish marker, so clients actually read it.
+- **Tool calls polluted with a synthetic text frame**: Claude / Gemini tool turns got extra text appended after translation; fixed.
+- **Same-named resource packs overwriting each other**: with several packs (LongCat and others), the per-pack breakdown now lists them as "Bonus Pack 1/2/3" with individual expiry countdowns instead of only the last one.
+- **Music generation accounts and permissions**: a content-filter rejection or task timeout no longer cools down the whole account; `/v1/audio/music` only accepts music models; per-key model allowlists apply here too; the connection picked in the example card is actually honoured.
+
+## v1.6.6 (2026-11-03)
+
+### ✨ New
+
+- **Brutal theme (#95, thanks @805889095-eng)**: a third Neo-Brutalism skin — cream paper, hard black outlines, zero-blur shadows — cycling system/light/dark/brutal. Status colors, heatmap and announcement/donation cards get site-wide solid sticker treatment; fixes first-paint theme flash and mobile address-bar tint.
+- **Announcements load instantly everywhere**: a new same-origin announcements API with a bundled offline fallback and silent background sync — no more "Failed to fetch" on fnOS remote access or Chinese networks; the first-visit unread badge works immediately.
+- **Per-connection privacy toggle (#90)**: flip privacy redaction right in the connection editor; a 🔒 badge marks it on the connection list.
+
+### 🐛 Fixed
+
+- **Prerelease versions wrongly reported "up to date"**: version comparison now follows full SemVer, so `1.6.x-test.N` builds correctly see newer stable releases.
+- **Unconfigured providers leaking into the combo picker**: local tools like Devin CLI no longer clutter the model selector with their static catalogs.
+- **Xiaohongshu Dots3 capabilities**: 512K context + vision + reasoning declared instead of falling back to 200K defaults.
+- **Streams abort instantly on client disconnect**: upstream work stops immediately instead of running on for 500 ms.
+- **Gemini 3.6/3.7/3.8 tiered models 400 fix**: `none/minimal` thinking intents are floored to `low`.
+- **Brutal polish**: state borders no longer clobber solid/hover variants; donation icons and the sidebar logo align with the sticker language.
+
+## v1.6.5 (2026-10-29)
+
+### ✨ New
+
+- **Desktop background check & silent pre-download (#81)**: on Windows setup builds, new installer versions are automatically downloaded and verified in the background every 6h. Clicking "Check for updates" installs instantly without waiting; Portable/macOS notify without downloading; respects the "automatic update check" toggle in Settings.
+- **Doubao web search & single-page fetch provider (#84)**: integrates Volcengine Doubao Web Search and Web Fetch sharing a 500 query/month free quota; maps internal error structures to standard HTTP statuses to drive seamless multi-account failover.
+- **Security audit closure & DNS rebinding defense (#43)**:
+  - Enforces Host header validation on trusted loopback paths (`isLocalRequest`) to block DNS rebinding attacks from malicious web pages; supports `TRUSTED_HOSTS` allowlist.
+  - Documents the login rate-limiting architecture tradeoff (in-memory protection keyed to TCP peer IP).
+  - Publishes deprecation roadmap for `LEGACY_FALLBACK_SECRET` and legacy `sk-<random8>` key formats (scheduled for v2.0.0).
+  - Hardens Windows Root CA ACLs and locks down update status port CORS.
+- **Model ecosystem evolution & upstream features**:
+  - Full Claude 5.5 family support (Sonnet 5.5, Haiku 5.5, Opus 5.5) with native thinking parameters.
+  - Added OpenAI GPT-6.1 Terra (500k context) and Nace Drex decision engine.
+  - CommandCode CLI 1.88.0 headers and Gemini Protobuf Schema type constraint enforcement.
+
+- **iFlytek Loomy built-in + SMS login + points card**: Loomy ships natively in the free-tier section (8 live-verified models); log in with a phone code without the desktop client; connections show a points card (permanent + daily gift points).
+- **Combo entry enable/disable + billing fast-fail (#91)**: disable a combo entry without removing it (greyed out, order preserved, scheduler skips instantly); 402 payment-required cooldown raised to 30 minutes.
+- **Per-endpoint custom auth headers for compatible nodes (#92)**: upstreams whose /models auth differs from chat auth (e.g. Loomy) accept a header template — one-click model import works out of the box.
+- **Privacy redaction pipeline (#90)**: outbound secret redaction + inbound restore, per-connection explicit switch (off by default).
+### 🐛 Fixed
+
+- **Desktop build files packaging fix**: packaged installers now reliably include `updateScheduler.js` to avoid runtime startup crashes.
+- **Installer reuse state preservation**: fixed an issue where manual update checks reset phase state and failed to reuse pre-downloaded installers.
+
+## v1.6.2 (2026-10-28)
+
+### ✨ New
+
+- **Qoder queue-wait & global queue fast-fail**: aligns with official client behavior by standing in line inside the executor upon code 10605 (≤90s), allowing shallow-queue requests to pass seamlessly instead of immediately returning 429; deep queues fast-fail across sibling accounts and cool down according to upstream's estimated queue drain time.
+- **Combo card drag-reorder & pin-to-top (#89)**: supports native card dragging and one-click pinning with persistent order; `/v1/models` combo list order matches the dashboard UI exactly.
+- **Media & web provider ecosystem**: added Grok Web (Imagine image & chat), UC Web (Clerk session minting & persistent cookie rotation), Veo AI Free (no-login free generation), and Oxion AI gateway; delisted non-functional stubs.
+- **Connection tests cover real generation**: aligned with antigravity #82 semantics, probe strips thinking suffixes so high-effort models are no longer falsely reported as 400 Bad Request.
+
+### 🐛 Fixed
+
+- **Proxy bypass bug for public domains starting with fc/fd/fe80 (#87)**: fixed a bug where public hosts (e.g. fda.gov, fcm.googleapis.com) were misclassified as IPv6 private networks and bypassed HTTP_PROXY.
+- **Qoder error handling & stream terminal guards (#88)**: first-frame errors trigger combo fallback; Responses/Claude translators strictly drop invalid trailing chunks after a terminal error event.
+- **MiniMax Code quota categorization**: correctly classified as pure credit balance, and the "Claim Credits" button is hidden when no connections exist.
+- **Localization cleanups**: completed internationalization for connection bulk delete, proxy application, and batch failure warnings.
+
 ## v1.6.1 (2026-10-24)
 
 ### ✨ New

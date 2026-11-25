@@ -87,6 +87,13 @@ export const MODEL_PRICING = {
   // 长上下文档更贵，但本表一模型只存一档价（上游 92c7bdd5 / dec820b9 同口径）。
   "gpt-6-astra":                  { input: 10.00, output: 50.00, cached: 1.00,  reasoning: 50.00,  cache_creation: 12.50 },
   "gpt-6.1-sol":                  { input: 2.00,  output: 10.00, cached: 0.10,  reasoning: 10.00,  cache_creation: 2.50  },
+  "gpt-6.1-terra":                { input: 1.00,  output: 5.00,  cached: 0.05,  reasoning: 5.00,   cache_creation: 1.25  },
+  // 6.2:官方价目表 Standard 短上下文档(sol 2/10、astra 8/40;cached/read、
+  // creation/write 同表),2026-11-18 经 CPA(codex-proxy-rs v3.52.0)核验列交叉
+  // 验证。此前 models.dev 聚合价(sol 4/15、astra 16/60)实为长上下文档
+  // (>272K 才 2× 起跳),会把常规流量成本多算一倍。长档同 gpt-6-astra 口径不存。
+  "gpt-6.2-sol":                  { input: 2.00,  output: 10.00, cached: 0.10,  reasoning: 10.00,  cache_creation: 2.50  },
+  "gpt-6.2-astra":                { input: 8.00,  output: 40.00, cached: 0.40,  reasoning: 40.00,  cache_creation: 10.00 },
   "gpt-6-sol":                    { input: 2.00,  output: 10.00, cached: 0.20,  reasoning: 10.00,  cache_creation: 2.50  },
   "gpt-6-luna":                   { input: 0.10,  output: 0.50,  cached: 0.01,  reasoning: 0.50,   cache_creation: 0.125 },
   "o1":                           { input: 15.00, output: 60.00, cached: 7.50,  reasoning: 90.00,  cache_creation: 15.00 },
@@ -155,6 +162,7 @@ export const MODEL_PRICING = {
   // Official platform.kimi.ai: cache-hit / cache-miss / output per 1M tokens
   "kimi-k3":                      { input: 3.00,  output: 15.00, cached: 0.30,  reasoning: 15.00,  cache_creation: 3.00  },
   "k3":                           { input: 3.00,  output: 15.00, cached: 0.30,  reasoning: 15.00,  cache_creation: 3.00  },
+  "kimi-k3.1-pro":                { input: 2.00,  output: 10.00, cached: 0.20,  reasoning: 10.00,  cache_creation: 2.00  },
   "kimi-k2.7-code":               { input: 0.95,  output: 4.00,  cached: 0.19,  reasoning: 4.00,   cache_creation: 0.95  },
   "kimi-k2.7-code-highspeed":     { input: 1.90,  output: 8.00,  cached: 0.38,  reasoning: 8.00,   cache_creation: 1.90  },
   "kimi-for-coding":              { input: 0.95,  output: 4.00,  cached: 0.19,  reasoning: 4.00,   cache_creation: 0.95  },
@@ -269,6 +277,14 @@ export const PROVIDER_PRICING = {
     "deepseek-v4-pro": { input: 0.66, output: 1.98, cached: 0.022, reasoning: 1.98 },
     "deepseek-chat": { input: 0.14, output: 0.28, cached: 0.0028, reasoning: 0.28 },
     "deepseek-reasoner": { input: 0.14, output: 0.28, cached: 0.0028, reasoning: 0.28 },
+  },
+  // Dots (小红书):官方 docs 已挂定价表(dots3-note-prev USD/1M 输入 $0.14 /
+  // 输出 $0.28,2026-11-18 核验),但明示「当前免费体验,暂不收费」——计费按
+  // 实际 0 记(同 stepaudio-3-music-preview / ACE Music 的限时免费口径)。
+  // 恢复收费时改成 { input: 0.14, output: 0.28, cached: ?, reasoning: 0.28 }
+  // 并删掉 registry 的 freeTrial 旗标。
+  dots: {
+    "dots3-note-prev": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
   // GitHub Copilot (gh) — explicit override, matches canonical gpt-5.3-codex rate
   gh: {
@@ -453,6 +469,9 @@ export const PROVIDER_PRICING = {
     "step-3.7-flash": { input: 0.185, output: 1.11, cached: 0.037, reasoning: 1.11 },
     "step-3.5-flash": { input: 0.1, output: 0.3, cached: 0.02, reasoning: 0.3 },
     "step-3.5-flash-2603": { input: 0.1, output: 0.3, cached: 0.02, reasoning: 0.3 },
+    // StepAudio 3 Music：官方 docs 明示「限时免费」，预览版到期会下线换正式付费版
+    // （届时连同 registry 的模型 id 一起改）。
+    "stepaudio-3-music-preview": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
   "stepfun-cn": {
     "step-5-preview": { input: 1.0, output: 2.7, cached: 0.05, reasoning: 2.7 },
@@ -476,10 +495,30 @@ export const PROVIDER_PRICING = {
   longcat: {
     "LongCat-2.0": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5-Preview": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+    // LongCat-2.5 正式版（2026-11 GA）＝ 2.5-Preview 的正式化，同价。
+    // 注：官方《按量付费》页当前挂的是「限时折扣价」（¥2 / ¥0.04 / ¥8 每百万
+    // ≈ $0.30 / $0.006 / $1.20，models.dev 的 longcat 条目也是这组数）；本块
+    // 沿用目录价 0.75 / 2.95 / 0.015，与同块两个兄弟行一致——折扣是限时活动，
+    // 不该让成本估算随促销起落。要按折扣价重定价请连同 tests 里那行钉死的
+    // longcat/LongCat-2.0 断言一起改。
+    "LongCat-2.5": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
   },
   "longcat-intl": {
     "LongCat-2.0": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
     "LongCat-2.5-Preview": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+    "LongCat-2.5": { input: 0.75, output: 2.95, cached: 0.015, reasoning: 2.95 },
+  },
+  // ACE Music：官方 /v1/models 计价全 0（限时免费，2026-11-05 实测）；一首歌按
+  // 固定 100 completion_tokens 计量。收费后请按官方定价页改这里。
+  //
+  // 两个键都要有：上游 id 带 `acemusic/` 命名空间，registry 里存的是裸 id，用量
+  // 行按哪一侧落库取决于客户端怎么寻址（`acemusic/acestep-v1.5-turbo` 与
+  // `acemusic/acemusic/acestep-v1.5-turbo` 解析出的 model 字符串不同）。只登记
+  // namespace 形态时裸 id 查不到行，calculateCost 会静默返回 0 —— 现在全 0 看不出
+  // 差别，收费后就是悄悄漏账。
+  acemusic: {
+    "acestep-v1.5-turbo": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
+    "acemusic/acestep-v1.5-turbo": { input: 0, output: 0, cached: 0, reasoning: 0, cache_creation: 0 },
   },
 };
 
@@ -511,6 +550,11 @@ export const PATTERN_PRICING = [
   { pattern: "gemini-*-flash-lite", pricing: { input: 0.15, output: 1.25, cached: 0.015, reasoning: 1.875, cache_creation: 0.15 } },
   { pattern: "gemini-*-flash",  pricing: { input: 0.30,  output: 2.50,  cached: 0.03,  reasoning: 3.75,   cache_creation: 0.30  } },
   { pattern: "gemini-*-pro",    pricing: { input: 2.00,  output: 12.00, cached: 0.25,  reasoning: 18.00,  cache_creation: 2.00  } },
+  // Gemini 4（Argon/Carbon，2026-09-30 发布）：真实价 $2/$10（models.dev 与
+  // Command Code 目录同源，cache read $0.10 / write $0.1875）。没有这一条，
+  // -high/-medium/-low tier 后缀会落到 generic gemini-*（$0.50/$3.00）——
+  // 同 upstream 9router v0.5.119 修复的记账错误（2026-11-12）。
+  { pattern: "gemini-4-*",      pricing: { input: 2.00,  output: 10.00, cached: 0.10,  reasoning: 10.00,  cache_creation: 0.1875 } },
   { pattern: "gemini-3-*",      pricing: { input: 0.50,  output: 3.00,  cached: 0.03,  reasoning: 4.50,   cache_creation: 0.50  } },
   { pattern: "gemini-2.5-*",    pricing: { input: 0.30,  output: 2.50,  cached: 0.03,  reasoning: 3.75,   cache_creation: 0.30  } },
   { pattern: "gemini-*",        pricing: { input: 0.50,  output: 3.00,  cached: 0.03,  reasoning: 4.50,   cache_creation: 0.50  } },

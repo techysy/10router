@@ -5,6 +5,8 @@ import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders } from "../config/appConstants.js";
 import { buildClineHeaders } from "../shared/clineAuth.js";
+import { buildDeepaiMachineHeaders } from "../shared/deepai/machine.js";
+import { refreshNousToken } from "../services/tokenRefresh/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
@@ -39,6 +41,7 @@ function applyAuth(headers, desc, credentials) {
 
 // Provider-specific header quirks kept as small hooks (not pure auth).
 const HEADER_HOOKS = {
+  deepaiMachineHeaders: (h) => Object.assign(h, buildDeepaiMachineHeaders()),
   // Stable device_id from OAuth connection (CLIProxyAPI KimiTokenStorage.DeviceID)
   kimiHeaders: (h, c) => Object.assign(h, buildKimiHeaders(c?.providerSpecificData?.deviceId)),
   // Muse: x-api-version 只加在订阅（铸造 key）请求上——纯 Model API key 不带即可用。
@@ -243,7 +246,13 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   async refreshCredentials(credentials, log, proxyOptions = null) {
-    if (!credentials.refreshToken) return null;
+    if (!credentials.refreshToken) {
+      // Meoo paste-key connections carry no OAuth pair — their "refresh"
+      // is a project-AK re-resolution driven by the stored control key.
+      const meooControlKey =
+        this.provider === "meoo" ? credentials.providerSpecificData?.meooControlKey : "";
+      if (!meooControlKey) return null;
+    }
 
     const refreshers = {
       claude: () => this.refreshFromGrant(credentials, proxyOptions),
@@ -258,6 +267,13 @@ export class DefaultExecutor extends BaseExecutor {
       kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions),
       "minimax-code": () => this.refreshMinimaxCode("minimax-code", credentials, proxyOptions),
       "minimax-code-global": () => this.refreshMinimaxCode("minimax-code-global", credentials, proxyOptions),
+      meoo: () => this.refreshMeoo(credentials, proxyOptions),
+      // Nous: header-carried single-use rotating refresh — the standard form
+      // shape would send the token in the body, which Nous never reads; and a
+      // replayed refresh token revokes the session. refreshNousToken carries
+      // the token in x-nous-refresh-token and dedupes concurrent refreshes on
+      // the current token (same guard the proactive path uses).
+      nous: () => refreshNousToken(credentials.refreshToken, log, proxyOptions),
     };
 
     const refresher = refreshers[this.provider];
@@ -361,6 +377,22 @@ export class DefaultExecutor extends BaseExecutor {
     if (!refreshToken) return null;
     const { refreshMinimaxCodeToken } = await import("../services/tokenRefresh/providers.js");
     return refreshMinimaxCodeToken(provider, refreshToken, console, proxyOptions);
+  }
+
+  // Meoo: the OAuth pair alone is useless to the gateway — the refresh
+  // handler also re-resolves the project service AK and returns it as
+  // apiKey, so the 401-retry in chatCore replays with the fresh AK.
+  async refreshMeoo(credentials, proxyOptions = null) {
+    const refreshToken = credentials?.refreshToken;
+    if (
+      !refreshToken &&
+      !credentials?.accessToken &&
+      !credentials?.providerSpecificData?.meooControlKey
+    ) {
+      return null;
+    }
+    const { refreshMeooToken } = await import("../services/tokenRefresh/providers.js");
+    return refreshMeooToken(refreshToken || "", credentials, console, proxyOptions);
   }
 
   async refreshKilocode(refreshToken, proxyOptions = null) {

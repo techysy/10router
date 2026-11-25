@@ -24,6 +24,15 @@ else
 fi
 LOG="${DATA_DIR}/install.log"
 
+# 管理面板（issue #97）：主应用 stop 刻意不杀面板（持有定时更新调度器），
+# 所以 fpk 升级后旧的.panel 进程可能还活着 —— 这里杀掉，下次 cmd/main start
+# 会用新版 dashboard.js 重新拉起。
+if [ -f "${DATA_DIR}/panel.pid" ]; then
+    kill "$(cat "${DATA_DIR}/panel.pid")" 2>/dev/null || true
+    rm -f "${DATA_DIR}/panel.pid"
+    echo "[$(date '+%F %T')] panel killed for fresh relaunch" >> "${LOG}"
+fi
+
 mkdir -p "${DATA_DIR}"
 echo "[$(date '+%F %T')] upgrade_callback start" >> "${LOG}"
 

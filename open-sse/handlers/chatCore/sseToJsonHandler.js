@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { convertResponsesStreamToJson } from "../../transformer/streamToJsonConverter.js";
 import { createErrorResult } from "../../utils/error.js";
+import { hasCompletedSSEChatTurn } from "../../utils/completedChatTurn.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { FORMATS } from "../../translator/formats.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
@@ -9,6 +10,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLin
 import { usageOrEstimate } from "../../utils/usageTracking.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
+import { restoreBody } from "../../privacy/streamRestorer.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 
 // Responses-API providers (e.g. codex) may emit SSE without content-type + use Responses output shape
@@ -147,6 +149,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
   const first = chunks[0];
   const contentParts = [];
   const reasoningParts = [];
+  const audioParts = []; // OpenAI audio dialect (acemusic ships the whole song in ONE frame)
   const toolCallMap = new Map(); // index -> { id, type, function: { name, arguments } }
   let finishReason = "stop";
   let usage = null;
@@ -156,6 +159,7 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     const delta = choice?.delta || {};
     if (typeof delta.content === "string" && delta.content.length > 0) contentParts.push(delta.content);
     if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) reasoningParts.push(delta.reasoning_content);
+    if (Array.isArray(delta.audio)) audioParts.push(...delta.audio);
     if (choice?.finish_reason) finishReason = choice.finish_reason;
     if (chunk?.usage && typeof chunk.usage === "object") usage = chunk.usage;
 
@@ -174,9 +178,25 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     }
   }
 
-  const message = { role: "assistant", content: contentParts.join("") || (toolCallMap.size > 0 ? null : "") };
-  if (reasoningParts.length > 0) message.reasoning_content = reasoningParts.join("");
-  if (toolCallMap.size > 0) {
+  const accumulatedContent = contentParts.join("");
+  const accumulatedReasoning = reasoningParts.join("");
+  const hasToolCalls = toolCallMap.size > 0;
+  // Issue #96: 兜底防御 —— 如果整个响应中 content 为空且无工具调用，但有推理思考内容，将推理内容提升为正文
+  let finalContent = accumulatedContent;
+  if (!finalContent && !hasToolCalls && accumulatedReasoning.trim().length > 0) {
+    finalContent = accumulatedReasoning;
+  } else if (!finalContent && hasToolCalls) {
+    finalContent = null;
+  }
+
+  const message = { role: "assistant", content: finalContent };
+  if (accumulatedReasoning.length > 0) message.reasoning_content = accumulatedReasoning;
+  // Without this, a provider that forces streaming while the client asked for
+  // JSON (acemusic is exactly such a case) loses the entire song: the audio
+  // frame is neither content nor tool_calls, so the aggregated body came back
+  // as a 200 with `content: ""`.
+  if (audioParts.length > 0) message.audio = audioParts;
+  if (hasToolCalls) {
     message.tool_calls = [...toolCallMap.entries()].sort((a, b) => a[0] - b[0]).map(([, tc]) => tc);
   }
 
@@ -195,12 +215,16 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
  * Handle case: provider forced streaming but client wants JSON.
  * Supports both Codex/Responses API SSE and standard Chat Completions SSE.
  */
-export async function handleForcedSSEToJson({ providerResponse, sourceFormat, targetFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, customToolNames, toolNameMap, translateToClientFormat, trackDone, appendLog, reqTag, log }) {
+export async function handleForcedSSEToJson({ providerResponse, sourceFormat, targetFormat, provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, onCompletedResponse, customToolNames, toolNameMap, translateToClientFormat, trackDone, appendLog, reqTag, log, privacyCtx }) {
   const contentType = providerResponse.headers.get("content-type") || "";
   const isSSE = contentType.includes("text/event-stream") || (contentType === "" && isResponsesProvider(provider));
   if (!isSSE) return null; // not handled here
 
   trackDone();
+
+  // Privacy restore (issue #90): reverse placeholders before the aggregated
+  // JSON reaches the client. Unknown placeholders pass through inertly.
+  const restorePrivacy = (obj) => (privacyCtx?.map?.size ? restoreBody(obj, privacyCtx.map) : obj);
 
   const ctx = {
     provider, model, connectionId,
@@ -216,6 +240,11 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
   if (isCodexResponsesApi) {
     try {
       const jsonResponse = await convertResponsesStreamToJson(providerResponse.body);
+      if (jsonResponse?.status === "completed" && typeof onCompletedResponse === "function") {
+        Promise.resolve().then(onCompletedResponse).catch((error) => {
+          console.warn("[ChatCore] completed-response hook failed:", error?.message || error);
+        });
+      }
       if (onRequestSuccess) await onRequestSuccess();
 
       // `jsonResponse` is handed to the client verbatim just below, so the
@@ -251,7 +280,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
 
       // Client is Responses API → return as-is
       if (sourceFormat === FORMATS.OPENAI_RESPONSES) {
-        return { success: true, response: new Response(JSON.stringify(restoreToolNames(jsonResponse, toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
+        return { success: true, response: new Response(JSON.stringify(restoreToolNames(restorePrivacy(jsonResponse), toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
       }
 
       // Build client-format response.
@@ -315,7 +344,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
         finalResp = openAICompletionToClaudeMessage(finalResp);
       }
 
-      return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalResp, toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
+      return { success: true, response: new Response(JSON.stringify(restoreToolNames(restorePrivacy(finalResp), toolNameMap)), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };
     } catch (err) {
       console.error("[ChatCore] Responses API SSE→JSON failed:", err);
       return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");
@@ -325,6 +354,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
   // Standard Chat Completions SSE path
   try {
     const sseText = await providerResponse.text();
+    const upstreamCompleted = hasCompletedSSEChatTurn(sseText, targetFormat);
     const parsed = parseSSEToOpenAIResponse(sseText, model);
     if (!parsed) return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request");
     if (parsed.error) {
@@ -396,7 +426,6 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
     const finalBody = sourceFormat === FORMATS.OPENAI_RESPONSES
       ? chatCompletionToResponses(parsed, customToolNames)
       : (typeof translateToClientFormat === "function" ? translateToClientFormat(parsed) : parsed);
-
     const headers = {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
@@ -408,7 +437,13 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, ta
       }
     }
 
-    return { success: true, response: new Response(JSON.stringify(restoreToolNames(finalBody, toolNameMap)), { headers }) };
+    if (upstreamCompleted && typeof onCompletedResponse === "function") {
+      Promise.resolve().then(onCompletedResponse).catch((error) => {
+        console.warn("[ChatCore] completed-response hook failed:", error?.message || error);
+      });
+    }
+
+    return { success: true, response: new Response(JSON.stringify(restoreToolNames(restorePrivacy(finalBody), toolNameMap)), { headers }) };
   } catch (err) {
     console.error("[ChatCore] Chat Completions SSE→JSON failed:", err);
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Failed to convert streaming response to JSON");

@@ -44,7 +44,10 @@ export function claudeToOpenAIResponse(chunk, state) {
           input_tokens: inputTokens,
           output_tokens: 0
         };
-        if (cacheReadTokens > 0) state.usage.cache_read_input_tokens = cacheReadTokens;
+        if (cacheReadTokens > 0) {
+          state.usage.cache_read_input_tokens = cacheReadTokens;
+          state.usage.cached_tokens = cacheReadTokens;
+        }
         if (cacheCreationTokens > 0) state.usage.cache_creation_input_tokens = cacheCreationTokens;
       }
       results.push(createChunk(state, { role: ROLE.ASSISTANT }));
@@ -139,7 +142,10 @@ export function claudeToOpenAIResponse(chunk, state) {
           output_tokens: outputTokens
         };
 
-        if (cacheReadTokens > 0) state.usage.cache_read_input_tokens = cacheReadTokens;
+        if (cacheReadTokens > 0) {
+          state.usage.cache_read_input_tokens = cacheReadTokens;
+          state.usage.cached_tokens = cacheReadTokens;
+        }
         if (cacheCreationTokens > 0) state.usage.cache_creation_input_tokens = cacheCreationTokens;
       }
 

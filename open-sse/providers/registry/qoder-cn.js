@@ -37,24 +37,31 @@ export default {
     // publishes none of them (only Auto + the model keys below). Chat still
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
-    { id: "qmodel_38max", name: "Qwen3.8-Max" },
-    { id: "qmodel_latest", name: "Qwen3.7-Max" },
+    { id: "fast", name: "快速" },
+    { id: "qmodel_38max", name: "Qwen3.8-Max", rateMultiplier: 0.5, discountNote: "每晚 22:00—次日 8:00 错峰 4 折（10 PM-8 AM UTC+8）" },
+
+    // 2026-11-18 客户端截图 + live 目录探测（GET /algo/api/v2/model/list）：
+    // Qwen4-Max 正式版上架 = 上游 key `qmodel_latest`（复用，0.4x/1M）；
+    // Qwen4-Max-Preview 拆为独立 key `qmodel_latest_preview`（0.1x/原价 0.5x）。
+    { id: "qmodel_latest", name: "Qwen4-Max", rateMultiplier: 0.4 },
+    { id: "qmodel_latest_preview", name: "Qwen4-Max-Preview", rateMultiplier: 0.1 },
     { id: "qmodel", name: "Qwen3.7-Plus" },
     // Added 2026-09-19: present in the live CN catalog (rate 0.1, no promo);
     // it was leaking into the page as a lone "custom" row via the fetch
     // button until registered here.
     { id: "q37fmodel", name: "Qwen3.7-Flash" },
-    { id: "qfmodel", name: "Qwen3.8-Flash" },
-    { id: "kmodel_latest", name: "Kimi-K3" },
-    { id: "kmodel", name: "Kimi-K2.7-Code" },
-    { id: "gmodel", name: "GLM-5.3" },
-    { id: "gfmodel", name: "GLM-5.3-Flash" },
-    { id: "gm51model", name: "GLM-5.2" },
-    { id: "dmodel", name: "DeepSeek-V4-Pro" },
+    { id: "qfmodel", name: "Qwen3.8-Flash", rateMultiplier: 0.1, discountNote: "每晚 22:00—次日 8:00 错峰 4 折（10 PM-8 AM UTC+8）" },
+    { id: "dmodel", name: "DeepSeek-V4-Pro", rateMultiplier: 0.5 },
     // 同 qoder：dfmodel = DeepSeek-V4.1-Flash-1017，个人版限免至
     // 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
-    { id: "dfmodel", name: "DeepSeek-V4.1-Flash 1017", promoFreeUntil: "2026-10-25T00:00:00+08:00" },
-    { id: "mmodel", name: "MiniMax-M3" },
+    { id: "dfmodel", name: "DeepSeek-Flash", rateMultiplier: 0.1 },
+    { id: "gmodel", name: "GLM-5.3", rateMultiplier: 0.8 },
+    { id: "gfmodel", name: "GLM-5.3-Flash", rateMultiplier: 0.1 },
+    { id: "gm51model", name: "GLM-5.2" },
+    { id: "kmodel_latest", name: "Kimi-K3.1-Pro", rateMultiplier: 1.0 },
+    { id: "kmodel", name: "Kimi-K2.8-Preview", rateMultiplier: 0.8 },
+    { id: "jmodel", name: "Step-5-Preview", rateMultiplier: 0.3 },
+    { id: "mmodel", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.1 },
   ],
   oauth: {
     openApiBaseUrl: "https://openapi.qoder.com.cn",

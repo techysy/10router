@@ -132,7 +132,9 @@ function _refreshProjectId(provider, connectionId, accessToken) {
   // Evict the stale cached entry so getProjectIdForConnection does a real fetch
   invalidateProjectId(connectionId);
 
-  getProjectIdForConnection(connectionId, accessToken)
+  // #98: provider 必须传——projectId.js 依赖它选正确的 headers/endpoints 与
+  // 消费级账号的共享项目短路分支；漏传会按默认 gemini-cli 走错端点。
+  getProjectIdForConnection(connectionId, accessToken, provider)
     .then((projectId) => {
       if (!projectId) return;
       updateProviderCredentials(connectionId, { projectId }).catch((err) => {
@@ -165,6 +167,10 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
     const updates = {};
 
     if (newCredentials.accessToken)         updates.accessToken  = newCredentials.accessToken;
+    // Meoo's refresh also re-resolves the project service AK, returned as
+    // apiKey — without forwarding it here the rotated AK would be dropped
+    // and the row would keep serving the stale key.
+    if (newCredentials.apiKey)              updates.apiKey       = newCredentials.apiKey;
     if (newCredentials.refreshToken)        updates.refreshToken = newCredentials.refreshToken;
     if (newCredentials.idToken)             updates.idToken = newCredentials.idToken;
     if (newCredentials.lastRefreshAt)       updates.lastRefreshAt = newCredentials.lastRefreshAt;
@@ -276,13 +282,22 @@ export async function persistRefreshedCredentials(connectionId, newCreds, option
   // rotate, so the stored one is still good and losing the write only costs a
   // redundant refresh later. A different one means the stored token is already
   // consumed upstream.
+  // Only read the row when it is actually needed: the caller's previousRefreshToken
+  // settles `beforeToken`, and only dumate rotates its cookie (apiKey) rather than
+  // its refresh token. Reading unconditionally cost every non-dumate refresh a DB
+  // round-trip on the success-path that already had the answer in hand.
+  const needsStoredRow = previousRefreshToken === undefined || provider === "dumate";
+  const current = needsStoredRow
+    ? await getProviderConnectionById(connectionId).catch(() => null)
+    : null;
   const beforeToken =
     previousRefreshToken !== undefined
       ? previousRefreshToken
-      : (await getProviderConnectionById(connectionId).catch(() => null))?.refreshToken;
+      : current?.refreshToken;
   const rotated = !!newCreds?.refreshToken && (!beforeToken || beforeToken !== newCreds.refreshToken);
+  const dumateCookieRotated = provider === "dumate" && !!newCreds?.apiKey && newCreds.apiKey !== current?.apiKey;
 
-  if (rotated) {
+  if (rotated || dumateCookieRotated) {
     logger.error("TOKEN_REFRESH", "Rotated refresh token could not be persisted — refusing to continue", {
       connectionId,
       provider,

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip, Tooltip } from "@/shared/components";
+import { getProviderIconSrc, markProviderIconMissing, getCompatibleNodeFaviconSrc } from "@/shared/utils/providerIcon";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, DeepaiAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal, InviteCodeChip, Tooltip } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { mergeQoderLivePricing } from "@/shared/utils/qoderLivePricing";
@@ -24,10 +24,19 @@ import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
+import CroliCreditsPanel from "./CroliCreditsPanel";
+import DumateQrModal from "../components/DumateQrModal";
+import LingxiCaptureModal from "../components/LingxiCaptureModal";
+import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
+import LoomySmsModal from "../components/LoomySmsModal";
+import CapyLoginModal from "../components/CapyLoginModal";
+import AutoclawSmsModal from "../components/AutoclawSmsModal";
+import AutoclawOAuthModal from "../components/AutoclawOAuthModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
+import MeooImportApikeyModal from "./MeooImportApikeyModal";
 import CodeBuddyImportModal from "./CodeBuddyImportModal";
 import OAuthTransferModal from "./OAuthTransferModal";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
@@ -35,6 +44,11 @@ import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
+
+// 「每日赠送积分优先」只在 usage 暴露 daily/permanent 配对的供应商上有意义
+// （loomy 今天，见 auth.js #Loomy-daily-first 与 extractDailyGrantAndPermanent）。
+// 其他供应商的下拉一律不出现该选项；历史误存的非 loomy override 由 fetchData 兜底忽略。
+const DAILY_GRANT_PROVIDERS = new Set(["loomy"]);
 
 const AUTO_PING_SETTINGS_KEYS = {
   claude: "claudeAutoPing",
@@ -76,10 +90,21 @@ export default function ProviderDetailPage() {
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
+  const [showDeepaiAuthModal, setShowDeepaiAuthModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
+  const [showDumateQrModal, setShowDumateQrModal] = useState(false);
+  const [dumateQrConnectionId, setDumateQrConnectionId] = useState(null);
+  const [showLingxiCaptureModal, setShowLingxiCaptureModal] = useState(false);
+  const [lingxiCaptureConnectionId, setLingxiCaptureConnectionId] = useState(null);
+  const [showSessionPool, setShowSessionPool] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
+  const [showCapyLoginModal, setShowCapyLoginModal] = useState(false);
+  const [showAutoclawSmsModal, setShowAutoclawSmsModal] = useState(false);
+  const [showAutoclawOAuthModal, setShowAutoclawOAuthModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
+  const [showMeooImportApikey, setShowMeooImportApikey] = useState(false);
   const [showCodeBuddyImport, setShowCodeBuddyImport] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
@@ -88,6 +113,7 @@ export default function ProviderDetailPage() {
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
   const [oauthTransferEnabled, setOauthTransferEnabled] = useState(false); // per-provider toggle (falls back to legacy global)
+  const [croliAutoCheckin, setCroliAutoCheckin] = useState(false);
   const [codeBuddyCheckinEnabled, setCodeBuddyCheckinEnabled] = useState(false); // experimental auto daily check-in toggle
   const [codeBuddyCompensationEnabled, setCodeBuddyCompensationEnabled] = useState(false); // experimental auto compensation toggle
   // cbcn check-in manual trigger: running flag (per-account results go to the
@@ -112,6 +138,7 @@ export default function ProviderDetailPage() {
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
   const [balanceStrategy, setBalanceStrategy] = useState("priority");
+  const [dailyGrantFirst, setDailyGrantFirst] = useState(false);
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
@@ -167,11 +194,34 @@ export default function ProviderDetailPage() {
   };
 
   const triggerApiKeyConnection = () => {
+    // DeepAI Code connects through its panel-native browser sign-in modal
+    // (desktop_auth exchange), not the generic paste-a-key form — the
+    // modal still offers manual key paste as a secondary path.
+    if (providerId === "deepai") {
+      setShowDeepaiAuthModal(true);
+      return;
+    }
     setAddConnectionError("");
     setShowAddApiKeyModal(true);
   };
 
   const triggerAddConnection = () => {
+    // Capy has no browser-OAuth authorize URL: login is the dashboard email-code flow.
+    if (providerId === "capy") {
+      setShowCapyLoginModal(true);
+      return;
+    }
+    // AutoClaw CN has no OAuth link either: +86 phone SMS two-step login.
+    if (providerId === "autoclaw-cn") {
+      setShowAutoclawSmsModal(true);
+      return;
+    }
+    // AutoClaw intl: the account plane mints the authorize URL only after an
+    // Aliyun slider captcha solved in the user's browser — dedicated modal.
+    if (providerId === "autoclaw") {
+      setShowAutoclawOAuthModal(true);
+      return;
+    }
     if (isOAuth) {
       triggerOAuthConnection();
       return;
@@ -350,7 +400,13 @@ export default function ProviderDetailPage() {
       if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
       const list = Array.isArray(data?.results) ? data.results : [];
       if (list.length === 0) {
-        notify.warning(translate("No active Qoder connections found"));
+        // Trae: the check-in endpoint only exists on the CN site — an intl trae
+        // deployment has no eligible connections at all, so say which side is covered.
+        notify.warning(
+          providerId === "trae" || providerId === "trae-cn"
+            ? translate("No Trae CN connections found — check-in covers CN-site connections only")
+            : translate("No active Qoder connections found")
+        );
         return;
       }
       const checkedInList = list.filter((r) => r.status === "checked-in");
@@ -395,7 +451,11 @@ export default function ProviderDetailPage() {
       onClick={handleQoderCheckin}
       disabled={qoderCheckinRunning}
       className="w-full sm:w-auto"
-      title={translate("Claim daily activity Credits")}
+      title={translate(
+        providerId === "trae" || providerId === "trae-cn"
+          ? "Claim the daily Trae check-in credits"
+          : "Claim daily activity Credits"
+      )}
     >
       {qoderCheckinRunning ? translate("Claiming...") : translate("Claim Credits")}
     </Button>
@@ -422,23 +482,47 @@ export default function ProviderDetailPage() {
         apiType: providerNode.apiType,
         baseUrl: providerNode.baseUrl,
         type: providerNode.type,
+        website: providerNode.website,
       }
     : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
   const authModes = providerInfo?.authModes || [];
   const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
+  // 2026-11-17 全局普查收口:transfer(导入/导出)端点与数据层都是 provider
+  // 无关的——export 取 `accessToken || apiKey`(webCookie 供应商的凭据就在
+  // apiKey=Cookie 罐),import 按 authType apikey/cookie 落回 apiKey 字段。
+  // UI 侧判定此前只认 oauth+apikey 双 auth 组合,漏掉了三类「凭据可迁移但
+  // authModes 不含双 auth」的供应商:webCookie(dumate/lingxi,凭据=Cookie 罐)、
+  // apikey 型(deepai 的桌面登录 key、gemini-decision 的 AI Studio key)、
+  // 纯 OAuth 无 apikey 档(trae/trae-cn/mimo-desktop/minimax-code*)——
+  // OAuth token 本身就是迁移物。三者并入 transfer 可见判定。
+  const supportsTransfer = isOAuth || supportsApiKeyAuth
+    || !!WEB_COOKIE_PROVIDERS[providerId]
+    || (!!FREE_TIER_PROVIDERS[providerId] && authModes.includes("apikey"));
+  // Registry can hide the dashboard-initiated OAuth login button (meoo: the
+  // upstream OAuth app only registers loopback redirect_uri, so the popup
+  // always dies with invalid_redirect_uri — login happens in CreditDaddy and
+  // syncs over, or the user pastes the control-plane key).
+  const oauthLoginHidden = providerInfo?.oauthLoginHidden === true;
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const isCodeBuddy = providerId === "codebuddy-cn";
   // Generic OAuth transfer: every provider whose registry declares an oauth
   // auth mode (not just codebuddy). When CN check-in is on it hides the
   // buttons in favor of the check-in block — surface a reminder then.
-  const oauthTransferOn = isOAuth && providerInfo?.authModes?.includes("oauth") && oauthTransferEnabled;
+  // apikey 型 provider（loomy 等免费档）同样给导入导出：transfer 管线是
+  // provider 无关的（buildExportAccounts/importAccounts 对 apiKey 行与 OAuth
+  // 行同一套加密封装 + 去重合并），此前只认 oauth authMode 把这类卡排除在
+  // 跨机迁移/CD 同步之外（用户实测 loomy 无导入导出按钮）。
+  // apikey 型（loomy 等免费档）默认启用导入导出——这是它们与 CD 双向同步的
+  // 唯一通道，不该藏在 Experimental 开关后；OAuth 型保持原开关语义。
+  const oauthTransferOn = supportsTransfer && (isOAuth ? oauthTransferEnabled : true);
   // Experimental auto daily check-in / compensation — mutually exclusive display vs import/export.
   const codeBuddyCheckinOn = isCodeBuddy && (codeBuddyCheckinEnabled || codeBuddyCompensationEnabled);
   // Manual claim / check-in button (Qoder credits, MiniMax Code daily sign-in).
   // Must appear in every action row — single-auth providers (minimax-code is
   // OAuth-only) take the non-dual branch, which once lacked it.
-  const hasClaimCheckin = ["qoder", "qoder-cn", "minimax-code", "minimax-code-global"].includes(providerId);
+  const hasClaimCheckin = ["qoder", "qoder-cn", "minimax-code", "minimax-code-global", "trae", "trae-cn"].includes(providerId);
+  const showCroliCredits = providerId === "croli";
   /**
    * The Export/Import button pair, hoisted out of the dual-auth-only branch.
    *
@@ -450,7 +534,7 @@ export default function ProviderDetailPage() {
    * all. The helper is the only place the pair is rendered now.
    */
   const renderOAuthTransferButtons = (className) =>
-    oauthTransferOn && !codeBuddyCheckinOn ? (
+    oauthTransferOn && !codeBuddyCheckinOn && supportsTransfer ? (
       <>
         <Button size="sm" icon="file_download" variant="secondary" onClick={() => openCbPassword("export")} className={className}>
           {translate("Export")}
@@ -466,12 +550,19 @@ export default function ProviderDetailPage() {
   // catalog (price_factor flips to 0 during a free window, the promotion
   // object carries the 22:00–08:00 Asia/Singapore discount). Overlay them
   // onto the static rows so the badges reflect the account's real pricing.
-  const isQoderFamily = providerId === "qoder" || providerId === "qoder-cn";
+  // QwenWork 同款：目录行带 price_factor（0.1 档位 → 2.6 直通）——倍率徽章
+  // 让「付费模型」一目了然（用户 2026-11-22）。
+  const isQoderFamily = providerId === "qoder" || providerId === "qoder-cn"
+    || providerId === "qwenwork" || providerId === "qwenwork-cn";
   // "Fetch official catalog" import button scope: qoder family (live catalog)
   // and xiaomi-mimo (public /v1/models). mimo-x client previews are filtered
   // server-side in resolveMimoModels, so the import can never shadow them.
-  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo";
-  const models = providerId === "cursor" && liveModels.length > 0
+  const supportsCatalogImport = providerId === "qoder" || providerId === "qoder-cn" || providerId === "xiaomi-mimo" || providerId === "crowllm" || providerId === "qwenwork" || providerId === "qwenwork-cn";
+  // QwenWork: the live catalog IS the model set (the client mirrors its own
+  // picker; the static roster's tier aliases / burned preview keys must not
+  // resurface next to the live rows — 2026-11-22 user report「完全搞乱了」).
+  const liveCatalogOnly = providerId === "cursor" || providerId === "qwenwork" || providerId === "qwenwork-cn";
+  const models = liveCatalogOnly && liveModels.length > 0
     ? liveModels
     : isQoderFamily
       ? mergeQoderLivePricing(staticModels, liveModels)
@@ -650,6 +741,7 @@ export default function ProviderDetailPage() {
       const nodesData = await nodesRes.json();
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      if (providerId === "croli") setCroliAutoCheckin(settingsData.croliCheckin === true);
       if (connectionsRes.ok) {
         const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
         setConnections(filtered);
@@ -662,6 +754,9 @@ export default function ProviderDetailPage() {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
+      // 非 daily-grant 供应商（usage 不暴露 daily/permanent 配对）的历史误存
+      // override 在此忽略——不参与下拉取值，调度侧也按 provider 默认走。
+      setDailyGrantFirst(DAILY_GRANT_PROVIDERS.has(providerId) && override.dailyGrantFirst === true);
       setOauthTransferEnabled(settingsData.codeBuddyOAuthImport === true);
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
@@ -732,6 +827,7 @@ export default function ProviderDetailPage() {
     stickyLimit,
     earliestExpiry = earliestExpiryFirst,
     balStrategy = balanceStrategy,
+    grantFirst = dailyGrantFirst,
   ) => {
     try {
       const settingsRes = await fetch("/api/settings", { cache: "no-store" });
@@ -761,6 +857,12 @@ export default function ProviderDetailPage() {
         delete override.balanceStrategy;
       }
 
+      if (grantFirst) {
+        override.dailyGrantFirst = true;
+      } else {
+        delete override.dailyGrantFirst;
+      }
+
       const updated = { ...current };
       if (Object.keys(override).length === 0) {
         delete updated[providerId];
@@ -778,33 +880,62 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const handleRoundRobinToggle = (enabled) => {
-    const strategy = enabled ? "round-robin" : null;
-    const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
-    if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-    setProviderStrategy(strategy);
-    saveProviderStrategy(strategy, sticky, earliestExpiryFirst, balanceStrategy);
-  };
-
   const handleStickyLimitChange = (value) => {
     setProviderStickyLimit(value);
     saveProviderStrategy("round-robin", value, earliestExpiryFirst, balanceStrategy);
   };
 
-  const handleEarliestExpiryToggle = (enabled) => {
-    setEarliestExpiryFirst(enabled);
-    saveProviderStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
+  const handlePackOrSubStrategyChange = (value) => {
+    if (value === "round-robin") {
+      setEarliestExpiryFirst(false);
+      setProviderStrategy("round-robin");
+      if (!providerStickyLimit) setProviderStickyLimit("1");
+      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, balanceStrategy);
+    } else if (value === "earliest") {
+      setEarliestExpiryFirst(true);
+      setDailyGrantFirst(false);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, true, balanceStrategy, false);
+    } else if (value === "daily-grant") {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(true);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy, true);
+    } else {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(false);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, balanceStrategy, false);
+    }
   };
 
   const handleBalanceStrategyChange = (value) => {
     setBalanceStrategy(value);
-    if (value === "round-robin") {
+    if (value === "earliest-expiry") {
+      // 到期优先:auth.js 排序序 earliestExpiryFirst 先于 balanceStrategy,
+      // balanceStrategy 归 priority(不写 override)——与 ConnectionsCard 同语义。
+      // 与 daily-grant 互斥,与 round-robin 也互斥(轮询臂会把它翻回 false)。
+      setEarliestExpiryFirst(true);
+      setDailyGrantFirst(false);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, true, "priority", false);
+    } else if (value === "daily-grant") {
+      // Daily Grant First（Loomy）：与 balanceStrategy 互斥——走独立的排序分支
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(true);
+      setProviderStrategy(null);
+      saveProviderStrategy(null, providerStickyLimit, false, "priority", true);
+    } else if (value === "round-robin") {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(false);
       setProviderStrategy("round-robin");
       if (!providerStickyLimit) setProviderStickyLimit("1");
-      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value);
+      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value, false);
     } else {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(false);
       setProviderStrategy(null);
-      saveProviderStrategy(null, providerStickyLimit, false, value);
+      saveProviderStrategy(null, providerStickyLimit, false, value, false);
     }
   };
 
@@ -881,6 +1012,16 @@ export default function ProviderDetailPage() {
         setProviderStickyLimit(strategyOverride.stickyRoundRobinLimit != null ? String(strategyOverride.stickyRoundRobinLimit) : "1");
         setEarliestExpiryFirst(strategyOverride.earliestExpiryFirst === true);
         setBalanceStrategy(strategyOverride.balanceStrategy || "priority");
+        // dailyGrantFirst 的 UI 回显走同一个 Select（balanceStrategy='daily-grant'
+        // 是它的显示形态）：settings-effect 里不恢复它的话，保存后任何一次重进页面
+        // 都会把下拉显示打回「手动优先」，看起来像没保存（实际调度仍生效）。
+        // 与 fetchConnections(692) 的 DAILY_GRANT_PROVIDERS 门保持同一规则。
+        if (DAILY_GRANT_PROVIDERS.has(providerId) && strategyOverride.dailyGrantFirst === true) {
+          setBalanceStrategy("daily-grant");
+          setDailyGrantFirst(true);
+        } else {
+          setDailyGrantFirst(false);
+        }
       })
       .catch((e) => console.log("Error reading settings:", e));
   }, []);
@@ -1105,10 +1246,12 @@ export default function ProviderDetailPage() {
           mediaSkipped += 1;
           continue;
         }
-        
+
         // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or
         // "auto" — strip whichever provider prefix the route attached.
-        const cleanModelId = modelId.replace(/^qoder(-cn)?\//, "");
+        // qwenwork(-cn) rows too: the route prefixed its ids until
+        // 2026-11-23 and a cached response can still deliver them.
+        const cleanModelId = modelId.replace(/^(?:qoder(-cn)?|qwenwork(-cn)?)\//, "");
         // Models already listed as official registry entries are NOT re-added
         // as customs — the fetch button exists to pull in catalog newcomers
         // (e.g. q37fmodel before it was registered), not to duplicate the
@@ -1135,6 +1278,40 @@ export default function ProviderDetailPage() {
       }
       if (mediaSkipped > 0) {
         notify.info(translate("Media models skipped (use Media Providers)") + ` (${mediaSkipped})`)
+      }
+
+      // CrowLLM stale sweep (user request 2026-11-21): the registry anchors all
+      // 40 :free ids, and the upstream delists free-promo models without
+      // notice — routing retries against a delisted id just burn 404s. Diff
+      // the anchored set against the fetched catalog and auto-disable the
+      // gone ones; the disable lives in the reversible disabled-table, so a
+      // model that returns can be re-enabled from the list.
+      if (providerId === "crowllm") {
+        const remoteIds = new Set(models.map((m) => m.id || m.name).filter(Boolean));
+        const anchoredIds = (staticModels || []).map((m) => m.id).filter(Boolean);
+        // 短返回不可信（上游抖动/部分故障）：拿 5/40 的目录去禁 35 个锚点是
+        // 误伤。只有目录覆盖过半锚点才认为快照可用，否则跳过本轮清扫。
+        const credible = remoteIds.size >= Math.ceil(anchoredIds.length / 2);
+        const staleIds = credible
+          ? anchoredIds.filter((id) => !remoteIds.has(id))
+          : [];
+        if (staleIds.length > 0) {
+          try {
+            const dis = await fetch("/api/models/disabled", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ providerAlias: providerStorageAlias, ids: staleIds }),
+            });
+            if (dis.ok) {
+              notify.info(translate("Upstream no longer lists") + ` ${staleIds.length} ` + translate("models — auto-disabled (re-enable from the list if they return)"))
+            } else {
+              const d = await dis.json().catch(() => ({}));
+              notify.error(d.error || translate("Failed to disable models"))
+            }
+          } catch (e) {
+            notify.error(translate("Failed to disable models") + ": " + e.message)
+          }
+        }
       }
     } catch (error) {
       console.log("Error importing Qoder models:", error);
@@ -1301,8 +1478,8 @@ export default function ProviderDetailPage() {
     const count = selectedConnectionIds.length;
     if (count === 0) return;
     setConfirmState({
-      title: `Delete ${count} Connection${count > 1 ? "s" : ""}`,
-      message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
+      title: translate("Delete {count} Connections", { count }),
+      message: translate("Delete {count} connections? This cannot be undone.", { count }),
       onConfirm: async () => {
         setConfirmState(null);
         let failed = 0;
@@ -1318,7 +1495,8 @@ export default function ProviderDetailPage() {
         }
         setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
         setSelectedConnectionIds([]);
-        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        if (failed > 0) notify.warning(translate("Deleted {deleted} connection(s), {failed} failed.", { deleted: idsToDelete.length - failed, failed }));
+        else notify.success(translate("Deleted successfully"));
       }
     });
   };
@@ -1585,6 +1763,22 @@ export default function ProviderDetailPage() {
                   setSelectedConnection(conn);
                   setShowEditModal(true);
                 }}
+                onReauth={providerId === "dumate" ? () => {
+                  setDumateQrConnectionId(conn.id);
+                  setShowDumateQrModal(true);
+                } : providerId === "lingxi" ? () => {
+                  setLingxiCaptureConnectionId(conn.id);
+                  setShowLingxiCaptureModal(true);
+                } : null}
+                reauthIcon={providerId === "lingxi" ? "cookie" : undefined}
+                reauthTitle={providerId === "lingxi" ? "Re-capture the WPS session cookie" : undefined}
+                reauthLabel={providerId === "lingxi" ? "Re-capture" : undefined}
+                onSlotLogin={!!WEB_COOKIE_PROVIDERS[providerId] ? (slot) => {
+                  // 会话池（#150）：壳内站点登录窗（持久分区，槽位独立）。
+                  const siteId = providerId === "lingxi" ? "lingxi" : providerId === "dumate" ? "dumate" : providerId;
+                  if (window.sessionPool?.login) window.sessionPool.login(siteId, slot);
+                } : undefined}
+                cookieSlot={Number(conn.providerSpecificData?.cookieSlot) || 1}
                 onDelete={() => handleDelete(conn.id)}
                 oneByOneStatus={oneByOneResults[conn.id] || null}
               />
@@ -1829,7 +2023,7 @@ export default function ProviderDetailPage() {
             </span>
             {importingQoderModels
               ? translate("Fetching...")
-              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : "Fetch Qoder Models")}
+              : translate(providerId === "xiaomi-mimo" ? "Fetch MiMo Models" : providerId === "crowllm" ? "Fetch CrowLLM Models" : providerId === "qwenwork" || providerId === "qwenwork-cn" ? "Fetch QwenWork Models" : "Fetch Qoder Models")}
           </button>
         )}
 
@@ -1885,7 +2079,7 @@ export default function ProviderDetailPage() {
             BEFORE exposing it to clients, so a disabled row must be testable. #14-B */}
         {(disabledDisplayModels.length > 0 || disabledCustomModelRows.length > 0) && (
           <div className="w-full mt-2">
-            <p className="text-xs text-text-muted mb-2">Disabled models ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
+            <p className="text-xs text-text-muted mb-2">{translate("Disabled models")} ({disabledDisplayModels.length + disabledCustomModelRows.length}):</p>
             <div className="flex flex-wrap gap-3">
               {disabledCustomModelRows.map((model) => (
                 <ModelRow
@@ -1952,8 +2146,11 @@ export default function ProviderDetailPage() {
     );
   }
 
-  // Determine icon path: OpenAI Compatible providers use specialized icons
+  // Determine icon path: OpenAI Compatible providers use specialized icons;
+  // a node with 官网地址 shows the site favicon instead (real brand logo).
   const getHeaderIconPath = () => {
+    const favicon = getCompatibleNodeFaviconSrc(providerNode?.website);
+    if (favicon) return favicon;
     if (isOpenAICompatible && providerInfo.apiType) {
       return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
     }
@@ -1962,6 +2159,8 @@ export default function ProviderDetailPage() {
     }
     return getProviderIconSrc(providerInfo.id);
   };
+  const headerIconPath = getHeaderIconPath();
+  const headerIconIsRemote = typeof headerIconPath === "string" && headerIconPath.startsWith("http");
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
@@ -1979,13 +2178,29 @@ export default function ProviderDetailPage() {
             className="flex size-12 shrink-0 items-center justify-center rounded-lg"
             style={{ backgroundColor: `${providerInfo.color}15` }}
           >
-            {headerImgError || !getHeaderIconPath() ? (
+            {headerImgError || !headerIconPath ? (
               <span className="text-sm font-bold" style={{ color: providerInfo.color }}>
                 {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
               </span>
+            ) : headerIconIsRemote ? (
+              // Remote favicon — plain img: next/image would need remotePatterns
+              // per customer site, which a user-entered URL can't predeclare.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={headerIconPath}
+                alt={providerInfo.name}
+                width={48}
+                height={48}
+                className="max-h-12 max-w-12 rounded-lg object-contain bg-white/60 p-1"
+                onError={() => {
+                  setHeaderImgError(true);
+                }}
+                loading="lazy"
+                decoding="async"
+              />
             ) : (
               <Image
-                src={getHeaderIconPath()}
+                src={headerIconPath}
                 alt={providerInfo.name}
                 width={48}
                 height={48}
@@ -2043,7 +2258,31 @@ export default function ProviderDetailPage() {
       {providerInfo.notice?.text && !providerInfo.deprecated && (
         <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
           <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{translate(providerInfo.notice.text)}</p>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">
+            {(() => {
+              const full = translate(providerInfo.notice.text);
+              const link = providerInfo.notice.textLink;
+              // 描述里的产品名 → 内联链接（registry textLink）：用户读到
+              // CreditDaddy 这类名字时，下一反应就是「去哪下载」。按译文
+              // 分段拼接，词条里与原文里都含 term，两种语言都对得上。
+              if (!link?.term || !full.includes(link.term)) return full;
+              return full.split(link.term).map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-blue-400/50 underline-offset-2 transition-colors hover:decoration-blue-500"
+                    >
+                      {link.term}
+                    </a>
+                  )}
+                  {part}
+                </Fragment>
+              ));
+            })()}
+          </p>
           {providerInfo.notice.apiKeyUrl && (
             <a
               href={providerInfo.notice.apiKeyUrl}
@@ -2124,7 +2363,7 @@ export default function ProviderDetailPage() {
       ) : (
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">Connections</h2>
+            <h2 className="text-lg font-semibold">{translate("Connections")}</h2>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               {connections.length > 0 && proxyPools.length > 0 && (
                 <Button
@@ -2133,7 +2372,7 @@ export default function ProviderDetailPage() {
                   icon="lan"
                   onClick={() => setShowBulkProxyModal(true)}
                 >
-                  Apply Proxy
+                  {translate("Apply Proxy")}
                 </Button>
               )}
               {connections.length > 0 && (
@@ -2145,7 +2384,7 @@ export default function ProviderDetailPage() {
                       icon="delete"
                       onClick={handleBulkDelete}
                     >
-                      Delete Selected ({selectedConnectionIds.length})
+                      {translate("Delete Selected")} ({selectedConnectionIds.length})
                     </Button>
                   )}
                   {connections.length > 0 && models.length > 1 && (
@@ -2190,42 +2429,9 @@ export default function ProviderDetailPage() {
 
                 // 1. Pack Asset Providers (CodeBuddy, Qoder)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Prioritize burning resource packs that are nearest to permanent expiration")}
-                      >
-                        {translate("Earliest Pack Expiry")}
-                      </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
-                      />
-                    </div>
-                  );
-                }
-
-                // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
-                if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Relay between accounts and hand off to next carrier when window reaches 5% red zone")}
-                      >
-                        {translate("Subscription Relay")}
-                      </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
-                      />
-                    </div>
-                  );
-                }
-
-                // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
-                if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
+                  // 资源包供应商的 usage 不暴露 daily/permanent 配对，daily-grant 选项不提供
+                  // （历史上误存过 qoder-cn 的 dailyGrantFirst，fetchData 已兜底忽略）。
+                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2233,13 +2439,96 @@ export default function ProviderDetailPage() {
                           {translate("Scheduling Preference")}
                         </span>
                         <Select
-                          value={balanceStrategy}
+                          value={currentValue}
+                          onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                          options={[
+                            { value: "earliest", label: translate("Earliest Pack Expiry") },
+                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          ]}
+                          selectClassName="!py-1 !text-xs w-48"
+                        />
+                      </div>
+                      {currentValue === "round-robin" && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
+                if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
+                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
+                  return (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-medium">
+                          {translate("Scheduling Preference")}
+                        </span>
+                        <Select
+                          value={currentValue}
+                          onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                          options={[
+                            { value: "earliest", label: translate("Subscription Relay") },
+                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          ]}
+                          selectClassName="!py-1 !text-xs w-48"
+                        />
+                      </div>
+                      {currentValue === "round-robin" && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={providerStickyLimit}
+                            onChange={(e) => handleStickyLimitChange(e.target.value)}
+                            placeholder="1"
+                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
+                if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
+                  // 长文案放工具栏外（见下方独立提示行），不挤占同一行
+                  const dailyGrantAllowed = DAILY_GRANT_PROVIDERS.has(providerId);
+                  // 到期优先是一等选项:auth.js 排序序 earliestExpiryFirst 先于
+                  // balanceStrategy,回显时 earliestExpiryFirst 压过 balanceStrategy
+                  // (保存时 balanceStrategy 归 priority,不写 override)。
+                  const currentValue = earliestExpiryFirst
+                    ? "earliest-expiry"
+                    : (dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy));
+                  return (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-medium">
+                          {translate("Scheduling Preference")}
+                        </span>
+                        <Select
+                          value={currentValue}
                           onChange={(e) => handleBalanceStrategyChange(e.target.value)}
                           options={[
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                            { value: "earliest-expiry", label: translate("Earliest Expiry First") },
                             { value: "lowest-first", label: translate("Lowest Balance First") },
                             { value: "highest-first", label: translate("Highest Balance First") },
                             { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            ...(dailyGrantAllowed ? [{ value: "daily-grant", label: translate("Daily Grant First") }] : []),
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
                         />
@@ -2271,52 +2560,53 @@ export default function ProviderDetailPage() {
                 }
 
                 // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
+                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
                 return (
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="text-xs text-text-muted font-medium"
-                        title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
-                      >
-                        {translate("Earliest Expiry First")}
+                      <span className="text-xs text-text-muted font-medium">
+                        {translate("Scheduling Preference")}
                       </span>
-                      <Toggle
-                        checked={earliestExpiryFirst}
-                        onChange={handleEarliestExpiryToggle}
+                      <Select
+                        value={fallbackCurrentValue}
+                        onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
+                        options={[
+                          { value: "earliest", label: translate("Earliest Expiry First") },
+                          { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                          { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                        ]}
+                        selectClassName="!py-1 !text-xs w-48"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
-                        title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
-                      >
-                        {translate("Round Robin")}
-                      </span>
-                      <Toggle
-                        checked={providerStrategy === "round-robin"}
-                        disabled={earliestExpiryFirst}
-                        onChange={handleRoundRobinToggle}
-                      />
-                      {providerStrategy === "round-robin" && (
-                        <div className={cn("flex items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
-                          <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            disabled={earliestExpiryFirst}
-                            value={providerStickyLimit}
-                            onChange={(e) => handleStickyLimitChange(e.target.value)}
-                            placeholder="1"
-                            className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {fallbackCurrentValue === "round-robin" && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={providerStickyLimit}
+                          onChange={(e) => handleStickyLimitChange(e.target.value)}
+                          placeholder="1"
+                          className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })()}
             </div>
           </div>
+
+          {/* 算法说明独立成行（PURE_BALANCE + daily-grant 时）：放工具栏行内会把
+              整行布局挤乱（长文案强制换行、左右控件错位）。 */}
+          {balanceStrategy === "daily-grant" &&
+            DAILY_GRANT_PROVIDERS.has(providerId) &&
+            getProviderQuotaCategory(providerId) === PROVIDER_QUOTA_TYPES.PURE_BALANCE && (
+            <div className="-mt-3 mb-3 flex items-start gap-1.5 text-xs leading-relaxed text-text-muted">
+              <span className="material-symbols-outlined text-[14px] leading-5">info</span>
+              <p className="min-w-0">{translate("Daily Grant First Hint")}</p>
+            </div>
+          )}
 
           {connections.length === 0 ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2326,7 +2616,7 @@ export default function ProviderDetailPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-text-muted">No connections yet</p>
-                  {hasDualAuthModes && (
+                  {hasDualAuthModes && !oauthLoginHidden && (
                     <p className="text-xs text-text-muted">
                       Choose {oauthConnectionLabel} or {apiKeyConnectionLabel}.
                     </p>
@@ -2336,14 +2626,24 @@ export default function ProviderDetailPage() {
               <div className="flex gap-2">
                 {hasDualAuthModes ? (
                   <>
-                    <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
-                      {oauthConnectionLabel}
-                    </Button>
+                    {!oauthLoginHidden && (
+                      <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
+                        {oauthConnectionLabel}
+                      </Button>
+                    )}
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
+                    {/* meoo 的 meoo_ak_ 粘贴走专用导入弹窗（控制面 Key ≠ 项目
+                        AK）——0 连接时双 auth 分支此前没有这个入口，用户删光
+                        失败连接后就找不到粘贴 meoo_ak_ 的地方了。 */}
+                    {providerId === "meoo" && (
+                      <Button size="sm" icon="key" variant="secondary" onClick={() => setShowMeooImportApikey(true)}>
+                        {translate("Paste API Key")}
+                      </Button>
+                    )}
                     {renderOAuthTransferButtons()}
-                    {codeBuddyCheckinOn && renderCbCheckinBlock()}
+                    {/* No connections yet: do not show check-in / claim credits */}
                   </>
                 ) : (
                   <>
@@ -2352,10 +2652,25 @@ export default function ProviderDetailPage() {
                         Cookie
                       </Button>
                     )}
-                    {hasClaimCheckin && renderQoderCheckinBlock()}
+                    {!isCompatible && providerId === "dumate" && (
+                      <Button size="sm" icon="qr_code_2" variant="secondary" onClick={() => { setDumateQrConnectionId(null); setShowDumateQrModal(true); }}>
+                        {translate("QR Login")}
+                      </Button>
+                    )}
+                    {!isCompatible && providerId === "lingxi" && (
+                      <Button size="sm" icon="cookie" variant="secondary" onClick={() => { setLingxiCaptureConnectionId(null); setShowLingxiCaptureModal(true); }}>
+                        {translate("Capture Session")}
+                      </Button>
+                    )}
+                    {/* No connections yet: do not show check-in / claim credits */}
                     {providerId === "codex" && (
                       <Button size="sm" icon="playlist_add" variant="secondary" onClick={() => setShowBulkImportCodex(true)}>
                         {translate("Bulk Add")}
+                      </Button>
+                    )}
+                    {providerId === "meoo" && (
+                      <Button size="sm" icon="key" variant="secondary" onClick={() => setShowMeooImportApikey(true)}>
+                        {translate("Paste API Key")}
                       </Button>
                     )}
                     <Button
@@ -2372,6 +2687,11 @@ export default function ProviderDetailPage() {
                         </span>
                       ) : "Add Connection")}
                     </Button>
+                    {providerId === "loomy" && (
+                      <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                        {translate("SMS Login")}
+                      </Button>
+                    )}
                     {renderOAuthTransferButtons()}
                   </>
                 )}
@@ -2404,11 +2724,18 @@ export default function ProviderDetailPage() {
                       onChange={toggleSelectAllConnections}
                       className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                    Select All
+                    {translate("Select All")}
                   </label>
                 </div>
               )}
               {connectionsList}
+              {WEB_COOKIE_PROVIDERS[providerId] && (
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" icon="dns" variant="secondary" onClick={() => setShowSessionPool(true)}>
+                    {translate("会话池")}
+                  </Button>
+                </div>
+              )}
               {!isCompatible && (
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:flex">
                   {providerId === "iflow" && (
@@ -2423,6 +2750,30 @@ export default function ProviderDetailPage() {
                       Cookie
                     </Button>
                   )}
+                  {providerId === "dumate" && (
+                    <Button
+                      size="sm"
+                      icon="qr_code_2"
+                      variant="secondary"
+                      onClick={() => { setDumateQrConnectionId(null); setShowDumateQrModal(true); }}
+                      title={translate("Login by scanning the Baidu QR code (no browser is spawned)")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("QR Login")}
+                    </Button>
+                  )}
+                  {providerId === "lingxi" && (
+                    <Button
+                      size="sm"
+                      icon="cookie"
+                      variant="secondary"
+                      onClick={() => { setLingxiCaptureConnectionId(null); setShowLingxiCaptureModal(true); }}
+                      title={translate("Capture the WPS session cookie from a logged-in lingxi.kdocs.cn browser (no browser is spawned)")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Capture Session")}
+                    </Button>
+                  )}
                   {providerId === "codex" && (
                     <Button
                       size="sm"
@@ -2435,17 +2786,31 @@ export default function ProviderDetailPage() {
                       {translate("Bulk Add")}
                     </Button>
                   )}
+                  {providerId === "meoo" && (
+                    <Button
+                      size="sm"
+                      icon="key"
+                      variant="secondary"
+                      onClick={() => setShowMeooImportApikey(true)}
+                      title={translate("Connect Meoo by pasting its control-plane API key")}
+                      className="w-full sm:w-auto"
+                    >
+                      {translate("Paste API Key")}
+                    </Button>
+                  )}
                   {hasDualAuthModes ? (
                     <>
-                      <Button
-                        size="sm"
-                        icon="lock"
-                        variant="secondary"
-                        onClick={triggerOAuthConnection}
-                        className="w-full sm:w-auto"
-                      >
-                        {oauthConnectionLabel}
-                      </Button>
+                      {!oauthLoginHidden && (
+                        <Button
+                          size="sm"
+                          icon="lock"
+                          variant="secondary"
+                          onClick={triggerOAuthConnection}
+                          className="w-full sm:w-auto"
+                        >
+                          {oauthConnectionLabel}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         icon="key"
@@ -2457,6 +2822,7 @@ export default function ProviderDetailPage() {
                       {renderOAuthTransferButtons("w-full sm:w-auto")}
                       {codeBuddyCheckinOn && renderCbCheckinBlock()}
                       {hasClaimCheckin && renderQoderCheckinBlock()}
+                      {showCroliCredits && <CroliCreditsPanel connections={connections} initialAutoCheckin={croliAutoCheckin} />}
                     </>
                   ) : (
                     <>
@@ -2468,8 +2834,14 @@ export default function ProviderDetailPage() {
                       >
                         Add
                       </Button>
+                      {providerId === "loomy" && (
+                        <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                          {translate("SMS Login")}
+                        </Button>
+                      )}
                       {renderOAuthTransferButtons("w-full sm:w-auto")}
                       {hasClaimCheckin && renderQoderCheckinBlock()}
+                      {showCroliCredits && <CroliCreditsPanel connections={connections} initialAutoCheckin={croliAutoCheckin} />}
                     </>
                   )}
                 </div>
@@ -2623,11 +2995,38 @@ export default function ProviderDetailPage() {
           onClose={() => setShowXiaomiMimoModal(false)}
         />
       )}
+      {providerId === "deepai" && (
+        <DeepaiAuthModal
+          isOpen={showDeepaiAuthModal}
+          onSuccess={() => {
+            setShowDeepaiAuthModal(false);
+            refreshAfterConnectionChange();
+          }}
+          onClose={() => setShowDeepaiAuthModal(false)}
+        />
+      )}
       {providerId === "iflow" && (
         <IFlowCookieModal
           isOpen={showIFlowCookieModal}
           onSuccess={handleIFlowCookieSuccess}
           onClose={() => setShowIFlowCookieModal(false)}
+        />
+      )}
+      <SessionPoolModal isOpen={showSessionPool} onClose={() => setShowSessionPool(false)} providerId={providerId} siteId={providerId === "lingxi" ? "lingxi" : providerId === "dumate" ? "dumate" : providerId} />
+      {providerId === "dumate" && showDumateQrModal && (
+        <DumateQrModal
+          isOpen
+          connectionId={dumateQrConnectionId}
+          onSuccess={refreshAfterConnectionChange}
+          onClose={() => setShowDumateQrModal(false)}
+        />
+      )}
+      {providerId === "lingxi" && showLingxiCaptureModal && (
+        <LingxiCaptureModal
+          isOpen
+          connectionId={lingxiCaptureConnectionId}
+          onSuccess={refreshAfterConnectionChange}
+          onClose={() => setShowLingxiCaptureModal(false)}
         />
       )}
       <AddApiKeyModal
@@ -2649,6 +3048,34 @@ export default function ProviderDetailPage() {
           setShowAddApiKeyModal(false);
         }}
       />
+      {providerId === "loomy" && showLoomySmsModal && (
+        <LoomySmsModal
+          isOpen
+          onClose={() => setShowLoomySmsModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "capy" && showCapyLoginModal && (
+        <CapyLoginModal
+          isOpen
+          onClose={() => setShowCapyLoginModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "autoclaw" && showAutoclawOAuthModal && (
+        <AutoclawOAuthModal
+          isOpen
+          onClose={() => setShowAutoclawOAuthModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "autoclaw-cn" && showAutoclawSmsModal && (
+        <AutoclawSmsModal
+          isOpen
+          onClose={() => setShowAutoclawSmsModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
       <EditConnectionModal
         isOpen={showEditModal}
         connection={selectedConnection}
@@ -2682,6 +3109,14 @@ export default function ProviderDetailPage() {
         <BulkImportCodexModal
           isOpen={showBulkImportCodex}
           onClose={() => setShowBulkImportCodex(false)}
+          onSuccess={fetchConnections}
+        />
+      )}
+
+      {providerId === "meoo" && (
+        <MeooImportApikeyModal
+          isOpen={showMeooImportApikey}
+          onClose={() => setShowMeooImportApikey(false)}
           onSuccess={fetchConnections}
         />
       )}

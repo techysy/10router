@@ -1,0 +1,362 @@
+// Privacy pipeline phase 2 — mainline wiring (issue #90).
+//
+// Pins the three invariants the phase 2 review called out:
+//   1. per-attempt redaction on a DEEP COPY (retry on a trusted channel must
+//      never receive placeholders minted for a failed untrusted one);
+//   2. the structured-chunk restorer rides every streaming output layer
+//      (translate + passthrough) BEFORE serialization, with per-field windows;
+//   3. both non-streaming exits reverse the mapping before the client sees it.
+// Plus behavioral tests for createChunkRestorer and the opt-in switch.
+import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import {
+  privacyEnabledFor,
+  createRedactionContext,
+  scanBody,
+  createChunkRestorer,
+  restoreBody,
+  mountPrivacyRedaction,
+} from "../../open-sse/privacy/index.js";
+
+const SALT = "wiring-test-salt";
+const SECRET = "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const read = (rel) => fs.readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
+
+function ctx() {
+  return createRedactionContext({ salt: SALT });
+}
+
+describe("privacyEnabledFor — explicit opt-in only (zero upgrade behavior change)", () => {
+  it.each([
+    ["no credentials", null, false],
+    ["no privacy block", { providerSpecificData: {} }, false],
+    ["privacy: true", { providerSpecificData: { privacy: true } }, true],
+    ["privacy: false", { providerSpecificData: { privacy: false } }, false],
+    ["privacy: {enabled:true}", { providerSpecificData: { privacy: { enabled: true } } }, true],
+    ["privacy: {enabled:false}", { providerSpecificData: { privacy: { enabled: false } } }, false],
+    ["privacy: {}", { providerSpecificData: { privacy: {} } }, false],
+  ])("%s → %j", (_label, credentials, expected) => {
+    expect(privacyEnabledFor(credentials)).toBe(expected);
+  });
+});
+
+describe("createChunkRestorer — per-field sliding windows over structured chunks", () => {
+  const scanned = ctx();
+  scanBody({ messages: [{ role: "user", content: `key ${SECRET}` }] }, scanned);
+  const { map } = scanned;
+
+  it("reassembles a placeholder split across three content deltas (openai shape)", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    const mid = Math.floor(ph.length / 3);
+    const chunks = [
+      { choices: [{ delta: { content: "your key: " } }] },
+      { choices: [{ delta: { content: ph.slice(0, mid) } }] },
+      { choices: [{ delta: { content: ph.slice(mid) } }] },
+    ];
+    let out = "";
+    for (const c of chunks) {
+      r.restoreChunk(c);
+      out += c.choices[0].delta.content;
+    }
+    expect(out).toBe(`your key: ${SECRET}`);
+    expect(out).not.toContain("__SEC_");
+  });
+
+  it("content and tool-call arguments are independent windows (no cross-stream pollution)", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    // BOTH streams carry the same placeholder, each split across its own two
+    // chunks — the windows must not feed each other's state.
+    const c1 = { choices: [{ delta: { content: ph.slice(0, 8), tool_calls: [{ index: 0, function: { arguments: `{"k":"${ph.slice(0, 10)}` } }] } }] };
+    const c2 = { choices: [{ delta: { content: ph.slice(8), tool_calls: [{ index: 0, function: { arguments: `${ph.slice(10)}"}` } }] } }] };
+    r.restoreChunk(c1);
+    r.restoreChunk(c2);
+    // content stream: first half held, second half completes → full secret
+    expect(c1.choices[0].delta.content + c2.choices[0].delta.content).toBe(SECRET);
+    // arguments stream (its own window): JSON reassembles with the secret inside
+    expect(c1.choices[0].delta.tool_calls[0].function.arguments + c2.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"k":"${SECRET}"}`);
+  });
+
+  it("parallel tool_calls deltas get INDEPENDENT windows keyed by the delta `index` field", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    // Two parallel calls interleaved, each echoing the SAME placeholder split
+    // across its own two fragments — every delta carries a single-element
+    // array (position 0); only the `index` field distinguishes the streams.
+    const c1 = { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: `{"a":"${ph.slice(0, 10)}` } }] } }] };
+    const c2 = { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: `{"b":"${ph.slice(0, 10)}` } }] } }] };
+    r.restoreChunk(c1);
+    r.restoreChunk(c2);
+    const c3 = { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: `${ph.slice(10)}"}` } }] } }] };
+    const c4 = { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: `${ph.slice(10)}"}` } }] } }] };
+    r.restoreChunk(c3);
+    r.restoreChunk(c4);
+    expect(c1.choices[0].delta.tool_calls[0].function.arguments
+      + c3.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"a":"${SECRET}"}`);
+    expect(c2.choices[0].delta.tool_calls[0].function.arguments
+      + c4.choices[0].delta.tool_calls[0].function.arguments).toBe(`{"b":"${SECRET}"}`);
+  });
+
+  it("non-payload fields (id, model, finish_reason) are never touched or held", () => {
+    const r = createChunkRestorer(map);
+    const chunk = { id: "chatcmpl-trailing_underscore_", model: "gpt-x_", choices: [{ delta: {}, finish_reason: null }] };
+    expect(r.restoreChunk(chunk)).toBe(false);
+    expect(chunk.id).toBe("chatcmpl-trailing_underscore_");
+    expect(chunk.model).toBe("gpt-x_");
+  });
+
+  it("thinking / delta / text fields ride their own windows (claude + responses shapes)", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    const claude = { delta: { type: "text_delta", text: ph.slice(0, 10) } };
+    const claude2 = { delta: { type: "text_delta", text: ph.slice(10) } };
+    r.restoreChunk(claude);
+    r.restoreChunk(claude2);
+    expect(claude.delta.text + claude2.delta.text).toBe(SECRET);
+
+    const responses = { type: "response.output_text.delta", delta: ph };
+    r.restoreChunk(responses);
+    expect(responses.delta).toBe(SECRET);
+  });
+
+  it("a stream ending mid-placeholder accounts for the held fragment via flushLost", () => {
+    const r = createChunkRestorer(map);
+    const ph = [...map.keys()][0];
+    const chunk = { choices: [{ delta: { content: `ends with ${ph.slice(0, 9)}` } }] };
+    r.restoreChunk(chunk);
+    // the viable partial tail was held, not emitted
+    expect(chunk.choices[0].delta.content.endsWith(ph.slice(0, 2))).toBe(false);
+    const lost = r.flushLost();
+    expect(lost.length).toBeGreaterThan(0);
+    expect(lost.length).toBeLessThanOrEqual(24);
+    expect(lost + "rest").not.toContain(SECRET); // inert either way
+  });
+
+  it("fail-open: garbage chunks return false and never throw", () => {
+    const r = createChunkRestorer(map);
+    expect(r.restoreChunk(null)).toBe(false);
+    expect(r.restoreChunk("str")).toBe(false);
+    expect(createChunkRestorer(new Map()).restoreChunk({ choices: [{ delta: { content: "x__SEC_" } }] })).toBe(false);
+  });
+});
+
+describe("round-trip: outbound scan → model echo → chunked restore → client", () => {
+  it("client never sees a placeholder when the model echoes it in any fragmentation", () => {
+    const c = ctx();
+    const body = { messages: [{ role: "user", content: `use ${SECRET} in the test` }] };
+    scanBody(body, c);
+    const ph = [...c.map.keys()][0];
+
+    // model "responds" with the placeholder, upstream tokenizer splits it
+    const responseText = `sure, using ${ph} as the API key.`;
+    const r = createChunkRestorer(c.map);
+    let clientText = "";
+    for (let at = 0; at < responseText.length; at += 3) {
+      const chunk = { choices: [{ delta: { content: responseText.slice(at, at + 3) } }] };
+      r.restoreChunk(chunk);
+      clientText += chunk.choices[0].delta.content;
+    }
+    expect(clientText).toBe(`sure, using ${SECRET} as the API key.`);
+    // whole-body restore agrees
+    expect(restoreBody({ content: responseText }, c.map).content).toBe(`sure, using ${SECRET} as the API key.`);
+  });
+});
+
+describe("mountPrivacyRedaction — behavioral mount contract (what chatCore calls)", () => {
+  const PRIV = { providerSpecificData: { privacy: true } };
+  const withSalt = async (fn) => {
+    process.env.PRIVACY_SALT = SALT;
+    try { await fn(); } finally { delete process.env.PRIVACY_SALT; }
+  };
+
+  it("redacts on a DEEP CLONE: returned body carries the placeholder, original stays pristine", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: `use ${SECRET} please` }] };
+      const { body: redacted, privacyCtx } = await mountPrivacyRedaction(original, PRIV);
+      expect(redacted).not.toBe(original);
+      expect(redacted.messages[0].content).not.toContain(SECRET);
+      expect(original.messages[0].content).toBe(`use ${SECRET} please`);
+      // response leg is ready: the ctx restorer reverses the placeholder
+      const ph = [...privacyCtx.map.keys()][0];
+      const chunk = { choices: [{ delta: { content: ph } }] };
+      expect(privacyCtx.chunkRestorer.restoreChunk(chunk)).toBe(true);
+      expect(chunk.choices[0].delta.content).toBe(SECRET);
+    });
+  });
+
+  it("nothing to redact → original body BY REFERENCE, ctx null (no restorer overhead)", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: "just chat" }] };
+      const { body: out, privacyCtx } = await mountPrivacyRedaction(original, PRIV);
+      expect(out).toBe(original);
+      expect(privacyCtx).toBeNull();
+    });
+  });
+
+  it("feature off → input untouched, no cloning, ctx null", async () => {
+    const original = { messages: [{ role: "user", content: `use ${SECRET} please` }] };
+    const { body: out, privacyCtx } = await mountPrivacyRedaction(original, { providerSpecificData: {} });
+    expect(out).toBe(original);
+    expect(privacyCtx).toBeNull();
+  });
+
+  it("fail-open: an uncloneable body (DataCloneError) returns the original untouched, ctx null, error surfaced", async () => {
+    await withSalt(async () => {
+      const original = { messages: [{ role: "user", content: SECRET }], uncloneable: () => {} };
+      const errors = [];
+      const { body: out, privacyCtx } = await mountPrivacyRedaction(original, PRIV, (e) => errors.push(e));
+      expect(out).toBe(original);
+      expect(privacyCtx).toBeNull();
+      expect(errors).toHaveLength(1);
+    });
+  });
+});
+
+describe("mainline wiring pins (mount points and ordering)", () => {
+  const chatCore = read("open-sse/handlers/chatCore.js");
+
+  it("outbound scan mounts via mountPrivacyRedaction before translation, no inline scan wiring", () => {
+    const mount = chatCore.slice(chatCore.indexOf("// ── Privacy redaction"), chatCore.indexOf("let translatedBody"));
+    expect(mount).toBeTruthy();
+    expect(mount).toContain("mountPrivacyRedaction(body, credentials");
+    // 回归钉（P0 曾把 scanBody 的 stats 返回值当请求体发出）：挂载体内不得手写
+    // 扫描/克隆——克隆与 stats 判定的语义由 mount 行为测试钉死
+    expect(mount).not.toContain("scanBody(");
+    expect(mount).not.toContain("structuredClone");
+    expect(chatCore).not.toContain("body = redacted");
+  });
+
+  it("per-attempt semantics: the request-line metric and sharedCtx carry the ctx", () => {
+    expect(chatCore).toContain("parts.push(`PRIV:${privacyCtx.stats.redacted}`)");
+    expect(chatCore).toContain("reqTag, log, privacyCtx }");
+  });
+
+  it("stream.js translate layer restores structured chunks BEFORE formatSSE serializes", () => {
+    const s = read("open-sse/utils/stream.js");
+    const loop = s.slice(s.indexOf("for (const item of translated)"), s.indexOf("flush(controller)"));
+    expect(loop.indexOf("privacyCtx?.chunkRestorer) privacyCtx.chunkRestorer.restoreChunk(item)")).toBeGreaterThan(-1);
+    expect(loop.indexOf("formatSSE(item, sourceFormat)")).toBeGreaterThan(loop.indexOf("restoreChunk(item)"));
+  });
+
+  it("stream.js passthrough layer restores parsed chunks and re-serializes on change", () => {
+    const s = read("open-sse/utils/stream.js");
+    const passthrough = s.slice(s.indexOf("mode === STREAM_MODE.PASSTHROUGH) {"), s.indexOf("// Translate mode"));
+    const at = passthrough.indexOf("restoreChunk(parsed)");
+    expect(at).toBeGreaterThan(-1);
+    // the very next statement forces re-serialization (the raw line still
+    // carries the placeholder text the window just replaced)
+    expect(passthrough.slice(at, at + 140)).toContain("fieldsInjected = true");
+  });
+
+  it("stream.js Responses same-format lane (codex↔codex) restores parsed chunks BEFORE re-emitting", () => {
+    const s = read("open-sse/utils/stream.js");
+    const at = s.indexOf("keepsOpenAIResponsesFormat && openAIResponsesEventName) {");
+    expect(at).toBeGreaterThan(-1);
+    const lane = s.slice(at, at + 600);
+    const restoreAt = lane.indexOf("chunkRestorer.restoreChunk(parsed)");
+    const formatAt = lane.indexOf("formatSSE(");
+    expect(restoreAt).toBeGreaterThan(-1);
+    expect(formatAt).toBeGreaterThan(restoreAt);
+  });
+
+  it("stream finish accounts for held placeholder fragments (restoreLost)", () => {
+    const s = read("open-sse/utils/stream.js");
+    expect(s).toContain("privacyCtx.chunkRestorer.flushLost()");
+    expect(s).toContain("restoreLost");
+    const sh = read("open-sse/handlers/chatCore/streamingHandler.js");
+    expect(sh).toContain("contentObj?.restoreLost ? { restoreLost: contentObj.restoreLost } : {}");
+  });
+
+  it("streaming handler forwards privacyCtx into both stream factories", () => {
+    const sh = read("open-sse/handlers/chatCore/streamingHandler.js");
+    expect(sh).toContain("createSSETransformStreamWithLogger(FORMATS.OPENAI_RESPONSES, codexTarget, provider, reqLogger, toolNameMap, model, connectionId, body, onStreamComplete, apiKey, customToolNames, privacyCtx)");
+    expect(sh).toContain("createPassthroughStreamWithLogger(provider, reqLogger, model, connectionId, body, onStreamComplete, apiKey, privacyCtx)");
+  });
+
+  it("both non-streaming exits reverse the mapping before restoreToolNames", () => {
+    const nsh = read("open-sse/handlers/chatCore/nonStreamingHandler.js");
+    expect(nsh).toContain("restoreBody(translatedResponse, privacyCtx.map)");
+    expect(nsh.indexOf("restoreBody(translatedResponse")).toBeLessThan(nsh.indexOf("restoreToolNames(translatedResponse"));
+    const sj = read("open-sse/handlers/chatCore/sseToJsonHandler.js");
+    expect(sj.match(/restorePrivacy\(/g).length).toBeGreaterThanOrEqual(3); // 3 exits (helper is a `= (obj) =>` decl)
+    expect(sj).toContain('from "../../privacy/streamRestorer.js"');
+  });
+});
+
+// ── Channel-level rules passthrough + opt-in extras (issue #117) ────────────
+describe("privacy.rules — channel-level overrides reach the engine (#117)", () => {
+  it("mounts with rules from providerSpecificData.privacy.rules (not just the salt)", async () => {
+    const credentials = {
+      providerSpecificData: {
+        privacy: { enabled: true, rules: { email: true, cnMobile: true } },
+      },
+    };
+    const body = {
+      messages: [
+        { role: "user", content: "contact me at dev@example-corp.com or 13812345678" },
+      ],
+    };
+    const { body: redacted, privacyCtx } = await mountPrivacyRedaction(structuredClone(body), credentials);
+    expect(privacyCtx).toBeTruthy();
+    expect(redacted.messages[0].content).not.toContain("dev@example-corp.com");
+    expect(redacted.messages[0].content).not.toContain("13812345678");
+    expect(privacyCtx.stats.byType.MAIL).toBe(1);
+    expect(privacyCtx.stats.byType.TEL).toBe(1);
+    // The restore leg round-trips both.
+    expect(restoreBody(redacted, privacyCtx.map)).toEqual(body);
+  });
+
+  it("without rules the new extras stay off (conservative default)", async () => {
+    const credentials = { providerSpecificData: { privacy: { enabled: true } } };
+    const body = { messages: [{ role: "user", content: "mail dev@example-corp.com, ip 192.168.1.9, tel 13812345678" }] };
+    const { body: redacted, privacyCtx } = await mountPrivacyRedaction(structuredClone(body), credentials);
+    // Nothing redacted → ctx comes back null (the mount's documented contract).
+    expect(privacyCtx).toBeNull();
+    expect(redacted.messages[0].content).toContain("dev@example-corp.com");
+    expect(redacted.messages[0].content).toContain("192.168.1.9");
+  });
+
+  it("connectionStrings rule catches credentials embedded in DB URLs", async () => {
+    const { createRedactionContext, scanText } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { connectionStrings: true } });
+    const out = scanText("connect with postgresql://admin:s3cr3t-pw@db.internal:5432/app", c);
+    expect(out).not.toContain("s3cr3t-pw");
+    expect(c.stats.byType.PWD).toBe(1);
+  });
+
+  it("privateRanges covers RFC1918 + CGNAT but not public IPs or outside-172 ranges", async () => {
+    const { createRedactionContext, scanText } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { privateRanges: true } });
+    const out = scanText("server at 10.0.0.5, 192.168.3.4 and 100.101.1.2", c);
+    expect(out).not.toContain("10.0.0.5");
+    expect(out).not.toContain("192.168.3.4");
+    expect(out).not.toContain("100.101.1.2");
+    // Public IPs and ranges outside 172.16-31 stay put. Version-shaped
+    // strings that match the private pattern (10.0.0.55) DO redact — greedy
+    // octets absorb trailing digits; that false-positive class is exactly
+    // why the rule is opt-in (same tradeoff as ipv4).
+    const c2 = createRedactionContext({ salt: SALT, rules: { privateRanges: true } });
+    const keep = "public 8.8.8.8 and 172.33.1.9";
+    expect(scanText(keep, c2)).toBe(keep);
+  });
+
+  it("scanBody redacts each opt-in family exactly once per occurrence", async () => {
+    const { createRedactionContext, scanBody } = await import("../../open-sse/privacy/index.js");
+    const c = createRedactionContext({ salt: SALT, rules: { email: true, privateRanges: true } });
+    scanBody({ a: "x@a.com", b: "172.20.1.9" }, c);
+    expect(c.stats.byType.MAIL).toBe(1);
+    expect(c.stats.byType.IPS).toBe(1);
+  });
+
+  it("the edit modal preserves privacy.rules across toggle saves (source pin)", () => {
+    const src = read("src/shared/components/EditConnectionModal.js");
+    expect(src).toContain("privacyRulesText");
+    // enabled with rules → object form; disabled with rules → {enabled:false, rules}
+    expect(src).toContain("enabled: true, rules: privacyRules");
+    expect(src).toContain("enabled: false, rules: privacyRules");
+    // The bare boolean write is gone (both branches carry rule-aware shapes).
+    expect(src).toContain("? (privacyRules ? { enabled: true, rules: privacyRules } : true)");
+    expect(src).toContain(": (privacyRules ? { enabled: false, rules: privacyRules } : false)");
+  });
+});

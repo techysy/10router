@@ -28,10 +28,20 @@ export default {
   transport: {
     baseUrl: "https://api.longcat.chat/openai/v1/chat/completions",
     validateUrl: "https://api.longcat.chat/openai/v1/models",
+    // 官方开关是 thinking {type:enabled|disabled}（2026-11《模型参数参考》），
+    // reasoning_effort 被静默忽略——"关思考"不生效的历史缺口走 thinkingUnified
+    // 的 longcat 分支修。budget 字段形状待真账号实测后再接（thinking_budget
+    // 上限 262,144 见下方模型注释）。
+    thinkingFormat: "longcat",
   },
   // 2026-09-25 上线（官方更新日志）：多模态（image_url/video_url 块）+ thinking
-  // 开关；快速开始限流规则 1M 上下文 / 128K 输出。当前在线模型仅 2.5-Preview 与 2.0。
+  // 开关；快速开始限流规则 1M 上下文 / 128K 输出。
+  // 2026-11 正式发布 LongCat-2.5（官方《模型参数参考》：1,048,576 上下文 /
+  // max_tokens 上限 262,144 / thinking_budget 上限 262,144 / thinking
+  // {type:enabled|disabled} 开关）。Preview 与正式版并存：正式版是 GA，Preview
+  // 仍在目录里（老配置不失效）。
   models: [
+    { id: "LongCat-2.5", name: "LongCat 2.5" },
     { id: "LongCat-2.5-Preview", name: "LongCat 2.5 Preview" },
     { id: "LongCat-2.0", name: "LongCat 2.0" },
   ],

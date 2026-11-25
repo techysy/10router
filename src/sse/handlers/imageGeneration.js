@@ -16,7 +16,7 @@ import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 
 // Providers that don't require credentials (noAuth)
-const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui"]);
+const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui", "veoaifree-web"]);
 
 /**
  * Handle image generation request
@@ -56,7 +56,8 @@ export async function handleImageGeneration(request) {
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[modelStr]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
-    log.info("IMAGE", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    const comboStickyWindowMinutes = comboStrategies[modelStr]?.stickyWindowMinutes ?? settings.comboStickyWindowMinutes;
+    log.info("IMAGE", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit}, window: ${comboStickyWindowMinutes}m)`);
     return handleComboChat({
       body,
       models: comboModels,
@@ -65,6 +66,7 @@ export async function handleImageGeneration(request) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
+      comboStickyWindowMinutes,
     });
   }
 

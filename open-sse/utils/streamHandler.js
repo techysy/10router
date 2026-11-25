@@ -19,7 +19,6 @@ export function createStreamController({ onDisconnect, onError, log, provider, m
   const abortController = new AbortController();
   const startTime = Date.now();
   let disconnected = false;
-  let abortTimeout = null;
 
   // Only abnormal terminations are logged; normal completion is covered by "📊 done".
   // isError uses errorLine (always shown, ignores LOG_LEVEL) so failures survive quiet levels.
@@ -44,10 +43,8 @@ export function createStreamController({ onDisconnect, onError, log, provider, m
       logStream("⚡", `DISCONNECT: ${reason}`);
       dbg("CTRL", `${provider}/${model} | disconnect=${reason} | dur=${Date.now() - startTime}ms`);
 
-      // Delay abort to allow cleanup
-      abortTimeout = setTimeout(() => {
-        abortController.abort();
-      }, 500);
+      // Immediately abort upstream request upon disconnect to save tokens and avoid hanging resources (#4914)
+      abortController.abort();
 
       onDisconnect?.({ reason, duration: Date.now() - startTime });
     },
@@ -56,22 +53,12 @@ export function createStreamController({ onDisconnect, onError, log, provider, m
     handleComplete: () => {
       if (disconnected) return;
       disconnected = true;
-
-      if (abortTimeout) {
-        clearTimeout(abortTimeout);
-        abortTimeout = null;
-      }
     },
 
     // Call on error
     handleError: (error) => {
       if (disconnected) return;
       disconnected = true;
-
-      if (abortTimeout) {
-        clearTimeout(abortTimeout);
-        abortTimeout = null;
-      }
 
       if (error.name === "AbortError") {
         logStream("⚡", "ABORTED");

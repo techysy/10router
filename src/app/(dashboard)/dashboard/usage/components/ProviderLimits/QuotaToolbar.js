@@ -21,6 +21,18 @@ const CONTROL =
   "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-surface px-2.5 text-xs text-text transition-colors hover:bg-black/[0.04] disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/[0.06]";
 const ACTIVE = "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15";
 const ICON = "material-symbols-outlined text-[16px] leading-none";
+// Icon-only square buttons (sort / refresh / preferences): same shell WITHOUT
+// CONTROL's px-2.5 (w-8 + px-2.5 squeezed the 16px glyph into a 12px box) and
+// with the colours swapped whole — `cn` is a plain join with no tailwind-merge,
+// so ACTIVE's bg/border/text classes fighting CONTROL's same-property classes
+// resolved by stylesheet order, which is what painted the "Resets first"
+// button as a squashed pink chip. Same rule as the segmented controls above:
+// the shell carries no colour, the state class carries all of it.
+const ICON_BTN =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs transition-colors disabled:opacity-50";
+const ICON_BTN_OFF =
+  "border-black/10 bg-surface text-text hover:bg-black/[0.04] dark:border-white/10 dark:hover:bg-white/[0.06]";
+const ICON_BTN_ON = ACTIVE;
 // Icon stand-ins for the account filter's labels at phone widths — same
 // glyph language as the bulk menu (block / check_circle).
 const ACCOUNT_FILTER_ICONS = { all: "apps", active: "check_circle", inactive: "block" };
@@ -201,7 +213,7 @@ export default function QuotaToolbar({
         type="button"
         onClick={onToggleExpiringFirst}
         aria-pressed={expiringFirst}
-        className={cn(CONTROL, "w-8 justify-center px-0", expiringFirst && ACTIVE)}
+        className={cn(ICON_BTN, expiringFirst ? ICON_BTN_ON : ICON_BTN_OFF)}
         title={translate("Sort accounts by earliest reset or expiry time")}
         aria-label={translate("Resets first")}
       >
@@ -346,7 +358,7 @@ export default function QuotaToolbar({
           type="button"
           onClick={onRefreshAll}
           disabled={refreshingAll}
-          className={cn(CONTROL, "w-8 justify-center px-0")}
+          className={cn(ICON_BTN, ICON_BTN_OFF)}
           title={translate("Refresh all")}
           aria-label={translate("Refresh all")}
         >
@@ -357,7 +369,7 @@ export default function QuotaToolbar({
           <button
             type="button"
             onClick={onOpenPreferences}
-            className={cn(CONTROL, "w-8 justify-center px-0")}
+            className={cn(ICON_BTN, ICON_BTN_OFF)}
             title={translate("Card display preferences")}
             aria-label={translate("Card display preferences")}
           >

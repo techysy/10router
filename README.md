@@ -13,7 +13,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Ftechysy%2F10router-blue?logo=docker)](https://github.com/techysy/10router/pkgs/container/10router)
 [![Platform](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20fnOS%20%7C%20Docker-6b7280)](#下载)
 [![Node](https://img.shields.io/badge/Node.js-%E2%89%A5%2018-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License](https://img.shields.io/github/license/techysy/10router?label=%E8%AE%B8%E5%8F%AF&color=f59e0b)](LICENSE)
+[![License](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-AGPL--3.0%20(v1.8.1%E8%B5%B7)-a3552d)](LICENSE)
 [![Star](https://img.shields.io/github/stars/techysy/10router?style=flat&logo=github&label=Star&color=%23000)](https://github.com/techysy/10router)
 [![爱发电](https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-AiFaDian-7c3aed)](https://ifdian.net/a/10router)
 
@@ -280,44 +280,54 @@ npx vitest run --dir tests
 
 ## 👥 交流群与致谢
 
-欢迎加入 **9+1 Router 交流群** 交流使用体验与反馈 issue：
+欢迎加入 **9+1 Router 交流群** 交流使用体验与反馈 issue（一群已满，请优先加二群）：
 
 <img src="assets/feishu-qr.png" width="224" alt="交流群二维码">
+
+[![加入飞书群²](https://img.shields.io/badge/飞书群%C2%B2-加入链接-00D3A7?logo=feishu&logoColor=white)](https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=ff4l612f-ab64-40dd-81f1-c0665fdcdbd5)
 
 ### 贡献者致谢
 
 <p>
-  <a href="https://github.com/techysy" title="techysy — 主要维护者"><img src="https://github.com/techysy.png?size=80" width="48" height="48" alt="techysy" /></a>
-  <a href="https://github.com/shiyangyuda" title="shiyangyuda — 代码优化"><img src="https://github.com/shiyangyuda.png?size=80" width="48" height="48" alt="shiyangyuda" /></a>
-  <a href="https://github.com/monkey2jack" title="monkey2jack — arm64 Docker 支持"><img src="https://github.com/monkey2jack.png?size=80" width="48" height="48" alt="monkey2jack" /></a>
-  <a href="https://github.com/lan5635" title="lan5635 — issue 反馈"><img src="https://github.com/lan5635.png?size=80" width="48" height="48" alt="lan5635" /></a>
-  <a href="https://github.com/iMissNan" title="iMissNan — issue 反馈"><img src="https://github.com/iMissNan.png?size=80" width="48" height="48" alt="iMissNan" /></a>
-  <a href="https://github.com/JasonXX89" title="JasonXX89 — issue 反馈"><img src="https://github.com/JasonXX89.png?size=80" width="48" height="48" alt="JasonXX89" /></a>
-  <a href="https://github.com/TIANXT97" title="TIANXT97 — issue 反馈"><img src="https://github.com/TIANXT97.png?size=80" width="48" height="48" alt="TIANXT97" /></a>
-  <a href="https://github.com/anupamme" title="anupamme — PR 贡献"><img src="https://github.com/anupamme.png?size=80" width="48" height="48" alt="anupamme" /></a>
-  <a href="https://github.com/Osinglehh" title="Osinglehh — issue 反馈"><img src="https://github.com/Osinglehh.png?size=80" width="48" height="48" alt="Osinglehh" /></a>
-  <a href="https://github.com/ThedoRap" title="ThedoRap — issue 反馈"><img src="https://github.com/ThedoRap.png?size=80" width="48" height="48" alt="ThedoRap" /></a>
-  <a href="https://github.com/rua-aaa" title="rua-aaa — issue 反馈"><img src="https://github.com/rua-aaa.png?size=80" width="48" height="48" alt="rua-aaa" /></a>
+  <a href="https://github.com/techysy" title="techysy — 主要维护者"><img src="https://github.com/techysy.png?size=160" width="80" height="80" alt="techysy" /></a>
+  <a href="https://github.com/shiyangyuda" title="shiyangyuda — 代码优化"><img src="https://github.com/shiyangyuda.png?size=160" width="80" height="80" alt="shiyangyuda" /></a>
+  <a href="https://github.com/fenixggg" title="fenixggg — 累计 8 个 issue 反馈（豆包搜索提案 / token 轮换 / provider 校验等）"><img src="https://github.com/fenixggg.png?size=160" width="80" height="80" alt="fenixggg" /></a>
+  <a href="https://github.com/monkey2jack" title="monkey2jack — 4 个 PR 合入（安全加固 / Antigravity / cline / combo 规格字段）+ issue 反馈"><img src="https://github.com/monkey2jack.png?size=160" width="80" height="80" alt="monkey2jack" /></a>
+  <a href="https://github.com/gmplout" title="gmplout — 累计 6 个 issue（组合压缩 / 超大载荷降级 / tool_result 图片 / 隐私脱敏与组合开关 RFC）"><img src="https://github.com/gmplout.png?size=160" width="80" height="80" alt="gmplout" /></a>
+  <a href="https://github.com/TIANXT97" title="TIANXT97 — 累计 5 个 issue（GLM 通道 content 空 / 代理死锁 / River AI 校验等）"><img src="https://github.com/TIANXT97.png?size=160" width="80" height="80" alt="TIANXT97" /></a>
+  <a href="https://github.com/lan5635" title="lan5635 — 累计 4 个 issue 反馈"><img src="https://github.com/lan5635.png?size=160" width="80" height="80" alt="lan5635" /></a>
+  <a href="https://github.com/gmshokz" title="gmshokz — 累计 3 个 issue（用量计量三缺陷 / Antigravity 验证盲区 / 卡片拖拽排序）"><img src="https://github.com/gmshokz.png?size=160" width="80" height="80" alt="gmshokz" /></a>
+  <a href="https://github.com/IOPQWE51" title="IOPQWE51 — 2 个 PR + issue 反馈（CodeBuddy CN 相关）"><img src="https://github.com/IOPQWE51.png?size=160" width="80" height="80" alt="IOPQWE51" /></a>
+  <a href="https://github.com/paynetsang" title="paynetsang — 累计 2 个 issue 反馈"><img src="https://github.com/paynetsang.png?size=160" width="80" height="80" alt="paynetsang" /></a>
+  <a href="https://github.com/Osinglehh" title="Osinglehh — 累计 2 个 issue 反馈"><img src="https://github.com/Osinglehh.png?size=160" width="80" height="80" alt="Osinglehh" /></a>
+  <a href="https://github.com/805889095-eng" title="805889095-eng — PR #95 brutal 粗野派主题（已合入）"><img src="https://github.com/805889095-eng.png?size=160" width="80" height="80" alt="805889095-eng" /></a>
+  <a href="https://github.com/shadyrispy" title="shadyrispy — PR #79 九家订阅渠道接入（进行中）"><img src="https://github.com/shadyrispy.png?size=160" width="80" height="80" alt="shadyrispy" /></a>
+  <a href="https://github.com/sabercomo" title="sabercomo — #88 Qoder provider_error 误判成功定位"><img src="https://github.com/sabercomo.png?size=160" width="80" height="80" alt="sabercomo" /></a>
+  <a href="https://github.com/itispip" title="itispip — #85 Docker 开机启动失败反馈"><img src="https://github.com/itispip.png?size=160" width="80" height="80" alt="itispip" /></a>
+  <a href="https://github.com/ZIRAN456" title="ZIRAN456 — PR #66 translator 保留 tool name"><img src="https://github.com/ZIRAN456.png?size=160" width="80" height="80" alt="ZIRAN456" /></a>
+  <a href="https://github.com/FavoriteYet" title="FavoriteYet — PR #11 codebuddy-cn 模型与视觉适配"><img src="https://github.com/FavoriteYet.png?size=160" width="80" height="80" alt="FavoriteYet" /></a>
+  <a href="https://github.com/rua-aaa" title="rua-aaa — issue 反馈"><img src="https://github.com/rua-aaa.png?size=160" width="80" height="80" alt="rua-aaa" /></a>
+  <a href="https://github.com/ThedoRap" title="ThedoRap — issue 反馈"><img src="https://github.com/ThedoRap.png?size=160" width="80" height="80" alt="ThedoRap" /></a>
+  <a href="https://github.com/nansheng365" title="nansheng365 — issue 反馈"><img src="https://github.com/nansheng365.png?size=160" width="80" height="80" alt="nansheng365" /></a>
+  <a href="https://github.com/windcloud01" title="windcloud01 — issue 反馈"><img src="https://github.com/windcloud01.png?size=160" width="80" height="80" alt="windcloud01" /></a>
+  <a href="https://github.com/JasonXX89" title="JasonXX89 — issue 反馈"><img src="https://github.com/JasonXX89.png?size=160" width="80" height="80" alt="JasonXX89" /></a>
+  <a href="https://github.com/weltyang1216" title="weltyang1216 — issue 反馈"><img src="https://github.com/weltyang1216.png?size=160" width="80" height="80" alt="weltyang1216" /></a>
+  <a href="https://github.com/RyuuzakiLu2023" title="RyuuzakiLu2023 — 安全审计反馈"><img src="https://github.com/RyuuzakiLu2023.png?size=160" width="80" height="80" alt="RyuuzakiLu2023" /></a>
+  <a href="https://github.com/alchohol" title="alchohol — issue 反馈"><img src="https://github.com/alchohol.png?size=160" width="80" height="80" alt="alchohol" /></a>
+  <a href="https://github.com/iMissNan" title="iMissNan — issue 反馈"><img src="https://github.com/iMissNan.png?size=160" width="80" height="80" alt="iMissNan" /></a>
   <a href="https://github.com/techysy/CreditDaddy" title="CreditDaddy — 积分领取与额度/用量协同"><img src="https://raw.githubusercontent.com/techysy/CreditDaddy/main/desktop/icon.png" width="48" height="48" alt="CreditDaddy" /></a>
 </p>
-<p>
-  <a href="https://github.com/IOPQWE51" title="IOPQWE51 — PR 贡献"><img src="https://github.com/IOPQWE51.png?size=80" width="48" height="48" alt="IOPQWE51" /></a>
-  <a href="https://github.com/RyuuzakiLu2023" title="RyuuzakiLu2023 — 安全审计反馈"><img src="https://github.com/RyuuzakiLu2023.png?size=80" width="48" height="48" alt="RyuuzakiLu2023" /></a>
-  <a href="https://github.com/alchohol" title="alchohol — issue 反馈"><img src="https://github.com/alchohol.png?size=80" width="48" height="48" alt="alchohol" /></a>
-  <a href="https://github.com/nansheng365" title="nansheng365 — issue 反馈"><img src="https://github.com/nansheng365.png?size=80" width="48" height="48" alt="nansheng365" /></a>
-  <a href="https://github.com/weltyang1216" title="weltyang1216 — issue 反馈"><img src="https://github.com/weltyang1216.png?size=80" width="48" height="48" alt="weltyang1216" /></a>
-  <a href="https://github.com/FavoriteYet" title="FavoriteYet — PR 贡献"><img src="https://github.com/FavoriteYet.png?size=80" width="48" height="48" alt="FavoriteYet" /></a>
-  <a href="https://github.com/ZIRAN456" title="ZIRAN456 — PR 贡献"><img src="https://github.com/ZIRAN456.png?size=80" width="48" height="48" alt="ZIRAN456" /></a>
-  <a href="https://github.com/xinminzi" title="xinminzi — issue 反馈"><img src="https://github.com/xinminzi.png?size=80" width="48" height="48" alt="xinminzi" /></a>
-  <a href="https://github.com/paynetsang" title="paynetsang — issue 反馈"><img src="https://github.com/paynetsang.png?size=80" width="48" height="48" alt="paynetsang" /></a>
-  <a href="https://github.com/fenixggg" title="fenixggg — issue 反馈"><img src="https://github.com/fenixggg.png?size=80" width="48" height="48" alt="fenixggg" /></a>
-  <a href="https://github.com/windcloud01" title="windcloud01 — issue 反馈"><img src="https://github.com/windcloud01.png?size=80" width="48" height="48" alt="windcloud01" /></a>
-</p>
 
-<sub>名单由 issue 与 PR 的反馈者及协同项目汇总，头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；若有遗漏请随时提 issue 补充。</sub>
+<sub>名单由 issue 与 PR 的反馈者及协同项目汇总，头像取自 GitHub 公开个人信息（CreditDaddy 用其应用图标）；PR 合入者另见 GitHub Contributors 统计；若有遗漏请随时提 issue 补充。</sub>
+
+
 
 ---
 
 ## 📄 许可证
 
-[MIT](LICENSE) — 与 [decolua/9router](https://github.com/decolua/9router) 保持一致
+**AGPL-3.0**（自 v1.8.1 起）— 本项目在 v1.8.0 及更早版本使用 [MIT](https://github.com/techysy/10router/blob/v1.8.0/LICENSE)；自 v1.8.1 起改用 **GNU Affero General Public License v3.0**。
+
+- **为什么**：本仓库的大量实现（协议逆向、指纹对齐、签到链路、executor 接入等）是真机调试的成果。AGPL 要求任何二次利用——包括网络服务形态——必须同样开源，防止这些成果被闭源拿走；而已发布的 MIT 版本不受影响。
+- **方向不变**：[decolua/9router](https://github.com/decolua/9router) 为 MIT，吸收上游实现始终合法；反向（我们的实现被吸收回 MIT 主线）自 v1.8.1 起不再可行。上游派生部分的 MIT 声明按其条款保留在 [LICENSE](LICENSE) 中。
+- 对完整 LICENSE 的任何疑问或商业授权需求，请提 issue。

@@ -73,4 +73,18 @@ describe("gateway-probe route", () => {
     const res = await get("", port);
     expect((await res.json()).reachable).toBe(true);
   });
+
+  it("permits 100.64.0.0/10 CGNAT / Tailscale IPs and rejects outside boundaries", async () => {
+    // 100.64.0.1 is in 100.64.0.0/10 -> permitted by the SSRF guard (200 JSON).
+    // Only the GUARD decision is pinned here: `reachable` itself depends on the
+    // machine's routing — a Tailscale/VPN TUN accepts TCP to the whole CGNAT
+    // range (2026-11-18: TUN box answered 100.64.0.1:9, the old
+    // `reachable=false` expectation broke on exactly that), a bare box refuses.
+    const validCgnat = await get("100.64.0.1", 9);
+    expect(validCgnat.status).toBe(200);
+
+    // 100.63.255.255 and 100.128.0.1 are outside -> rejected with 400
+    expect((await get("100.63.255.255", 9)).status).toBe(400);
+    expect((await get("100.128.0.1", 9)).status).toBe(400);
+  }, 10000);
 });

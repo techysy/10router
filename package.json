@@ -1,8 +1,11 @@
 {
   "name": "10router-app",
-  "version": "1.6.1",
+  "version": "1.8.3",
   "description": "10Router web dashboard",
   "private": true,
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "scripts": {
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
@@ -17,7 +20,8 @@
     "test": "npm --prefix tests test",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
-    "test-version": "node scripts/test-build-version.mjs"
+    "test-version": "node scripts/test-build-version.mjs",
+    "audit:release-notes": "node scripts/audit-release-notes.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -67,5 +71,6 @@
     "jsdom": "^30.1.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4"
-  }
+  },
+  "license": "AGPL-3.0-only"
 }

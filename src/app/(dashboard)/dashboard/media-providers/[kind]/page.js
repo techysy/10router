@@ -7,6 +7,7 @@ import { Card, Badge, Button, Toggle, AddCustomEmbeddingModal } from "@/shared/c
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import DraggableCard from "@/shared/components/DraggableCard";
 import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, getProvidersByKind } from "@/shared/constants/providers";
+import { translate } from "@/i18n/runtime";
 import {
   computeConnectionStats,
   buildProviderCardComparator,
@@ -18,6 +19,30 @@ import {
 // webSearch/webFetch handled by /web page.
 const COMBO_KINDS = new Set([]);
 const COMBO_BASE_NAMES = { image: "image-combo", tts: "tts-combo" };
+
+// Web studios with no API yet — surfaced on their kind page as open-in-new-tab
+// shortcuts. miya.fm sends X-Frame-Options: DENY, so iframe embedding is off the
+// table (and its Google-OAuth session would break under a proxying origin anyway).
+const EXTERNAL_WEB_TOOLS = {
+  music: [
+    {
+      id: "miya",
+      name: "Miya",
+      url: "https://miya.fm",
+      desc: "Web studio · song + MV · free beta (Gmail login, Discord invite)",
+      color: "#0407F4",
+      textIcon: "MI",
+    },
+    {
+      id: "flowmusic",
+      name: "Flow Music",
+      url: "https://www.flowmusic.app",
+      desc: "AI music platform for creating, remixing, and sharing songs",
+      color: "#000000",
+      textIcon: "FM",
+    },
+  ],
+};
 
 function MediaProviderCard({ provider, kind, connections, isCustom, onToggle }) {
   const providerInfo = AI_PROVIDERS[provider.id];
@@ -32,14 +57,14 @@ function MediaProviderCard({ provider, kind, connections, isCustom, onToggle }) 
   };
 
   const renderStatus = () => {
-    if (isNoAuth) return <Badge variant="success" size="sm">Ready</Badge>;
-    if (allDisabled) return <Badge variant="default" size="sm">Disabled</Badge>;
-    if (total === 0) return <span className="text-xs text-text-muted">No connections</span>;
+    if (isNoAuth) return <Badge variant="success" size="sm">{translate("Ready")}</Badge>;
+    if (allDisabled) return <Badge variant="default" size="sm">{translate("Disabled")}</Badge>;
+    if (total === 0) return <span className="text-xs text-text-muted">{translate("No connections")}</span>;
     return (
       <>
-        {connected > 0 && <Badge variant="success" size="sm" dot>{connected} Connected</Badge>}
-        {error > 0 && <Badge variant="error" size="sm" dot>{error} Error</Badge>}
-        {connected === 0 && error === 0 && <Badge variant="default" size="sm">{total} Added</Badge>}
+        {connected > 0 && <Badge variant="success" size="sm" dot>{connected} {translate("Connected")}</Badge>}
+        {error > 0 && <Badge variant="error" size="sm" dot>{error} {translate("Error")}</Badge>}
+        {connected === 0 && error === 0 && <Badge variant="default" size="sm">{total} {translate("Added")}</Badge>}
       </>
     );
   };
@@ -274,10 +299,20 @@ export default function MediaProviderKindPage() {
 
       {allProviders.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-border rounded-xl text-text-muted text-sm">
-          No providers support <strong>{kindConfig.label}</strong> yet.
+          {translate("No providers.")}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div>
+          {/* Section header — same pattern as the /web page: every grouped grid
+              gets a titled header (user report: 音乐页第一个分组没有标题）. */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-primary">{kindConfig.icon}</span>
+            <h2 className="text-base font-semibold">{translate(kindConfig.label)}</h2>
+            <span className="text-xs text-text-muted">
+              ({sortedProviders.length} {translate("providers")}{supportsCombo ? ` · ${kindCombos.length} ${translate("combos")}` : ""})
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {sortedProviders.map((provider) => (
             <DraggableCard
               key={provider.id}
@@ -310,6 +345,53 @@ export default function MediaProviderKindPage() {
               onToggle={handleToggleProvider}
             />
           ))}
+          </div>
+        </div>
+      )}
+
+      {(EXTERNAL_WEB_TOOLS[kind] || []).length > 0 && (
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-primary">open_in_new</span>
+            <h2 className="text-base font-semibold">{translate("Web Tools")}</h2>
+            <span className="text-xs text-text-muted">({EXTERNAL_WEB_TOOLS[kind].length} · {translate("opens in a new tab")})</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {EXTERNAL_WEB_TOOLS[kind].map((tool) => (
+              <Card key={tool.id} padding="xs" className="h-full">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className="size-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${tool.color}15` }}
+                    >
+                      <ProviderIcon
+                        src={`/providers/${tool.id}.png`}
+                        alt={tool.name}
+                        size={30}
+                        className="object-contain rounded-lg max-w-[30px] max-h-[30px]"
+                        fallbackText={tool.textIcon}
+                        fallbackColor={tool.color}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-text-main truncate">{tool.name}</div>
+                      <div className="text-[11px] text-text-muted truncate">{translate(tool.desc)}</div>
+                    </div>
+                  </div>
+                  <a
+                    href={tool.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-2 hover:bg-primary hover:text-white text-text-main border border-border transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                    {translate("Open")}
+                  </a>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 

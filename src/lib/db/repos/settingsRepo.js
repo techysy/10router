@@ -15,8 +15,16 @@ const DEFAULT_SETTINGS = {
   providerStrategies: {},
   quotaVisibility: {},
   topologyVisibility: {},
+  comboCardOrder: [],
   comboStrategy: "fallback",
-  comboStickyRoundRobinLimit: 1,
+  // Max consecutive requests per combo member in round-robin. 0 = no cap —
+  // switching is governed by comboStickyWindowMinutes alone (time-window
+  // sticky, 2026-11-24: group assistants interleave requests, so a per-request
+  // count switched members mid-conversation).
+  comboStickyRoundRobinLimit: 0,
+  // Idle window (minutes) for combo round-robin sticky: within it the same
+  // member keeps answering; idle time beyond it steps the ring one member.
+  comboStickyWindowMinutes: 5,
   comboStrategies: {},
   // Issue #10: global default for the per-combo "retry on empty" gate — when a
   // model answers 2xx with an empty content-filtered stream, fall through to the
@@ -182,6 +190,29 @@ async function mutateSettings(mutator) {
     );
   });
   return mergeWithDefaults(next || current || {});
+}
+
+/**
+ * Atomically read-modify-write one top-level settings map key inside the
+ * settings transaction — for keys shaped like { [subKey]: {...} } where
+ * two callers may update different subKeys concurrently (e.g. per-connection
+ * check-in state). The mutator receives a shallow copy of the current map
+ * and must return the next map.
+ */
+export async function mutateSettingsMap(key, mutator) {
+  if (typeof key !== "string" || !key || typeof mutator !== "function") {
+    throw new TypeError("mutateSettingsMap requires a key and mutator");
+  }
+  let nextValue;
+  await mutateSettings((current) => {
+    const map = current[key] && typeof current[key] === "object" && !Array.isArray(current[key]) ? current[key] : {};
+    nextValue = mutator({ ...map });
+    if (!nextValue || typeof nextValue !== "object" || Array.isArray(nextValue)) {
+      throw new TypeError(`mutator for ${key} must return an object`);
+    }
+    return { [key]: nextValue };
+  });
+  return nextValue;
 }
 
 export async function isCloudEnabled() {

@@ -8,6 +8,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { toGeminiParameters, normalizeGeminiContents } from "../translator/formats/gemini.js";
 import { sanitizeGeminiToolName } from "../translator/concerns/geminiTools.js";
 import { DEFAULT_THINKING_AG_SIGNATURE } from "../config/defaultThinkingSignature.js";
+import { isUnattributedGoogle429 } from "../services/googleQuotaSignal.js";
 
 const MAX_RETRY_AFTER_MS = 10000;
 const ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS = 15000;
@@ -110,6 +111,11 @@ export class AntigravityExecutor extends BaseExecutor {
   // Parse Antigravity quota error to extract precise resetsAtMs from ErrorInfo/RetryInfo
   parseError(response, bodyText) {
     if ((response.status === 429 || response.status === 409) && bodyText) {
+      // #147 伪 429（WAF 身份识别类）：不带任何配额归因信号。打标穿透给
+      // chat 层 → 渠道级暂停，绝不轮换（一次请求打穿全池 = TOS 连封）。
+      const unattributed429 =
+        response.status === 429 &&
+        isUnattributedGoogle429(429, response.headers?.get?.("retry-after"), bodyText);
       try {
         const json = JSON.parse(bodyText);
         const err = json?.error;
@@ -138,6 +144,9 @@ export class AntigravityExecutor extends BaseExecutor {
           return { status: response.status, message: err?.message || bodyText, resetsAtMs };
         }
       } catch { /* fall through to default */ }
+      if (unattributed429) {
+        return { status: response.status, message: bodyText, unattributed429: true };
+      }
     }
     return super.parseError(response, bodyText);
   }
@@ -275,12 +284,46 @@ export class AntigravityExecutor extends BaseExecutor {
     
     // Rewrite competing-client branding in system prompts (e.g. Zed's Claude prompt,
     // OpenCode naming) so Antigravity doesn't flag the request with a 429 Quota Exhausted.
+    // 2026-11-17 升级(社区情报「北哥」+ CPA 反代社区同款方案):上游关键词过滤升级为
+    // **只卡 systemInstruction 字段**(对 user 消息完全放行)——逐条身份句替换不再够用,
+    // 未知触发词(如 MUST/REQUIRED 规则行)仍会命中。对策:整段 sysprompt 搬出被卡字段
+    // ——systemInstruction 清成一句中性助手设定,原文用 <system-instructions> 包住
+    // 拼进第一条 user 消息最前面。原身份句替换保留在搬家后的文本上继续跑(双保险)。
     if (requestWithoutTools.systemInstruction?.parts) {
-      for (const part of requestWithoutTools.systemInstruction.parts) {
-        if (typeof part.text !== "string") continue;
+      const sysParts = requestWithoutTools.systemInstruction.parts;
+      const originalSysText = sysParts
+        .map((p) => (typeof p.text === "string" ? p.text : ""))
+        .join("\n")
+        .trim();
+      if (originalSysText) {
+        // 搬家后的文本仍过一遍身份句替换(双保险——user 消息虽然放行,身份句改写
+        // 零成本且消除模型侧竞品自我认知)。
+        let relocated = originalSysText;
         for (const { from, to } of ANTIGRAVITY_PROMPT_REWRITES) {
-          part.text = part.text.replaceAll(from, to);
+          relocated = relocated.replaceAll(from, to);
         }
+        relocated = relocated.trim();
+        // 拼进第一条 user 消息最前(guardTurns 归一后第一条必是 user;找不到就
+        // 造一条纯文本 user——内容与角色同源,语义不丢)。
+        const firstUser = contents?.find((c) => c.role === "user");
+        const wrapped = `<system-instructions>\n${relocated}\n</system-instructions>\n\n`;
+        if (firstUser && Array.isArray(firstUser.parts) && typeof firstUser.parts[0]?.text === "string") {
+          firstUser.parts[0] = { ...firstUser.parts[0], text: wrapped + firstUser.parts[0].text };
+        } else if (firstUser) {
+          firstUser.parts = [{ text: wrapped.trim() }, ...(firstUser.parts || [])];
+        } else if (contents) {
+          contents.unshift({ role: "user", parts: [{ text: wrapped.trim() }] });
+        }
+        // systemInstruction 清成一句中性助手设定(不再是空串——完全空字段也可能触发
+        // 未知校验;一句话与官方客户端默认形态一致)。
+        requestWithoutTools.systemInstruction = {
+          parts: [{ text: "You are an AI assistant integrated into the Antigravity IDE." }],
+        };
+      } else {
+        // 原 sysprompt 为空:维持一句中性设定即可,无需搬家。
+        requestWithoutTools.systemInstruction = {
+          parts: [{ text: "You are an AI assistant integrated into the Antigravity IDE." }],
+        };
       }
     }
 
@@ -445,6 +488,15 @@ export class AntigravityExecutor extends BaseExecutor {
       retryMs = this.parseRetryFromErrorMessage(errorMessage);
     }
     if (retryMs) return retryMs <= MAX_RETRY_AFTER_MS ? retryMs : false;
+
+    // #147：裸 429（无 Retry-After、无配额载荷）= WAF 身份识别类。同账号
+    // 指数退避重试 3 次同样是 burst 信号——直接否决，交给 chat 层渠道暂停。
+    if (
+      response.status === HTTP_STATUS.RATE_LIMITED &&
+      isUnattributedGoogle429(response.status, response.headers?.get?.("retry-after"), bodyText)
+    ) {
+      return false;
+    }
 
     if (!this.isTransientAntigravityError(response.status, errorMessage)) return false;
 

@@ -14,6 +14,12 @@ import { getCodeBuddyCnUsage, getCodeBuddyIntlUsage } from "./usage/codebuddy-cn
 import { getGrokCliUsage } from "./usage/grok-cli.js";
 import { getKimiUsage } from "./usage/kimi.js";
 import { getDeepseekUsage } from "./usage/deepseek.js";
+import { getMeooUsage } from "./usage/meoo.js";
+import { getQwenWorkUsage } from "./usage/qwenwork.js";
+import { getDeepaiUsage } from "./usage/deepai.js";
+import { getLoomyUsage } from "./usage/loomy.js";
+import { getDumateUsage } from "./usage/dumate.js";
+import { getLingxiUsage } from "./usage/lingxi.js";
 import { getOpencodeGoUsage } from "./usage/opencode-go.js";
 import { getOpenCodeZenUsage } from "./usage/opencode-zen.js";
 import { getXiaomiMimoUsage, getXiaomiTokenPlanUsage } from "./usage/xiaomi-mimo.js";
@@ -30,6 +36,9 @@ import { getGlmUsage } from "./usage/glm.js";
 import { getCommandCodeUsage } from "./usage/commandcode.js";
 import { getMiniMaxCodeUsage } from "./usage/minimax-code.js";
 import { getCursorUsage } from "./usage/cursor.js";
+import { getTraeUsage } from "./usage/trae.js";
+import { getCroliUsage } from "./usage/croli.js";
+import { getAutoclawUsage } from "./usage/autoclaw.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -55,6 +64,10 @@ const USAGE_HANDLERS = {
     const resolved = await resolveQoderCredentials(c, c.proxyOptions).catch(() => null);
     return getQoderUsage(resolved?.accessToken || c.accessToken, c.proxyOptions, "qoder-cn", c.providerSpecificData);
   },
+  // QwenWork: plan + credit quota from the account-context endpoint,
+  // read with the device token directly (no exchange layer).
+  qwenwork: (c) => getQwenWorkUsage(c.accessToken, "qwenwork", c.proxyOptions),
+  "qwenwork-cn": (c) => getQwenWorkUsage(c.accessToken, "qwenwork-cn", c.proxyOptions),
   iflow: (c) => getIflowUsage(c.accessToken),
   ollama: (c) => getOllamaUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
   // GLM 双认证：粘贴 apikey 或 OAuth 登录（coding-plan key 存在 accessToken 上）
@@ -68,6 +81,28 @@ const USAGE_HANDLERS = {
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   kimi: (c) => getKimiUsage(c.accessToken, c.apiKey, c.proxyOptions, c.providerSpecificData),
   deepseek: (c) => getDeepseekUsage(c.apiKey, c.proxyOptions),
+  // DeepAI Code's Theos ledger sits on the same API host as inference and
+  // reads with the connection's desktop account API key (Api-Key header).
+  deepai: (c) => getDeepaiUsage(c.apiKey, c.proxyOptions),
+  // Meoo's points ledger sits on the control plane: OAuth access token
+  // first, stored control key (psd.meooControlKey) as the fallback inside
+  // the handler — the project AK in c.apiKey cannot read it.
+  meoo: (c) => getMeooUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  loomy: (c) => getLoomyUsage(c.apiKey, c.proxyOptions),
+  // DuMate 的配额在百度控制台（console.bce.baidu.com），凭据是连接上的 Cookie。
+  // 会话失效时 handler 内部复用 tokenFor() 做纯 HTTP 静默续期，续期后的 Cookie
+  // 经 onRenewed 回到调用方持久化（与聊天链路同一套通行证保活）。
+  dumate: (c) =>
+    getDumateUsage({
+      apiKey: c.apiKey,
+      proxyOptions: c.proxyOptions,
+      onRenewed: c.onRenewed,
+    }),
+  // 灵犀的智点账本在 lingxi.kdocs.cn（公开 API，无签名），凭据是连接上的 WPS
+  // Cookie 罐（自捕获/CD 同步同一形状）。到期桶见 usage/lingxi.js。
+  // apiKey || accessToken：#129 之前 CD transfer 同步的存量行把 Cookie 罐落在
+  // accessToken（oauth 形态），与 executor 的读取口径保持一致。
+  lingxi: (c) => getLingxiUsage({ apiKey: c.apiKey || c.accessToken, proxyOptions: c.proxyOptions }),
   "opencode-go": (c) => getOpencodeGoUsage(c.apiKey, c.proxyOptions),
   "opencode-zen": (c) => getOpenCodeZenUsage(c.apiKey, c.proxyOptions),
   // The cloud card bills through the plan / API at formal rates and owns NO
@@ -99,6 +134,23 @@ const USAGE_HANDLERS = {
   "alitp-intl": (c) => getAlibabaTokenPlanUsage("alitp-intl"),
   "alitp-cn": (c) => getAlibabaTokenPlanUsage("alitp-cn"),
   cursor: (c) => getCursorUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  // Trae 国内站：权益包（ug 签到发的 150 分/7 天包逐包归并）+ 套餐名。
+  // trae-cn 条目直接命中；trae 条目（国际站为主）只有 psd.site=cn 的存量连接
+  // 才有国内产品面。intl 线的 Dollar Usage（$1/月 Free 额度）实测不在 agent 线
+  // ——api.trae.ai 的 pay 端点 404（TLB 网关层不存在），数据只在官网 dashboard
+  // 前端（网页会话线，未考古）。intl 连接给指路文案而不是空 "not implemented"。
+  "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
+  croli: (c) => getCroliUsage(c.accessToken, c.proxyOptions),
+  // AutoClaw（智谱澳龙）积分钱包 + 每日签到状态；域按 token 的 JWT source_id 走。
+  autoclaw: (c) => getAutoclawUsage("autoclaw", c, c.proxyOptions),
+  "autoclaw-cn": (c) => getAutoclawUsage("autoclaw-cn", c, c.proxyOptions),
+  trae: (c) =>
+    String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
+      ? getTraeUsage(c.accessToken, c.proxyOptions)
+      : {
+          message:
+            "Trae 国际线的 Dollar Usage（$1/月 Free 额度）暂无 API 口径：数据只在 trae.ai 官网 dashboard 的 Usage 页（pay 端点在国际网关上不存在）。额度可在官网 Usage 页查看，消耗不影响路由。",
+        },
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null, options = {}) {
@@ -118,6 +170,10 @@ export async function getUsageForProvider(connection, proxyOptions = null, optio
     providerDataWithProjectId,
     proxyOptions,
     force: options.force === true,
+    // Cookie 型 provider 的静默续期可能轮换凭据（dumate）：连接 id 与写回回调
+    // 由调用方提供，缺省时 handler 只读不写，功能不受影响。
+    connectionId: connection.id,
+    onRenewed: options.onRenewed,
   });
 }
 

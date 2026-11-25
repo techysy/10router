@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getProviderConnectionById } from "@/models";
+import { getProviderConnectionById, getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { resolveEndpointAuthHeaders } from "@/shared/utils/endpointAuthHeaders";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
@@ -8,7 +9,10 @@ import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { resolveQwenWorkModels } from "open-sse/services/qwenworkModels.js";
 import { resolveMimoModels } from "open-sse/services/mimoModels.js";
+import { resolveMeooModels } from "open-sse/services/meooModels.js";
+import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
@@ -130,8 +134,9 @@ const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => asyn
 // Qoder (intl + CN share one resolver; fetchQoderCatalogRaw branches on
 // credentials.provider for the gateway URL). Passes the provider through so
 // a qoder-cn connection no longer dials the intl host, and forwards the
-// server-published pricing (rateMultiplier / promotion) the dashboard badges
-// render. Registered under both provider keys in PROVIDER_MODELS_CONFIG.
+// server-published pricing (rateMultiplier / originalRateMultiplier /
+// promotion) the dashboard badges render. Registered under both provider
+// keys in PROVIDER_MODELS_CONFIG.
 const resolveQoderCatalog = async (connection) => {
   const credentials = {
     provider: connection.provider,
@@ -158,6 +163,7 @@ const resolveQoderCatalog = async (connection) => {
           maxOutputTokens: m.maxOutputTokens,
           description: m.description,
           rateMultiplier: m.rateMultiplier,
+          originalRateMultiplier: m.originalRateMultiplier,
           promotion: m.promotion,
         })),
       };
@@ -166,6 +172,56 @@ const resolveQoderCatalog = async (connection) => {
   } catch (error) {
     warning = `Failed to fetch Qoder models: ${error.message}`;
     console.log("Failed to fetch Qoder models dynamically, falling back to static:", error.message);
+  }
+  return { models: [], warning };
+};
+
+// QwenWork (intl + CN share one resolver; qwenworkModels branches on
+// credentials.provider for the gateway host). OAuth-only provider — the
+// device access token is the only credential the catalog fetch needs.
+//
+// ids are the BARE catalog keys (qwen4-max, flash, …), NOT
+// "<provider>/<key>": every consumer of this route composes its own prefix —
+// the provider page renders `${alias}/${id}`, the combo picker composes
+// `${alias}/${modelKey}`, and the "Fetch models" import strips provider
+// prefixes. Emitting prefixed ids here made the provider page render
+// double-prefixed rows ("qw/qwenwork/qwen4-max", 2026-11-23 user report
+// 「数据完全是乱的」) and every alias/disable/lock persisted from those rows
+// carries the malformed key. Qoder's route keeps prefixed ids because
+// mergeQoderLivePricing joins by bare key — QwenWork's page replaces the
+// list wholesale (liveCatalogOnly), so it needs the bare keys directly.
+const resolveQwenWorkCatalog = async (connection) => {
+  const credentials = {
+    provider: connection.provider,
+    accessToken: connection.accessToken,
+    refreshToken: connection.refreshToken,
+    email: connection.email,
+    displayName: connection.displayName,
+    providerSpecificData: connection.providerSpecificData || {},
+  };
+  let warning;
+  try {
+    const result = await resolveQwenWorkModels(credentials, { forceRefresh: true });
+    if (result?.models?.length) {
+      return {
+        models: result.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          contextLength: m.contextLength,
+          isVL: m.isVL,
+          isReasoning: m.isReasoning,
+          maxOutputTokens: m.maxOutputTokens,
+          description: m.description,
+          rateMultiplier: m.rateMultiplier,
+          originalRateMultiplier: m.originalRateMultiplier,
+          promotion: m.promotion,
+        })),
+      };
+    }
+    warning = "QwenWork returned no models; falling back to static catalog.";
+  } catch (error) {
+    warning = `Failed to fetch QwenWork models: ${error.message}`;
+    console.log("Failed to fetch QwenWork models dynamically, falling back to static:", error.message);
   }
   return { models: [], warning };
 };
@@ -322,12 +378,24 @@ const PROVIDER_MODELS_CONFIG = {
   nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
   siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
   "siliconflow-cn": createOpenAIModelsConfig("https://api.siliconflow.cn/v1/models"),
+  atlascloud: createOpenAIModelsConfig("https://api.atlascloud.ai/v1/models"),
   hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
   // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
   nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
   nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
+  // Loomy (讯飞, issue #92 的内置收录版)：/models 只认自定义 `token:` 头，
+  // Bearer 反而 100002「缺少 token」。authHeader 换成 token、空前缀即可，
+  // 与 chat 端点（认 Bearer）分属不同鉴权中间件。
+  loomy: {
+    url: "https://loomyad.xunfei.cn/api/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    authHeader: "token",
+    authPrefix: "",
+    parseResponse: parseOpenAIStyleModels,
+  },
   assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
   "vercel-ai-gateway": createOpenAIModelsConfig("https://ai-gateway.vercel.sh/v1/models"),
   kimchi: {
@@ -432,6 +500,116 @@ const PROVIDER_MODELS_CONFIG = {
   "qoder-cn": {
     customResolver: resolveQoderCatalog,
   },
+  // CrowLLM: the public /v1/models catalog carries 183 entries, but the gift
+  // balance only spends in the :free directory — paid models would be dead
+  // weight in the import surface (143 rows the credentials can never call).
+  // The parse filter keeps the catalog import and the stale sweep on the
+  // :free set only; ids pass through verbatim so they match the registry
+  // anchors (including internal vendor prefixes like "caw/" and "nvidia/").
+  crowllm: {
+    url: "https://crowllm.com/v1/models",
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    parseResponse: (data) => {
+      const rows = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      return rows.filter((m) => String(m?.id || "").endsWith(":free"));
+    },
+  },
+  qwenwork: {
+    customResolver: resolveQwenWorkCatalog,
+  },
+  "qwenwork-cn": {
+    customResolver: resolveQwenWorkCatalog,
+  },
+  // Meoo（秒悟）: two-stage auth — the gateway only accepts the per-project
+  // service AK, which resolveMeooModels resolves / re-resolves through the
+  // control plane (OAuth pair or pasted control key) and merges specs into
+  // the live catalog. Live ids pass through verbatim: an id missing from
+  // the static spec table rides the resolver's fallback spec, so models
+  // Meoo configures later surface here without a registry update.
+  meoo: {
+    customResolver: async (connection) => {
+      let warning;
+      try {
+        const result = await resolveMeooModels({
+          connectionId: connection.id,
+          apiKey: connection.apiKey,
+          accessToken: connection.accessToken,
+          refreshToken: connection.refreshToken,
+          expiresAt: connection.expiresAt,
+          providerSpecificData: connection.providerSpecificData || {},
+        }, {
+          forceRefresh: true,
+          log: console,
+          // A stale project AK is re-resolved inside resolveMeooModels;
+          // persist whatever came back (rotated OAuth pair and/or fresh
+          // AK) so the row does not keep serving the dead key — mirrors
+          // the /api/v1/models wiring.
+          onCredentialsRefreshed: async (refreshed) => {
+            await updateProviderCredentials(connection.id, {
+              ...refreshed,
+              existingProviderSpecificData: connection.providerSpecificData || {},
+            });
+          },
+        });
+        if (result?.models?.length) {
+          return {
+            models: result.models.map((m) => ({
+              id: m.id,
+              name: m.name,
+              contextLength: m.contextLength,
+              maxOutputTokens: m.maxOutputTokens,
+              isVL: m.isVL,
+              priceTier: m.priceTier,
+            })),
+          };
+        }
+        warning = "Meoo returned no models; falling back to static catalog.";
+      } catch (error) {
+        warning = `Failed to fetch Meoo models: ${error.message}`;
+        console.log("Failed to fetch Meoo models dynamically, falling back to static:", error.message);
+      }
+      return { models: getStaticProviderModels("meoo"), warning };
+    },
+  },
+  // DeepAI Code: the desktop account API key is long-lived (issued once
+  // at app sign-in, no refresh path); resolveDeepaiModels fetches the
+  // live catalog whose rows carry their own specs. Live ids pass through
+  // verbatim with the resolver's fallback spec, so models DeepAI adds
+  // later surface here without a registry update.
+  deepai: {
+    customResolver: async (connection) => {
+      let warning;
+      try {
+        const result = await resolveDeepaiModels({
+          connectionId: connection.id,
+          apiKey: connection.apiKey,
+        }, {
+          forceRefresh: true,
+          log: console,
+        });
+        if (result?.models?.length) {
+          return {
+            models: result.models.map((m) => ({
+              id: m.id,
+              name: m.name,
+              contextLength: m.contextLength,
+              maxOutputTokens: m.maxOutputTokens,
+              isVL: m.isVL,
+              theosPerRequest: m.theosPerRequest,
+            })),
+          };
+        }
+        warning = "DeepAI returned no models; falling back to static catalog.";
+      } catch (error) {
+        warning = `Failed to fetch DeepAI models: ${error.message}`;
+        console.log("Failed to fetch DeepAI models dynamically, falling back to static:", error.message);
+      }
+      return { models: getStaticProviderModels("deepai"), warning };
+    },
+  },
   // MiMo: official public catalog (api.xiaomimimo.com/v1/models). Powers the
   // "Fetch MiMo Models" import button. The resolver itself filters the two
   // client-internal mimo-x preview models — they exist only in the local
@@ -525,12 +703,19 @@ export async function GET(request, { params }) {
         return NextResponse.json({ error: "No base URL configured for OpenAI compatible provider" }, { status: 400 });
       }
       const url = `${baseUrl.replace(/\/$/, "")}/models`;
+
+      // Issue #92: support custom per-endpoint auth headers template (e.g. { models: { "token": "{apiKey}" } })
+      // for upstreams like iFlytek Loomy that require different headers for /models discovery vs /chat
+      const node = await getProviderNodeById(connection.provider).catch(() => null);
+      const authHeadersConfig = node?.authHeaders || connection.providerSpecificData?.authHeaders;
+      const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", connection.apiKey, {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${connection.apiKey}`,
+      });
+
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${connection.apiKey}`,
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -564,14 +749,18 @@ export async function GET(request, { params }) {
       }
 
       const url = `${baseUrl}/models`;
+      const node = await getProviderNodeById(connection.provider).catch(() => null);
+      const authHeadersConfig = node?.authHeaders || connection.providerSpecificData?.authHeaders;
+      const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", connection.apiKey, {
+        "Content-Type": "application/json",
+        "x-api-key": connection.apiKey,
+        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${connection.apiKey}`
+      });
+
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": connection.apiKey,
-          "anthropic-version": "2023-06-01",
-          "Authorization": `Bearer ${connection.apiKey}`
-        },
+        headers,
       });
 
       if (!response.ok) {

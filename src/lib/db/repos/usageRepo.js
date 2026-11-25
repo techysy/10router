@@ -2,8 +2,12 @@ import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
-import { maskApiKey, hashApiKey } from "../crypto/apiKeyIdentity.js";
+import { maskApiKey, hashApiKey, apiKeyIdentity } from "../crypto/apiKeyIdentity.js";
 import { APP_CONFIG } from "../../../shared/constants/config.js";
+// 展示层映射（kmodel_latest → Kimi-K3.1-Pro 等）：只服务 dashboard 读取路径，
+// 存储与请求链路仍用注册表原始 id —— 上游照收 kmodel_latest，健康度缓存键
+// （comboRouter 的 `${provider}|${model}`）也保持原始 id 不受影响。
+import { modelDisplayName } from "../../../shared/utils/modelDisplayName.js";
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
 const RING_CAP = 50;
@@ -56,7 +60,7 @@ function addToCounter(target, key, values) {
   if (values.meta) Object.assign(target[key], values.meta);
 }
 
-function aggregateEntryToDay(day, entry) {
+function aggregateEntryToDay(day, entry, identity = { apiKeyHash: hashApiKey(entry.apiKey), apiKeyMasked: maskApiKey(entry.apiKey) }) {
   const promptTokens = entry.tokens?.prompt_tokens || entry.tokens?.input_tokens || 0;
   const completionTokens = entry.tokens?.completion_tokens || entry.tokens?.output_tokens || 0;
   const cachedTokens = entry.tokens?.cached_tokens || entry.tokens?.cache_read_input_tokens || 0;
@@ -84,12 +88,11 @@ function aggregateEntryToDay(day, entry) {
     addToCounter(day.byAccount, entry.connectionId, { ...vals, meta: { rawModel: entry.model, provider: entry.provider } });
   }
 
-  const apiKeyVal = entry.apiKey && typeof entry.apiKey === "string" ? entry.apiKey : "local-no-key";
   // The counter KEY used to embed the raw key, and the aggregate it builds is
   // persisted in usageDaily — so the key had to change too, not just the meta.
   // Nothing outside this module reads these keys (the UI reads the assembled
   // `stats.byApiKey`, whose entries carry keyName/apiKeyMasked).
-  const apiKeyHash = hashApiKey(entry.apiKey);
+  const { apiKeyHash, apiKeyMasked } = identity;
   const akModelKey = `${apiKeyHash || "local-no-key"}|${entry.model}|${entry.provider || "unknown"}`;
   // The per-day aggregate ends up in the database too (usageDaily.data), so it
   // carries the same identity as a row: a digest for grouping and lookup, a
@@ -100,7 +103,7 @@ function aggregateEntryToDay(day, entry) {
       rawModel: entry.model,
       provider: entry.provider,
       apiKeyHash,
-      apiKeyMasked: maskApiKey(entry.apiKey),
+      apiKeyMasked,
     },
   });
 
@@ -231,6 +234,9 @@ export async function getActiveRequests() {
       const t = e.tokens || {};
       return {
         timestamp: e.timestamp, model: e.model, provider: e.provider || "",
+        // model 展示名（Kimi-K3.1-Pro）；原始 id 保留在 rawModel 供悬浮提示。
+        model: modelDisplayName(e.provider, e.model),
+        rawModel: e.model,
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         status: e.status || "ok",
@@ -404,7 +410,10 @@ export async function getUsageStats(period = "all") {
     .map((r) => {
       const t = parseJson(r.tokens, {}) || {};
       return {
-        timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        timestamp: r.timestamp, provider: r.provider || "",
+        // model 展示名（Kimi-K3.1-Pro）；原始 id 保留在 rawModel 供悬浮提示。
+        model: modelDisplayName(r.provider, r.model),
+        rawModel: r.model,
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
@@ -502,7 +511,7 @@ export async function getUsageStats(period = "all") {
         const statsKey = provider ? `${rawModel} (${provider})` : rawModel;
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         if (!stats.byModel[statsKey]) {
-          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, modelDisplay: modelDisplayName(provider, rawModel), provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byModel[statsKey].requests += m.requests || 0;
         stats.byModel[statsKey].promptTokens += m.promptTokens || 0;
@@ -519,7 +528,7 @@ export async function getUsageStats(period = "all") {
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         const accountKey = `${rawModel} (${provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
-          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
+          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, modelDisplay: modelDisplayName(provider, rawModel), provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
         }
         stats.byAccount[accountKey].requests += a.requests || 0;
         stats.byAccount[accountKey].promptTokens += a.promptTokens || 0;
@@ -543,7 +552,7 @@ export async function getUsageStats(period = "all") {
         const keyName = keyInfo?.name || (apiKeyMasked ? apiKeyMasked.slice(0, 8) + "..." : "Local (No API Key)");
         const apiKeyKey = apiKeyMasked || "local-no-key";
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, modelDisplay: modelDisplayName(provider, rawModel), provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
         }
         stats.byApiKey[akKey].requests += ak.requests || 0;
         stats.byApiKey[akKey].promptTokens += ak.promptTokens || 0;
@@ -559,7 +568,7 @@ export async function getUsageStats(period = "all") {
         const provider = ep.provider || "";
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         if (!stats.byEndpoint[epKey]) {
-          stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+          stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel, modelDisplay: modelDisplayName(provider, rawModel), provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byEndpoint[epKey].requests += ep.requests || 0;
         stats.byEndpoint[epKey].promptTokens += ep.promptTokens || 0;
@@ -642,7 +651,7 @@ export async function getUsageStats(period = "all") {
 
       const modelKey = r.provider ? `${r.model} (${r.provider})` : r.model;
       if (!stats.byModel[modelKey]) {
-        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, modelDisplay: modelDisplayName(r.provider, r.model), provider: providerDisplayName, lastUsed: r.timestamp };
       }
       stats.byModel[modelKey].requests++;
       stats.byModel[modelKey].promptTokens += promptTokens;
@@ -655,7 +664,7 @@ export async function getUsageStats(period = "all") {
         const accountName = connectionMap[r.connectionId] || `Account ${r.connectionId.slice(0, 8)}...`;
         const accountKey = `${r.model} (${r.provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
-          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, connectionId: r.connectionId, accountName, lastUsed: r.timestamp };
+          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, modelDisplay: modelDisplayName(r.provider, r.model), provider: providerDisplayName, connectionId: r.connectionId, accountName, lastUsed: r.timestamp };
         }
         stats.byAccount[accountKey].requests++;
         stats.byAccount[accountKey].promptTokens += promptTokens;
@@ -665,7 +674,7 @@ export async function getUsageStats(period = "all") {
         if (new Date(r.timestamp) > new Date(stats.byAccount[accountKey].lastUsed)) stats.byAccount[accountKey].lastUsed = r.timestamp;
       }
 
-      if (r.apiKey && typeof r.apiKey === "string") {
+      if ((r.apiKey && typeof r.apiKey === "string") || r.apiKeyHash) {
         const apiKeyHash = r.apiKeyHash || hashApiKey(r.apiKey);
         const keyInfo = apiKeyHash ? apiKeyMap[apiKeyHash] : null;
         const apiKeyMasked = maskApiKey(r.apiKey);
@@ -678,14 +687,14 @@ export async function getUsageStats(period = "all") {
         const groupId = apiKeyHash || apiKeyMasked;
         const akKey = `${groupId}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: groupId, lastUsed: r.timestamp };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, modelDisplay: modelDisplayName(r.provider, r.model), provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: groupId, lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey[akKey];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
         if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
       } else {
         if (!stats.byApiKey["local-no-key"]) {
-          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
+          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, modelDisplay: modelDisplayName(r.provider, r.model), provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey["local-no-key"];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
@@ -695,7 +704,7 @@ export async function getUsageStats(period = "all") {
       const endpoint = r.endpoint || "Unknown";
       const epKey = `${endpoint}|${r.model}|${r.provider || "unknown"}`;
       if (!stats.byEndpoint[epKey]) {
-        stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+        stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, endpoint, rawModel: r.model, modelDisplay: modelDisplayName(r.provider, r.model), provider: providerDisplayName, lastUsed: r.timestamp };
       }
       const epe = stats.byEndpoint[epKey];
       epe.requests++; epe.promptTokens += promptTokens; epe.completionTokens += completionTokens; epe.cachedTokens += cachedTokens; epe.cost += entryCost;
@@ -724,12 +733,16 @@ export async function getUsageStats(period = "all") {
 // the version outright restores single-bucket-per-product aggregation.
 // Opaque or proprietary codenames mapped to recognized product families.
 // E.g. Qoder internal codenames: qfmodel/qmodel → qwen, dfmodel/dmodel → deepseek.
+// 2026-11-11 gaps found in live traffic: lmodel (QoDuck) is Qoder's Qwen-family
+// test model and q37fmodel is Qwen3.7-Flash — both leaked out as their own
+// chart legend entries; jmodel is Step-5-Preview and folds into step.
 const CODENAME_FAMILIES = [
-  [/^q(?:f)?model(?:_.*)?$/, "qwen"],
+  [/^(?:l|q(?:f|37f)?)model(?:_.*)?$/, "qwen"],
   [/^d(?:f)?model(?:_.*)?$/, "deepseek"],
   [/^kmodel(?:_.*)?$/, "kimi"],
   [/^g(?:f|m\d+)?model(?:_.*)?$/, "glm"],
   [/^mmodel(?:_.*)?$/, "minimax"],
+  [/^jmodel(?:_.*)?$/, "step"],
   [/^(?:ultimate|performance)$/, "claude"],
   [/^qwq(?:-.*)?$/, "qwen"],
 ];
@@ -1352,6 +1365,9 @@ export async function getUsageDashboard({ minRequests = 50 } = {}) {
     .filter((r) => (r.requests || 0) >= modelMinRequests)
     .map((r) => toEntry(r, "model", `${r.provider || ""}|${r.model || ""}`, {
       model: r.model || "unknown",
+      // 展示名（Kimi-K3.1-Pro）— `model` 保持原始 id：comboRouter 的健康度缓存
+      // 按 `${provider}|${model}` 读这张表，键必须是上游 id。
+      modelDisplay: modelDisplayName(r.provider, r.model),
       provider: r.provider || "unknown",
     }))
     .sort((a, b) => b.score - a.score);
@@ -1386,7 +1402,9 @@ export async function getRecentLogs(limit = 200) {
     return rows.map((r) => {
       const ts = formatLogDate(new Date(r.timestamp));
       const p = r.provider?.toUpperCase() || "-";
-      const m = r.model || "-";
+      // 展示名（映射后）；原始 id 与展示名不同时以 "display (raw)" 保留对账信息。
+      const display = modelDisplayName(r.provider, r.model);
+      const m = display !== (r.model || "-") ? `${display} (${r.model})` : (r.model || "-");
       const account = connMap[r.connectionId] || (r.connectionId ? r.connectionId.slice(0, 8) : "-");
       const tk = r.tokens ? parseJson(r.tokens, {}) : {};
       const sent = r.promptTokens ?? tk.prompt_tokens ?? "-";
@@ -1434,6 +1452,9 @@ function applyDailyCostDelta(db, histRow, delta) {
 
 export async function importUsageRows(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return { imported: 0, skipped: 0 };
+  // Validate the entire batch before any writes, including direct repo callers.
+  // Never derive a new digest from a backup's display mask.
+  const identities = rows.map((entry) => apiKeyIdentity(entry.apiKey, entry.apiKeyHash));
   const db = await getAdapter();
 
   // Imported rows only carry the cost the SOURCE instance assigned them. A
@@ -1460,16 +1481,15 @@ export async function importUsageRows(rows) {
   let costRepaired = false;
 
   db.transaction(() => {
-    for (const entry of rows) {
+    for (const [index, entry] of rows.entries()) {
+      const identity = identities[index];
       const tokens = entry.tokens || {};
       const promptTokens = tokens.prompt_tokens || tokens.input_tokens || entry.promptTokens || 0;
       const completionTokens = tokens.completion_tokens || tokens.output_tokens || entry.completionTokens || 0;
       const ts = entry.timestamp || new Date().toISOString();
 
-      // Dedup: same signature as live writes.
-      // Imported backups may already carry a masked value (this build's export)
-      // or a raw one (older exports); the identity is derived the same way either
-      // way, so dedup stays consistent within the file being imported.
+      // Dedup: same signature as live writes, using the validated original
+      // digest for current backups and a derived digest for legacy raw keys.
       const existing = db.get(
         `SELECT id, meta, cost, timestamp, provider, model, connectionId, apiKeyHash, endpoint FROM usageHistory
          WHERE timestamp = ?
@@ -1480,7 +1500,7 @@ export async function importUsageRows(rows) {
            AND promptTokens = ?
            AND completionTokens = ?
          ORDER BY id DESC LIMIT 1`,
-        [ts, entry.provider || null, entry.model || null, entry.connectionId || null, hashApiKey(entry.apiKey), promptTokens, completionTokens]
+        [ts, entry.provider || null, entry.model || null, entry.connectionId || null, identity.apiKeyHash, promptTokens, completionTokens]
       );
       if (existing) {
         // A dedup hit during an import proves the row itself came from an
@@ -1508,7 +1528,7 @@ export async function importUsageRows(rows) {
         `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, apiKeyHash, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           ts, entry.provider || null, entry.model || null,
-          entry.connectionId || null, maskApiKey(entry.apiKey), hashApiKey(entry.apiKey), entry.endpoint || null,
+          entry.connectionId || null, identity.apiKeyMasked, identity.apiKeyHash, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
           stringifyJson(tokens), stringifyJson({ imported: true, ...(entry.meta || {}) }),
         ]
@@ -1521,7 +1541,7 @@ export async function importUsageRows(rows) {
         requests: 0, promptTokens: 0, completionTokens: 0, cost: 0,
         byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
       };
-      aggregateEntryToDay(day, entry);
+      aggregateEntryToDay(day, entry, identity);
       db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
 
       const cur = db.get(`SELECT value FROM _meta WHERE key = 'totalRequestsLifetime'`);

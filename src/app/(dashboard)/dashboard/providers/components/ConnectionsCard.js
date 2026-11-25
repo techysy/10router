@@ -7,8 +7,9 @@ import { classifyConnectionCooldown, sameConnectionCooldown } from "@/shared/uti
 import { translateQuotaError } from "@/shared/utils/quotaError";
 import { cn } from "@/shared/utils/cn";
 import PropTypes from "prop-types";
-import { Card, Badge, Button, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
+import { Card, Badge, Button, Input, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
 import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
+import LoomySmsModal from "./LoomySmsModal";
 
 // ── CooldownTimer ──────────────────────────────────────────────
 function CooldownTimer({ until }) {
@@ -350,6 +351,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
   const [balanceStrategy, setBalanceStrategy] = useState("priority");
   const [confirmState, setConfirmState] = useState(null);
+  const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
 
   const fetch_ = useCallback(async () => {
     try {
@@ -367,7 +369,14 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
       setEarliestExpiryFirst(override.earliestExpiryFirst === true);
-      setBalanceStrategy(override.balanceStrategy || "priority");
+      if (override.earliestExpiryFirst === true) {
+        // 到期优先在下拉里是一等选项;balanceStrategy 保持 priority 语义
+        setBalanceStrategy("earliest-expiry");
+        setEarliestExpiryFirst(true);
+      } else {
+        setBalanceStrategy(override.balanceStrategy || "priority");
+        setEarliestExpiryFirst(false);
+      }
     } catch (e) { console.log("ConnectionsCard fetch error:", e); }
     finally { setLoading(false); }
   }, [providerId]);
@@ -526,16 +535,25 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
                           const val = e.target.value;
                           setBalanceStrategy(val);
                           if (val === "round-robin") {
+                            setEarliestExpiryFirst(false);
                             setProviderStrategy("round-robin");
                             if (!providerStickyLimit) setProviderStickyLimit("1");
                             saveStrategy("round-robin", providerStickyLimit || "1", false, val);
+                          } else if (val === "earliest-expiry") {
+                            // 到期优先:auth.js 排序序 earliestExpiryFirst 先于 balanceStrategy,
+                            // balanceStrategy 归 priority(不写 override)
+                            setEarliestExpiryFirst(true);
+                            setProviderStrategy(null);
+                            saveStrategy(null, providerStickyLimit, true, "priority");
                           } else {
+                            setEarliestExpiryFirst(false);
                             setProviderStrategy(null);
                             saveStrategy(null, providerStickyLimit, false, val);
                           }
                         }}
                         options={[
                           { value: "priority", label: translate("Manual Priority (#1 → #2)") },
+                          { value: "earliest-expiry", label: translate("Earliest Expiry First") },
                           { value: "lowest-first", label: translate("Lowest Balance First") },
                           { value: "highest-first", label: translate("Highest Balance First") },
                           { value: "round-robin", label: translate("Round Robin (Balanced)") },
@@ -632,7 +650,14 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         {connections.length === 0 ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-text-muted">No connections yet</p>
-            <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
+            <div className="flex gap-2">
+              <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add Connection</Button>
+              {providerId === "loomy" && (
+                <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                  {translate("SMS Login")}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -654,8 +679,13 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
                 />
               ))}
             </div>
-            <div className="mt-4 flex justify-stretch sm:justify-start">
+            <div className="mt-4 flex justify-stretch sm:justify-start gap-2">
               <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add</Button>
+              {providerId === "loomy" && (
+                <Button size="sm" icon="sms" onClick={() => setShowLoomySmsModal(true)}>
+                  {translate("SMS Login")}
+                </Button>
+              )}
             </div>
           </>
         )}
@@ -668,6 +698,13 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         onSave={handleSaveApiKey}
         onClose={() => setShowAddModal(false)}
       />
+      {providerId === "loomy" && showLoomySmsModal && (
+        <LoomySmsModal
+          isOpen
+          onClose={() => setShowLoomySmsModal(false)}
+          onAdded={() => fetch_()}
+        />
+      )}
       <EditConnectionModal
         isOpen={showEditModal}
         connection={selectedConnection}

@@ -1,4 +1,5 @@
 import { PROVIDERS } from "../config/providers.js";
+import { mintCapySessionJwt } from "../shared/capy/client.js";
 import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
 import {
   refreshXaiToken,
@@ -13,6 +14,11 @@ import {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshMeooToken,
+  refreshNousToken,
+  refreshJunieToken,
+  refreshQwenWorkToken,
+  refreshAutoclawToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -34,6 +40,11 @@ export {
   refreshCopilotToken,
   refreshCodebuddyToken,
   refreshCodebuddyIntlToken,
+  refreshMeooToken,
+  refreshNousToken,
+  refreshJunieToken,
+  refreshQwenWorkToken,
+  refreshAutoclawToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -164,6 +175,18 @@ function vertexRefreshHandler(c, log) {
   return refreshVertexToken(saJson, log);
 }
 
+// Capy: "refresh" = mint a fresh 60s session JWT through Clerk's session-minter.
+// refreshToken is the Clerk client JWT (rotating_token); Clerk may rotate it on
+// every call, so the (possibly) new value rides back in refreshToken and the
+// caller persists it via onCredentialsRefreshed.
+async function capyRefreshHandler(c) {
+  const sessionId = c?.providerSpecificData?.sessionId;
+  const clientJwt = c?.refreshToken;
+  if (!sessionId || !clientJwt) return null;
+  const { jwt, rotatedClientJwt } = await mintCapySessionJwt({ clientJwt, sessionId });
+  return { accessToken: jwt, refreshToken: rotatedClientJwt ?? clientJwt, expiresIn: 55 };
+}
+
 const REFRESH_HANDLERS = {
   "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
   antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
@@ -178,7 +201,22 @@ const REFRESH_HANDLERS = {
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
   "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
+  // Meoo: token refresh + project AK re-resolution in one handler.
+  meoo: (c, log) => refreshMeooToken(c.refreshToken, c, log),
+  // Nous Portal: header-carried single-use refresh token (see providers.js).
+  nous: (c, log) => refreshNousToken(c.refreshToken, log),
+  // Junie: form refresh; the returned id_token is the credential (see providers.js).
+  junie: (c, log) => refreshJunieToken(c.refreshToken, log),
+  // QwenWork: device-token refresh, single-use rotation (see providers.js).
+  qwenwork: (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork", log),
+  "qwenwork-cn": (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork-cn", log),
+  // AutoClaw: one refresher for both account systems — host order follows the
+  // refresh JWT's source_id, the connection's card is only the fallback.
+  autoclaw: (c, log) => refreshAutoclawToken(c.refreshToken, { region: "intl", log }),
+  "autoclaw-cn": (c, log) => refreshAutoclawToken(c.refreshToken, { region: "cn", log }),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
+  // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
+  "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // Cline/ClinePass: upstream demands camelCase JSON (issue #21), not the
   // generic form-encoded OAuth2 body — dedicated handler, shared endpoints.
   cline: (c, log) => refreshClineToken("cline", c.refreshToken, log),
@@ -191,7 +229,8 @@ const REFRESH_HANDLERS = {
   "minimax-code": (c, log) => refreshMinimaxCodeToken("minimax-code", c.refreshToken, log),
   "minimax-code-global": (c, log) => refreshMinimaxCodeToken("minimax-code-global", c.refreshToken, log),
   vertex: vertexRefreshHandler,
-  "vertex-partner": vertexRefreshHandler
+  "vertex-partner": vertexRefreshHandler,
+  capy: capyRefreshHandler
 };
 
 export async function getAccessToken(provider, credentials, log) {

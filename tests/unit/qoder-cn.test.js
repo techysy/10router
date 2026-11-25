@@ -14,7 +14,7 @@ import REGISTRY from "../../open-sse/providers/registry/index.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import qoderCnOAuth from "../../src/lib/oauth/providers/qoder-cn.js";
 import { getQoderUsage } from "../../open-sse/services/usage/misc.js";
-import { parseQuotaData, getConnectionLabel } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
+import { parseQuotaData, getConnectionLabel, maskEmailLabel } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 
 describe("qoder-cn provider registry & capabilities", () => {
   const reg = REGISTRY.find((p) => p.id === "qoder-cn");
@@ -204,5 +204,38 @@ describe("qoder and qoder-cn quota normalization", () => {
         displayName: "ShiYanG Yu",
       }),
     ).toBe("备用");
+  });
+
+  it("QwenWork labels follow the Qoder privacy posture: displayName first, masked email when the account has none", () => {
+    // Free intl accounts often have no profile name — the raw email must not
+    // print (user report 2026-11-22「邮箱又显示出来了」).
+    expect(
+      getConnectionLabel({
+        provider: "qwenwork",
+        name: "techysy.ai@gmail.com",
+        email: "techysy.ai@gmail.com",
+        displayName: null,
+      }),
+    ).toBe("tec****@gmail.com");
+    expect(
+      getConnectionLabel({
+        provider: "qwenwork-cn",
+        name: "余师洋",
+        email: "yu_shiyang@qq.com",
+        displayName: "余师洋",
+      }),
+    ).toBe("余师洋");
+    expect(
+      getConnectionLabel({
+        provider: "qwenwork",
+        name: "我的连接",
+        email: "techysy.ai@gmail.com",
+        displayName: null,
+      }),
+    ).toBe("我的连接");
+    // The mask helper itself: keep enough to recognize the account.
+    expect(maskEmailLabel("abc@example.com")).toBe("abc****@example.com");
+    expect(maskEmailLabel("ab@example.com")).toBe("ab****@example.com");
+    expect(maskEmailLabel("no-at-sign")).toBe("no-at-sign");
   });
 });

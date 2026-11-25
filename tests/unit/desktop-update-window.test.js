@@ -25,6 +25,7 @@ describe("unified HTML update window", () => {
     it("build.files ships the new assets (漏登记=打包后静默消失)", () => {
         expect(pkg.build.files).toContain("update-window.html");
         expect(pkg.build.files).toContain("preload-update.js");
+        expect(pkg.build.files).toContain("updateScheduler.js");
     });
 
     it("the update flow no longer uses native dialogs or the data-URL progress window", () => {
@@ -49,8 +50,10 @@ describe("unified HTML update window", () => {
     it("keeps the behavior contract: ?check=1, releases fallback, stopServer before spawn", () => {
         expect(main).toContain("/api/version?check=1");
         expect(main).toContain("shell.openExternal(RELEASES_URL)");
-        const idx = main.lastIndexOf("tr('update.installNow')");
-        const segment = main.slice(idx, idx + 1200);
+        const segment = main.slice(
+            main.indexOf("async function installDownloadedUpdate()"),
+            main.indexOf("async function checkUpdateViaGitHub()")
+        );
         expect(segment.indexOf("await stopServer()")).toBeGreaterThan(-1);
         expect(segment.indexOf("await stopServer()")).toBeLessThan(segment.indexOf("spawn(file"));
     });

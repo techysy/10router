@@ -255,7 +255,23 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
 
   const models = [];
   const rawConfigs = new Map();
-  for (const entry of body.chat) {
+  // The catalog also carries per-scene arrays beyond `chat`. The `app`
+  // scene holds app-only models (e.g. lmodel / "QoDuck") that never appear
+  // in `chat`; upstream chat accepts them with their app-scene entry as
+  // model_config (verified live 2026-11-07), so merge app-only keys in —
+  // chat entries win on duplicate keys — or those models stay unusable
+  // ("model_config not yet known").
+  const entries = [...body.chat];
+  if (Array.isArray(body.app)) {
+    const seen = new Set(body.chat.map((e) => e && e.key).filter(Boolean));
+    for (const e of body.app) {
+      if (e && e.key && !seen.has(e.key)) {
+        entries.push(e);
+        seen.add(e.key); // body.app 自身同 key 只取首条, 不然模型列表出重复行
+      }
+    }
+  }
+  for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
     const key = entry.key;
     if (!key) continue;
@@ -263,8 +279,10 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
     // Always cache the config — chat needs model_config even for UI-hidden
     // models (enable:false). Upstream still accepts chat for these keys.
     rawConfigs.set(key, entry);
-    if (entry.enable === false) continue;
-
+    // enable:false 条目保留进 models 列表（借上游 9router v0.5.119，2026-11-12）：
+    // 它们在 Qoder IDE 里仍可用，过滤掉会让 /v1/models、provider 页与 combo
+    // picker 静默缺项，而回退静态目录会给出陈旧清单。聊天路由不受影响 ——
+    // chat 走 rawConfigs 的 model_config，与列表可见性无关。
     const display = entry.display_name || key;
     const ctx = Number(entry.max_input_tokens) || 131_072;
     models.push({
@@ -283,7 +301,12 @@ async function fetchQoderCatalogRaw(credentials, signal, proxyOptions = null) {
       // multiplier badge + OffPeakBanner; zero client-side price math — the
       // server rewrites price_factor itself when a window opens or closes.
       rateMultiplier: typeof entry.price_factor === "number" ? entry.price_factor : null,
+      // 促销前的原价倍率（QoDuck 限免期 price_factor 0 / original_price_factor 0.5）。
+      // 没有它，0× 徽章的 tooltip 只会说「走免费额度」，原价就被抹掉了。
+      originalRateMultiplier: typeof entry.original_price_factor === "number" ? entry.original_price_factor : null,
       promotion: entry.promotion && typeof entry.promotion === "object" ? entry.promotion : null,
+      // UI 侧可用此旗标弱化展示（置灰）而不必移除条目。
+      enabled: entry.enable !== false,
     });
   }
 

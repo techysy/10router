@@ -328,8 +328,40 @@ export function externalQuotaSourceFromId(id) {
   return isValidExternalQuotaSource(source) ? source : null;
 }
 
+/**
+ * 同名行去重（2026-11-03）。
+ *
+ * 推送方可以给多个包同一个显示名——CreditDaddy 的 LongCat 资源包就是按种类
+ * 复用同名（「获赠资源包」/「资源包」），只有 push key（Pack1/Pack2/Pack3）区分。
+ * 而下游处处拿 name 当身份：认领路径用
+ * `Object.fromEntries(rows.map(r => [r.name, r]))` 建 map、可见性键按 name、
+ * `parseQuotaData` 的 default 分支把 map key 直接当显示名。同名行于是互相覆盖
+ * ——3 个包只剩最后 1 个，卡面「逐包明细 (1)」（用户 2026-11-03 实测：CD 侧显示
+ * 「3 个资源包」，10R 只剩 1 条明细）。
+ *
+ * 给重名组编号（「获赠资源包 1/2/3」），与仓库既有同族命名一致（「赠送包 3」/
+ * 「Bonus Pack 1」）。编号只在确有重名时加——独苗不动名，避免把上游文案改花。
+ * 顺序即推送顺序（CD 按 consumeOrder 排的消耗顺序）。
+ */
+export function disambiguateQuotaNames(rows) {
+  const list = rows || [];
+  const counts = new Map();
+  for (const r of list) {
+    const n = String(r?.name || "");
+    counts.set(n, (counts.get(n) || 0) + 1);
+  }
+  const seen = new Map();
+  return list.map((r) => {
+    const name = String(r?.name || "");
+    if ((counts.get(name) || 0) < 2) return r;
+    const n = (seen.get(name) || 0) + 1;
+    seen.set(name, n);
+    return { ...r, name: `${name} ${n}` };
+  });
+}
+
 function snapshotToRow(snap) {
-  const quotas = (snap.entries || []).map((e) => ({
+  const quotas = disambiguateQuotaNames((snap.entries || []).map((e) => ({
     name: e.name || e.key,
     used: e.used || 0,
     total: e.total || 0,
@@ -345,7 +377,7 @@ function snapshotToRow(snap) {
     ...(e.isCreditBalance !== undefined ? { isCreditBalance: e.isCreditBalance } : {}),
     ...(e.checkinToday !== undefined ? { checkinToday: e.checkinToday } : {}),
     ...(e.streakDays !== undefined ? { streakDays: e.streakDays } : {}),
-  }));
+  })));
   return {
     id: `ext:${snap.source}`,
     provider: snap.provider || snap.source,

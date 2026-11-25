@@ -51,8 +51,10 @@ describe("deterministic shutdown (covers quit-then-install same-version flow)", 
   });
 
   it("the in-app updater stops the sidecar BEFORE spawning the installer", () => {
-    const idx = main.lastIndexOf("tr('update.installNow')");
-    const segment = main.slice(idx, idx + 1200);
+    const segment = main.slice(
+      main.indexOf("async function installDownloadedUpdate()"),
+      main.indexOf("async function checkUpdateViaGitHub()")
+    );
     expect(segment.indexOf("await stopServer()")).toBeGreaterThan(-1);
     expect(segment.indexOf("await stopServer()")).toBeLessThan(segment.indexOf("spawn(file"));
   });

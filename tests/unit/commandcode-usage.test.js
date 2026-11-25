@@ -140,6 +140,8 @@ describe("Command Code Usage Handler", () => {
 
     expect(result.plan).toBe("Go");
     expect(result.quotas["session (5h)"]).toBeDefined();
+    expect(proxyAwareFetch.mock.calls[0][1].headers["x-command-code-version"]).toBe("1.88.0");
+    expect(proxyAwareFetch.mock.calls[0][1].headers["User-Agent"]).toBe("cli");
   });
 
   it("surfaces purchased credits if present", async () => {

@@ -147,6 +147,12 @@ describe("served changelog files", () => {
     // existed, strict equality resumed. Removed for the v1.5.0 cycle; re-add
     // a lead constant only when the next release intentionally previews its
     // changelog before tagging.)
+    //
+    // v1.8.3: 拆版日志先行——开发日志拆 v1.8.2（周五）/ v1.8.3（今天）但 tag
+    // 只打 v1.8.3，served 三语文件的 v1.8.3 段在打标前已落 main（同 v1.8.1
+    // 先例：发版 commit 落日期，tag 由 gh release create 服务端创建，CI 跑在
+    // 打标前）。Self-retires the moment v1.8.3 is tagged.
+    const PRE_RELEASE_LEAD = "1.8.3";
     let newestTag = null;
     try {
       newestTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
@@ -157,7 +163,7 @@ describe("served changelog files", () => {
     }
     for (const locale of LOCALES) {
       const top = readChangelog(locale).match(/^## v?(\d+\.\d+\.\d+)/m)[1];
-      expect(newestTag, locale).toBe(top);
+      expect([newestTag, PRE_RELEASE_LEAD], locale).toContain(top);
     }
   });
 });

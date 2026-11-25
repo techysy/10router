@@ -13,6 +13,9 @@ import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
+import { resolveQwenWorkModels } from "open-sse/services/qwenworkModels.js";
+import { resolveMeooModels } from "open-sse/services/meooModels.js";
+import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
 
 // This GET reads live connection/registry state — without it Next may serve a
@@ -28,6 +31,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities, DEFAULT_CAPABILITIES } from "open-sse/providers/capabilities.js";
+import { buildComboCardComparator } from "@/shared/utils/comboCardOrder.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -51,6 +55,70 @@ const LIVE_MODEL_RESOLVERS = {
       displayName: conn.displayName,
       providerSpecificData: conn.providerSpecificData || {}
     });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  qwenwork: async (conn) => {
+    const result = await resolveQwenWorkModels({
+      provider: conn.provider,
+      accessToken: conn.accessToken,
+      refreshToken: conn.refreshToken,
+      email: conn.email,
+      displayName: conn.displayName,
+      providerSpecificData: conn.providerSpecificData || {}
+    });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  "qwenwork-cn": async (conn) => {
+    const result = await resolveQwenWorkModels({
+      provider: conn.provider,
+      accessToken: conn.accessToken,
+      refreshToken: conn.refreshToken,
+      email: conn.email,
+      displayName: conn.displayName,
+      providerSpecificData: conn.providerSpecificData || {}
+    });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  meoo: async (conn) => {
+    const result = await resolveMeooModels({
+      connectionId: conn.id,
+      apiKey: conn.apiKey,
+      accessToken: conn.accessToken,
+      refreshToken: conn.refreshToken,
+      expiresAt: conn.expiresAt,
+      providerSpecificData: conn.providerSpecificData || {}
+    }, {
+      log: console,
+      // A stale project AK is re-resolved inside resolveMeooModels; persist
+      // whatever came back (rotated OAuth pair and/or fresh AK) so the row
+      // does not keep serving the dead key.
+      onCredentialsRefreshed: async (refreshed) => {
+        await updateProviderCredentials(conn.id, {
+          ...refreshed,
+          existingProviderSpecificData: conn.providerSpecificData || {},
+        });
+      },
+    });
+    if (!result?.models?.length) return null;
+    return {
+      models: result.models.map((m) => ({ id: m.id, name: m.name })),
+    };
+  },
+  deepai: async (conn) => {
+    const result = await resolveDeepaiModels({
+      connectionId: conn.id,
+      apiKey: conn.apiKey,
+      providerSpecificData: conn.providerSpecificData || {}
+    }, { log: console });
     if (!result?.models?.length) return null;
     return {
       models: result.models.map((m) => ({ id: m.id, name: m.name })),
@@ -400,9 +468,11 @@ export async function buildModelsList(kindFilter, options = {}) {
   // rank with connected). Tie-breaks mirror the dashboard comparator via the
   // shared helper: manual order → registry priority → name.
   let providerCardOrder = [];
+  let comboCardOrder = [];
   try {
     const settings = await getSettings();
     if (Array.isArray(settings?.providerCardOrder)) providerCardOrder = settings.providerCardOrder;
+    if (Array.isArray(settings?.comboCardOrder)) comboCardOrder = settings.comboCardOrder;
   } catch (e) {
     console.log("Could not fetch provider card order:", e?.message);
   }
@@ -528,7 +598,9 @@ export async function buildModelsList(kindFilter, options = {}) {
   };
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
-  for (const combo of combos) {
+  // Order follows settings.comboCardOrder (manual drag / pin-to-top order).
+  const sortedCombos = [...combos].sort(buildComboCardComparator({ cardOrder: comboCardOrder }));
+  for (const combo of sortedCombos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
     const entry = {
       id: combo.name,

@@ -70,7 +70,10 @@ function classifyParsedChunk(parsed) {
     const toolCalls =
       Array.isArray(delta.tool_calls) &&
       delta.tool_calls.some((t) => (t?.function?.arguments && t.function.arguments !== "") || t?.function?.name || t?.id);
-    const valuable = content || reasoning || toolCalls;
+    // delta.audio（acemusic 整曲单帧）：音乐到达即是有价值内容——否则 retryOnEmpty
+    // 的门禁会一直缓冲到 finish、把一首成功的歌误判成空回答顺延掉。
+    const audio = Array.isArray(delta.audio) && delta.audio.length > 0;
+    const valuable = content || reasoning || toolCalls || audio;
     if (choice.finish_reason) {
       return { valuable, terminal: true, filtered: isFilterFinishReason(choice.finish_reason) };
     }
@@ -241,7 +244,19 @@ export function inspectNonStream(json) {
       (typeof msg.reasoning_content === "string" && msg.reasoning_content !== "") ||
       (typeof msg.reasoning === "string" && msg.reasoning !== "");
     const toolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
-    const empty = !content && !reasoning && !toolCalls;
+    const audio = Array.isArray(msg.audio) && msg.audio.length > 0;
+    // Issue #96: a reasoning-only answer arrives here having already been promoted
+    // into `content` by the non-streaming pipeline, so the plain `!content` test
+    // reports it as healthy and the empty-retry gate never fires. Recognise the
+    // echo (content is exactly the reasoning, nothing else) and call it empty —
+    // same rule as isZeroContentResponse in combo.js. Everything else keeps its
+    // existing semantics, including a reasoning-only body that was NOT promoted.
+    const promoted =
+      !!content &&
+      !!reasoning &&
+      typeof msg.content === "string" &&
+      msg.content.trim() === String(msg.reasoning_content ?? msg.reasoning).trim();
+    const empty = !toolCalls && !audio && (promoted || (!content && !reasoning));
     const filtered = isFilterFinishReason(choice.finish_reason);
     return { retryable: empty, empty, filtered };
   }

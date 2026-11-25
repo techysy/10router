@@ -32,12 +32,26 @@ const ICON_ALIASES = {
   "alitp-cn": "alitp",
   alims: "alitp",
   alicode: "alitp",
+  // trae / trae-cn 与 trae-free 同一张官方白标（用户口径：trae-free 那张就对）
+  "trae": "trae-free",
+  "trae-cn": "trae-free",
+  // Web-cookie variants ride their brand's existing mark
+  "deepseek-web": "deepseek",
+  "muse-web": "muse",
+  "gemini-web": "gemini",
+  "chatgpt-web": "openai",
+  // AutoClaw 国内/国际两线同一品牌标（AutoGLM 官方 favicon）
+  "autoclaw-cn": "autoclaw",
+  // DuMate 有官方专属标（public/providers/dumate.png，DuMate 控制台
+  // channelLogo 裁出的笑脸）——不再借用通用百度标。
 };
 
 // Providers whose asset ships as SVG (everything else is .png).
 const ICON_EXTENSIONS = {
   bai: ".svg",
   // 官方百炼 wordmark 只有 SVG（docs.bailian.console.aliyun.com/logo/）
+  // numes 官方 favicon.svg（assets.numes.ai）自带 prefers-color-scheme 双色适配
+  numes: ".svg",
 };
 
 // Runtime only — first 404 remembers id for the whole session
@@ -71,4 +85,20 @@ export function markProviderIconMissing(providerId) {
   if (id) failedIds.add(id);
   const aliased = ICON_ALIASES[id];
   if (aliased) failedIds.add(aliased);
+}
+
+/**
+ * Compatible nodes (openai/anthropic-compatible) can declare 官网地址 — derive
+ * the site favicon so a custom endpoint shows its real brand instead of the
+ * generic oai/anthropic glyph. Null when the URL is unusable.
+ */
+export function getCompatibleNodeFaviconSrc(website) {
+  if (typeof website !== "string" || !website.trim()) return null;
+  try {
+    const u = new URL(website.trim());
+    if (!/^https?:$/.test(u.protocol)) return null;
+    return `${u.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
 }

@@ -4,6 +4,8 @@
  * Each normalizer maps a provider-specific response into the unified SearchResult shape.
  */
 
+import { assertDoubaoOk } from "../../utils/doubaoApi.js";
+
 /** Build a unified SearchResult object. */
 function makeResult(providerId, item, idx, now) {
   const url = item.url || "";
@@ -242,12 +244,39 @@ function normalizeKeenable(data, _query, _searchType) {
   return { results, totalResults: results.length };
 }
 
+// Doubao (Volcengine 联网搜索): Result.Documents[] → 统一结果。Snippet 是数组
+// 且混有 image 等类型,须过滤 Type==="text" 后拼接 Text;正文错误在 body 的
+// ResponseMetadata.Error 里(HTTP 可能仍 200),归一化前先 assertDoubaoOk 翻译成
+// 带 HTTP 状态的 typed error,让 tryDedicatedProvider 按真实状态码走轮询/降级。
+function normalizeDoubao(data, _query, _searchType) {
+  assertDoubaoOk(data);
+  const now = new Date().toISOString();
+  const docs = data?.Result?.Documents;
+  if (!Array.isArray(docs)) return { results: [], totalResults: null };
+  const results = docs.map((doc, idx) =>
+    makeResult("doubao", {
+      title: doc.Title,
+      url: doc.Url,
+      snippet: (doc.Snippet || [])
+        .filter((s) => s && s.Type === "text" && typeof s.Text === "string")
+        .map((s) => s.Text)
+        .join("\n"),
+      published_at: doc.DocumentInfo?.PublishTime || null,
+      favicon_url: doc.HostInfo?.IconUrl || null,
+      author: doc.HostInfo?.Hostname || null,
+    }, idx, now)
+  );
+  const total = data?.Result?.TotalDocCount;
+  return { results, totalResults: Number.isFinite(total) ? total : results.length };
+}
+
 const NORMALIZERS = {
   "serper": normalizeSerper,
   "brave-search": normalizeBrave,
   "perplexity": normalizePerplexity,
   "exa": normalizeExa,
   "tavily": normalizeTavily,
+  "doubao": normalizeDoubao,
   "google-pse": normalizeGooglePse,
   "linkup": normalizeLinkup,
   "searchapi": normalizeSearchApi,

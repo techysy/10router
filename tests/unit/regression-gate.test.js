@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, cpSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync, cpSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import vitestConfig from "../vitest.config.js";
 
 /**
  * The regression gate only means something if it has been seen to fire. For a
@@ -37,6 +38,10 @@ function runGate({ inventory, knownFails = [], report }) {
       const stdout = execFileSync("node", ["verify-no-regression.mjs", resultsPath], {
         cwd: dir,
         encoding: "utf8",
+        // execFileSync 默认把子进程 stderr 透传给父进程——本文件故意驱动门
+        // 禁触发（假 REGRESSION ❌ 行），CI 日志里就成了真回归的假象。显式
+        // pipe 掉：失败详情仍经 e.stderr 进入断言，一行不丢。
+        stdio: ["ignore", "pipe", "pipe"],
       });
       return { fired: false, code: 0, output: stdout };
     } catch (e) {
@@ -137,13 +142,32 @@ describe("the regression gate actually fires", () => {
     expect(res.output).toContain("suite-level");
   });
 
-  it("catalogues suite-level failures in known-fails so they stay visible", () => {
-    // The two files that fail on import in a plain checkout (embeddings.cloud
-    // needs the out-of-repo `cloud/` worker; db-benchmark needs the retired
-    // `lowdb`) must be named in the baseline, not silently absorbed.
-    const known = readFileSync(join(baselineDir, "known-fails.txt"), "utf8");
-    expect(known).toContain("embeddings.cloud.test.js :: [suite-level failure]");
-    expect(known).toContain("db-benchmark.test.js :: [suite-level failure]");
+  it("keeps conditionally-excluded suites and the baseline files in sync", () => {
+    // vitest.config.js excludes suites that cannot pass on this checkout
+    // (embeddings.cloud needs the out-of-repo `cloud/` worker; db-benchmark
+    // needs the retired `lowdb`). Exclusion and baseline must move together:
+    // a file missing from the report but still catalogued as a suite-level
+    // failure makes the gate report pass→missing.
+    const repoRoot = resolve(here, "..", "..");
+    const excluded = new Set(vitestConfig.test.exclude);
+    const cloudMissing = !existsSync(join(repoRoot, "cloud/src/handlers/embeddings.js"));
+    const rootPkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+    const lowdbRetired = !rootPkg.dependencies?.lowdb && !rootPkg.devDependencies?.lowdb
+      && !rootPkg.optionalDependencies?.lowdb;
+    if (cloudMissing) expect(excluded).toContain("**/unit/embeddings.cloud.test.js");
+    if (lowdbRetired) expect(excluded).toContain("**/unit/db-benchmark.test.js");
+
+    const suiteLevelEntries = new Set(
+      readFileSync(join(baselineDir, "known-fails.txt"), "utf8")
+        .split("\n").map((l) => l.trim()).filter((l) => l.endsWith("[suite-level failure]"))
+    );
+    const inventory = JSON.parse(
+      readFileSync(join(baselineDir, "known-inventory.json"), "utf8")
+    );
+    for (const file of ["tests/unit/embeddings.cloud.test.js", "tests/unit/db-benchmark.test.js"]) {
+      expect(suiteLevelEntries.has(`${file} :: [suite-level failure]`)).toBe(false);
+      expect(inventory[`${file} :: [suite-level failure]`]).toBeUndefined();
+    }
   });
 
   it("shipped inventory keys every entry as `tests/… :: fullName`", () => {

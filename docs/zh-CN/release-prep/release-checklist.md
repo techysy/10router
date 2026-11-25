@@ -31,6 +31,8 @@
    - npmjs 处理需 5–10 分钟；以 `npm view @techysy/10router version --registry https://registry.npmjs.org`
      翻到新版为准。未翻到 = 全网的更新检查与桌面自更新都看不到新版本
 7. **写 Release 说明**（模板见下）：`gh release edit vX.Y.Z --notes-file notes.md`
+   - ⚠️ **强检查项（杜绝遗漏）：Release Notes 必须包含完整的【📦 安装】渠道表格与【Full Changelog】比较链接！**
+   - 每次编辑前先对照模板六大骨架核对（或使用 `node scripts/audit-release-notes.mjs <notes.md>` 自动校验），严禁只写亮点和修复就提交发布。
 8. 复核 Release 资产：
    - Windows 自更新两件套 `10Router-Win-Setup-X.Y.Z.exe` + `SHA256SUMS-desktop.txt` 齐全
      （自 1.4.0 起资产名平台化、与 sums 条目完全一致；更早的 release 是点分隔的

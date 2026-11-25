@@ -85,6 +85,12 @@ function mostRecentUsed(connections) {
  */
 export function selectRelayCarrier(connections, opts = {}) {
   const redZonePct = Number.isFinite(opts.redZonePct) ? opts.redZonePct : RELAY_RED_ZONE_PCT;
+  // Daily-grant relay (#Loomy-daily-first): the caller supplies the health
+  // predicate because "spent" means something different there — a carrier is
+  // done when its use-it-or-lose-it daily gift hits 0, not when a percentage
+  // window crosses a red zone. The ring rules (single-point burn, forward-only,
+  // never jump back) are identical.
+  const healthyOf = typeof opts.healthOf === "function" ? opts.healthOf : (c) => isCarrierHealthy(c, redZonePct);
   if (!Array.isArray(connections) || connections.length === 0) return null;
   if (connections.length === 1) return { connection: connections[0], stepped: false };
 
@@ -94,7 +100,7 @@ export function selectRelayCarrier(connections, opts = {}) {
 
   // Rule 1 + 3: keep the current carrier while it is still healthy — even if an
   // earlier-priority account has refilled. This is the "绝不插队" guarantee.
-  if (prevIdx >= 0 && isCarrierHealthy(previous, redZonePct)) {
+  if (prevIdx >= 0 && healthyOf(previous)) {
     return { connection: previous, stepped: false };
   }
 
@@ -104,7 +110,7 @@ export function selectRelayCarrier(connections, opts = {}) {
   const startIdx = prevIdx >= 0 ? prevIdx : -1;
   for (let i = 1; i <= ring.length; i++) {
     const cand = ring[(startIdx + i + ring.length) % ring.length];
-    if (isCarrierHealthy(cand, redZonePct)) {
+    if (healthyOf(cand)) {
       // No prior carrier ⇒ this is the initial pick, not a handoff — only
       // report `stepped` when we actually moved off a previous carrier.
       return { connection: cand, stepped: prevIdx >= 0 };

@@ -34,7 +34,7 @@ describe("issue 14: disabled models UX", () => {
 
   it("B: disabled section renders ModelRow with enable + test wiring", () => {
     // Both disabled maps go through ModelRow with an onEnable action…
-    const disabledSection = page.slice(page.indexOf("Disabled models ("));
+    const disabledSection = page.slice(page.indexOf('translate("Disabled models")'));
     expect(disabledSection).toContain("<ModelRow");
     expect(disabledSection).toContain("onEnable={() => handleEnableModel(model.id)}");
     expect(disabledSection).toContain("onEnable={() => handleToggleCustomModel(model.id, true)}");

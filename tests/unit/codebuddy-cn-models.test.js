@@ -11,97 +11,125 @@ const INTL_ONLY_FAMILY = [
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
+  // 以下四个在 intl 2026-11-05 第三版清单中也已下架 —— 它们两侧都不在目录里，
+  // 仍要钉住的是「CN 永远不收 GPT/Gemini 转售线」这一规则本身。
   "gpt-5.5",
   "gpt-5.4",
   "gpt-5.3-codex",
   "gemini-3.5-flash",
+  // 2026-11-05 第三版 intl 新增的 Pro-Only 行，同样与 CN 无关。
+  "gpt-6-astra",
+  "gpt-6.1-sol",
+  "gpt-6-sol",
+  "gpt-6-luna",
+  "grok-4.7",
+  "gemini-3.8-flash",
+  "kimi-k3.1-pro-highspeed",
 ];
 
 describe("CodeBuddy CN static model catalog", () => {
-  it("lists exactly the models copilot.tencent.com publishes", () => {
+  it("lists exactly the models the CN client publishes (2026-11-16 screenshots, 4th edition)", () => {
+    // 以 CN 客户端「内置模型」列表为准（2026-11-16 三张截图拼全）：第四版变化
+    // —— Hy3 从选择器消失（下架）、新增 Hy4 flash（正式发布 banner + 限免 +
+    // 960K 卡）。hy4-flash 的 id 按命名惯例推断（与 intl 同款同窗），现网
+    // 200/11102 待凭据恢复后复核。旧一代（glm-5v-turbo / glm-5.3-flashx /
+    // glm-5.1 / kimi-k2.7 / kimi-k2.6 / minimax-m3）维持下线。
     expect(cn.models.map((model) => model.id)).toEqual([
-      "hy4-preview",
-      "hy3",
+      "auto",
+      "hy4",
+      "hy4-flash",
       "space-bunny",
-      "glm-5v-turbo",
       "glm-5.3",
       "glm-5.3-flash",
-      "glm-5.3-flashx",
       "glm-5.2",
-      "glm-5.1",
-      "minimax-m3",
+      "minimax-m3.1-flash",
+      "kimi-k3.1-pro",
       "kimi-k3",
-      "kimi-k2.7",
       "kimi-k2.8-preview",
-      "kimi-k2.6",
+      "mimo-v2.6-pro",
       "step-5-preview",
       "deepseek-v4.1-flash",
       "deepseek-v4-pro",
     ]);
   });
 
-  it("carries the published credit multiplier on every model", () => {
-    // Rate card published by the CN credit page. 0 = rides the free quota.
-    // hy4-preview is the NIGHT-ONLY exception (23:00–08:00 local free, user-
-    // verified 2026-09-13): daytime bills at 0.29x (user-provided), the badge
-    // flips free/0.29x by `nightFree` instead of showing a misleading 0x.
+  it("carries the client's published credit multiplier on every model", () => {
+    // 倍率取自 CN 客户端卡片「消耗速度」一栏（2026-11-16 截图）。
+    // 带限时免费/夜间折扣的模型，rateMultiplier 记的是**原价**，折扣由
+    // promoFreeUntil / nightFree 表达（0 会变成「永久免费」，见 promoFree.js）
+    // —— hy4-flash 例外：限免期内卡面 0.00x、原价未知，暂记 0 交 promoFree
+    // 表达免费窗，窗口结束前现网复核回填。
     const rates = Object.fromEntries(cn.models.map((m) => [m.id, m.rateMultiplier]));
     expect(rates).toEqual({
-      "hy4-preview": 0.29,
-      hy3: 0,
-      // 10/2–10/7 限时折扣价 0.03 已到期，2026-10-08 积分页回填正式价 0.08。
+      "hy4": 0.29,
+      "hy4-flash": 0,
       "space-bunny": 0.08,
-      "glm-5v-turbo": 0.71,
-      "glm-5.3": 0.79,
-      "glm-5.3-flash": 0.06,
-      // 2026-10-09 积分页回填 0.14x。它比同族的 glm-5.3-flash(0.06)贵一倍以上,
-      // 所以「-x = 付费档」在这条线上成立;国际线虽有同名条目,但那边每个请求都
-      // 被 11133 拒,故只留在 CN。
-      "glm-5.3-flashx": 0.14,
+      "glm-5.3": 0.69,
+      "glm-5.3-flash": 0.08,
       "glm-5.2": 0.79,
-      "glm-5.1": 0.79,
-      "minimax-m3": 0.25,
+      "minimax-m3.1-flash": 0.08,
+      "kimi-k3.1-pro": 0.97,
       "kimi-k3": 1.62,
-      "kimi-k2.7": 0.57,
       "kimi-k2.8-preview": 0.77,
-      "kimi-k2.6": 0.52,
-      // StepFun Step-5-Preview,2026-10-09 积分页。免费账号探测全 11102(17 种写法),
-      // 按账号档位收录,与 intl 的 Claude 线同一判断。
-      "step-5-preview": 0.43,
-      // 2026-10-02 官方积分页已回调 0.03 → 0.11（首周尝鲜价结束）。
+      "mimo-v2.6-pro": 0.13,
+      "step-5-preview": 0.33,
       "deepseek-v4.1-flash": 0.11,
       "deepseek-v4-pro": 0.51,
+      auto: undefined,
     });
-    // The night-free window itself, pinned (intl hy4 is free ALL DAY — separate).
-    const hy4 = cn.models.find((m) => m.id === "hy4-preview");
-    expect(hy4.nightFree).toEqual({ from: 23, to: 8 });
   });
 
-  it("shares the credit rate with intl on models both gateways serve", () => {
-    const intlRates = Object.fromEntries(intl.models.map((m) => [m.id, m.rateMultiplier]));
-    for (const m of cn.models) {
-      // hy4-preview is deliberately EXCLUDED: free-all-day on intl, night-only
-      // free on CN — the multipliers diverged (user-verified 2026-09-13).
-      if (m.id === "hy4-preview") continue;
-      if (m.id in intlRates) expect(m.rateMultiplier).toBe(intlRates[m.id]);
+  it("marks the promo windows and discount rules the client shows", () => {
+    // 「限时免费」只属于 hy4-flash（卡片「11月16日-11月30日，每日赠送免费额度」，
+    // 限免 0.00x）。2026-11-18 用户纠正：Hy4 是独立模型、正常计费 0.29x，
+    // 不挂 promoFreeUntil（误挂会让徽章亮「限时免费」）。
+    const flash = cn.models.find((x) => x.id === "hy4-flash");
+    expect(flash.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(flash.promoFreeNote).toMatch(/每日赠送/);
+    const hy4 = cn.models.find((x) => x.id === "hy4");
+    expect(hy4.promoFreeUntil).toBeUndefined();
+    expect(hy4.rateMultiplier).toBeGreaterThan(0);
+    // 「订阅优先」
+    for (const id of ["glm-5.3", "glm-5.3-flash", "kimi-k2.8-preview", "kimi-k3.1-pro"]) {
+      expect(cn.models.find((m) => m.id === id).subPriority).toBe(true);
     }
+    // 「夜间折扣」是**立减**不是免费 —— 不允许用 nightFree（徽章会亮 free 夸大），
+    // 只能用 discountNote 承载时段规则。三张卡都带这条。
+    for (const id of ["glm-5.2", "deepseek-v4.1-flash", "deepseek-v4-pro"]) {
+      const m = cn.models.find((x) => x.id === id);
+      expect(m.nightFree).toBeUndefined();
+      expect(m.discountNote).toMatch(/高峰/);
+    }
+  });
+
+  it("does not assume intl shares CN's credit rates", () => {
+    // 两侧是**独立**的计费与目录，用户 2026-11-05 明确说明。旧例证 hy3（CN
+    // 0.05 原价 / intl 0 免费额度）已随第四版两侧同撤；保留这一条只是提醒：
+    // 不要再按 intl 反推 CN 的倍率（hy4 0.29 两侧同值属巧合级一致）。
+    expect(cn.models.some((m) => m.rateMultiplier > 0)).toBe(true);
   });
 
   it("does not carry the intl-only GPT/Gemini family", () => {
     const cnIds = cn.models.map((model) => model.id);
     const intlIds = intl.models.map((model) => model.id);
     for (const id of INTL_ONLY_FAMILY) {
-      expect(cnIds).not.toContain(id);
-      expect(intlIds).toContain(id);
+      // CN 一律不收；intl 侧只在它仍在目录时才断言存在（5.5/5.4/5.3-Codex/
+      // gemini-3.5-flash 已随第三代清单下架，两侧都没有 —— 规则仍然成立）。
+      expect(cnIds, `${id} must stay out of CN`).not.toContain(id);
+      if (intlIds.includes(id)) {
+        expect(cnIds).not.toContain(id);
+      }
     }
   });
 
   it("does not carry retired or spurious ids", () => {
     const ids = cn.models.map((model) => model.id);
     // kimi-k3-1 was a spurious duplicate slot; deepseek-v4-flash is superseded
-    // by deepseek-v4.1-flash.
+    // by deepseek-v4.1-flash. hy3 retired with the 4th-edition client picker
+    // (2026-11-16) — both sides same day.
     expect(ids).not.toContain("kimi-k3-1");
     expect(ids).not.toContain("deepseek-v4-flash");
+    expect(ids).not.toContain("hy3");
   });
 
   it("carries DeepSeek-V4.1-Flash's published capabilities", () => {

@@ -64,8 +64,13 @@ export async function handleSystemone(request) {
     log.warn("SYSTEMONE", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   }
-  if (body.state === undefined || body.state === null) {
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: state");
+  // 输入字段按供应商方言校验（与 systemoneCore 同规则）：Drex/Jev 系 state，
+  // Gemini Decision input（issue #110）。探测 provider 先于校验 —— getModelInfo
+  // 需要合法 modelStr，这里先松校验再由 core 精确报错。
+  const hasState = body.state !== undefined && body.state !== null;
+  const hasInput = body.input !== undefined && body.input !== null;
+  if (!hasState && !hasInput) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: state (or input for Gemini Decision)");
   }
   if (!body.questions || typeof body.questions !== "object" || Array.isArray(body.questions)) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: questions");

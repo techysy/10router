@@ -1,6 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { OAUTH_ENDPOINTS, GEMINI_CLI_API_CLIENT, geminiCLIUserAgent } from "../config/appConstants.js";
+import { isUnattributedGoogle429 } from "../services/googleQuotaSignal.js";
 
 export class GeminiCLIExecutor extends BaseExecutor {
   constructor() {
@@ -37,7 +38,14 @@ export class GeminiCLIExecutor extends BaseExecutor {
   // Parse RetryInfo.retryDelay from Google API 429 body to surface upstream retry hint
   parseError(response, bodyText) {
     const base = super.parseError(response, bodyText);
-    if (response.status !== 429 || !bodyText) return base;
+    if (response.status !== 429) return base;
+    // #147 伪 429（WAF 身份识别类）打标：无归因信号的 429 禁止轮换换号 /
+    // 端点回退，交给 chat 层渠道暂停。空体同样算无信号。
+    if (isUnattributedGoogle429(429, response.headers?.get?.("retry-after"), bodyText || "")) {
+      base.unattributed429 = true;
+      return base;
+    }
+    if (!bodyText) return base;
     try {
       const parsed = JSON.parse(bodyText);
       const details = parsed?.error?.details;

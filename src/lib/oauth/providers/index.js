@@ -13,6 +13,12 @@ import antigravity from "./antigravity.js";
 import iflow from "./iflow.js";
 import qoder from "./qoder.js";
 import qoderCn from "./qoder-cn.js";
+import qwenwork from "./qwenwork.js";
+import qwenworkCn from "./qwenwork-cn.js";
+import meoo from "./meoo.js";
+import croli from "./croli.js";
+import nous from "./nous.js";
+import junie from "./junie.js";
 import github from "./github.js";
 import kiro from "./kiro.js";
 import cursor from "./cursor.js";
@@ -25,6 +31,7 @@ import codebuddyCn from "./codebuddy-cn.js";
 import codebuddyIntl from "./codebuddy-intl.js";
 import kimchi from "./kimchi.js";
 import trae from "./trae.js";
+import { traeCn } from "./trae.js";
 import windsurf from "./windsurf.js";
 import zed from "./zed.js";
 import glm from "./glm.js";
@@ -42,6 +49,12 @@ const PROVIDERS = {
   iflow,
   qoder,
   "qoder-cn": qoderCn,
+  qwenwork,
+  "qwenwork-cn": qwenworkCn,
+  meoo,
+  croli,
+  nous,
+  junie,
   github,
   kiro,
   cursor,
@@ -54,6 +67,7 @@ const PROVIDERS = {
   "codebuddy-intl": codebuddyIntl,
   kimchi,
   trae,
+  "trae-cn": traeCn,
   windsurf,
   zed,
   glm,

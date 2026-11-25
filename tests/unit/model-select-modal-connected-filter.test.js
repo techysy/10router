@@ -24,4 +24,9 @@ describe("ModelSelectModal connected providers filter", () => {
   it("records isConnected flag on all groups including passthrough and custom providers", () => {
     expect(src).toContain("isConnected,");
   });
+
+  it("excludes hidden no-auth providers (e.g. devin-cli) when unconfigured", () => {
+    expect(src).toContain("FREE_PROVIDERS[id].noAuth && !FREE_PROVIDERS[id].hidden");
+    expect(src).toContain("if (providerInfo.hidden && !activeConnectionIds.includes(providerId)) return;");
+  });
 });

@@ -69,7 +69,10 @@ describe("DeepSeek V4 capability resolution", () => {
 
 // `deepseek-flash` is the official id DeepSeek introduced on 2026-09-10 for
 // V4.1-Flash ("Change the model name to deepseek-flash to call the latest V4.1
-// Flash model"), and opencode-go exposes the same bare id. Without a canonical row
+// Flash model"), and opencode-go exposes the same bare id. QwenWork （千问办公）
+// resells it under the same bare key in its qwork catalog (added 2026-11-21) —
+// it joins the offerer set below, and the canonical-row assertions in this
+// block are exactly what keep its profile honest there too. Without a canonical row
 // the id falls through to the `*deepseek*` pattern — the V3.2 profile of 128K
 // context / 64000 output / no vision — so images are stripped and max_tokens is
 // clamped six times under the real ceiling.
@@ -83,7 +86,7 @@ const OFFICIAL_ID = REGISTRY.flatMap((entry) =>
 describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
   it("is offered by the first-party provider and by opencode-go", () => {
     const providers = OFFICIAL_ID.map((m) => m.provider).sort();
-    expect(providers).toEqual(["deepseek", "opencode-go"]);
+    expect(providers).toEqual(["deepseek", "opencode-go", "qwenwork", "qwenwork-cn"]);
   });
 
   it("resolves from the canonical row, not the V3 *deepseek* wildcard", () => {
@@ -126,8 +129,14 @@ const DOTTED_ID = REGISTRY.flatMap((entry) =>
 );
 
 describe("DeepSeek V4.1-Flash id with dots (deepseek-v4.1-flash)", () => {
-  it("is offered by apinex, opencode-go, opencode-zen and both CodeBuddy gateways", () => {
-    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "opencode-go", "opencode-zen", "trae-free"]);
+  // 2026-11-10: trae intl 目录对齐官方客户端清单后也带此 id（paidTier 行）。
+  // 2026-11-15: lingxi（WPS 灵犀）plans 目录同样带此 id（web 会话线）。
+  // 2026-11-16: deepai（DeepAI Code）实时目录的免费档同样开出此 id
+  // ——它走自己的 provider 行（deepai 段），不吃 canonical 的 deepseek
+  // 思维形态，vision/reasoning 与本表一致。用例名保持原样：基线按
+  // `file :: fullName` 记账，改名会被回归门当成 MISSING。
+  it("is offered by apinex, opencode-go, opencode-zen, both CodeBuddy gateways, trae-cn, trae intl and lingxi", () => {
+    expect(DOTTED_ID.map((m) => m.provider).sort()).toEqual(["apinex", "codebuddy-cn", "codebuddy-intl", "deepai", "deepseek", "lingxi", "opencode-go", "opencode-zen", "trae", "trae-cn", "trae-free"]);
   });
 
   it("resolves from the canonical row where the provider has no override", () => {

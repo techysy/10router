@@ -6,11 +6,14 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle } from "@/shared/components";
+import DraggableCard from "@/shared/components/DraggableCard";
+import { buildComboCardComparator, moveComboCardInOrder, pinComboCardToTop, saveComboCardOrder } from "@/shared/utils/comboCardOrder";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { cn } from "@/shared/utils/cn";
+import { modelDisplayName } from "@/shared/utils/modelDisplayName";
 import { translate } from "@/i18n/runtime";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
@@ -56,6 +59,9 @@ export default function CombosPage() {
   const [editingCombo, setEditingCombo] = useState(null);
   const [activeProviders, setActiveProviders] = useState([]);
   const [comboStrategies, setComboStrategies] = useState({});
+  const [comboCardOrder, setComboCardOrder] = useState([]);
+  const [draggingCardId, setDraggingCardId] = useState(null);
+  const [dragOverCardId, setDragOverCardId] = useState(null);
   const [capacityAdapter, setCapacityAdapter] = useState(EMPTY_CAPACITY_ADAPTER);
   const { getCaps } = useModelCaps();
   const [confirmState, setConfirmState] = useState(null);
@@ -82,6 +88,9 @@ export default function CombosPage() {
         setActiveProviders(providersData.connections || []);
       }
       setComboStrategies(settingsData.comboStrategies || {});
+      if (Array.isArray(settingsData.comboCardOrder)) {
+        setComboCardOrder(settingsData.comboCardOrder);
+      }
       const rawAdapter = settingsData.capacityAdapter || {};
       const normalized = {};
       for (const cap of CAPACITY_ADAPTER_CAPS) {
@@ -94,6 +103,44 @@ export default function CombosPage() {
       setLoading(false);
     }
   };
+
+  const handleCardDrop = useCallback(
+    (targetId) => {
+      const sourceId = draggingCardId;
+      setDraggingCardId(null);
+      setDragOverCardId(null);
+      if (!sourceId || !targetId || sourceId === targetId) return;
+
+      setComboCardOrder((prev) => {
+        const allIds = combos.map((c) => c.id);
+        const next = moveComboCardInOrder(prev, allIds, sourceId, targetId);
+        if (next !== prev) {
+          saveComboCardOrder(next).catch((err) =>
+            console.log("Failed to save combo card order:", err)
+          );
+        }
+        return next;
+      });
+    },
+    [draggingCardId, combos]
+  );
+
+  const handlePinToTop = useCallback(
+    (comboId) => {
+      if (!comboId) return;
+      setComboCardOrder((prev) => {
+        const allIds = combos.map((c) => c.id);
+        const next = pinComboCardToTop(prev, allIds, comboId);
+        if (next !== prev) {
+          saveComboCardOrder(next).catch((err) =>
+            console.log("Failed to save combo card order:", err)
+          );
+        }
+        return next;
+      });
+    },
+    [combos]
+  );
 
   const handleSetCapacityAdapter = async (next) => {
     setCapacityAdapter(next);
@@ -171,9 +218,12 @@ export default function CombosPage() {
       const updated = { ...comboStrategies };
       const next = { ...(updated[comboName] || {}), ...patch };
       // Prune to keep settings clean: default strategy with no extras = no entry.
-      // retryOnEmpty is an extra that must survive the default "fallback" strategy.
+      // retryOnEmpty / stickyWindowMinutes are extras that must survive the
+      // default "fallback" strategy (stickyWindowMinutes keeps a per-combo idle
+      // window pinned even when the strategy falls back to the global one).
       const isDefaultStrategy = !next.fallbackStrategy || next.fallbackStrategy === "fallback";
-      if (isDefaultStrategy && !next.retryOnEmpty) {
+      const hasExtras = !!next.retryOnEmpty || next.stickyWindowMinutes != null;
+      if (isDefaultStrategy && !hasExtras) {
         delete updated[comboName];
       } else {
         updated[comboName] = next;
@@ -235,23 +285,40 @@ export default function CombosPage() {
           </div>
         </Card>
       ) : (
-        <div className="flex flex-col gap-4">
+        /* 双栏网格（2xl+）：组合多了以后单列太长。拖拽是 id 语义（拖到目标卡上
+           即换位），网格逐行铺排与数组顺序一致，跨列拖放依然成立。 */
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
           {(() => {
-            const comboByName = Object.fromEntries(combos.map((c) => [c.name, c.models]));
-            return combos.map((combo) => (
-              <ComboCard
+            const sortedCombos = [...combos].sort(buildComboCardComparator({ cardOrder: comboCardOrder }));
+            const comboByName = Object.fromEntries(sortedCombos.map((c) => [c.name, c.models]));
+            return sortedCombos.map((combo) => (
+              <DraggableCard
                 key={combo.id}
-                combo={combo}
-                getCaps={getCaps}
-                comboByName={comboByName}
-                activeProviders={activeProviders}
-                copied={copied}
-                onCopy={copy}
-                onEdit={() => setEditingCombo(combo)}
-                onDelete={() => handleDelete(combo.id)}
-                strategy={comboStrategies[combo.name] || {}}
-                onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
-              />
+                cardId={combo.id}
+                isDragging={draggingCardId === combo.id}
+                isOver={dragOverCardId === combo.id}
+                onDragStart={setDraggingCardId}
+                onDragOver={setDragOverCardId}
+                onDrop={handleCardDrop}
+                onDragEnd={() => {
+                  setDraggingCardId(null);
+                  setDragOverCardId(null);
+                }}
+              >
+                <ComboCard
+                  combo={combo}
+                  getCaps={getCaps}
+                  comboByName={comboByName}
+                  activeProviders={activeProviders}
+                  copied={copied}
+                  onCopy={copy}
+                  onEdit={() => setEditingCombo(combo)}
+                  onDelete={() => handleDelete(combo.id)}
+                  onPinToTop={handlePinToTop}
+                  strategy={comboStrategies[combo.name] || {}}
+                  onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
+                />
+              </DraggableCard>
             ));
           })()}
         </div>
@@ -317,7 +384,7 @@ const STRATEGY_OPTIONS = [
   { value: "router", label: translate("Router — decision model picks member") },
 ];
 
-function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, strategy = {}, onSetStrategy }) {
+function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, onPinToTop, strategy = {}, onSetStrategy }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showRouterSelect, setShowRouterSelect] = useState(false);
   const current = strategy.fallbackStrategy || "fallback";
@@ -331,7 +398,8 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
   const comboCaps = aggregateComboCapabilities(combo.models, comboByName, getCaps);
 
   return (
-    <Card padding="sm" className="group">
+    // h-full：双栏网格下同排两张卡等高（grid item 默认拉伸，Card 撑满壳层）
+    <Card padding="sm" className="group h-full">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
           <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -340,24 +408,34 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
           <div className="min-w-0 flex-1">
             <code className="block truncate font-mono text-sm font-medium">{combo.name}</code>
             {/* Read-only summary: the card deliberately caps the chip list at 3
-                with a "+N more" tail — every model is editable in the edit modal. */}
+                with a "+N more" tail — every model is editable in the edit modal.
+                Chips show the display name (Qwen4-Max-Preview) with the raw id
+                in the tooltip — bare ids like qdc/qmodel_latest read as noise. */}
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">{translate("No models")}</span>
               ) : (
-                combo.models.slice(0, 3).map((model, index) => (
-                  <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{model}</span>
-                    <CapacityBadges caps={
-                      comboByName[model]
-                        ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
-                        : getCaps?.(model)
-                    } />
-                  </code>
-                ))
+                combo.models.slice(0, 3).map((model, index) => {
+                  const slashIdx = model.indexOf("/");
+                  const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+                  const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+                  const display = modelDisplayName(provider, bare);
+                  return (
+                    <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5" title={model}>
+                      <span>{display}</span>
+                      <CapacityBadges caps={
+                        comboByName[model]
+                          ? aggregateComboCapabilities(comboByName[model], comboByName, getCaps)
+                          : getCaps?.(model)
+                      } />
+                    </code>
+                  );
+                })
               )}
               {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} {translate("more")}</span>
+                <span className="text-[10px] text-text-muted" title={combo.models.slice(3).join("\n")}>
+                  +{combo.models.length - 3} {translate("more")}
+                </span>
               )}
             </div>
             {comboCaps && (
@@ -450,9 +528,41 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                 <span>{translate("Retry on empty")}</span>
               </label>
             )}
+            {/* Per-combo sticky window (minutes): overrides the global idle window
+                while this combo is round-robin. Empty = use the global setting.
+                Only shown for round-robin — fallback/fusion/router don't rotate. */}
+            {current === "round-robin" && (
+              <label
+                className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted"
+                title={translate("Minutes this combo keeps answering with the same model while active; after the idle window it rotates to the next. Empty = use the global setting (Settings page).")}
+              >
+                <span className="material-symbols-outlined text-[13px]">schedule</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={strategy.stickyWindowMinutes ?? ""}
+                  placeholder={translate("global")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onSetStrategy({ stickyWindowMinutes: v === "" ? null : parseFloat(v) || null });
+                  }}
+                  className="w-14 rounded border border-border bg-transparent px-1 py-0.5 text-center text-[11px] text-text-main focus:border-primary focus:outline-none"
+                />
+                <span>min</span>
+              </label>
+            )}
           </div>
 
-          <div className="grid grid-cols-3 gap-1 sm:flex">
+          <div className="grid grid-cols-4 gap-1 sm:flex">
+            <button
+              onClick={(e) => { e.stopPropagation(); onPinToTop?.(combo.id); }}
+              className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
+              title={translate("Pin to top")}
+            >
+              <span className="material-symbols-outlined text-[18px]">vertical_align_top</span>
+              <span className="text-[10px] leading-tight">{translate("Pin to top")}</span>
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onCopy(combo.name, `combo-${combo.id}`); }}
               className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
@@ -648,7 +758,20 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
                   </td>
                   <td className="px-3 py-2 text-text-main">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="truncate">{model}</span>
+                      <span className="truncate" title={model}>
+                        {(() => {
+                          const slashIdx = model.indexOf("/");
+                          const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+                          const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+                          const display = modelDisplayName(provider, bare);
+                          return display !== model ? (
+                            <>
+                              <span className="font-sans">{display}</span>
+                              <span className="text-[10px] text-text-muted">{model}</span>
+                            </>
+                          ) : model;
+                        })()}
+                      </span>
                       <CapacityBadges caps={getCaps?.(model)} />
                       {model === DEFAULT_FALLBACK_MODEL && (
                         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -726,7 +849,7 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
   );
 }
 
-function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+function ModelItem({ id, index, model, isFirst, isLast, disabled, onEdit, onMoveUp, onMoveDown, onRemove, onToggleDisabled }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -769,10 +892,21 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         </svg>
       </button>
 
-      {/* Index badge */}
-      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
+      {/* Enable/disable toggle (issue #91 方案 A)：禁用置灰保留排序位，调度展开时跳过 */}
+      <button
+        type="button"
+        onClick={onToggleDisabled}
+        className={`shrink-0 rounded p-0.5 transition-colors ${disabled ? "text-text-muted/30 hover:text-text-muted" : "text-emerald-500 hover:bg-emerald-500/10"}`}
+        title={disabled ? translate("Disabled — scheduler skips this entry (click to enable)") : translate("Enabled (click to disable without removing)")}
+      >
+        <span className="material-symbols-outlined text-[14px]">{disabled ? "toggle_off" : "toggle_on"}</span>
+      </button>
 
-      {/* Inline editable model value */}
+      {/* Index badge */}
+      <span className={`text-[10px] font-medium w-3 text-center shrink-0 ${disabled ? "text-text-muted/30" : "text-text-muted"}`}>{index + 1}</span>
+
+      {/* Inline editable model value — display name (Qwen4-Max-Preview) with the
+          raw routed id as small print; the id stays the source of truth on edit. */}
       {editing ? (
         <input
           autoFocus
@@ -784,11 +918,22 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         />
       ) : (
         <div
-          className="min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5"
+          className={`min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs hover:bg-black/5 dark:hover:bg-white/5 ${disabled ? "text-text-muted/40 line-through" : "text-text-main"}`}
           onClick={() => setEditing(true)}
-          title="Click to edit"
+          title={`${translate("Click to edit")} — ${model}`}
         >
-          {model}
+          {(() => {
+            const slashIdx = model.indexOf("/");
+            const provider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
+            const bare = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+            const display = modelDisplayName(provider, bare);
+            return display !== model ? (
+              <>
+                <span className="font-sans">{display}</span>
+                <span className="ml-1 text-[10px] text-text-muted">{model}</span>
+              </>
+            ) : model;
+          })()}
         </div>
       )}
 
@@ -828,6 +973,10 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   // Initialize state with combo values - key prop on parent handles reset on remount
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
+  // 旁挂禁用清单（issue #91 方案 A）：models 保序，禁用 id 存这里
+  const [disabledModels, setDisabledModels] = useState(
+    Array.isArray(combo?.disabledModels) ? combo.disabledModels.filter((m) => (combo?.models || []).includes(m)) : []
+  );
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -895,10 +1044,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
 
   const handleDeselectModel = (model) => {
     setModels(models.filter((m) => m !== model.value));
+    setDisabledModels(disabledModels.filter((m) => m !== model.value));
   };
 
   const handleRemoveModel = (index) => {
+    const removed = models[index];
     setModels(models.filter((_, i) => i !== index));
+    setDisabledModels(disabledModels.filter((m) => m !== removed));
+  };
+
+  const handleToggleDisabled = (index) => {
+    const model = models[index];
+    setDisabledModels(disabledModels.includes(model)
+      ? disabledModels.filter((m) => m !== model)
+      : [...disabledModels, model]);
   };
 
   const handleMoveUp = (index) => {
@@ -918,7 +1077,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   const handleSave = async () => {
     if (!validateName(name)) return;
     setSaving(true);
-    await onSave({ name: name.trim(), models });
+    await onSave({ name: name.trim(), models, disabledModels });
     setSaving(false);
   };
 
@@ -967,14 +1126,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                       model={model}
                       isFirst={index === 0}
                       isLast={index === modelItems.length - 1}
+                      disabled={disabledModels.includes(model)}
                       onEdit={(newVal) => {
                         const updated = [...models];
                         updated[index] = newVal;
                         setModels(updated);
+                        // 禁用清单记的是 id——改名时同步，否则禁用状态静默丢失
+                        if (disabledModels.includes(model)) {
+                          setDisabledModels(disabledModels.map((m) => (m === model ? newVal : m)));
+                        }
                       }}
                       onMoveUp={() => handleMoveUp(index)}
                       onMoveDown={() => handleMoveDown(index)}
                       onRemove={() => handleRemoveModel(index)}
+                      onToggleDisabled={() => handleToggleDisabled(index)}
                     />
                   ))}
                 </div>

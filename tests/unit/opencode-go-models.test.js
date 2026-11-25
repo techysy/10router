@@ -20,7 +20,7 @@ const RESPONSES_ONLY = [
 // /chat/completions only (no /messages, no /responses support on opencode-go).
 const CHAT_ONLY = [
   "glm-5.3-flash", "glm-5.3", "glm-5.2", "glm-5.1", "glm-5",
-  "kimi-k3", "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5",
+  "kimi-k3", "kimi-k3.1-pro", "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5",
   "longcat-2.0", "longcat-2.5-preview-free",
   "mimo-v2.6-flash", "mimo-v2.6-pro", "mimo-v2.5", "mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2-omni",
   "hy4-preview", "hy3", "hy3-preview",

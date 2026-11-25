@@ -215,3 +215,43 @@ describe("issue #9 item 11 — version/init are no longer open to the network", 
     expect(guard.indexOf("ALWAYS_PROTECTED.some")).toBeLessThan(guard.indexOf("LOCAL_OR_AUTH_API_PATHS.some"));
   });
 });
+
+describe("issue #43 final closure — security audit 5 items closure verification", () => {
+  it("item 1: Host header validation & DNS rebinding defense in dashboardGuard", () => {
+    const guard = read("src/dashboardGuard.js");
+    expect(guard).toContain("isAllowedHost(host)");
+    expect(guard).toContain("extractHostname");
+    expect(guard).toContain("TRUSTED_HOSTS");
+  });
+
+  it("item 2: Login rate limiter accepted tradeoff explicitly documented", () => {
+    const limiter = read("src/lib/auth/loginLimiter.js");
+    expect(limiter).toContain("ACCEPTED TRADEOFF");
+    expect(limiter).toContain("Issue #43, Item 2");
+    expect(limiter).toContain("x-10r-real-ip");
+  });
+
+  it("item 3: Deprecation schedule and warning for LEGACY_FALLBACK_SECRET and old keys", () => {
+    const keyUtil = read("src/shared/utils/apiKey.js");
+    expect(keyUtil).toContain("Deprecation schedule for LEGACY_FALLBACK_SECRET");
+    expect(keyUtil).toContain("v2.0.0");
+    expect(keyUtil).toContain("Legacy API key format 'sk-<random8>' is deprecated");
+  });
+
+  it("item 4: MITM Root CA private key Windows ACL hardened via icacls", () => {
+    const rootCA = read("src/mitm/cert/rootCA.js");
+    expect(rootCA).toContain("icacls");
+    expect(rootCA).toContain("/inheritance:r");
+    expect(rootCA).toContain("/grant:r");
+    expect(rootCA).toContain(":(F)");
+  });
+
+  it("item 5: Update status server no longer presents wildcard CORS", () => {
+    const updater = read("src/lib/updater/updater.js");
+    const code = updater
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\*)/.test(line))
+      .join("\n");
+    expect(code).not.toContain("Access-Control-Allow-Origin");
+  });
+});

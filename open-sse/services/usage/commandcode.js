@@ -14,9 +14,8 @@
  */
 
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
+import { buildCommandCodeHeaders } from "../../shared/commandCodeHeaders.js";
 import { U, parseResetTime, toFiniteNumber } from "./shared.js";
-
-const CLI_VERSION = "1.53.1";
 
 const PLAN_LABELS = {
   "individual-go": "Go",
@@ -52,14 +51,7 @@ export async function getCommandCodeUsage(apiKey, proxyOptions = null) {
   const creditsUrl = urls?.creditsUrl || "https://api.commandcode.ai/alpha/billing/credits";
   const subscriptionsUrl = urls?.subscriptionsUrl || "https://api.commandcode.ai/alpha/billing/subscriptions";
 
-  const headers = {
-    Authorization: `Bearer ${apiKey.trim()}`,
-    "x-command-code-version": CLI_VERSION,
-    "x-cli-environment": "cli",
-    "User-Agent": "cli",
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
+  const headers = buildCommandCodeHeaders({ apiKey: apiKey.trim(), accept: "application/json" });
 
   try {
     const creditsPromise = proxyAwareFetch(creditsUrl, { method: "GET", headers }, proxyOptions);

@@ -74,7 +74,9 @@ describe("GitHub monthly usage exhaustion", () => {
       expect(dbMocks.updateProviderConnection).toHaveBeenCalledWith(
         "github-a",
         expect.objectContaining({
-          "modelLock_claude-fable-5": "2026-08-04T19:32:00.000Z",
+          // 非月度的 GitHub 402（预付费请求包耗尽）走 30 分钟计费冷却
+          // （issue #91 方案 B），粒度仍是 model-scoped
+          "modelLock_claude-fable-5": "2026-08-04T20:00:00.000Z",
         }),
       );
       expect(dbMocks.updateProviderConnection.mock.calls[0][1])

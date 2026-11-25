@@ -137,7 +137,19 @@ else
 fi
 [ "\$d" = 200 ] || [ "\$d" = 307 ] || { echo "✗ [NAS] dashboard 异常:\$d"; false; }
 rm -f "\$JAR"
-m=\$(curl -s -m 10 http://127.0.0.1:20127/v1/models | head -c 60)
+# 不用 "| head -c 60" 截断:pipefail 下 head 先退会吃 SIGPIPE(curl exit 23)
+# (本 heredoc 无引号=本地展开,注释里也别用反引号——会被当命令替换执行)
+# 触发 ERR→回滚且无任何 ✗ 输出(test.26 部署实锤的竞态)。case 本来就只匹配前缀。
+# /v1/models 对接了 live 目录的 provider 逐个串行 await 上游解析器,冷启动首打
+# 可到 5-14s(test.13 两次部署实锤:-m 10 撞线空返回→误回滚;同一 bundle smoke
+# 与手测全绿)。放宽到 -m 30 并给两次机会——models 慢是上游延迟,不是包坏。
+m=""
+for _try in 1 2; do
+  m=\$(curl -s -m 30 http://127.0.0.1:20127/v1/models || true)
+  case "\$m" in '{"object"'*data*) break ;; esac
+  m=""
+  sleep 2
+done
 case "\$m" in '{"object"'*data*) ;; *) echo "✗ [NAS] /v1/models 异常: \$m"; false ;; esac
 echo "-- [NAS] login=200 dashboard=\$d models=ok"
 printf 'DEPLOY-DONE %s\\n' "\$TS"

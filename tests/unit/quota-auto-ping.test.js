@@ -48,6 +48,9 @@ vi.mock("@/shared/constants/config", () => ({
 
 vi.mock("open-sse/providers/shared.js", () => ({
   CLAUDE_CLI_SPOOF_HEADERS: { "anthropic-version": "2023-06-01" },
+  // sendClaudePing 动态导入 resolveClaudeCliVersion()（e9807718 起）——mock 必须提供，
+  // 否则动态导入在 sendClaudePing 内抛错，ping 静默失败（回归 gate：pass→fail）。
+  resolveClaudeCliVersion: vi.fn(async () => "2.1.322"),
 }));
 
 vi.mock("open-sse/services/usage/shared.js", () => ({

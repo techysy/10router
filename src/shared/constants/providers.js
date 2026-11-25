@@ -37,8 +37,14 @@ function buildProviderEntry(r) {
     // Trial provider (体验) — hidden by default on the providers
     // page unless the "Show community providers" toggle is on.
     ...(r.community ? { community: true } : {}),
+    // 官方挂价但未计费(dots 等) — 卡片挂绿色「免费」徽章;恢复收费删旗标。
+    ...(r.freeTrial ? { freeTrial: true } : {}),
     ...(r.hasOAuth ? { hasOAuth: true } : {}),
     ...(r.authModes ? { authModes: r.authModes } : {}),
+    // OAuth 机制在（刷新/传输/回调），但页面上不提供「OAuth 登录」按钮 ——
+    // 上游只注册了回环 redirect_uri，仪表盘发起的授权必然
+    // invalid_redirect_uri（meoo）。登录走 CreditDaddy 同步或粘贴 Key。
+    ...(r.oauthLoginHidden ? { oauthLoginHidden: true } : {}),
     ...(r.authType ? { authType: r.authType } : {}),
     ...(r.authHint ? { authHint: r.authHint } : {}),
   };
@@ -84,7 +90,7 @@ export const MEDIA_PROVIDER_KINDS = [
   { id: "webSearch",   label: "Web Search",     icon: "travel_explore",    endpoint: { method: "POST", path: "/v1/search" } },
   { id: "webFetch",    label: "Web Fetch",      icon: "language",          endpoint: { method: "POST", path: "/v1/web/fetch" } },
   { id: "video",       label: "Video",          icon: "movie",             endpoint: { method: "POST", path: "/v1/videos/generations" } },
-  { id: "music",       label: "Music",          icon: "music_note",        endpoint: { method: "POST", path: "/v1/audio/music" } },
+  { id: "music",       label: "Music",          icon: "music_note",        endpoint: { method: "POST", path: "/v1/audio/music" }, isNew: true },
   { id: "systemone",   label: "System One",     icon: "psychology",        endpoint: { method: "POST", path: "/v1/systemone" }, isNew: true },
   { id: "rerank",      label: "Rerank",         icon: "sort",              endpoint: { method: "POST", path: "/v1/rerank" }, isNew: true },
 ];
@@ -189,4 +195,20 @@ export function getProviderWebsite(providerIdOrAlias) {
     AI_PROVIDERS[providerIdOrAlias] || AI_PROVIDERS[resolveProviderId(providerIdOrAlias)];
   if (!p) return null;
   return p.notice?.webUrl || p.notice?.apiKeyUrl || p.notice?.signupUrl || p.website || null;
+}
+
+// 供应商管理详情页路径(/dashboard/providers/[id]),供 UI 内部跳转(配额卡片
+// 图标等)。与 getProviderWebsite 同一归一口径:接受 id 或别名;注册表认识这个
+// provider(或它是 OpenAI/Anthropic 兼容节点,详情页走 providerNode 渲染)时
+// 返回页内路径,否则返回 null — 调用方据此不渲染链接,而不是链到一个
+// "Provider not found" 页。官网/控制台外链不在这里:详情页头部已有同一
+// notice.* 回退链的外链(Web console / Get API Key),配额卡片不重复出口。
+export function getProviderPagePath(providerIdOrAlias) {
+  if (!providerIdOrAlias || typeof providerIdOrAlias !== "string") return null;
+  if (isOpenAICompatibleProvider(providerIdOrAlias) || isAnthropicCompatibleProvider(providerIdOrAlias)) {
+    return `/dashboard/providers/${providerIdOrAlias}`;
+  }
+  const p =
+    AI_PROVIDERS[providerIdOrAlias] || AI_PROVIDERS[resolveProviderId(providerIdOrAlias)];
+  return p ? `/dashboard/providers/${p.id}` : null;
 }

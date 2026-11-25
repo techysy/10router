@@ -64,10 +64,10 @@ describe("codex registry — still-live models kept (regression guard)", () => {
 });
 
 describe("codex registry — CLI identity version (upstream ca6e8407)", () => {
-  it("advertises codex_cli_rs 0.159.0 (pre-0.155 versions are rate-limit-rejected upstream)", async () => {
+  it("advertises codex_cli_rs 0.169.0 (pre-0.155 versions are rate-limit-rejected upstream; 0.169.0 rides the GPT-6.2 line)", async () => {
     const { PROVIDERS } = await import("../../open-sse/config/providers.js");
-    expect(PROVIDERS.codex.cliVersion).toBe("0.159.0");
-    expect(PROVIDERS.codex.headers["User-Agent"]).toBe("codex_cli_rs/0.159.0");
+    expect(PROVIDERS.codex.cliVersion).toBe("0.169.0");
+    expect(PROVIDERS.codex.headers["User-Agent"]).toBe("codex_cli_rs/0.169.0");
   });
 });
 

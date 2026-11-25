@@ -4,6 +4,7 @@ import { GeminiCLIExecutor } from "./gemini-cli.js";
 import { GithubExecutor } from "./github.js";
 import { IFlowExecutor } from "./iflow.js";
 import { QoderExecutor } from "./qoder.js";
+import { QwenWorkExecutor } from "./qwenwork.js";
 import { QODER_CN_GATEWAY_BASE } from "../shared/qoder/constants.js";
 import { KiroExecutor } from "./kiro.js";
 import { KimchiExecutor } from "./kimchi.js";
@@ -29,15 +30,34 @@ import ZedExecutor from "./zed.js";
 import WindsurfExecutor from "./windsurf.js";
 import { DefaultExecutor } from "./default.js";
 import { DevinCliExecutor } from "./devin-cli.js";
+import { VeoAiFreeWebExecutor } from "./veoaifree-web.js";
+import { UcWebExecutor } from "./uc-web.js";
+import { ChatGptWebExecutor } from "./chatgpt-web.js";
+import { GeminiWebExecutor } from "./gemini-web.js";
+import { MuseWebExecutor } from "./muse-web.js";
+import { DumateExecutor } from "./dumate.js";
+import { LingxiExecutor } from "./lingxi.js";
+import { CapyExecutor } from "./capy.js";
+import { AmazonQuickExecutor } from "./amazonquick.js";
+import { JunieExecutor } from "./junie.js";
+import { AutoclawExecutor } from "./autoclaw.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
   azure: new AzureExecutor(),
+  capy: new CapyExecutor(),
+  amazonquick: new AmazonQuickExecutor(),
+  aq: new AmazonQuickExecutor(), // Alias for amazonquick
+  junie: new JunieExecutor(),
+  autoclaw: new AutoclawExecutor("autoclaw"),
+  "autoclaw-cn": new AutoclawExecutor("autoclaw-cn"),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),
   qoder: new QoderExecutor(),
   "qoder-cn": new QoderExecutor("qoder-cn", QODER_CN_GATEWAY_BASE),
+  qwenwork: new QwenWorkExecutor(),
+  "qwenwork-cn": new QwenWorkExecutor("qwenwork-cn"),
   kiro: new KiroExecutor(),
   kimchi: new KimchiExecutor(),
   codex: new CodexExecutor(),
@@ -68,9 +88,23 @@ const executors = {
   cline: new ClineExecutor(),
   cl: new ClineExecutor(),
   trae: new TraeExecutor(),
+  "trae-cn": new TraeExecutor("trae-cn"),
   zed: new ZedExecutor(),
   windsurf: new WindsurfExecutor(),
   "devin-cli": new DevinCliExecutor(),
+  "veoaifree-web": new VeoAiFreeWebExecutor(),
+  "veo-free": new VeoAiFreeWebExecutor(),
+  "uc-web": new UcWebExecutor(),
+  uc: new UcWebExecutor(),
+  "chatgpt-web": new ChatGptWebExecutor(),
+  cg: new ChatGptWebExecutor(),
+  "gemini-web": new GeminiWebExecutor(),
+  gweb: new GeminiWebExecutor(),
+  "muse-web": new MuseWebExecutor(),
+  dumate: new DumateExecutor(),
+  lingxi: new LingxiExecutor(),
+  lx: new LingxiExecutor(), // Alias for lingxi
+  mu: new MuseWebExecutor(),
 };
 
 const defaultCache = new Map();
@@ -92,6 +126,7 @@ export { GeminiCLIExecutor } from "./gemini-cli.js";
 export { GithubExecutor } from "./github.js";
 export { IFlowExecutor } from "./iflow.js";
 export { QoderExecutor } from "./qoder.js";
+export { QwenWorkExecutor } from "./qwenwork.js";
 export { KiroExecutor } from "./kiro.js";
 export { KimchiExecutor } from "./kimchi.js";
 export { CodexExecutor } from "./codex.js";
@@ -116,3 +151,5 @@ export { default as TraeExecutor } from "./trae.js";
 export { default as ZedExecutor } from "./zed.js";
 export { default as WindsurfExecutor } from "./windsurf.js";
 export { DevinCliExecutor } from "./devin-cli.js";
+export { CapyExecutor } from "./capy.js";
+export { AmazonQuickExecutor } from "./amazonquick.js";

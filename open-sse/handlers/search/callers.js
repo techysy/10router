@@ -414,6 +414,28 @@ function buildKeenableRequest(config, params) {
   };
 }
 
+// Doubao (Volcengine 联网搜索) — POST + JSON + Bearer,错误在 body 的
+// ResponseMetadata.Error 里(normalizer 前的 assertDoubaoOk 负责翻译成 HTTP 状态)。
+// 官方约束:Query 1~100 字符、不支持多词搜索(超长截断);仅 web 检索类型;
+// 无 include/exclude domains 参数(domainFilter 传入时忽略,不报错);
+// 无 country / language / timeRange 参数,一律不传。
+function buildDoubaoRequest(config, params) {
+  const body = {
+    SearchType: "web",
+    Query: String(params.query || "").slice(0, 100),
+    DocCount: params.maxResults,
+    MaxSnippetLength: 1000,
+  };
+  return {
+    url: resolveBaseUrl(config, params),
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${params.token}` },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────
 
 const BUILDERS = {
@@ -422,6 +444,7 @@ const BUILDERS = {
   "perplexity": buildPerplexityRequest,
   "exa": buildExaRequest,
   "tavily": buildTavilyRequest,
+  "doubao": buildDoubaoRequest,
   "google-pse": buildGooglePseRequest,
   "linkup": buildLinkupRequest,
   "searchapi": buildSearchApiRequest,

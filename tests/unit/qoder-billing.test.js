@@ -123,15 +123,17 @@ describe("wrapQoderSSE billing detection", () => {
   });
 
   it("passes through normal errors (non-billing) as wrapped SSE", async () => {
+    // Lead chunk succeeded, second chunk is normal non-billing error -> wrapped as error chunk + [DONE]
+    const leadInner = JSON.stringify({ choices: [{ delta: { content: "start" } }] });
+    const leadEnv = JSON.stringify({ statusCodeValue: 200, body: leadInner });
     const errorEnv = JSON.stringify({
       statusCodeValue: 500,
       body: "Internal server error",
     });
-    const upstream = `data: ${errorEnv}\n\n`;
+    const upstream = `data: ${leadEnv}\n\ndata: ${errorEnv}\n\n`;
 
     const wrapped = await wrapQoderSSE(makeResponse([upstream]), "qoder/ultimate");
 
-    // Normal error: still 200 response, error text in SSE body
     expect(wrapped.status).toBe(200);
     expect(wrapped.ok).toBe(true);
 
@@ -145,8 +147,43 @@ describe("wrapQoderSSE billing detection", () => {
     }
     buf += decoder.decode();
 
-    expect(buf).toContain("[qoder error 500");
+    expect(buf).toContain('"type":"provider_error"');
+    expect(buf).toContain("Internal server error");
     expect(buf).toContain("data: [DONE]");
+  });
+
+  it("first frame non-billing error returns HTTP error status (Issue #88)", async () => {
+    const errorEnv = JSON.stringify({
+      statusCodeValue: 500,
+      body: "Internal server error",
+    });
+    const upstream = `data: ${errorEnv}\n\n`;
+
+    const wrapped = await wrapQoderSSE(makeResponse([upstream]), "qoder/ultimate");
+
+    // First frame error: returns HTTP error status instead of masquerading as 200 SSE body
+    expect(wrapped.status).toBe(500);
+    expect(wrapped.ok).toBe(false);
+    const json = await wrapped.json();
+    expect(json.error).toBeDefined();
+    expect(json.error.message).toContain("Internal server error");
+  });
+
+  it("returns 429 when first frame is 429 provider_error / All backends failed (Issue #88)", async () => {
+    const errorEnv = JSON.stringify({
+      statusCodeValue: 429,
+      body: JSON.stringify({ code: "provider_error", message: "All backends failed", type: "provider_error" }),
+    });
+    const upstream = `data: ${errorEnv}\n\n`;
+
+    const wrapped = await wrapQoderSSE(makeResponse([upstream]), "qoder-cn/kmodel_latest");
+
+    expect(wrapped.status).toBe(429);
+    expect(wrapped.ok).toBe(false);
+    const json = await wrapped.json();
+    expect(json.error).toBeDefined();
+    expect(json.error.message).toContain("All backends failed");
+    expect(json.error.type).toBe("provider_error");
   });
 
   it("passes through successful responses unchanged", async () => {

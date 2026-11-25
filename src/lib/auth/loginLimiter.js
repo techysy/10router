@@ -1,4 +1,29 @@
 // In-memory progressive lockout for dashboard login. Resets on process restart.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// Security Architecture Decision Record (Issue #43, Item 2):
+// ACCEPTED TRADEOFF — In-Memory Login Rate Limiting vs SQLite Persistence.
+//
+// 1. Threat Model & Scope:
+//    The limiter defends against remote and network-borne brute-force attacks on
+//    the dashboard login endpoint (/api/auth/login, /api/auth/saml/acs).
+// 2. Restart Privileges:
+//    Restarting the 10Router server process requires OS-level administrative or
+//    local account privileges. An adversary with the ability to kill and restart
+//    the process already possesses host-level execution rights and could equally
+//    delete or tamper with an on-disk SQLite database file.
+// 3. I/O & DoS Resilience:
+//    High-frequency authentication attempts kept in an in-memory Map prevent
+//    disk I/O amplification and SQLite write-lock contention under heavy probe
+//    conditions.
+// 4. IP Anti-Spoofing:
+//    getClientIp strictly keys on `x-10r-real-ip` stamped cryptographically by
+//    custom-server.js from the raw TCP socket, preventing remote attackers from
+//    evading lockouts by rotating client-supplied X-Forwarded-For headers.
+//
+// Consequently, persisting lockout states across process restarts was evaluated
+// and formally accepted as an unnecessary complexity tradeoff for a local single-node gateway.
+// ─────────────────────────────────────────────────────────────────────────────
 import { hasTrustedPeerHeaders } from "./trustedPeer.js";
 
 const MAX_FAILS_BEFORE_LOCK = 5;

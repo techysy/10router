@@ -16,6 +16,19 @@ const IDE_PATHS = {
     ],
     linux: ["/usr/bin/trae", "/usr/local/bin/trae", "/opt/trae", "/opt/Trae"],
   },
+  // Trae 国内版独立安装目录（"Trae CN"，与 "Trae" 并存；AI-Good-Tool/Trae-Api 同款识别口径）。
+  // ide-status 只是粘贴 token 的 UX 提示（ideOptional=true），10R 装在服务器上没有
+  // 客户端也照常可贴——探测不到不阻塞登录。
+  "trae-cn": {
+    darwin: ["/Applications/Trae CN.app"],
+    win32: [
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Trae CN", "Trae CN.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Trae CN", "Trae.exe"),
+      path.join(process.env.ProgramFiles || "", "Trae CN", "Trae CN.exe"),
+      path.join(process.env.ProgramFiles || "", "Trae CN", "Trae.exe"),
+    ],
+    linux: ["/opt/trae-cn", "/opt/Trae CN", "/usr/bin/trae-cn"],
+  },
   windsurf: {
     darwin: ["/Applications/Windsurf.app"],
     win32: [
@@ -28,6 +41,7 @@ const IDE_PATHS = {
 
 const IDE_BINARIES = {
   trae: "trae",
+  "trae-cn": "trae-cn",
   windsurf: "windsurf",
 };
 

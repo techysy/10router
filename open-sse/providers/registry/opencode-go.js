@@ -59,6 +59,7 @@ export default {
     { id: "glm-5.1", name: "GLM 5.1", supportedFormats: ["openai"] },
     { id: "glm-5", name: "GLM 5", supportedFormats: ["openai"] },
     { id: "kimi-k3", name: "Kimi K3", supportedFormats: ["openai"] },
+    { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro", supportedFormats: ["openai"] },
     { id: "kimi-k2.7-code", name: "Kimi K2.7 Code", supportedFormats: ["openai"] },
     { id: "kimi-k2.6", name: "Kimi K2.6", supportedFormats: ["openai"] },
     { id: "kimi-k2.5", name: "Kimi K2.5", supportedFormats: ["openai"] },

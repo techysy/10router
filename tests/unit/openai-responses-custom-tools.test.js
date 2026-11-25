@@ -39,7 +39,8 @@ describe("Codex Responses Lite custom tools → OpenAI Chat", () => {
         },
       },
     });
-    expect(out._customToolNames).toEqual(["exec"]);
+    expect(out._customToolNames).toBeInstanceOf(Set);
+    expect([...out._customToolNames]).toEqual(["exec"]);
     expect(out.messages.some((message) => message.role === "developer")).toBe(false);
   });
 
@@ -75,7 +76,8 @@ describe("Codex Responses Lite custom tools → OpenAI Chat", () => {
     }, true, null);
 
     expect(out.tools.map((tool) => tool.function.name)).toEqual(["search", "exec"]);
-    expect(out._customToolNames).toEqual(["exec"]);
+    expect(out._customToolNames).toBeInstanceOf(Set);
+    expect([...out._customToolNames]).toEqual(["exec"]);
   });
 });
 

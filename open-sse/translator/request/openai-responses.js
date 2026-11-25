@@ -182,54 +182,69 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
     ...(Array.isArray(body.tools) ? body.tools : []),
     ...additionalTools,
   ];
-  if (responseTools.length > 0) {
-    result.tools = responseTools
-      .map(tool => {
-        // Already in Chat Completions format: { type: "function", function: { name, ... } }
-        if (tool.function) return tool;
-        // Responses API function/custom tool: { type, name, description, parameters|format }.
-        // Chat Completions has no freeform custom-tool declaration, so expose custom
-        // tools as functions with one raw `input` string while retaining their names
-        // in translator-only metadata for the response conversion.
-        const name = tool.name;
-        if (!name || typeof name !== "string" || name.trim() === "") return null;
-        if (tool.type === "custom") {
-          customToolNames.add(name);
-          const formatHint = [tool.format?.syntax, tool.format?.definition].filter(Boolean).join("\n");
-          return {
-            type: OPENAI_BLOCK.FUNCTION,
-            function: {
-              name,
-              description: [String(tool.description || ""), formatHint].filter(Boolean).join("\n\n"),
-              parameters: {
-                type: "object",
-                properties: {
-                  input: {
-                    type: "string",
-                    description: "Raw freeform input for this custom tool"
-                  }
-                },
-                required: ["input"],
-                additionalProperties: false
+  // Convert one Responses tool to zero or more Chat Completions tools. A Responses
+  // "namespace" ({ type: "namespace", name, tools: [...] }) groups declarations the model
+  // calls by their INNER name (Codex's functions/clock/collaboration), and Chat Completions
+  // has no namespace concept — so the namespace must be spread into its member tools.
+  // Emitting the namespace itself instead declares a parameterless `functions` tool and
+  // drops exec/sleep/spawn_agent entirely, which makes the model call the namespace name
+  // and the Codex harness answer "unsupported call: functions".
+  const convertChatTool = (tool) => {
+    // Already in Chat Completions format: { type: "function", function: { name, ... } }
+    if (tool.function) return [tool];
+    if (tool.type === "namespace") {
+      return Array.isArray(tool.tools) ? tool.tools.flatMap(convertChatTool) : [];
+    }
+    // Responses API function/custom tool: { type, name, description, parameters|format }.
+    // Chat Completions has no freeform custom-tool declaration, so expose custom
+    // tools as functions with one raw `input` string while retaining their names
+    // in translator-only metadata for the response conversion.
+    const name = tool.name;
+    if (!name || typeof name !== "string" || name.trim() === "") return [];
+    if (tool.type === "custom") {
+      customToolNames.add(name);
+      const formatHint = [tool.format?.syntax, tool.format?.definition].filter(Boolean).join("\n");
+      return [{
+        type: OPENAI_BLOCK.FUNCTION,
+        function: {
+          name,
+          description: [String(tool.description || ""), formatHint].filter(Boolean).join("\n\n"),
+          parameters: {
+            type: "object",
+            properties: {
+              input: {
+                type: "string",
+                description: "Raw freeform input for this custom tool"
               }
-            }
-          };
-        }
-        // Responses API function tool: { type: "function", name, description, parameters }
-        // Only convert when a non-empty name is present; skip hosted tools without one.
-        return {
-          type: OPENAI_BLOCK.FUNCTION,
-          function: {
-            name,
-            description: String(tool.description || ""),
-            parameters: normalizeToolParameters(tool.parameters),
-            strict: tool.strict
+            },
+            required: ["input"],
+            additionalProperties: false
           }
-        };
-      })
-      .filter(Boolean);
+        }
+      }];
+    }
+    // Responses API function tool: { type: "function", name, description, parameters }
+    // Only convert when a non-empty name is present; skip hosted tools without one.
+    return [{
+      type: OPENAI_BLOCK.FUNCTION,
+      function: {
+        name,
+        description: String(tool.description || ""),
+        parameters: normalizeToolParameters(tool.parameters),
+        strict: tool.strict
+      }
+    }];
+  };
+  if (responseTools.length > 0) {
+    // flatMap so a namespace expands into its member declarations at any nesting depth.
+    result.tools = responseTools.flatMap(convertChatTool);
   }
-  if (customToolNames.size > 0) result._customToolNames = [...customToolNames];
+  // Consumers call `.has()` on this value (response/openai-responses.js, chatCore
+  // sseToJson/nonStreaming handlers). The streaming path used to absorb the array via
+  // `new Set(array)` in stream.js, masking the mismatch; with namespace custom tools
+  // now reaching Chat upstreams, the non-streaming path hit `b?.has is not a function`.
+  // Hand the Set over directly (like openai-to-claude does for _toolNameMap).
+  if (customToolNames.size > 0) result._customToolNames = customToolNames;
 
   // Cleanup Responses API specific fields
   // Map Responses-only max_output_tokens to Chat max_tokens (avoid leaking unknown field upstream)

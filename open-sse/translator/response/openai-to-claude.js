@@ -69,7 +69,25 @@ function stopTextBlock(state, results) {
 
 // Convert OpenAI stream chunk to Claude format
 export function openaiToClaudeResponse(chunk, state) {
-  if (!chunk || !chunk.choices?.[0]) return null;
+  if (!chunk) return null;
+
+  // error is terminal: a first error frame emits the native error event, and
+  // everything after it (repeat errors, trailing deltas) is dropped — Claude
+  // clients parse one error event and close; repeats only confuse them.
+  if (state.errorSent) return [];
+  if (chunk.error) {
+    state.errorSent = true;
+    const errObj = typeof chunk.error === "object" ? chunk.error : { message: String(chunk.error) };
+    return [{
+      type: "error",
+      error: {
+        type: errObj.type || "api_error",
+        message: errObj.message || "Upstream error",
+      },
+    }];
+  }
+
+  if (!chunk.choices?.[0]) return null;
 
   const results = [];
   const choice = chunk.choices[0];

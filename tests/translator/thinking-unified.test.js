@@ -133,10 +133,16 @@ describe("applyThinking per provider format", () => {
     const out = apply("openai", "qwq-32b", { reasoning_effort: "none" }, "qwen");
     expect(out.enable_thinking).toBe(true);
   });
-  it("DeepSeek → enabled + reasoning_effort high (low→high)", () => {
+  it("DeepSeek → enabled + reasoning_effort 原样透传（#106：不再钳档）", () => {
     const out = apply("openai", "deepseek-v4-pro", { reasoning_effort: "low" }, "deepseek");
     expect(out.thinking).toEqual({ type: "enabled" });
-    expect(out.reasoning_effort).toBe("high");
+    expect(out.reasoning_effort).toBe("low");
+    // river.ai 的 DeepSeek-V4.1-Flash 拒 xhigh 收 max（#106）——max 必须保持 max 下发
+    const max = apply("openai", "deepseek-v4-pro", { reasoning_effort: "max" }, "deepseek");
+    expect(max.reasoning_effort).toBe("max");
+    // 非标 xhigh 钳到 max（deepseek 系最高思考档语义）
+    const xhigh = apply("openai", "deepseek-v4-pro", { reasoning_effort: "xhigh" }, "deepseek");
+    expect(xhigh.reasoning_effort).toBe("max");
   });
   it("Kimi on → reasoning_effort", () => {
     const out = apply("openai", "kimi-k2.6", { reasoning_effort: "high" }, "kimi");

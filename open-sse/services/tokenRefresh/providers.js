@@ -2,7 +2,9 @@ import { PROVIDERS, PROVIDER_OAUTH } from "../../config/providers.js";
 import { OAUTH_ENDPOINTS, GITHUB_COPILOT, buildKimiHeaders } from "../../config/appConstants.js";
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
+import { refreshAutoclawCredentials } from "../../shared/autoclaw/client.js";
 import { buildClineHeaders, getClineAccessToken } from "../../shared/clineAuth.js";
+import { resolveMeooCredentials } from "../meooAk.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
 
 let _xaiServiceSingleton = null;
@@ -27,6 +29,212 @@ export async function refreshXaiToken(refreshToken, log) {
       if (msg.includes("invalid_grant") || msg.includes("invalid_request")) {
         return { error: "invalid_grant" };
       }
+      return null;
+    }
+  }, log);
+}
+
+// Nous Portal: NON-STANDARD refresh — the refresh token travels in the
+// `x-nous-refresh-token` header, the form body carries only grant_type +
+// client_id (Hermes: hermes_cli/auth_nous.py). Refresh tokens are
+// SINGLE-USE and rotating: replaying an old one returns
+// refresh_token_reused and revokes the whole session, so the rotated
+// pair must be persisted by the caller every time (the framework does)
+// and concurrent refreshes are deduped on the current token.
+export async function refreshNousToken(refreshToken, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh("nous", refreshToken, async () => {
+    const oauth = PROVIDER_OAUTH["nous"] || {};
+    const tokenUrl = oauth.refreshUrl || oauth.tokenUrl;
+    const clientId = oauth.clientId || "hermes-cli";
+    if (!tokenUrl) return null;
+    try {
+      const response = await proxyAwareFetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+          "x-nous-refresh-token": refreshToken,
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: clientId,
+        }),
+      }, proxyOptions);
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      if (response.ok && data?.access_token) {
+        return {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token || refreshToken,
+          expiresIn: data.expires_in,
+        };
+      }
+      const errCode = data?.error || "";
+      log?.warn?.("TOKEN_REFRESH", `nous refresh failed: ${errCode || response.status}`);
+      if (
+        errCode === "invalid_grant" ||
+        errCode === "invalid_request" ||
+        errCode === "refresh_token_reused"
+      ) {
+        return { error: "invalid_grant" };
+      }
+      return null;
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `nous refresh failed: ${e?.message || e}`);
+      return null;
+    }
+  }, log);
+}
+
+// Junie (JetBrains): standard form refresh against the JBA token
+// endpoint (grant_type=refresh_token + refresh_token + client_id), but
+// the credential that comes back is the **id_token** — the free lane
+// rejects access_tokens with 403 NO_LICENSE (live-verified 2026-11-23;
+// refresh-minted id_tokens verified working). Refresh tokens are
+// SINGLE-USE and rotating (same discipline as Nous): the rotated
+// refresh_token in the response must be persisted every time, and
+// concurrent refreshes are deduped on the current token. expiresIn is
+// derived from the id_token's own exp claim when present — that is the
+// lifetime of the credential the executor actually sends.
+export async function refreshJunieToken(refreshToken, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh("junie", refreshToken, async () => {
+    const oauth = PROVIDER_OAUTH["junie"] || {};
+    const tokenUrl = oauth.refreshUrl || oauth.tokenUrl;
+    const clientId = oauth.clientId || "junie-cli";
+    if (!tokenUrl) return null;
+    try {
+      const response = await proxyAwareFetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: clientId,
+        }),
+      }, proxyOptions);
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      if (response.ok && data?.id_token) {
+        let expiresIn = data.expires_in;
+        try {
+          const payload = JSON.parse(
+            Buffer.from(String(data.id_token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"),
+          );
+          if (payload?.exp) {
+            expiresIn = Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
+          }
+        } catch {
+          /* keep the response's expires_in */
+        }
+        return {
+          accessToken: data.id_token,
+          idToken: data.id_token,
+          refreshToken: data.refresh_token || refreshToken,
+          expiresIn,
+        };
+      }
+      const errCode = data?.error || "";
+      log?.warn?.("TOKEN_REFRESH", `junie refresh failed: ${errCode || response.status}`);
+      if (errCode === "invalid_grant" || errCode === "invalid_request") {
+        return { error: "invalid_grant" };
+      }
+      return null;
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `junie refresh failed: ${e?.message || e}`);
+      return null;
+    }
+  }, log);
+}
+
+// AutoClaw（智谱澳龙）: account-plane refresh (shared by `autoclaw` and
+// `autoclaw-cn`). POST {host}/userapi/v1/refresh with the signed managed-layer
+// headers and { source_id, device_id (the refresh JWT's own claim),
+// refresh_token }; business code 400002 falls back to /userapi/v1/agent-refresh.
+// Host order follows the refresh JWT's source_id (agent* = SMS account → CN
+// host first, else the global host first). The response's `refresh` field is
+// a bool — the new token is `refresh_token`. Treated as single-use rotation
+// (same discipline as Nous/QwenWork): concurrent refreshes are deduped on
+// the current token and the caller persists the rotated pair every time.
+// Dead logins (401/403, invalid_grant/revoked/登录已失效) → invalid_grant.
+export async function refreshAutoclawToken(refreshToken, { region = null, proxyOptions = null, log = null } = {}) {
+  if (!refreshToken) return null;
+  return dedupRefresh("autoclaw", refreshToken, () =>
+    refreshAutoclawCredentials(refreshToken, { region, proxyOptions, log }), log);
+}
+
+// QwenWork （千问办公）: device-token refresh — POST { refresh_token,
+// target: "c" } as JSON to the deployment's /api/v1/deviceToken/refresh.
+// Refresh tokens are SINGLE-USE and rotating (same discipline as Nous):
+// the rotated pair must be persisted by the caller every time, and
+// concurrent refreshes are deduped on the current token. The response
+// carries the new pair in the device-flow shape ({ token, refresh_token,
+// expires_at / expires_in }), not the OAuth2 shape.
+export async function refreshQwenWorkToken(refreshToken, provider, log) {
+  if (!refreshToken) return null;
+  const oauth = PROVIDER_OAUTH[provider] || {};
+  const refreshUrl = oauth.refreshUrl;
+  if (!refreshUrl) return null;
+  return dedupRefresh(`qwenwork:${provider || "qwenwork"}`, refreshToken, async () => {
+    try {
+      const response = await proxyAwareFetch(refreshUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken, target: "c" }),
+      });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON error body */
+      }
+      if (response.ok && data?.token) {
+        let expiresIn = typeof data.expires_in === "number" ? data.expires_in : undefined;
+        if (expiresIn === undefined && data.expires_at != null) {
+          const raw = data.expires_at;
+          const ms = typeof raw === "number" ? raw : /^\d+$/.test(String(raw).trim()) ? Number(raw) : Date.parse(raw);
+          if (Number.isFinite(ms) && ms > 0) expiresIn = Math.max(0, Math.floor((ms - Date.now()) / 1000));
+        }
+        // No parseable expiry (or one already in the past) would leave the
+        // stale expiresAt on the row — permanently "due", re-rotating the
+        // single-use refresh token on every request and background tick.
+        // Same fallback convention as QoderService.parseExpiry: 30 days.
+        if (!Number.isFinite(expiresIn) || expiresIn <= 0) expiresIn = 30 * 86400;
+        return {
+          accessToken: data.token,
+          refreshToken: data.refresh_token || refreshToken,
+          expiresIn,
+        };
+      }
+      const errCode = data?.errorCode || data?.error || "";
+      log?.warn?.("TOKEN_REFRESH", `qwenwork refresh failed: ${errCode || response.status}`);
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        errCode === "INVALID_TOKEN" ||
+        errCode === "invalid_grant" ||
+        errCode === "invalid_request"
+      ) {
+        return { error: "invalid_grant" };
+      }
+      return null;
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `qwenwork refresh failed: ${e?.message || e}`);
       return null;
     }
   }, log);
@@ -417,6 +625,58 @@ export async function refreshIflowToken(refreshToken, log) {
 // GitHub: optional client_secret. Delegate to refreshAccessToken("github", ...).
 export async function refreshGitHubToken(refreshToken, log) {
   return refreshAccessToken("github", refreshToken, {}, log);
+}
+
+// Meoo （秒悟）: refreshing means BOTH rotating the OAuth pair AND
+// re-resolving the project service AK — the gateway only accepts the AK,
+// which rides back as `apiKey` (mergeRefreshedCredentials persists it and
+// merges the providerSpecificData). If AK resolution fails after the pair
+// rotated, the new pair is still returned (with akStatus=error) so the
+// rotated refresh token is never lost.
+// Paste-key connections have no OAuth pair at all: their refresh is just
+// the AK re-resolution, driven by the stored control key
+// (providerSpecificData.meooControlKey) inside resolveMeooCredentials.
+export async function refreshMeooToken(refreshToken, credentials, log, proxyOptions = null) {
+  const controlKey = credentials?.providerSpecificData?.meooControlKey || "";
+  if (!refreshToken && !credentials?.accessToken && !controlKey) return null;
+  const dedupKey = refreshToken || controlKey || credentials.accessToken;
+  return dedupRefresh("meoo", dedupKey, async () => {
+    try {
+      const resolved = await resolveMeooCredentials(
+        {
+          accessToken: credentials?.accessToken,
+          refreshToken,
+          expiresAt: credentials?.expiresAt,
+          providerSpecificData: credentials?.providerSpecificData || {},
+        },
+        { log, proxyOptions, forceRefresh: true },
+      );
+      return {
+        accessToken: resolved.accessToken || credentials?.accessToken,
+        refreshToken: resolved.refreshToken || refreshToken,
+        expiresIn: resolved.expiresIn,
+        apiKey: resolved.apiKey,
+        providerSpecificData: resolved.providerSpecificData,
+      };
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `meoo refresh failed: ${e?.message || e}`);
+      if (e?.refreshed?.accessToken) {
+        return {
+          accessToken: e.refreshed.accessToken,
+          refreshToken: e.refreshed.refreshToken || refreshToken,
+          expiresIn: e.refreshed.expiresIn,
+          providerSpecificData: {
+            akStatus: "error",
+            akError: e?.message || String(e),
+          },
+        };
+      }
+      if (e?.code === "invalid_grant" || e?.code === "invalid_request") {
+        return { error: e.code };
+      }
+      return null;
+    }
+  }, log);
 }
 
 export async function refreshCopilotToken(githubAccessToken, log) {

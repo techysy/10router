@@ -1,15 +1,16 @@
 import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
-import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, channelBlockRemainingMs, isNeedsReauthCooling, NEEDS_REAUTH_STATUS, MODEL_LOCK_ALL, extractQuotaResetMs } from "open-sse/services/accountFallback.js";
+import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getModelLockUntil, channelBlockRemainingMs, isNeedsReauthCooling, NEEDS_REAUTH_STATUS, MODEL_LOCK_ALL, extractQuotaResetMs } from "open-sse/services/accountFallback.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
-import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
+import { extractConnectionBalance, extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
 import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
 import { getAntigravityQuotaCache, getAntigravityModelQuota, getAntigravityModelFamily } from "./antigravityQuota.js";
 import { NEEDS_REAUTH_MESSAGE } from "./tokenRefresh.js";
+import { SENSITIVE_PROVIDERS } from "./backgroundTokenRefresh.js";
 import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -115,6 +116,65 @@ function mostRecentUsedCarrier(ring, exclude) {
   return best;
 }
 
+// 下一个本地 0 点（毫秒）。daily-grant 烧尽后的 retry-after 锚点 —— 每日赠送
+// 按本地日历刷新（与签到/登录积分同一天界），不是 24h 滚动窗口。
+export function nextMidnightMs(now = Date.now()) {
+  const d = new Date(now);
+  d.setHours(24, 0, 0, 0);
+  return d.getTime();
+}
+
+function dailyGrantUnavailable(connections = [], model = null, excluded = new Set()) {
+  const now = Date.now();
+  const midnight = nextMidnightMs(now);
+  let retryAt = midnight;
+  // A funded sibling may simply be cooling down. Wait for all of that
+  // account's applicable locks, then choose the first account that can recover.
+  // The daily reset is only the fallback when no sibling recovers sooner.
+  for (const c of connections) {
+    if (c.isActive === false || excluded.has(c.id)) continue;
+    if (Number.isFinite(c.dailyGrantRemaining) && c.dailyGrantRemaining <= 0) continue;
+    const key = model ? `modelLock_${model}` : MODEL_LOCK_ALL;
+    const expiries = [c[key], c[MODEL_LOCK_ALL], isNeedsReauthCooling(c) ? c.needsReauthUntil : null]
+      .filter(Boolean).map((value) => new Date(value).getTime())
+      .filter((time) => Number.isFinite(time) && time > now);
+    if (expiries.length) retryAt = Math.min(retryAt, Math.max(...expiries));
+  }
+  const retryAfter = new Date(retryAt).toISOString();
+  return {
+    allRateLimited: true,
+    retryAfter,
+    retryAfterHuman: formatRetryAfter(retryAfter),
+    lastError: retryAt < midnight
+      ? "Available daily-grant accounts are cooling down"
+      : "All daily grants drained (daily-grant-first policy)",
+    lastErrorCode: 429,
+  };
+}
+
+/**
+ * Start delay for one background quota refresh, by queue position. The first
+ * scheduled connection fires immediately; each subsequent one is pushed out so
+ * a whole-stale fleet does not land on the provider consoles simultaneously —
+ * same anti-burst policy as the background token refresh (12 s + jitter for
+ * the Google-sensitive set, 1.5 s + 200 ms otherwise, same env knobs so
+ * operators tune once). Pure and exported for tests.
+ *
+ * @param {string} provider
+ * @param {number} scheduledIndex 0-based position among the connections this
+ *   trigger is actually scheduling (skipped ones don't count)
+ * @returns {number} milliseconds to wait before the upstream call
+ */
+export function quotaRefreshDelayMs(provider, scheduledIndex) {
+  if (!Number.isInteger(scheduledIndex) || scheduledIndex <= 0) return 0;
+  const baseSensitiveDelay = Number(process.env.BG_REFRESH_GOOGLE_DELAY_MS) || 12_000;
+  const baseNormalDelay = Number(process.env.BG_REFRESH_DELAY_MS) || 1_500;
+  const isSensitive = SENSITIVE_PROVIDERS.has(provider);
+  const base = isSensitive ? baseSensitiveDelay : baseNormalDelay;
+  const jitter = isSensitive ? Math.floor(Math.random() * 4000) : 200;
+  return scheduledIndex * base + jitter;
+}
+
 /**
  * Background quota refresh for the earliest-expiry strategy.
  *
@@ -123,10 +183,17 @@ function mostRecentUsedCarrier(ring, exclude) {
  * any extra upstream call — even to the billing endpoint — works against letting
  * it clear, and the resulting timestamps would be unusable anyway. The breaker is
  * cleared by a successful chat request, so refresh resumes on its own.
+ *
+ * Connections are staggered (quotaRefreshDelayMs) rather than all fired at once:
+ * every one of these lands on a provider's usage/console endpoint, and a fleet
+ * where everything went stale at once used to mean N simultaneous upstream
+ * calls per 5-minute window. The in-flight guard is taken at scheduling time,
+ * so a queued (not yet fired) connection still cannot be double-scheduled.
  */
 function triggerBackgroundQuotaRefresh(connections) {
   const STALE_MS = 5 * 60 * 1000; // 5 minutes stale threshold aligns with dashboard auto-refresh
   const now = Date.now();
+  let scheduledIndex = 0;
 
   for (const conn of connections) {
     if (!conn.id || _quotaRefreshInFlight.has(conn.id)) continue;
@@ -134,7 +201,9 @@ function triggerBackgroundQuotaRefresh(connections) {
     if (now - checkedAt < STALE_MS) continue;
 
     _quotaRefreshInFlight.add(conn.id);
-    (async () => {
+    const delay = quotaRefreshDelayMs(conn.provider, scheduledIndex);
+    scheduledIndex += 1;
+    const run = async () => {
       try {
         const proxyConfig = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
         const proxyOptions = {
@@ -172,6 +241,13 @@ function triggerBackgroundQuotaRefresh(connections) {
         const parsedBalance = extractConnectionBalance(usage);
         const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
 
+        // #Loomy-daily-first: persist the daily-grant / permanent split so the
+        // dailyGrantFirst scheduler can rank accounts without a live usage call.
+        const grantPair = extractDailyGrantAndPermanent(usage);
+        const grantPatch = grantPair
+          ? { dailyGrantRemaining: grantPair.dailyRemaining, dailyGrantTotal: grantPair.dailyTotal, permanentBalance: grantPair.permanent }
+          : {};
+
         await updateProviderConnection(conn.id, {
           earliestPackageExpiry: expiryInfo?.expiry || null,
           earliestPackageName: expiryInfo?.name || null,
@@ -194,13 +270,16 @@ function triggerBackgroundQuotaRefresh(connections) {
           quotaCheckedAt: new Date().toISOString(),
           ...famPatch,
           ...balancePatch,
+          ...grantPatch,
         });
       } catch {
         // Non-blocking, ignore background errors
       } finally {
         _quotaRefreshInFlight.delete(conn.id);
       }
-    })();
+    };
+    if (delay > 0) setTimeout(run, delay);
+    else void run();
   }
 }
 
@@ -324,6 +403,15 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
 
     if (connections.length === 0) {
+      // A pool disabled by the daily-grant guard is temporarily spent, not
+      // missing credentials. Keep reporting its retry time on later requests.
+      const settings = await getSettings();
+      if (settings.providerStrategies?.[providerId]?.dailyGrantFirst === true) {
+        const allConnections = await getProviderConnections({ provider: providerId });
+        if (allConnections.some((c) => c.dailyGrantAutoDisabled === true)) {
+          return dailyGrantUnavailable();
+        }
+      }
       log.warn("AUTH", `No credentials for ${provider}`);
       return null;
     }
@@ -360,7 +448,9 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       const excluded = excludeSet.has(c.id);
       const locked = isModelLockActive(c, model);
       if (excluded || locked) {
-        const lockUntil = getEarliestModelLockUntil(c);
+        // 所请求模型的重试时间 = 模型锁与全账号锁中更晚失效的那个 —— 过期的
+        // modelLock_* 字段是惰性清理的残留，不得遮蔽有效的账号级锁。
+        const lockUntil = getModelLockUntil(c, model);
         log.debug("AUTH", `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${locked ? `modelLocked(${model}) until ${lockUntil}` : ""}`);
       }
     });
@@ -385,7 +475,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         });
       }
       const expiries = [
-        ...lockedConns.map(c => getEarliestModelLockUntil(c)),
+        ...lockedConns.map(c => getModelLockUntil(c, model)),
         ...reauthConns.map(c => c.needsReauthUntil),
         ...agExpiries,
       ].filter(Boolean);
@@ -412,6 +502,13 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
     const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
     const earliestExpiryFirst = providerOverride.earliestExpiryFirst === true;
+    // #Loomy-daily-first: burn each account's daily gift (use-it-or-lose-it)
+    // before touching permanent points. Rank: highest daily-grant remaining
+    // first; drained-daily accounts fall to the tail ordered by permanent
+    // balance ascending. Schedulable on any provider whose usage exposes the
+    // daily/permanent pair (Loomy today). 声明必须在 433 行的背景刷新门之前
+    // ——const TDZ 曾把它炸成 ReferenceError（CI regression 8+7 抓到）。
+    const dailyGrantFirst = providerOverride.dailyGrantFirst === true;
 
     // Trigger non-blocking background quota checks if earliest-expiry is active and any account is missing/stale.
     // Skipped during an active channel breaker: the channel is being rejected wholesale (e.g. 11128),
@@ -422,7 +519,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       // info, not debug: this is the one path that silently skips the refresh,
       // and a stale family column on the row is exactly what it causes.
       log.info("AUTH", `${providerId} | channel blocked (${Math.ceil(channelBlockLeftMs / 1000)}s left) — skipping quota refresh`);
-    } else if (earliestExpiryFirst && availableConnections.length > 1) {
+    } else if (dailyGrantFirst || (earliestExpiryFirst && availableConnections.length > 1)) {
+      // 两个快照驱动型调度都要新鲜的配额数据：新登录的账号没有持久化的
+      // dailyGrantRemaining/earliestPackageExpiry，不触发背景刷新就永远
+      // 落在 priority 组（#Loomy-daily-first 实测：新号 5000/5000 不参与排序）。
       triggerBackgroundQuotaRefresh(availableConnections);
     }
 
@@ -476,6 +576,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     let orderedConnections = poolConnections;
     const quotaCategory = getProviderQuotaCategory(providerId);
+    // 排序键语义见 dailyGrantFirst 声明处（ earliestExpiryFirst 旁）。
     const isPackAssetProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PACK_ASSET;
     const isPureBalanceProvider = quotaCategory === PROVIDER_QUOTA_TYPES.PURE_BALANCE;
     const balanceStrategy = providerOverride.balanceStrategy || null;
@@ -517,6 +618,51 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         }
         return (a.priority || 999) - (b.priority || 999);
       });
+    } else if (dailyGrantFirst && poolConnections.length > 1) {
+      // Daily grant first (Loomy): use-it-or-lose-it 5000/day burns before any
+      // permanent point. Accounts with a live daily remaining rank by it
+      // descending; drained-daily accounts tail by permanent ascending.
+      // Accounts without the daily/permanent pair keep manual priority order
+      // between the two groups.
+      orderedConnections = [...poolConnections].sort((a, b) => {
+        const da = typeof a.dailyGrantRemaining === "number" ? a.dailyGrantRemaining : null;
+        const db = typeof b.dailyGrantRemaining === "number" ? b.dailyGrantRemaining : null;
+        const hasA = da !== null && da > 0;
+        const hasB = db !== null && db > 0;
+        // Group 1: live daily grant (descending — biggest gift first)
+        if (hasA && hasB && da !== db) return db - da;
+        if (hasA !== hasB) return hasA ? -1 : 1;
+        // Group 2: drained daily (or unknown) — permanent ascending (odd change first)
+        const pa = typeof a.permanentBalance === "number" ? a.permanentBalance : null;
+        const pb = typeof b.permanentBalance === "number" ? b.permanentBalance : null;
+        if (pa !== null && pb !== null && pa !== pb) return pa - pb;
+        return (a.priority || 999) - (b.priority || 999);
+      });
+    }
+
+    // Daily-grant relay (2026-11-12, 用户拍板「单账号烧穿」)：dailyGrantFirst 的
+    // 排序只决定环形优先级，选择必须走 relay —— 否则每次请求按「每日剩余最多」
+    // 重排，负载被平摊到所有账号（雨露均沾），每个账号的每日 5000 都烧一半剩一半。
+    // 正解 = 单点烧穿：锁住当前账号直到它的每日赠送积分烧到 0，才沿环形 step 到
+    // 下一个有每日余量的账号；全部耗尽则暂停至次日。健康谓词与百分比红区
+    // 无关 —— Loomy 没有 percent 窗口，「烧完」的判定就是 dailyGrantRemaining <= 0。
+    // 健康数据缺失（第一次请求、快照未落）视为健康 —— 绝不因缺数据预切换，
+    // 上游 429/锁定仍是兜底。
+    const dailyRelayActive = dailyGrantFirst;
+    const dailyRelayRing = orderedConnections;
+    if (dailyRelayActive) {
+      // Exhaustion is an eligibility rule, independent of pool size or the
+      // preferred-account pin. Never let the last account spend permanent
+      // credits after all its daily points are gone.
+      const drained = orderedConnections.filter((c) =>
+        Number.isFinite(c.dailyGrantRemaining) && c.dailyGrantRemaining <= 0);
+      for (const c of drained) {
+        await updateProviderConnection(c.id, { isActive: false, dailyGrantAutoDisabled: true });
+        log.info("AUTH", `${provider} | drained account ${c.id?.slice(0, 8)} auto-disabled — reopens at midnight reset`);
+      }
+      const drainedIds = new Set(drained.map((c) => c.id));
+      orderedConnections = orderedConnections.filter((c) => !drainedIds.has(c.id));
+      if (orderedConnections.length === 0) return dailyGrantUnavailable(connections, model, excludeSet);
     }
 
     let connection;
@@ -534,7 +680,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
     if (connection) {
       // skip strategy
-    } else if (earliestExpiryFirst && orderedConnections.length > 1) {
+    } else if (earliestExpiryFirst && !dailyRelayActive && orderedConnections.length > 1) {
       // Distinct scheduling philosophy per provider type:
       //
       // 1. Pack Asset Providers (CodeBuddy CN/Intl, Qoder CN/Global):
@@ -575,6 +721,26 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         // lastUsedAt, the same field round-robin maintains.
         await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
       }
+    } else if (dailyRelayActive) {
+      // Single-point daily-grant relay: keep the current carrier until its daily
+      // gift is burned to 0 (see dailyRelayActive comment above), then step
+      // forward along the dailyGrantFirst ring order. The relay derives "who is
+      // carrying" from lastUsedAt — same stateless mechanism as earliest-expiry.
+      //
+      // The exhaustion guard above already removed spent accounts, including
+      // a single remaining account. Relay only chooses among eligible carriers.
+      // Preserve the original ring for forward-only handoff; spent accounts
+      // remain ring positions but can no longer be selected.
+      const eligibleIds = new Set(orderedConnections.map((c) => c.id));
+      const relay = selectRelayCarrier(dailyRelayRing, { healthOf: (c) => eligibleIds.has(c.id) });
+      connection = relay.connection;
+      log.info(
+        "AUTH",
+        `${zoneMarker(connection)} ${provider} | daily ${Number.isFinite(connection.dailyGrantRemaining) ? `${connection.dailyGrantRemaining}/${connection.dailyGrantTotal ?? "?"}` : "?"} · permanent ${connection.permanentBalance ?? "?"} | single-account burn`
+      );
+      quotaLogged = true;
+      // Persist the carrier stamp so subsequent requests keep using this account.
+      await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
@@ -678,8 +844,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
  * @returns {{ shouldFallback: boolean, cooldownMs: number, channelScope: boolean }}
  *   `channelScope: true` means the caller must NOT try sibling accounts — the
  *   error belongs to the channel, not to this account.
+ * @param {object} [options] - `{ unattributed429?: boolean }`：#147 Google 伪
+ *   429（WAF 身份识别类）标记。为真时本函数照常锁当前账号（裸 429 命中
+ *   backoff 规则，channelScope 仍为 false），并在返回值里透传该标记——调用方
+ *   据此做渠道级暂停且绝不轮换 sibling（轮换 burst 正是上游 abuse 判定的信号）。
  */
-export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
+export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null, options = {}) {
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0, channelScope: false };
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
@@ -712,6 +882,10 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     ({ shouldFallback, cooldownMs, newBackoffLevel, channelScope } = checkFallbackError(status, errorText, backoffLevel, resolveProviderId(provider)));
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0, channelScope: false };
+
+  // #147：Google 伪 429 标记透传。当前账号照常锁（下面走 backoff 路径），
+  // 调用方据标记做渠道暂停且不得轮换 sibling。
+  const unattributed = options?.unattributed429 === true;
 
   // Channel-scope failures are not this account's fault: do NOT lock the account
   // (the caller sets a provider-wide block instead, so a later request is not
@@ -766,7 +940,7 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     console.error(`❌ ${provider} [${status}]: ${reason}`);
   }
 
-  return { shouldFallback: true, cooldownMs, channelScope: false };
+  return { shouldFallback: true, cooldownMs, channelScope: false, unattributed429: unattributed };
 }
 
 /**

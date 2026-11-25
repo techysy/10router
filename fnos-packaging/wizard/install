@@ -1,11 +1,11 @@
 [
     {
-        "stepTitle": "MIT License Agreement",
+        "stepTitle": "AGPL-3.0 License Agreement",
         "items": [
             {
                 "type": "tips",
                 "label": "",
-                "helpText": "MIT License\n\nCopyright (c) 2024 decolua\nCopyright (c) 2026 techysy\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, THEORY, OR LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+                "helpText": "10Router License (effective v1.8.1)\n\nCopyright (c) 2024-2026 decolua, techysy and contributors\n\nThis project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). Any reuse of this software - including offering it as a network service (AGPL section 13) - must be released under AGPL-3.0.\n\nVersions released up to and including v1.8.0 remain under the MIT License. This repository contains code derived from decolua/9router (MIT); that permission notice is preserved verbatim in the LICENSE file and continues to apply to the portions derived from it.\n\nBy continuing this installation you accept the AGPL-3.0 terms. The full license text ships in the LICENSE file and is available in the repository root."
             }
         ]
     }

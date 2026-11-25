@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { translate } from "@/i18n/runtime";
 import { translateQuotaName } from "@/shared/utils/quotaName";
@@ -14,6 +15,7 @@ import {
   isResettingRow,
   groupRowsByFamily,
   isStoredValueRow,
+  findDualSlotPair,
   joinsPackPool,
   meterTone,
   splitFamilyWindow,
@@ -22,6 +24,7 @@ import {
   quotaUnitOf,
 } from "@/shared/utils/quotaRows";
 import { cn } from "@/shared/utils/cn";
+import { completeQuotaBreakdown } from "@/shared/utils/quotaBreakdown";
 import QuotaMeter, {
   MeterTrack,
   METER_RADIUS,
@@ -121,6 +124,72 @@ function remainingOf(p) {
  *   14.95（CNY）                            余额
  *   [==================== 100%]
  */
+/**
+ * #Loomy dual-slot card —— 「永久积分 + 每日赠送积分」配对专用形态：
+ *
+ *   [✦] 20,560                        永久 16,560 · 每日 4,000/5,000
+ *   [======== 永久槽 ========][=== 每日槽 ===]
+ *   永久积分                              16,560
+ *   [==================== 100%]
+ *   每日赠送积分                          4,000 / 5,000
+ *   [====== 80% ======]
+ *
+ * 大数 = 永久剩余 + 每日剩余（今天能花的总额）；段式轨道按两槽剩余占比
+ * 分段（永久实心、每日亮绿），两槽明细行沿用 QuotaRow 既有形态。
+ */
+function DualSlotCard({ permanent, daily, className }) {
+  const [expanded, setExpanded] = useState(false);
+  const permRemaining = remainingOf(permanent);
+  const dailyRemaining = remainingOf(daily);
+  const permTotal = Number(permanent.total || 0);
+  const dailyTotal = Number(daily.total || 0);
+  const totalRemaining = permRemaining + dailyRemaining;
+  const permShare = totalRemaining > 0 ? permRemaining / totalRemaining : 1;
+  const dailyPct = dailyTotal > 0 ? (dailyRemaining / dailyTotal) * 100 : 0;
+  const dailyCritical = dailyPct > 0 && dailyPct < CRITICAL_PCT;
+
+  return (
+    <div className={cn("min-w-0 space-y-2", className)}>
+      {/* 大数总额 + 双槽小字（点行切换明细展开） */}
+      <div className="flex cursor-pointer items-end justify-between gap-3" onClick={() => setExpanded((v) => !v)}>
+        <span className="flex items-end gap-1.5 tabular-nums">
+          <CreditIcon className="size-[12px] shrink-0 self-center text-primary" />
+          <b className="text-[14px] font-bold leading-none text-text">{fmt(totalRemaining)}</b>
+        </span>
+        <span className="inline-flex shrink-0 items-baseline gap-3 text-[11px] leading-none tabular-nums text-text-muted">
+          <span>永久 {fmt(permRemaining)}</span>
+          <span className={dailyCritical ? "text-[color:var(--bad)]" : ""}>
+            每日 {fmt(dailyRemaining)}/{fmt(dailyTotal)}
+          </span>
+        </span>
+      </div>
+      {/* 双槽段式轨道：永久槽 + 每日槽（剩余占比分段） */}
+      <MeterTrack
+        className="flex gap-[2px]"
+        role="img"
+        aria-label={`永久 ${fmt(permRemaining)}，每日 ${fmt(dailyRemaining)}/${fmt(dailyTotal)}`}
+      >
+        {permRemaining > 0 && (
+          <span className="block h-full" style={{ flex: `${permShare.toFixed(4)} 1 0`, background: POOL_GREEN }} />
+        )}
+        {dailyRemaining > 0 && (
+          <span className="block h-full" style={{ flex: `${(1 - permShare).toFixed(4)} 1 0`, background: dailyCritical ? meterSolid(0) : POOL_GREEN, opacity: 0.75 }} />
+        )}
+        {permRemaining === 0 && dailyRemaining === 0 && (
+          <span className="block h-full w-full" />
+        )}
+      </MeterTrack>
+      {/* 两槽明细行：默认收起（总额+双槽小字已表达全部信息），点总额行切换展开 */}
+      {expanded && (
+        <>
+          <QuotaRow row={permanent} />
+          <QuotaRow row={daily} />
+        </>
+      )}
+    </div>
+  );
+}
+
 function QuotaRow({ row, label = null, inset = false }) {
   const total = Number((row.totalNum ?? row.total) || 0);
   const remaining = Number.isFinite(row.remainingNum)
@@ -320,17 +389,18 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   );
   if (rows.length === 0) return null;
 
-  // The per-campaign breakdown of a charted total (Qoder's addOn packs). Never
-  // summed — the total already counts them — but it is what the bar segments
-  // and the pack-count line describe when the pool is that single total.
-  const breakdown = (packs || [])
-    .filter((p) => p && typeof p === "object" && p.detailOnly === true)
-    .map((p) => ({ ...p, totalNum: Number(p.total || 0), remainingNum: remainingOf(p) }));
-
   const withNums = rows.map((p) => {
     const totalNum = Number(p.total || 0);
     return { ...p, totalNum, remainingNum: remainingOf(p) };
   });
+
+  // #Loomy dual-slot：永久积分（储值）+ 每日赠送（滚动）同时在场 → 总额大数
+  // 在外、内部双槽（永久槽 / 每日槽）双条。命中即短路返回，不走通用池逻辑
+  // ——通用池会把 stored-value 与 recurring 拆成两张互不相干的形状。
+  const dualSlot = findDualSlotPair(withNums);
+  if (dualSlot) {
+    return <DualSlotCard permanent={dualSlot.permanent} daily={dualSlot.daily} className={className} />;
+  }
 
   // Cycle rows split two ways (see classifyCycleRows): MONTHLY rows are resource
   // packs that expire at month end (codebuddy / qoder), so they belong in the
@@ -433,14 +503,21 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   // aggregate line rather than a QuotaRow, so it has to re-derive the unit
   // QuotaRow would otherwise read for itself.
   const poolUnit = poolIsSettledBalance ? quotaUnitOf(pool[0]?.name) : "";
+  // 订阅窗折叠（2026-11-14 用户）：储值余额池 + 恰好一个滚动窗时，窗摘要并入
+  // 大数右侧小字（「5,000　6d 3h后重置」），不再单独占一行 —— 正文只剩聚合条
+  // 与逐包明细。多窗、或池本身不是储值余额（Qoder 家族等）维持原行：信息密度
+  // 不允许折叠。
+  const compactWindow =
+    poolIsSettledBalance && cycleLines.length === 1 ? cycleLines[0] : null;
 
   // 原生包名展示修正：合集池「资源包」→「资源包 Credits」。
   const displayPackName = (name) => (name === "资源包" ? "资源包 Credits" : name);
 
   const hasFamily = families.length > 0;
-  // A one-row pool that has an itemised breakdown is drawn and counted BY that
-  // breakdown — the same segments + "N 个资源包" line a CodeBuddy card gets.
-  const byBreakdown = isPoolFullyRepresented && breakdown.length > 0;
+  // A partial breakdown must not replace the full balance: DuMate may expose
+  // only top-ups here, and its check-in status is not a credit segment at all.
+  const breakdown = isPoolFullyRepresented ? completeQuotaBreakdown(packs, pool) : [];
+  const byBreakdown = breakdown.length > 0;
   const barPacks = byBreakdown ? breakdown : pool;
   // A pool whose rows carry an expiry is never the "one settled pool" shape —
   // it is packs that will run out, and the meta line's pack-count + nearest
@@ -550,12 +627,34 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
           {/* A settled balance has no denominator worth printing — `14.95 / 14.95`
               just reprinted the big number beside it. Everything else keeps it:
               a summing family (CodeBuddy's packs) and a single pool with a real
-              denominator (Qoder 100 / 900, the number the bar below measures). */}
-          {!poolIsSettledBalance && (
+              denominator (Qoder 100 / 900, the number the bar below measures).
+              A settled balance WITH exactly one recurring window (dumate: 余额 +
+              订阅窗) puts that window's summary here instead — its own row
+              below was the third repetition of the same two facts. One whose
+              provider reports an expiring batch (meoo grants) shows the
+              nearest one here — a credit pot should answer "until when". */}
+          {compactWindow ? (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-baseline text-[11px] leading-none tabular-nums",
+                TONE_TEXT[meterTone(compactWindow, percentOf(compactWindow))],
+              )}
+            >
+              {fmt(compactWindow.remainingNum)}
+              {"　"}
+              {dateWord(isResettingRow(compactWindow), compactWindow.resetAt)}
+            </span>
+          ) : pool[0]?.expiringBatch?.resetAt ? (
+            <span className="inline-flex shrink-0 items-baseline text-[11px] leading-none tabular-nums text-text-muted">
+              {fmt(Math.max(0, Number(pool[0].expiringBatch.remaining || 0)))}
+              {" · "}
+              {dateWord(false, pool[0].expiringBatch.resetAt)}
+            </span>
+          ) : !poolIsSettledBalance ? (
             <span className="inline-flex shrink-0 items-baseline text-xs leading-none tabular-nums text-text-muted">
               {fmt(poolRemaining)} / {fmt(poolTotal)}
             </span>
-          )}
+          ) : null}
         </div>
       )}
       {/* Additive pool bar: family packs + monthly (月度并入聚合，不单独成行).
@@ -600,7 +699,32 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
             </div>
           );
         }
-        if (live.length === 0) return null;
+        // 全部耗尽但包会回收（antigravity 的窗口配额：烧完后在 resetAt 回血）
+        // —— meta 行照常给出「已耗尽 + 何时重置」，否则卡片以裸「0 / 1,000」
+        // 空条收尾，读起来像数据异常（2026-11-06 用户报告）。一次性烧断的包
+        // （recycles !== true）维持原状：静默，由聚合行自己说话。
+        if (live.length === 0) {
+          const recycling = barPacks
+            .filter((p) => p.recycles === true && p.resetAt)
+            .sort((a, b) => String(a.resetAt).localeCompare(String(b.resetAt)))[0] || null;
+          if (!recycling) return null;
+          return (
+            <div className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
+              <span className="text-text-muted">
+                {translate("{count} resource packs (depleted)").replace("{count}", String(barPacks.length))}
+              </span>
+              <span className="inline-flex min-w-0 items-center gap-3 truncate text-text-muted">
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  <CreditIcon className="size-[11px] shrink-0" />
+                  0
+                </span>
+                <span className="shrink-0">
+                  {dateWord(true, recycling.resetAt)}
+                </span>
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
             <span className="text-text-muted">
@@ -658,8 +782,10 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
           render as their own plain bars below it — nothing may vanish. */}
       {ladder.length > 0 && <NestedCycleTrack ladder={ladder} />}
       {/* A family's windows (antigravity "Gemini Models · 5h Window") read as
-          one caption + a row per window, not the family name on every line. */}
-      {groupRowsByFamily(cycleLines).map((group, gi) =>
+          one caption + a row per window, not the family name on every line.
+          compactWindow skips its single window here — it already lives beside
+          the big number above. */}
+      {(compactWindow ? [] : groupRowsByFamily(cycleLines)).map((group, gi) =>
         group.family ? (
           <div key={`${group.family}-${gi}`} className="min-w-0 space-y-1.5">
             <div className="flex min-w-0 items-center gap-1.5 text-[11px]">

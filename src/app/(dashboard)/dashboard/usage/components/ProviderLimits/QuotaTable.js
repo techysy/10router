@@ -15,7 +15,7 @@ import { translate } from "@/i18n/runtime";
 // which is what made this look like an intermittent blank page. The named
 // export is preserved for ProviderLimitCard / QuotaProgressBar / index.js.
 import { translateQuotaName } from "@/shared/utils/quotaName";
-import { isExpiredPack, isResettingRow, isSpentPack, meterTone } from "@/shared/utils/quotaRows";
+import { isExpiredPack, isResettingRow, isSpentPack, isUsedUpPack, meterTone } from "@/shared/utils/quotaRows";
 import QuotaMeter, { TONE_TEXT, meterSolid, quotaDateWord } from "@/shared/components/QuotaMeter";
 import { cn } from "@/shared/utils/cn";
 
@@ -37,6 +37,11 @@ function fullDateTime(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function isPlanPack(q) {
+  const n = String(q?.name || "").trim();
+  return n === "Plan Credits" || n === "套餐内 Credits" || n.startsWith("Plan ");
+}
+
 function sortQuotas(quotas, sortMode) {
   if (sortMode === "remaining-asc") {
     return [...quotas].sort((a, b) => a.pct - b.pct || a.name.localeCompare(b.name));
@@ -46,7 +51,15 @@ function sortQuotas(quotas, sortMode) {
     return [...quotas].sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
   }
 
-  return quotas;
+  // 默认排序：核心月度/订阅套餐行（Plan Credits / 套餐内 Credits）置顶展示在首位，
+  // 避免其因为到期日较长而被几十个快到期的短期活动/每日赠送包挤到明细最底部。
+  return [...quotas].sort((a, b) => {
+    const aPlan = isPlanPack(a);
+    const bPlan = isPlanPack(b);
+    if (aPlan && !bPlan) return -1;
+    if (!aPlan && bPlan) return 1;
+    return (a.index ?? 0) - (b.index ?? 0);
+  });
 }
 
 /**
@@ -63,8 +76,13 @@ function QuotaDetailRow({ quota, now, onHide }) {
   const tone = meterTone(quota, quota.pct);
   const resets = isResettingRow(quota);
   const expired = isExpiredPack(quota, now);
+  // A used-up one-shot pack (0 remaining, expiry still ahead) has no future to
+  // count down to — its date renders as the absolute "{date} 到期" like a
+  // calendar entry, never "Xh Ym后过期" (2026-11-24 用户报：0 积分的赠送包
+  // 还在逐包明细里倒计时).
+  const usedUp = isUsedUpPack(quota, now);
   const hasDate = Boolean(quota.resetAt) && new Date(quota.resetAt).getFullYear() <= 2099;
-  const countdown = hasDate ? formatResetTime(quota.resetAt) : "-";
+  const countdown = hasDate && !usedUp ? formatResetTime(quota.resetAt) : "-";
   const dateTitle = hasDate
     ? [fullDateTime(quota.resetAt), countdown !== "-" ? countdown : null].filter(Boolean).join(" · ")
     : undefined;
@@ -94,7 +112,7 @@ function QuotaDetailRow({ quota, now, onHide }) {
           </span>
           {hasDate ? (
             <span className="text-text-muted" title={dateTitle}>
-              {quotaDateWord(resets, quota.resetAt, { expired })}
+              {quotaDateWord(resets, quota.resetAt, { expired, usedUp })}
             </span>
           ) : null}
           {onHide ? (

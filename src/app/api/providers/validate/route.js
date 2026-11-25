@@ -4,8 +4,10 @@ import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbe
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
+import { buildCommandCodeHeaders } from "open-sse/shared/commandCodeHeaders.js";
 import { resolveQoderCredentials, resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { resolveEndpointAuthHeaders } from "@/shared/utils/endpointAuthHeaders";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -105,9 +107,11 @@ export async function POST(request) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
-        const res = await fetch(modelsUrl, {
-          headers: { "Authorization": `Bearer ${apiKey}` },
+        const authHeadersConfig = node.authHeaders || providerSpecificData?.authHeaders;
+        const headers = resolveEndpointAuthHeaders(authHeadersConfig, "models", apiKey, {
+          "Authorization": `Bearer ${apiKey}`,
         });
+        const res = await fetch(modelsUrl, { headers });
         isValid = res.ok;
         return NextResponse.json({
           valid: isValid,
@@ -263,21 +267,53 @@ export async function POST(request) {
       const sysCfg = AI_PROVIDERS[provider]?.systemoneConfig;
       if (sysCfg?.baseUrl && sysKinds.length > 0 && sysKinds.every((k) => k === "systemone")) {
         try {
+          // 鉴权/输入字段按供应商方言：Gemini Decision 走 x-goog-api-key + input
+          // （Google 拒绝该端点上的 Bearer；state 字段名是 Drex 方言 — issue #110）。
+          const isGoogle = sysCfg.authHeader === "x-goog-api-key";
+          const probeHeaders = { "Content-Type": "application/json" };
+          if (isGoogle) probeHeaders["x-goog-api-key"] = apiKey;
+          else probeHeaders["Authorization"] = `Bearer ${apiKey}`;
+          const probeInputField = isGoogle ? "input" : "state";
           const res = await fetch(sysCfg.baseUrl.replace(/\/$/, ""), {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            headers: probeHeaders,
             body: JSON.stringify({
               model: getDefaultModel(provider) || "test",
-              state: "Customer: I was charged twice for my order this morning.",
+              [probeInputField]: "Customer: I was charged twice for my order this morning.",
               questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
             }),
             signal: AbortSignal.timeout(8000),
           });
           // 404 is NOT a pass: THX-01 answers an UNAUTHENTICATED post with 404
           // carrying a full decision body, so "any non-auth status" would
-          // green an empty key; 404 also means "endpoint moved". A real 2xx,
-          // or the request-shaped 4xx that can only happen after auth passed.
-          isValid = res.ok || res.status === 400 || res.status === 422;
+          // green an empty key; 404 also means "endpoint moved".
+          //
+          // 400 也 NOT 一律是 pass（#110 实测 2026-11-12）：Gemini Decision 对
+          // 无效 key 返回 400 + body reason "API_KEY_INVALID" —— 与「key 有效但
+          // 请求形状错」的 400 无法从状态码区分，必须读 body。Google 的错误体：
+          // { error: { code, message, status, details[{ reason }] } }。
+          // 判定：4xx 通过的前提是 body 不是 key 无效类（API_KEY_INVALID /
+          // PERMISSION_DENIED / UNAUTHENTICATED）。
+          if (res.ok) {
+            isValid = true;
+          } else if (res.status === 400 || res.status === 422) {
+            let reason = "";
+            try {
+              const errBody = await res.json();
+              const err = errBody?.error || {};
+              reason = String(err.reason || err.status || err.message || "");
+              // details[].reason 是 Google RPC ErrorInfo 的规范位置
+              const detailReasons = (err.details || [])
+                .map((d) => d?.reason)
+                .filter(Boolean);
+              reason = detailReasons[0] || reason;
+            } catch { /* body 不是 JSON：按状态码旧规则放行 */ }
+            const keyRejected = /API_KEY_INVALID|PERMISSION_DENIED|UNAUTHENTICATED/i.test(reason);
+            isValid = !keyRejected;
+            if (keyRejected) error = "Invalid API key";
+          } else {
+            isValid = false;
+          }
         } catch {
           maintenance = true;
           error = "Endpoint unreachable — the provider may be under maintenance, try again later";
@@ -390,6 +426,17 @@ export async function POST(request) {
           break;
         }
 
+        case "loomy": {
+          // 发现端点探活（GET 不烧免费积分）；只认 `token:` 头，Bearer 会
+          // 100002「缺少 token」（issue #92 实测口径）。
+          const res = await fetch("https://loomyad.xunfei.cn/api/v1/models", {
+            headers: { token: apiKey },
+            signal: AbortSignal.timeout(8000),
+          });
+          isValid = res.ok;
+          break;
+        }
+
         case "deepseek":
         case "groq":
         case "xai":
@@ -402,6 +449,7 @@ export async function POST(request) {
         case "nebius":
         case "siliconflow":
         case "siliconflow-cn":
+        case "atlascloud":
         case "hyperbolic":
         case "ollama":
         case "ollama-local":
@@ -459,12 +507,7 @@ export async function POST(request) {
           }, false);
           const res = await fetch(cfg.baseUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(cfg.headers || {}),
-              "x-session-id": crypto.randomUUID(),
-              "Authorization": `Bearer ${apiKey}`,
-            },
+            headers: buildCommandCodeHeaders({ apiKey, sessionId: payload.threadId }),
             body: JSON.stringify(payload),
           });
           isValid = res.status !== 401 && res.status !== 403;
@@ -617,6 +660,22 @@ export async function POST(request) {
             error = "Invalid session cookie — re-paste __Secure-next-auth.session-token from perplexity.ai";
           } else {
             isValid = true;
+          }
+          break;
+        }
+
+        case "dumate": {
+          // Credential is the Baidu cookie blob — validity == the DuMate
+          // gateway token exchange succeeding (login session still live).
+          try {
+            const { tokenFor } = await import("open-sse/shared/dumate/token.js");
+            await tokenFor(apiKey, { force: true, proxyOptions: providerSpecificData?.proxyOptions || null });
+            isValid = true;
+          } catch (e) {
+            isValid = false;
+            error = e.expired
+              ? e.message
+              : `DuMate validation failed: ${String(e.message).slice(0, 160)}`;
           }
           break;
         }

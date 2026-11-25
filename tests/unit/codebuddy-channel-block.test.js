@@ -93,7 +93,8 @@ describe("CodeBuddy 11128 unapproved channel — channel-scope classification", 
 
   it("keeps the pre-existing rules intact (no regression)", () => {
     expect(checkFallbackError(401, "unauthorized").cooldownMs).toBe(2 * 60 * 1000);
-    expect(checkFallbackError(402, "payment required").cooldownMs).toBe(2 * 60 * 1000);
+    // 402 欠费走 30 分钟计费冷却（issue #91 方案 B：余额/活动包耗尽不在秒级自愈）
+    expect(checkFallbackError(402, "payment required").cooldownMs).toBe(30 * 60 * 1000);
     expect(checkFallbackError(403, "forbidden").cooldownMs).toBe(2 * 60 * 1000);
     expect(checkFallbackError(404, "not found").cooldownMs).toBe(2 * 60 * 1000);
     expect(checkFallbackError(429, "slow down").backoff).toBeUndefined(); // backoff path, not fixed
@@ -102,8 +103,12 @@ describe("CodeBuddy 11128 unapproved channel — channel-scope classification", 
   });
 
   it("only the 11128 rules carry the channelScope flag (config stays declarative)", () => {
+    // The intl gate (2026-10-15: X-Conversation-* headers mandatory, 11128
+    // "conversation id missing" / "request illegal") is the same channel-level
+    // shape — every connection of the provider answers identically — so its
+    // texts join the declarative list, scoped to codebuddy-intl via rule.provider.
     const scoped = ERROR_RULES.filter((r) => r.channelScope === true).map((r) => r.text);
-    expect(scoped).toEqual(["unapproved channel", "illegal api invocation"]);
+    expect(scoped).toEqual(["unapproved channel", "illegal api invocation", "conversation id missing", "request illegal"]);
   });
 });
 

@@ -3,9 +3,11 @@ import {
   computeDepletedHiddenKeys,
   filterQuotasByVisibility,
   getHiddenQuotaRows,
+  getQuotaVisibilityKey,
   parseQuotaData,
   trimHiddenQuotaKeys,
 } from "@/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
+import { buildQuotas } from "../../open-sse/services/usage/dumate.js";
 
 describe("provider quota visibility", () => {
   const data = {
@@ -114,6 +116,126 @@ describe("provider quota visibility", () => {
     expect(visible.map((q) => q.name)).toEqual(["Bonus Pack 1"]);
     const hidden = getHiddenQuotaRows("conn-A", quotas, visibility, "codebuddy-cn");
     expect(hidden.map((q) => q.name)).toEqual(["Bonus Pack 2"]);
+  });
+});
+
+describe("Dumate pack visibility identity", () => {
+  const expires = Math.floor(Date.now() / 1000) + 86400;
+  const pack = (overrides = {}) => ({
+    packageType: "grant_point", source: "event_bonus", status: "active",
+    totalPoints: 100, usedPoints: 0, pointsExpireDate: expires, ...overrides,
+  });
+  const rowsFor = (packs, kind = "incremental") => parseQuotaData("dumate", {
+    quotas: buildQuotas({
+      subscription: [], incremental: [], [kind]: packs,
+      totalPoints: packs.filter((p) => p.status === "active").reduce((sum, p) => sum + Number(p.totalPoints), 0),
+      usedPoints: packs.filter((p) => p.status === "active").reduce((sum, p) => sum + Number(p.usedPoints), 0),
+    }, null),
+  });
+
+  it.each(["subscription", "incremental"])("does not transfer hidden %s pack A's preference to B after A expires", (kind) => {
+    // No invented upstream IDs: exercise the actual documented pack fields.
+    const a = pack(kind === "subscription" ? { packageType: "plan_pro", source: undefined } : {});
+    const b = { ...a, totalPoints: 200, pointsExpireDate: expires + 86400 };
+    const before = rowsFor([a, b], kind);
+    const rowA = before.find((row) => row.total === 100);
+    const rowB = before.find((row) => row.total === 200);
+    const keyA = getQuotaVisibilityKey(rowA);
+    const keyB = getQuotaVisibilityKey(rowB);
+    expect(keyA).not.toBe(keyB);
+    expect(keyA).not.toBe(rowA.name);
+    expect(filterQuotasByVisibility("account", before, { account: { hidden: [keyA] } })).not.toContain(rowA);
+
+    for (const packs of [[{ ...a, status: "expired" }, b], [b]]) {
+      const after = rowsFor(packs, kind);
+      const surviving = after.find((row) => !row.summarizesDetail);
+      expect(surviving.name).toBe(rowA.name); // display label was renumbered
+      expect(getQuotaVisibilityKey(surviving)).toBe(keyB);
+      expect(filterQuotasByVisibility("account", after, { account: { hidden: [keyA] } })).toContain(surviving);
+      // Hiding B itself remains effective after the same rename.
+      expect(getHiddenQuotaRows("account", after, { account: { hidden: [keyB] } })).toEqual([surviving]);
+    }
+  });
+
+  it("keeps identity through reorder, spending, inactive siblings and numeric string values", () => {
+    const a = pack();
+    const b = pack({ totalPoints: 200, pointsExpireDate: expires + 86400 });
+    const originalB = rowsFor([a, b]).find((row) => row.total === 200);
+    const updatedB = { ...b, totalPoints: "200", usedPoints: 175, pointsExpireDate: String(b.pointsExpireDate), autoRenewStatus: true };
+    const keyB = getQuotaVisibilityKey(originalB);
+    for (const sibling of [a, { ...a, status: "inactive" }]) {
+      const after = rowsFor([updatedB, sibling]);
+      expect(after.find((row) => !row.summarizesDetail).modelKey).toBe(keyB);
+      expect(getHiddenQuotaRows("account", after, { account: { hidden: [keyB] } })[0]).toMatchObject({ used: 175, total: 200 });
+      // Account-scoped keys still isolate another account with the same tuple.
+      expect(getHiddenQuotaRows("other", after, { account: { hidden: [keyB] } })).toEqual([]);
+    }
+  });
+
+  it("distinguishes allowance kind, source, amount and validity without using mutable usage", () => {
+    const a = pack({ expireDate: expires + 30 * 86400 });
+    const keyOf = (p, kind) => getQuotaVisibilityKey(rowsFor([p], kind).find((row) => !row.summarizesDetail));
+    const key = keyOf(a);
+    expect(keyOf({ ...a, usedPoints: 99 })).toBe(key);
+    for (const p of [
+      { ...a, source: "invite_bonus" },
+      { ...a, packageType: "plan_point" },
+      { ...a, totalPoints: 200 },
+      { ...a, pointsExpireDate: expires + 1 },
+      { ...a, expireDate: a.expireDate + 1 },
+    ]) expect(keyOf(p)).not.toBe(key);
+    expect(keyOf(a, "subscription")).not.toBe(key);
+  });
+
+  it("keeps permanent top-ups stable when an earlier top-up disappears", () => {
+    const a = pack({ packageType: "plan_point", pointsExpireDate: null });
+    const b = { ...a, totalPoints: 200 };
+    const key = getQuotaVisibilityKey(rowsFor([a, b]).find((row) => row.total === 200));
+    expect(rowsFor([b]).find((row) => !row.summarizesDetail).modelKey).toBe(key);
+  });
+
+  it("retires ambiguous legacy pack-name hides while retaining the balance-row preference", () => {
+    const a = pack();
+    const b = pack({ totalPoints: 200 });
+    const before = rowsFor([a, b]);
+    const hidden = before.map((row) => row.name);
+    const after = rowsFor([b]);
+    const visibility = { dumate: { hidden } };
+    expect(trimHiddenQuotaKeys(hidden, after)).toEqual(["积分余额"]);
+    expect(filterQuotasByVisibility("account", after, visibility, "dumate")).toEqual([
+      after.find((row) => !row.summarizesDetail),
+    ]);
+  });
+
+  it("still honors names in legacy snapshots that have no stable key", () => {
+    const rows = parseQuotaData("dumate", { quotas: { "积分加油包": { used: 0, total: 100 } } });
+    expect(getQuotaVisibilityKey(rows[0])).toBe("积分加油包");
+    expect(filterQuotasByVisibility("account", rows, { account: { hidden: ["积分加油包"] } })).toEqual([]);
+  });
+
+  it("shares a key for indistinguishable tuples instead of inventing order-based identity", () => {
+    const a = pack();
+    const b = { ...a, usedPoints: 50 };
+    const details = rowsFor([a, b]).filter((row) => !row.summarizesDetail);
+    expect(details).toHaveLength(2); // retain both amounts in the breakdown
+    expect(details[0].modelKey).toBeTruthy();
+    expect(details[0].modelKey).toBe(details[1].modelKey);
+    expect(rowsFor([b])[0].modelKey).toBe(details[0].modelKey);
+  });
+
+  it.each([
+    [" pack-key ", "pack-key"],
+    [42, "42"],
+    [0, "0"],
+    [" ", "Label"],
+    [null, "Label"],
+    [{ id: "unsupported" }, "Label"],
+    [NaN, "Label"],
+  ])("normalizes a generic modelKey %j without losing the display name", (modelKey, expected) => {
+    const rows = parseQuotaData("dumate", { quotas: { Label: { modelKey, total: 100, used: 0 } } });
+    expect(rows[0].name).toBe("Label");
+    expect(getQuotaVisibilityKey(rows[0])).toBe(expected);
+    expect(filterQuotasByVisibility("account", rows, { account: { hidden: [expected] } })).toEqual([]);
   });
 });
 

@@ -9,6 +9,7 @@ function rowToCombo(row) {
     name: row.name,
     kind: row.kind,
     models: parseJson(row.models, []),
+    disabledModels: parseJson(row.disabledModels, []),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -40,12 +41,13 @@ export async function createCombo(data) {
     name: data.name,
     kind: data.kind || null,
     models: data.models || [],
+    disabledModels: Array.isArray(data.disabledModels) ? data.disabledModels : [],
     createdAt: now,
     updatedAt: now,
   };
   db.run(
-    `INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
-    [combo.id, combo.name, combo.kind, stringifyJson(combo.models), combo.createdAt, combo.updatedAt]
+    `INSERT INTO combos(id, name, kind, models, disabledModels, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+    [combo.id, combo.name, combo.kind, stringifyJson(combo.models), stringifyJson(combo.disabledModels), combo.createdAt, combo.updatedAt]
   );
   return combo;
 }
@@ -57,9 +59,11 @@ export async function updateCombo(id, data) {
     const row = db.get(`SELECT * FROM combos WHERE id = ?`, [id]);
     if (!row) return;
     const merged = { ...rowToCombo(row), ...data, updatedAt: new Date().toISOString() };
+    // PUT body 不带 disabledModels 时（...data 展开抹成 undefined）保留库里现值
+    if (!Array.isArray(merged.disabledModels)) merged.disabledModels = parseJson(row.disabledModels, []);
     db.run(
-      `UPDATE combos SET name = ?, kind = ?, models = ?, updatedAt = ? WHERE id = ?`,
-      [merged.name, merged.kind, stringifyJson(merged.models || []), merged.updatedAt, id]
+      `UPDATE combos SET name = ?, kind = ?, models = ?, disabledModels = ?, updatedAt = ? WHERE id = ?`,
+      [merged.name, merged.kind, stringifyJson(merged.models || []), stringifyJson(Array.isArray(merged.disabledModels) ? merged.disabledModels : []), merged.updatedAt, id]
     );
     result = merged;
   });

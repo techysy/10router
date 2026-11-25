@@ -3,12 +3,14 @@ import "open-sse/index.js";
 
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { getUsageForProvider } from "open-sse/services/usage.js";
+import { extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
 import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 import { markConnectionNeedsReauth, NEEDS_REAUTH_MESSAGE } from "@/sse/services/tokenRefresh.js";
 import { getExecutor } from "open-sse/executors/index.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { createUsageResultCache } from "@/lib/usageResultCache";
 import { USAGE_APIKEY_PROVIDERS, USAGE_COOKIE_PROVIDERS } from "@/shared/constants/providers";
 
 // Detect auth-expired messages returned by usage providers instead of throwing
@@ -164,8 +166,25 @@ export async function GET(request, { params }) {
  * persist earliest package expiry). Shared by GET /api/usage/[connectionId] and the
  * aggregated GET /api/usage/quotas. Returns { status, body } — body is exactly what
  * the per-connection endpoint has always returned.
+ *
+ * Wrapped in the shared result cache (same posture as the aggregated route:
+ * 5-min fresh TTL for quota results, 30-s cool-down for errors, force respects
+ * a 30-s minimum interval, concurrent calls for one connection coalesce) —
+ * upstream consoles are rate-sensitive and every dashboard tab polls this
+ * endpoint on its own timer; without the cache each tab was a direct upstream
+ * caller.
  */
 export async function computeConnectionUsage(connection, { force = false } = {}) {
+  return usageResultCache.run(
+    connection.id,
+    () => computeConnectionUsageUncached(connection, { force }),
+    { force },
+  );
+}
+
+const usageResultCache = createUsageResultCache();
+
+async function computeConnectionUsageUncached(connection, { force = false } = {}) {
   try {
     // Allow OAuth connections, plus whitelisted apikey providers (glm/minimax/kiro/...)
     // Kiro's headless api-key flow persists authType "api_key" (underscore) while
@@ -203,8 +222,15 @@ export async function computeConnectionUsage(connection, { force = false } = {})
       }
     }
 
+    // Cookie 型 provider（dumate）在会话失效时会静默续期并轮换凭据：回调把
+    // 新 Cookie 写回连接，否则下次仍然拿旧 Cookie 去续，白白多跑一次登录链。
+    const onRenewed = async (rawCookie) => {
+      if (!connection.id) return;
+      await updateProviderConnection(connection.id, { apiKey: rawCookie });
+    };
+
     // Fetch usage from provider API
-    let usage = await getUsageForProvider(connection, proxyOptions, { force });
+    let usage = await getUsageForProvider(connection, proxyOptions, { force, onRenewed });
 
     // If provider returned an auth-expired message instead of throwing,
     // force-refresh token and retry once (OAuth only)
@@ -212,7 +238,7 @@ export async function computeConnectionUsage(connection, { force = false } = {})
       try {
         const retryResult = await refreshAndUpdateCredentials(connection, true, proxyOptions);
         connection = retryResult.connection;
-        usage = await getUsageForProvider(connection, proxyOptions, { force });
+        usage = await getUsageForProvider(connection, proxyOptions, { force, onRenewed });
       } catch (retryError) {
         console.warn(`[Usage] ${connection.provider}: force refresh failed: ${retryError.message}`);
       }
@@ -221,7 +247,9 @@ export async function computeConnectionUsage(connection, { force = false } = {})
     // Persist earliest available package expiry for expire-first routing and balance for balance routing
     try {
       const expiryInfo = extractEarliestPackageExpiry(usage);
-      const parsedBalance = extractConnectionBalance(usage);
+      // Croli wallet credits are display-only rewards, not model budget. Keep
+      // them out of quotaBalance so pure-balance routing cannot sort on them.
+      const parsedBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
       const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
       if (expiryInfo) {
         await updateProviderConnection(connection.id, {
@@ -279,9 +307,19 @@ export async function computeConnectionUsage(connection, { force = false } = {})
         }
         // Update balance if extracted from claimed rows
         try {
-          const extBalance = extractConnectionBalance(usage);
+          const extBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
           if (typeof extBalance === "number") {
             await updateProviderConnection(connection.id, { quotaBalance: extBalance });
+          }
+          // #Loomy-daily-first: persist the daily/permanent split for the
+          // scheduler and the dashboard's dual-slot card.
+          const grantPair = extractDailyGrantAndPermanent(usage);
+          if (grantPair) {
+            await updateProviderConnection(connection.id, {
+              dailyGrantRemaining: grantPair.dailyRemaining,
+              dailyGrantTotal: grantPair.dailyTotal,
+              permanentBalance: grantPair.permanent,
+            });
           }
         } catch { /* ignore */ }
       } else if (PUSH_ONLY_USAGE_PROVIDERS.has(connection.provider) && usage && usage.message) {

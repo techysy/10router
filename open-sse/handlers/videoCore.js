@@ -14,7 +14,14 @@ const VIDEO_FETCH_TIMEOUT_MS = Number(process.env.VIDEO_FETCH_TIMEOUT_MS || 1200
 export const VIDEO_ACTIONS = new Set(["generations", "edits", "extensions"]);
 
 export function getVideoConfig(provider) {
-  return PROVIDER_MEDIA[provider]?.videoConfig || null;
+  const videoConfig = PROVIDER_MEDIA[provider]?.videoConfig || null;
+  // The transparent proxy below forwards to `videoConfig.baseUrl` — a config
+  // without one (executor-driven media providers) cannot be proxied, and
+  // letting it through would crash buildUpstreamUrl on `undefined.replace`.
+  // Those providers generate via the media handler instead; until a bridge
+  // exists, answer the caller's clean 400 ("does not support video").
+  if (!videoConfig?.baseUrl) return null;
+  return videoConfig;
 }
 
 /** Strip bearer tokens / obvious secrets from text destined for clients or logs. */

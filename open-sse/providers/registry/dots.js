@@ -19,7 +19,12 @@ export default {
   },
   // Free public beta (公测) — grouped with the free-tier providers in the UI;
   // flip back to "apikey" when Dots starts charging.
+  // 2026-11-18 官方文档已挂定价表(dots3-note-prev USD/1M:输入 $0.14/输出
+  // $0.28),但明示「当前免费体验，暂不收费，恢复收费前将通过官网及 API 页面
+  // 提前告知」——实际计费仍为 0,pricing.js 按 0 记;收费落地时改价并去掉
+  // freeTrial 旗标(仪表盘卡片的绿色「免费」徽章随之消失)。
   category: "freeTier",
+  freeTrial: true,
   authType: "apikey",
   authModes: ["apikey"],
   transport: {

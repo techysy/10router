@@ -164,6 +164,56 @@ async function runHeavyStartup() {
       .then(({ startMinimaxCheckin }) => startMinimaxCheckin())
       .catch((e) => console.log("[MinimaxCheckin] scheduler start failed:", e.message));
   }
+
+  // Auto daily check-in for Trae CN connections (ug/checkin_credits, ported from
+  // CreditDaddy traeClient). Only site=cn connections participate; the scheduler
+  // no-ops when none exist or the toggle is off.
+  if (settings.traeCheckin === true) {
+    import("@/sse/services/traeCheckin.js")
+      .then(({ startTraeCheckin }) => startTraeCheckin())
+      .catch((e) => console.log("[TraeCheckin] scheduler start failed:", e.message));
+  }
+
+  // Auto daily credit claim for Meoo (login-equivalent action + ledger verdict).
+  if (settings.meooCheckin === true) {
+    import("@/sse/services/meooCheckin.js")
+      .then(({ startMeooCheckin }) => startMeooCheckin())
+      .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
+  }
+
+  // AutoClaw（智谱澳龙）daily sign-in (task-center daily_signin, intl + CN cards). Opt-in.
+  if (settings.autoclawCheckin === true) {
+    import("@/sse/services/autoclawCheckin.js")
+      .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
+      .catch((e) => console.log("[AutoclawCheckin] scheduler start failed:", e.message));
+  }
+
+  // Croli daily check-in and server-claimable rewards are opt-in. The scheduler
+  // never creates model conversations; successful user chats report their own event.
+  if (settings.croliCheckin === true) {
+    import("@/sse/services/croliCheckin.js")
+      .then(({ startCroliCheckin }) => startCroliCheckin())
+      .catch((e) => console.log("[CroliCheckin] scheduler start failed:", e.message));
+  }
+
+  // Auto daily check-in for Lingxi connections (daily_check_in claim, ported
+  // from CreditDaddy lingxiClient). Cookie-jar connections; tasks-state gate
+  // never blind-fires the claim.
+  if (settings.lingxiCheckin === true) {
+    import("@/sse/services/lingxiCheckin.js")
+      .then(({ startLingxiCheckin }) => startLingxiCheckin())
+      .catch((e) => console.log("[LingxiCheckin] scheduler start failed:", e.message));
+  }
+
+  // Daily-grant midnight reset (每日赠送积分优先 policy, 2026-11-12): reopens
+  // connections auto-disabled by the drain guard in auth.js once their daily
+  // grant refreshes. The scheduler self-gates per tick on providerStrategies
+  // (re-read every pass), so no restart is needed when the toggle flips.
+  if (Object.values(settings.providerStrategies || {}).some((o) => o?.dailyGrantFirst === true)) {
+    import("@/sse/services/dailyGrantReset.js")
+      .then(({ startDailyGrantReset }) => startDailyGrantReset())
+      .catch((e) => console.log("[DailyGrantReset] scheduler start failed:", e.message));
+  }
 }
 
 function hasQuotaAutoPingEnabled(settings) {

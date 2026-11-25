@@ -48,6 +48,10 @@ const PUBLIC_API_PATHS = [
 const LOCAL_OR_AUTH_API_PATHS = [
   "/api/version",
   "/api/init",
+  // 会话池（#150）：本机壳（CLI token）或已登录会话可达；站点表只回显 provider/
+  // 槽位元数据，capture 落库走连接写路径，clear 删行——均需本机信任。
+  // 注意：放在 LOCAL_OR_AUTH 而非 PUBLIC——捕获的 cookie 会落库，不能匿名可达。
+  "/api/cookie-sites",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).
@@ -78,8 +82,9 @@ const ALWAYS_PROTECTED = [
   // OAuth credentials transfer: export dumps live tokens (encrypted by a
   // user passphrase AFTER the guard), import writes them. Even with
   // requireLogin=false these must demand credentials (export re-checks the
-  // dashboard password inside). Exception: same-machine import AND export,
-  // see the transfer branch in proxy() — the route keeps its own re-auth.
+  // dashboard password inside). Exceptions, both passing to the route's own
+  // re-auth: same-machine requests, and requests carrying the dashboard
+  // password header — see the transfer branches in proxy().
   "/api/oauth/transfer/",
 ];
 
@@ -136,18 +141,51 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 // Accepts a Host header, a URL hostname or a raw socket address. Splitting on the first
 // colon only works for IPv4 and would reduce every IPv6 form to "", so a dual-stack
 // listener handing back ::ffff:127.0.0.1 would not read as loopback.
-function isLoopbackHostname(h) {
-  if (!h) return false;
+export function extractHostname(h) {
+  if (!h) return "";
   let name = String(h).trim().toLowerCase();
   if (name.startsWith("[")) {
     const end = name.indexOf("]");
-    if (end === -1) return false;
+    if (end === -1) return "";
     name = name.slice(1, end);
   } else if (name.indexOf(":") !== -1 && name.indexOf(":") === name.lastIndexOf(":")) {
     name = name.slice(0, name.indexOf(":"));
   }
   if (name.startsWith("::ffff:")) name = name.slice(7);
+  return name;
+}
+
+export function isLoopbackHostname(h) {
+  const name = extractHostname(h);
   return LOOPBACK_HOSTS.has(name);
+}
+
+export function getTrustedHosts() {
+  const list = new Set(LOOPBACK_HOSTS);
+  if (process.env.TRUSTED_HOSTS) {
+    for (const h of process.env.TRUSTED_HOSTS.split(",")) {
+      const trimmed = extractHostname(h.trim());
+      if (trimmed) list.add(trimmed);
+    }
+  }
+  // Same fallback pair oidc.js/saml.js honor: NEXT_PUBLIC_BASE_URL is the
+  // documented deployment env — a passwordless setup binding it to a LAN
+  // hostname must still pass the Host check when browsed from the host itself.
+  for (const env of [process.env.BASE_URL, process.env.NEXT_PUBLIC_BASE_URL]) {
+    if (!env) continue;
+    try {
+      const u = new URL(env);
+      const h = extractHostname(u.hostname);
+      if (h) list.add(h);
+    } catch {}
+  }
+  return list;
+}
+
+export function isAllowedHost(host) {
+  const h = extractHostname(host);
+  if (!h) return false;
+  return getTrustedHosts().has(h);
 }
 
 function isLoopbackPeer(request) {
@@ -167,6 +205,16 @@ export function isLocalRequest(request) {
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
   if (request.headers.get("x-10r-via-proxy")) return false;
   if (!isLoopbackPeer(request)) return false;
+
+  // Issue #43 item 1: Host header validation against DNS rebinding attacks.
+  // An external browser navigated to an attacker-controlled domain whose DNS
+  // resolves to 127.0.0.1 hits the local socket with TCP peer 127.0.0.1, but
+  // carries Host: attacker-domain.com. Demanding that Host matches a trusted
+  // local hostname or TRUSTED_HOSTS ensures DNS rebinding cannot masquerade
+  // as a trusted loopback call to bypass passwordless local access.
+  const host = request.headers.get("host");
+  if (host && !isAllowedHost(host)) return false;
+
   const origin = request.headers.get("origin");
   if (origin) {
     try {
@@ -327,6 +375,46 @@ export async function proxy(request) {
     return NextResponse.next();
   }
 
+  // IMPORT on a passwordless deployment (issue #104): requireLogin=false with no
+  // dashboard credential of its own means verify-password and the password
+  // header above are unusable by design — there is no password to know. The
+  // route's own authorization is the transfer passphrase's GCM tag (an attacker
+  // without it cannot forge a valid blob), so passing the guard through is safe:
+  // these same LAN callers already reach every sibling /api/oauth/* write via
+  // the requireLogin=false catch-all. Export stays ALWAYS_PROTECTED — it dumps
+  // live tokens, and a passwordless deployment cannot re-auth anyone.
+  // NOTE: this must sit ABOVE the local transfer branch — isAuthenticated()
+  // returns true for ANY caller once requireLogin is off, so the local-only
+  // condition there can never be met remotely and this case needs its own.
+  if (
+    request.method === "POST" &&
+    pathname === "/api/oauth/transfer/import"
+  ) {
+    const settings = await loadSettings();
+    if (settings && settings.requireLogin === false && !isDashboardAuthConfigured(settings)) {
+      return NextResponse.next();
+    }
+  }
+
+  // Same two paths carrying an explicit dashboard password header: the guard's
+  // cookie/CLI-token checks cannot see a header credential, but the ROUTE is
+  // the real authorization — export re-authenticates the password
+  // (verifyDashboardPassword), import is sealed by the transfer passphrase's
+  // GCM tag. requireLogin=false deployments (LAN/NAS) have no JWT by design,
+  // and their remote operator's transfer dialog — plus CreditDaddy's remote
+  // channel — otherwise dies at this guard with 401 before the route's own
+  // re-auth ever runs. Same self-authenticating pattern as the import-usage
+  // branch above; cross-site pages cannot forge the custom header without a
+  // preflight this guard never grants, and a guessed password still fails the
+  // route's bcrypt check. No header → ALWAYS_PROTECTED as before.
+  if (
+    request.method === "POST" &&
+    (pathname === "/api/oauth/transfer/import" || pathname === "/api/oauth/transfer/export") &&
+    readDashboardPassword(request)
+  ) {
+    return NextResponse.next();
+  }
+
   // Always protected - require valid JWT or local CLI token (machineId-based).
   if (ALWAYS_PROTECTED.some((p) => pathname.startsWith(p))) {
     if ((await hasValidCliToken(request)) || (await hasValidToken(request)))
@@ -382,6 +470,31 @@ export async function proxy(request) {
     request.method === "POST" &&
     (pathname === "/api/provider-nodes" || pathname === "/api/providers") &&
     (await hasValidApiKey(request))
+  ) {
+    return NextResponse.next();
+  }
+
+  // DuMate bookmarklet cookie-import: the cross-site POST from *.baidu.com
+  // cannot carry the SameSite=Lax session cookie, so it replays the one-time
+  // `ot` token issued to an authenticated session by import-init. The ROUTE is
+  // the real authorization — it consumes the single-use token (10 min TTL) and
+  // rejects anything else. Same self-authenticating pattern as the
+  // transfer/import branches above.
+  if (
+    pathname === "/api/oauth/dumate/import" &&
+    (request.method === "OPTIONS" ||
+      (request.method === "POST" && new URL(request.url).searchParams.get("ot")))
+  ) {
+    return NextResponse.next();
+  }
+
+  // WPS 灵犀 bookmarklet session-capture: same one-time-ot pattern as the
+  // DuMate branch above — the cross-site POST from lingxi.kdocs.cn replays the
+  // ot minted by /api/oauth/lingxi/import-init, and the route consumes it.
+  if (
+    pathname === "/api/oauth/lingxi/import" &&
+    (request.method === "OPTIONS" ||
+      (request.method === "POST" && new URL(request.url).searchParams.get("ot")))
   ) {
     return NextResponse.next();
   }

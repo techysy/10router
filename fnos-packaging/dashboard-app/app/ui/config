@@ -1,0 +1,16 @@
+{
+  ".url": {
+    "10router-dashboard.Application": {
+      "title": "10Router 管理面板",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "microApp": true,
+      "port": "",
+      "protocol": "http",
+      "gatewaySocket": "app.sock",
+      "gatewayPrefix": "/app/10router-dashboard",
+      "url": "/app/10router-dashboard/",
+      "allUsers": true
+    }
+  }
+}

@@ -136,7 +136,11 @@ async function tryDedicatedProvider({ provider, providerConfig, body, credential
   } catch (err) {
     clearTimeout(timer);
     const isTimeout = err.name === "AbortError";
-    const status = isTimeout ? 504 : 502;
+    // 归一化层抛出的 typed error 自带真实 HTTP 状态(如 Doubao 把 body 里的
+    // ResponseMetadata.Error 译成 429/403/401),让它原样驱动轮询与降级;
+    // 其余非超时异常仍是笼统 502。
+    const typed = Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599 ? err.status : null;
+    const status = isTimeout ? 504 : (typed || 502);
     log?.error?.("SEARCH", `${provider.id} ${isTimeout ? "timeout" : "error"}: ${err.message}`);
     return { success: false, status, error: `${provider.id} ${isTimeout ? "timeout" : "error"}: ${err.message}` };
   }

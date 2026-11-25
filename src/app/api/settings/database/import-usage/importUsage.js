@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { apiKeyIdentity } from "@/lib/db/crypto/apiKeyIdentity.js";
 
 // Read usageHistory rows from a 9router/10router SQLite file using node:sqlite
 // (Node ≥22.5 built-in, no wasm dependency). The file is written to a temp
@@ -12,8 +13,11 @@ export async function readUsageFromSqlite(buffer, filename = "data.sqlite") {
     const { DatabaseSync } = await import("node:sqlite");
     const db = new DatabaseSync(tmp, { readOnly: true });
     try {
+      // Backups predating the digest migration have only the plaintext apiKey.
+      const hasApiKeyHash = db.prepare("PRAGMA table_info(usageHistory)").all().some((c) => c.name === "apiKeyHash");
+      const hashColumn = hasApiKeyHash ? "apiKeyHash" : "NULL AS apiKeyHash";
       const stmt = db.prepare(
-        `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta FROM usageHistory ORDER BY id ASC`
+        `SELECT timestamp, provider, model, connectionId, apiKey, ${hashColumn}, endpoint, promptTokens, completionTokens, cost, status, tokens, meta FROM usageHistory ORDER BY id ASC`
       );
       const rows = [];
       for (const r of stmt.all()) {
@@ -23,6 +27,7 @@ export async function readUsageFromSqlite(buffer, filename = "data.sqlite") {
           model: r.model,
           connectionId: r.connectionId,
           apiKey: r.apiKey,
+          apiKeyHash: apiKeyIdentity(r.apiKey, r.apiKeyHash).apiKeyHash,
           endpoint: r.endpoint,
           promptTokens: r.promptTokens,
           completionTokens: r.completionTokens,
@@ -64,6 +69,7 @@ export function readUsageFromJson(payload) {
       model: r.model,
       connectionId: r.connectionId,
       apiKey: r.apiKey,
+      apiKeyHash: apiKeyIdentity(r.apiKey, r.apiKeyHash).apiKeyHash,
       endpoint: r.endpoint,
       promptTokens: r.promptTokens,
       completionTokens: r.completionTokens,

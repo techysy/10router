@@ -12,7 +12,7 @@ const L = {
   levelMax: ["none", "low", "medium", "high", "max"],               // kimi
   budgetX: ["none", "low", "medium", "high", "xhigh", "max"],       // claude-budget, claude-adaptive
   gemini: ["minimal", "low", "medium", "high"],                     // gemini-3 thinkingLevel (no disable)
-  hiMax: ["none", "high", "max"],                                   // deepseek (low/med→high, xhigh→max)
+  hiMax: ["none", "low", "medium", "high", "max"],                  // deepseek (#106：档位全透传，不再钳)
 };
 
 // thinkingFormat → valid selectable levels (source of truth for UI options).
@@ -38,14 +38,27 @@ const CLAUDE_NO_XHIGH = ["none", "low", "medium", "high", "max"];
 
 // Model-name pattern overrides (glob, first match wins) — more precise than format default.
 const PATTERN_THINKING = [
+  // AutoClaw（智谱澳龙）：上游 reasoning 变体只有 low / high / max（auto /
+  // auto-fast / glm-5.3 系同一档位集），无关闭档。两条线同一目录。
+  { provider: "autoclaw", pattern: "*", levels: ["low", "high", "max"] },
+  { provider: "autoclaw-cn", pattern: "*", levels: ["low", "high", "max"] },
   // Gemini 4 (Argon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
   { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
+  // Tiered Gemini 3.8/3.7/3.6 Flash have no MINIMAL tier and cannot disable thinking.
+  // Floor any intent producing "minimal" (e.g. reasoning_effort:"none" / minimal) at "low" to prevent 400s.
+  { pattern: "*gemini-3.8*", levels: ["low", "medium", "high"] },
+  { pattern: "*gemini-3.7*", levels: ["low", "medium", "high"] },
+  { pattern: "*gemini-3.6*", levels: ["low", "medium", "high"] },
   { pattern: "*claude*4.6*", levels: CLAUDE_NO_XHIGH },
   { pattern: "*claude*4-6*", levels: CLAUDE_NO_XHIGH },
   // GPT-6 lite family (Sol/Luna/6.1) runs Responses Lite: no "none"/"minimal",
   // thinking always on; codex-only "ultra" normalizes to max downstream.
   // MUST sit above the broad *gpt-6* rule - first match wins.
   { provider: "codex", pattern: "*gpt-6.1-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
+  // 6.2 (2026-11-18 上游元数据): supported_reasoning_levels 含 ultra(六档)——
+  // registry 行先照 6.1 家族保持五档,ultra 透传策略待现网验证再议。
+  { provider: "codex", pattern: "*gpt-6.2-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
+  { provider: "codex", pattern: "*gpt-6.2-astra*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6-sol*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6-luna*", levels: ["low", "medium", "high", "xhigh", "max"] },
   { provider: "codex", pattern: "*gpt-6*", levels: CODEX_GPT_5_6_LEVELS },
@@ -80,15 +93,24 @@ const PATTERN_THINKING = [
   { provider: "codebuddy-cn", pattern: "hy4*",         levels: ["high"] },
 ];
 
+// OpenAI documents reasoning.effort "max" for GPT-5.6 and GPT-6 (#5186). The codex rows
+// above already carry it; an OpenAI Compatible node serving the same ids gets the same
+// set, otherwise the "openai" format list (no max) clamps max to xhigh on the wire.
+const OPENAI_MAX_EFFORT_MODEL = /(?:^|\/)gpt-(?:5\.6|6)(?:[.-]|$)/i;
+const isOpenAICompatibleNode = (provider) => String(provider || "").startsWith("openai-compatible-");
+
 // Returns valid thinking levels for a model, or null when the model has no reasoning.
 export function getThinkingLevels(provider, model) {
   if (provider === "kiro" && resolveKiroEffortPath(model) === null) return null;
   const caps = getCapabilitiesForModel(provider, model);
   if (!caps.reasoning) return null;
+  const baseId = String(model || "").split("/").pop();
   const hit = PATTERN_THINKING.find((entry) =>
     (!entry.provider || entry.provider === provider) && matchPattern(entry.pattern, model)
   );
-  let levels = hit?.levels || FORMAT_LEVELS[caps.thinkingFormat] || L.base;
+  let levels = hit?.levels
+    || (isOpenAICompatibleNode(provider) && OPENAI_MAX_EFFORT_MODEL.test(baseId) ? CODEX_GPT_5_6_LEVELS : null)
+    || FORMAT_LEVELS[caps.thinkingFormat] || L.base;
   if (caps.thinkingCanDisable === false) levels = levels.filter((l) => l !== "none");
   return levels;
 }

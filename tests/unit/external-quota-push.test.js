@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   isDashboardAuthConfigured: vi.fn(() => true),
   save: vi.fn(),
   del: vi.fn(),
+  getMeta: vi.fn(async () => null),
+  setMeta: vi.fn(async () => true),
+  deleteMeta: vi.fn(async () => true),
+  listMetaByPrefix: vi.fn(async () => []),
 }));
 
 vi.mock("next/server", () => ({
@@ -34,6 +38,13 @@ vi.mock("@/lib/externalQuota", async (importOriginal) => ({
   saveExternalQuotaSnapshot: mocks.save,
   deleteExternalQuotaSnapshot: mocks.del,
 }));
+// The snapshot store — externalQuota reads pushed snapshots through it.
+vi.mock("@/lib/db/helpers/metaStore.js", () => ({
+  getMeta: mocks.getMeta,
+  setMeta: mocks.setMeta,
+  deleteMeta: mocks.deleteMeta,
+  listMetaByPrefix: mocks.listMetaByPrefix,
+}));
 
 // ─── 1) payload normalization (pure, from the real module) ──────────────────
 
@@ -44,6 +55,8 @@ const {
   filterClaimedExternalRows,
   findClaimedExternalRow,
   attachClaimRefreshUrls,
+  disambiguateQuotaNames,
+  buildExternalConnectionRows,
 } = await import("../../src/lib/externalQuota.js");
 
 describe("external quota payload normalization", () => {
@@ -506,5 +519,118 @@ describe("refreshUrl callback field (external cards only)", () => {
     expect(byKey["赠送资源包"].resetAt).toBe("2026-10-25T00:00:00Z");
     expect(byKey["购买资源包"].total).toBe(1000);
     expect(r.snapshot.refreshUrl).toMatch(/^http:/);
+  });
+});
+
+// ─── 2) 同名行（CreditDaddy LongCat 资源包）不得互相覆盖 ──────────────────
+//
+// 推送方按种类复用显示名（多个包都叫「获赠资源包」/「资源包」），只有 push key
+// 区分；下游处处拿 name 当身份（认领路径的 map、可见性键、parseQuotaData 用
+// map key 当显示名）——同名即覆盖，3 个包只剩 1 个（用户 2026-11-03 实测：CD 侧
+// 「3 个资源包」，10R 卡面「逐包明细 (1)」）。
+
+describe("same-name pushed rows", () => {
+  it("numbers a same-name group and leaves unique names alone", () => {
+    const rows = disambiguateQuotaNames([
+      { name: "剩余 1999.89 万 (Token)", total: 20000000 },
+      { name: "获赠资源包", total: 10000000 },
+      { name: "获赠资源包", total: 5000000 },
+      { name: "获赠资源包", total: 4998902 },
+    ]);
+    expect(rows.map((r) => r.name)).toEqual([
+      "剩余 1999.89 万 (Token)",
+      "获赠资源包 1",
+      "获赠资源包 2",
+      "获赠资源包 3",
+    ]);
+    // The numbers themselves are untouched — only the label is disambiguated.
+    expect(rows.map((r) => r.total)).toEqual([20000000, 10000000, 5000000, 4998902]);
+  });
+
+  it("does not rename a lone row", () => {
+    const rows = disambiguateQuotaNames([{ name: "资源包" }, { name: "余额 (Token)" }]);
+    expect(rows.map((r) => r.name)).toEqual(["资源包", "余额 (Token)"]);
+  });
+
+  it("keeps every pack of a pushed LongCat snapshot", async () => {
+    const pushedAt = new Date().toISOString();
+    mocks.listMetaByPrefix.mockResolvedValueOnce([
+      {
+        key: "externalQuota.longcat-abc",
+        value: JSON.stringify({
+          source: "longcat-abc",
+          provider: "longcat",
+          label: "#131",
+          plan: "Token 资源包",
+          pushedAt,
+          firstSeenAt: pushedAt,
+          entries: [
+            {
+              key: "Balance",
+              name: "剩余 1999.89 万 (Token)",
+              used: 0,
+              total: 20000000,
+              remainingPercentage: 100,
+              displayRemaining: true,
+              isCreditBalance: true,
+              summarizesDetail: true,
+            },
+            {
+              key: "Pack1",
+              name: "获赠资源包",
+              used: 0,
+              total: 10000000,
+              remainingPercentage: 100,
+              displayRemaining: true,
+              isCreditBalance: true,
+              giftPack: true,
+              detailOnly: true,
+              resetAt: "2026-12-02T00:00:00Z",
+            },
+            {
+              key: "Pack2",
+              name: "获赠资源包",
+              used: 0,
+              total: 5000000,
+              remainingPercentage: 100,
+              displayRemaining: true,
+              isCreditBalance: true,
+              giftPack: true,
+              detailOnly: true,
+              resetAt: "2026-12-03T00:00:00Z",
+            },
+            {
+              key: "Pack3",
+              name: "获赠资源包",
+              used: 0,
+              total: 4998902,
+              remainingPercentage: 100,
+              displayRemaining: true,
+              isCreditBalance: true,
+              giftPack: true,
+              detailOnly: true,
+              resetAt: "2026-12-04T00:00:00Z",
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const [row] = await buildExternalConnectionRows();
+    const names = row.quota.quotas.map((q) => q.name);
+    expect(names).toEqual([
+      "剩余 1999.89 万 (Token)",
+      "获赠资源包 1",
+      "获赠资源包 2",
+      "获赠资源包 3",
+    ]);
+
+    // The claimed-connection merge (api/usage/[connectionId]) keys the map by
+    // name — same-named rows used to overwrite each other there.
+    const merged = Object.fromEntries(row.quota.quotas.map((r) => [r.name, r]));
+    expect(Object.keys(merged)).toHaveLength(4);
+    // The summary row stays the summary row; the three packs stay detail legs.
+    expect(merged["剩余 1999.89 万 (Token)"].summarizesDetail).toBe(true);
+    expect(row.quota.quotas.filter((q) => q.detailOnly === true)).toHaveLength(3);
   });
 });

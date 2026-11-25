@@ -66,6 +66,14 @@ export default {
     { id: "gemini-4-argon-high", name: "Gemini 4 Argon (High)", upstreamModelId: "gemini-4-argon-high(high)" },
     { id: "gemini-4-argon-medium", name: "Gemini 4 Argon (Medium)", upstreamModelId: "gemini-4-argon-medium(medium)" },
     { id: "gemini-4-argon-low", name: "Gemini 4 Argon (Low)", upstreamModelId: "gemini-4-argon-low(low)" },
+    // 4 Hydrogen: same tiered entity family as Argon (IDE picker 2026-11-16,
+    // "Gemini 4 Hydrogen Medium" New). Entity ids are pattern-inferred from
+    // the Argon family — `*gemini-4*` capability/effort wildcards already
+    // cover them. Upstream 9router has no Hydrogen rows yet; no live probe
+    // (jio 套餐无权限). Orchestrator (Argon) 亦缺上游实体 id 证据,未收录。
+    { id: "gemini-4-hydrogen-high", name: "Gemini 4 Hydrogen (High)", upstreamModelId: "gemini-4-hydrogen-high(high)" },
+    { id: "gemini-4-hydrogen-medium", name: "Gemini 4 Hydrogen (Medium)", upstreamModelId: "gemini-4-hydrogen-medium(medium)" },
+    { id: "gemini-4-hydrogen-low", name: "Gemini 4 Hydrogen (Low)", upstreamModelId: "gemini-4-hydrogen-low(low)" },
     // 3.8 uses its own tiered entity family — upstream serves
     // `gemini-3.8-flash-<tier>(<level>)` (the bare id 404s "Requested entity
     // was not found"). The un-tiered alias routes to the medium tier.

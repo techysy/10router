@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { FORMATS } from "../../translator/formats.js";
 import { needsTranslation } from "../../translator/index.js";
 import { fromOpenAIFinish } from "../../translator/concerns/finishReason.js";
+import { toOpenAIUsage } from "../../translator/concerns/usage.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.js";
 import { addBufferToUsage, filterUsageForFormat, usageOrEstimate } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
+import { hasCompletedSSEChatTurn, isCompletedChatResponse } from "../../utils/completedChatTurn.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats, formatDoneLine } from "./requestDetail.js";
@@ -14,6 +16,7 @@ import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
 import { restoreGeminiToolName } from "../../translator/concerns/geminiTools.js";
+import { restoreBody } from "../../privacy/streamRestorer.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
 
 function parseToolArguments(value) {
@@ -186,11 +189,27 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
   };
 }
 
+export function normalizeReasoningOnlyChoice(responseBody) {
+  if (responseBody?.choices) {
+    for (const choice of responseBody.choices) {
+      const msg = choice?.message;
+      if (!msg) continue;
+      const hasContent = typeof msg.content === "string" ? msg.content.trim().length > 0 : Boolean(msg.content);
+      const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+      const reasoning = typeof msg.reasoning_content === "string" ? msg.reasoning_content : (typeof msg.reasoning === "string" ? msg.reasoning : "");
+      if (!hasContent && !hasToolCalls && reasoning.trim().length > 0) {
+        msg.content = reasoning;
+      }
+    }
+  }
+  return responseBody;
+}
+
 /**
  * Translate non-streaming response body from provider format → OpenAI format.
  */
 export function translateNonStreamingResponse(responseBody, targetFormat, sourceFormat, customToolNames = null, toolNameMap = null) {
-  if (targetFormat === sourceFormat) return responseBody;
+  if (targetFormat === sourceFormat) return normalizeReasoningOnlyChoice(responseBody);
   // Provider responded in OpenAI Chat Completions shape but the client speaks
   // Responses API — convert so tool_calls/text surface as Responses `output`.
   if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES) {
@@ -323,7 +342,7 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
     };
 
     if (responseBody.usage) {
-      result.usage = {
+      result.usage = toOpenAIUsage(responseBody.usage, "claude") || {
         prompt_tokens: responseBody.usage.input_tokens || 0,
         completion_tokens: responseBody.usage.output_tokens || 0,
         total_tokens: (responseBody.usage.input_tokens || 0) + (responseBody.usage.output_tokens || 0)
@@ -334,26 +353,36 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 
   // Ollama
   if (targetFormat === FORMATS.OLLAMA) {
-    return ollamaBodyToOpenAI(responseBody);
+    return normalizeReasoningOnlyChoice(ollamaBodyToOpenAI(responseBody));
   }
 
-  return responseBody;
+  return normalizeReasoningOnlyChoice(responseBody);
 }
 
 /**
  * Handle non-streaming response from provider.
  */
-export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, customToolNames, trackDone, appendLog, pxpipe, reqTag, log }) {
+export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, onCompletedResponse, reqLogger, toolNameMap, customToolNames, trackDone, appendLog, pxpipe, reqTag, log, privacyCtx }) {
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
   let responseBody;
+  let completedUpstreamTurn = false;
 
   if (contentType.includes("text/event-stream")) {
     const sseText = await providerResponse.text();
+    completedUpstreamTurn = hasCompletedSSEChatTurn(sseText, targetFormat);
     const parsed = parseSSEToOpenAIResponse(sseText, model);
     if (!parsed) {
       appendLog({ status: `FAILED ${HTTP_STATUS.BAD_GATEWAY}` });
       return createErrorResult(HTTP_STATUS.BAD_GATEWAY, "Invalid SSE response for non-streaming request");
+    }
+    if (parsed.error) {
+      const upstreamStatus = Number(parsed.error.status);
+      const status = Number.isInteger(upstreamStatus) && upstreamStatus >= 400 && upstreamStatus <= 599
+        ? upstreamStatus
+        : HTTP_STATUS.BAD_GATEWAY;
+      appendLog({ status: `FAILED ${status}` });
+      return createErrorResult(status, parsed.error.message || "Upstream SSE stream failed", null, upstreamResponseHeaders(providerResponse.headers));
     }
     responseBody = parsed;
   } else {
@@ -364,6 +393,13 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       console.error(`[ChatCore] Failed to parse JSON from ${provider}:`, err.message);
       return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`);
     }
+  }
+
+  if ((completedUpstreamTurn || isCompletedChatResponse(responseBody, targetFormat))
+      && typeof onCompletedResponse === "function") {
+    Promise.resolve().then(onCompletedResponse).catch((error) => {
+      console.warn("[ChatCore] completed-response hook failed:", error?.message || error);
+    });
   }
 
   reqLogger.logProviderResponse(providerResponse.status, providerResponse.statusText, providerResponse.headers, responseBody);
@@ -445,6 +481,23 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
     }
   }
 
+  // Issue #96: 兜底防御 —— 如果整个响应中 content 为空且没有任何 tool_calls，但存在非空的 reasoning_content：
+  // 这属于上游推理中断/未输出正文（Reasoning-only response）。
+  // 很多客户端（如 Hermes Agent 等）将 content 为空判为空回复并丢弃整轮结果。
+  // 在此将 reasoning_content 的内容安全填充至 content，使客户端获得完整回答，同时保留 reasoning_content 供高级客户端消费。
+  if (translatedResponse?.choices) {
+    for (const choice of translatedResponse.choices) {
+      const msg = choice?.message;
+      if (!msg) continue;
+      const hasContent = typeof msg.content === "string" ? msg.content.trim().length > 0 : Boolean(msg.content);
+      const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+      const reasoning = typeof msg.reasoning_content === "string" ? msg.reasoning_content : (typeof msg.reasoning === "string" ? msg.reasoning : "");
+      if (!hasContent && !hasToolCalls && reasoning.trim().length > 0) {
+        msg.content = reasoning;
+      }
+    }
+  }
+
   reqLogger.logConvertedResponse(translatedResponse);
 
   const totalLatency = Date.now() - requestStartTime;
@@ -476,6 +529,11 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
       headers["request-id"] = `req_${Date.now()}`;
     }
   }
+
+  // Privacy restore (issue #90): placeholders the model echoed back are
+  // reversed against the outbound mapping before the body reaches the client.
+  // Unknown placeholders pass through inertly (leak-safe direction).
+  if (privacyCtx?.map?.size) restoreBody(translatedResponse, privacyCtx.map);
 
   return {
     success: true,

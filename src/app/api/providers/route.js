@@ -88,6 +88,14 @@ export async function GET() {
       // key here cannot wipe the stored value on an edit roundtrip.
       const psd = { ...(c.providerSpecificData || {}) };
       delete psd.mimoPassToken;
+      // Meoo rows carry two live secrets inside providerSpecificData: the
+      // pasted control-plane API key and the resolved project service AK.
+      // Neither may ride along to dashboard consumers (same reasoning as
+      // mimoPassToken above; the PUT merge keeps the stored values safe).
+      if (c.provider === "meoo") {
+        delete psd.meooControlKey;
+        delete psd.projectApiKey;
+      }
       return {
         ...c,
         providerSpecificData: psd,
@@ -166,6 +174,8 @@ export async function POST(request) {
         apiType: node.apiType,
         baseUrl: node.baseUrl,
         nodeName: node.name,
+        ...(node.customHeaders ? { customHeaders: node.customHeaders } : {}),
+        ...(node.website ? { website: node.website } : {}),
       };
     } else if (isAnthropicCompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
@@ -176,6 +186,8 @@ export async function POST(request) {
         prefix: node.prefix,
         baseUrl: node.baseUrl,
         nodeName: node.name,
+        ...(node.customHeaders ? { customHeaders: node.customHeaders } : {}),
+        ...(node.website ? { website: node.website } : {}),
       };
     } else if (isCustomEmbeddingProvider(provider)) {
       const node = await getProviderNodeById(provider);

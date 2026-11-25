@@ -21,6 +21,7 @@ const VALID_BODY = {
     ANTHROPIC_AUTH_TOKEN: "sk_test",
     ANTHROPIC_DEFAULT_OPUS_MODEL: "zcode/glm-5.3",
     ANTHROPIC_DEFAULT_SONNET_MODEL: "zcode/glm-5.3-flash",
+    ANTHROPIC_DEFAULT_FABLE_MODEL: "zcode/glm-5.3-air",
     ANTHROPIC_DEFAULT_HAIKU_MODEL: "zcode/glm-5.3-flash",
     EVIL_KEY: "should be dropped",
   },
@@ -48,6 +49,20 @@ describe("sanitizeProfileInput", () => {
       env: { ...VALID_BODY.env, ANTHROPIC_BASE_URL: "http://host:20128/" },
     });
     expect(profile.env.ANTHROPIC_BASE_URL).toBe("http://host:20128/v1");
+  });
+
+  // #102: Fable joined the Claude card after this whitelist was written; the
+  // original omission silently dropped the slot from every saved profile, so
+  // switching schemes away and back cleared the row. This pins the slot in.
+  it("keeps the Claude Fable slot through sanitization (issue #102)", () => {
+    const { profile } = sanitizeProfileInput(VALID_BODY);
+    expect(profile.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("zcode/glm-5.3-air");
+
+    const withoutFable = sanitizeProfileInput({
+      ...VALID_BODY,
+      env: { ...VALID_BODY.env, ANTHROPIC_DEFAULT_FABLE_MODEL: undefined },
+    });
+    expect(withoutFable.profile.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBeUndefined();
   });
 
   it("rejects an empty or overlong name", () => {
@@ -113,10 +128,11 @@ describe("matchProfileByEnv", () => {
     ANTHROPIC_AUTH_TOKEN: "sk_1",
     ANTHROPIC_DEFAULT_OPUS_MODEL: "zcode/glm-5.3",
     ANTHROPIC_DEFAULT_SONNET_MODEL: "",
+    ANTHROPIC_DEFAULT_FABLE_MODEL: "zcode/glm-5.3-air",
     ANTHROPIC_DEFAULT_HAIKU_MODEL: "zcode/glm-5.3-flash",
   };
 
-  it("matches on endpoint, key and the three model slots (missing == empty)", () => {
+  it("matches on endpoint, key and the four model slots (missing == empty)", () => {
     expect(matchProfileByEnv({ env }, env)).toBe(true);
     expect(matchProfileByEnv({ env: { ...env, ANTHROPIC_DEFAULT_SONNET_MODEL: undefined } }, env)).toBe(true);
   });
@@ -125,6 +141,8 @@ describe("matchProfileByEnv", () => {
     expect(matchProfileByEnv({ env: { ...env, ANTHROPIC_AUTH_TOKEN: "sk_2" } }, env)).toBe(false);
     expect(matchProfileByEnv({ env: { ...env, ANTHROPIC_BASE_URL: "http://other/v1" } }, env)).toBe(false);
     expect(matchProfileByEnv({ env: { ...env, ANTHROPIC_DEFAULT_HAIKU_MODEL: "x" } }, env)).toBe(false);
+    // A pre-#102 profile (no FABLE key) must not match a settings file that has one.
+    expect(matchProfileByEnv({ env: { ...env, ANTHROPIC_DEFAULT_FABLE_MODEL: undefined } }, env)).toBe(false);
   });
 
   it("tolerates junk input", () => {

@@ -3,10 +3,12 @@
  */
 
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
-import { ANTHROPIC_API_VERSION, CLAUDE_CLI_VERSION } from "../../providers/shared.js";
+import { ANTHROPIC_API_VERSION, resolveClaudeCliVersion } from "../../providers/shared.js";
 import { U, parseResetTime } from "./shared.js";
 
 // Claude API config (urls from registry, apiVersion is header logic kept here)
+// userAgent 现为 async 解析：resolveClaudeCliVersion() 跟随 npm latest（6h 缓存，
+// floor 兜底）—— reset 端点按 UA surface 授权，旧版本号随时可能被上游收紧。
 const CLAUDE_CONFIG = {
   oauthUsageUrl: U("claude").oauthUrl,
   usageUrl: U("claude").orgUrl,
@@ -14,10 +16,14 @@ const CLAUDE_CONFIG = {
   profileUrl: U("claude").profileUrl,
   resetUrl: U("claude").resetUrl,
   apiVersion: ANTHROPIC_API_VERSION,
+};
+
+async function claudeUserAgent() {
+  const v = await resolveClaudeCliVersion();
   // Reset grants are gated by surface: only "(external, cli)" UA is eligible —
   // Claude Code polls usage with the cli identity even though it chats as sdk.
-  userAgent: `claude-cli/${CLAUDE_CLI_VERSION} (external, cli)`,
-};
+  return `claude-cli/${v} (external, cli)`;
+}
 
 // OAuth usage endpoint rate-limits (429); cool down per-token to stop hammering it.
 // Only the quota endpoint is affected — chat with the same token still works.
@@ -76,7 +82,7 @@ async function fetchClaudeUsageRaw(accessToken, proxyOptions = null) {
         "Authorization": `Bearer ${accessToken}`,
         "anthropic-beta": "oauth-2025-04-20",
         "anthropic-version": CLAUDE_CONFIG.apiVersion,
-        "User-Agent": CLAUDE_CONFIG.userAgent,
+        "User-Agent": await claudeUserAgent(),
       },
     }, proxyOptions);
 
@@ -195,7 +201,7 @@ export async function consumeClaudeResetGrant(accessToken, grantId, proxyOptions
     "Authorization": `Bearer ${accessToken}`,
     "anthropic-beta": "oauth-2025-04-20",
     "anthropic-version": CLAUDE_CONFIG.apiVersion,
-    "User-Agent": CLAUDE_CONFIG.userAgent,
+    "User-Agent": await claudeUserAgent(),
     "Content-Type": "application/json",
   };
 

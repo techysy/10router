@@ -69,7 +69,23 @@ export function getConnectionLabel(connection) {
     return displayName || name || email || null;
   }
 
+  // QwenWork 同款隐私口径（用户 2026-11-22「邮箱又显示出来了」）：profile
+  // display name 优先；Free 账户常没有名字——此时掩码邮箱，不打印原文。
+  if (connection.provider === "qwenwork" || connection.provider === "qwenwork-cn") {
+    if (displayName) return displayName;
+    const masked = maskEmailLabel(email || name);
+    return masked || name || email || null;
+  }
+
   return name || email || displayName || null;
+}
+
+export function maskEmailLabel(email) {
+  const trimmed = String(email || "").trim();
+  if (!trimmed) return "";
+  const at = trimmed.indexOf("@");
+  if (at <= 0) return trimmed;
+  return `${trimmed.slice(0, Math.min(3, at))}****${trimmed.slice(at)}`;
 }
 
 // A connection is empty (depleted) only when EVERY quota row has an absolute
@@ -139,6 +155,13 @@ export function sortVisibleConnections(
 
   if (!expiringFirst) return groupByProviderStable(connections);
 
+  // Rank by the earliest reset the CARD knows about (per-pack resetAt from the
+  // quota fetch); a card whose quota has not landed yet falls back to the
+  // connection row's persisted earliestPackageExpiry (the same signal the
+  // server-side "expiring" sort uses), and only a row with NEITHER sinks to
+  // the end. Reset times in the past (window already refilled) rank like no
+  // date — the point of this sort is "what is about to reset/expire".
+  const now = Date.now();
   const getEarliestResetTime = (connection) => {
     const resetTimes = (quotaData[connection.id]?.quotas || [])
       .map((quota) =>
@@ -146,15 +169,24 @@ export function sortVisibleConnections(
           ? new Date(quota.resetAt).getTime()
           : Number.POSITIVE_INFINITY,
       )
-      .filter((time) => Number.isFinite(time));
-    return resetTimes.length > 0
-      ? Math.min(...resetTimes)
+      .filter((time) => Number.isFinite(time) && time > now);
+    if (resetTimes.length > 0) return Math.min(...resetTimes);
+    const rowExpiry = connection.earliestPackageExpiry
+      ? new Date(connection.earliestPackageExpiry).getTime()
+      : NaN;
+    return Number.isFinite(rowExpiry) && rowExpiry > now
+      ? rowExpiry
       : Number.POSITIVE_INFINITY;
   };
 
   return [...connections].sort((a, b) => {
-    const expiryDiff = getEarliestResetTime(a) - getEarliestResetTime(b);
-    if (expiryDiff !== 0) return expiryDiff;
+    // Compare the VALUES, not the difference: both sides Infinity makes
+    // `a - b` NaN, a NaN comparator result is treated as "equal" and the
+    // provider/name tiebreak below never fires — the no-date cards then kept
+    // the default order and the hourglass looked like it did nothing.
+    const aTime = getEarliestResetTime(a);
+    const bTime = getEarliestResetTime(b);
+    if (aTime !== bTime) return aTime - bTime;
     return (
       (a.provider || "").localeCompare(b.provider || "") ||
       (getConnectionLabel(a) || "").localeCompare(getConnectionLabel(b) || "")
@@ -582,6 +614,10 @@ export function parseQuotaData(provider, data) {
                 resetAt: quota.resetAt || null,
                 remainingPercentage: quota.remainingPercentage,
                 recurring: quota.recurring === true,
+                // 上游不回 recurring，但这些也是滚动窗口（resetAt 到点回血）——
+                // QuotaPackBar 的耗尽 meta 行据此显示「已耗尽 + 重置倒计时」
+                // 而不是让卡片以裸 0/1,000 收尾（#小黑屋/烧穿报告）。
+                recycles: quota.resetAt ? true : undefined,
                 percentScale: true,
               });
             });
@@ -595,6 +631,7 @@ export function parseQuotaData(provider, data) {
                 resetAt: quota.resetAt || null,
                 remainingPercentage: quota.remainingPercentage,
                 recurring: quota.recurring === true,
+                recycles: quota.resetAt ? true : undefined,
                 percentScale: true,
               });
             });
@@ -894,12 +931,53 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "trae":
+      case "trae-cn":
+        // Trae CN 积分到期桶（用户定版 2026-11-19，Lingxi/MiniMax 账本先例）——
+        // open-sse/services/usage/trae.js 按「名称 + 到期日」聚桶：「积分」
+        // 汇总行（summarizesDetail，大数字与分段条分母）+ 逐桶
+        // detailOnly 明细行（进逐包明细，倒计时只对桶内包成立）。旧形态按名称
+        // 归并的三宗罪（meta 计数与正文行数不符、归并行倒计时撒谎、明细与正文
+        // 重复）全部由桶形态消解。旗标必须逐个直通——丢了 detailOnly/
+        // summarizesDetail，卡片会把桶当正文行双渲染、明细门失效。
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            const rawReset = quota.resetAt ?? quota.expiresAt;
+            normalizedQuotas.push({
+              name,
+              used: quota.used || 0,
+              total: quota.total || 0,
+              remaining: quota.remaining,
+              resetAt: rawReset && new Date(rawReset).getFullYear() <= 2099
+                ? rawReset
+                : null,
+              recurring: quota.recurring === true,
+              giftPack: quota.giftPack === true,
+              displayRemaining: true,
+              unit: quota.unit,
+              detailOnly: quota.detailOnly === true,
+              summarizesDetail: quota.summarizesDetail === true,
+              isCreditBalance: quota.isCreditBalance === true,
+              // 头部「最早批次余额 · Xd后到期」通道（meoo/lingxi 同款），不直通就消失
+              ...(quota.expiringBatch ? { expiringBatch: quota.expiringBatch } : {}),
+            });
+          });
+        }
+        break;
+
       default:
         // Generic fallback for unknown providers
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
+            const modelKey = typeof quota.modelKey === "string" || (typeof quota.modelKey === "number" && Number.isFinite(quota.modelKey))
+              ? String(quota.modelKey).trim()
+              : "";
             normalizedQuotas.push({
               name,
+              // Pack names can be renumbered as siblings expire (Dumate).
+              // Retire ambiguous legacy name-based hides instead of applying
+              // them to another pack; non-pack rows still use their names.
+              ...(modelKey ? { modelKey } : {}),
               used: quota.used || 0,
               total: quota.total || 0,
               resetAt: quota.resetAt || null,
@@ -920,6 +998,9 @@ export function parseQuotaData(provider, data) {
               // 否则连接卡与推送卡同数据渲染出两种形态
               ...(quota.detailOnly !== undefined ? { detailOnly: quota.detailOnly === true } : {}),
               ...(quota.summarizesDetail !== undefined ? { summarizesDetail: quota.summarizesDetail === true } : {}),
+              // 储值池的最近到期批次（meoo grants）：大数右侧「2,000 · 6d后到期」
+              // 的数据源，不直通就静默消失。
+              ...(quota.expiringBatch !== undefined ? { expiringBatch: quota.expiringBatch } : {}),
               // 只读签到状态（CD#33 方案 B）：字段缺席 = 未知，不显示徽章。
               // 这里必须直通，否则推送行在白名单之后、卡面之前就丢掉了它。
               ...(quota.checkinToday !== undefined ? { checkinToday: quota.checkinToday === true } : {}),

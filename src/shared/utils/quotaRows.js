@@ -9,6 +9,9 @@
  */
 
 export const AGGREGATE_RE = /total|aggregate|summary|^总/i;
+// #Loomy dual-slot: 永久积分行名 与 每日赠送积分行名（loomy usage 返回的确切键）
+export const PERMANENT_RE = /永久|permanent|lifetime/i;
+export const DAILY_GRANT_RE = /每日赠送|daily\s*gift|daily\s*grant/i;
 export const MONTHLY_RE = /month|月/i;
 // A cycle WINDOW. Must cover every spelling the fetchers emit, because the
 // `recurring` flag is not always forwarded (antigravity carries only
@@ -36,6 +39,27 @@ export function isRecurringQuotaRow(row) {
 }
 
 /** Stored-value pool (余额/代金券/现金): renders as one value, never "X / Y". */
+/**
+ * Loomy-style dual-slot pair: a permanent stored balance ("永久积分",
+ * isCreditBalance) coexisting with a recurring daily grant ("每日赠送积分").
+ * When both rows are present the card renders the TOTAL headline with two
+ * inner slots (permanent + daily) instead of the generic pool bar (#Loomy).
+ */
+export function findDualSlotPair(rows = []) {
+  const permanent = rows.find(
+    (r) => r && r.isCreditBalance === true && PERMANENT_RE.test(String(r?.name || "")),
+  );
+  const daily = rows.find(
+    (r) => r && r.recurring === true && DAILY_GRANT_RE.test(String(r?.name || "")),
+  );
+  if (!permanent || !daily) return null;
+  return { permanent, daily };
+}
+
+if (!globalThis.__QUOTA_ROWS_RE__) {
+  globalThis.__QUOTA_ROWS_RE__ = {};
+}
+
 export function isStoredValueRow(row) {
   if (row?.isCreditBalance === true) return true;
   return STORED_VALUE_RE.test(String(row?.name || ""));
@@ -327,6 +351,27 @@ export function isExpiredPack(row, now = Date.now()) {
   if (isResettingRow(row) || !row?.resetAt) return false;
   const t = new Date(row.resetAt).getTime();
   return Number.isFinite(t) && t <= now;
+}
+
+/**
+ * A one-shot pack that is USED UP while its expiry is still ahead — 0 remaining,
+ * date not yet passed. Its date is a record, not a deadline: nothing future is
+ * left to count down to, so surfaces that print "Xh Ym后过期" for it are
+ * ticking a balance that no longer exists (2026-11-24 user report, CodeBuddy
+ * 赠送包 0/100 still reading "9h 42m后过期" in the 已用完/已过期 section).
+ * A drained CYCLE window is not this — it refills, its reset countdown is the
+ * point. An already-expired pack is not either — isExpiredPack's
+ * "{date} 已过期" wording takes over there.
+ */
+export function isUsedUpPack(row, now = Date.now()) {
+  if (isResettingRow(row) || row?.unlimited === true) return false;
+  if (isExpiredPack(row, now)) return false;
+  const total = Number((row?.totalNum ?? row?.total) || 0);
+  if (!(total > 0)) return false;
+  const remaining = Number.isFinite(row?.remainingNum)
+    ? Number(row.remainingNum)
+    : Math.max(0, total - Number(row?.used || 0));
+  return remaining <= 0;
 }
 
 /**

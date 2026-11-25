@@ -7,7 +7,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl } = body;
+    const { name, prefix, apiType, baseUrl, authHeaders, customHeaders, website } = body;
     const node = await getProviderNodeById(id);
 
     if (!node) {
@@ -64,6 +64,11 @@ export async function PUT(request, { params }) {
       name: name.trim(),
       prefix: normalizedPrefix,
       baseUrl: sanitizedBaseUrl,
+      ...(authHeaders !== undefined ? { authHeaders: authHeaders && typeof authHeaders === "object" ? authHeaders : null } : {}),
+      // #149: cleared in the UI (empty text) → null so a removed header list
+      // actually unsets instead of riding forever.
+      ...(customHeaders !== undefined ? { customHeaders: customHeaders && typeof customHeaders === "object" && !Array.isArray(customHeaders) && Object.keys(customHeaders).length ? customHeaders : null } : {}),
+      ...(website !== undefined ? { website: typeof website === "string" && /^https?:\/\//i.test(website.trim()) ? website.trim() : null } : {}),
     };
 
     if (node.type === "openai-compatible") {
@@ -81,6 +86,9 @@ export async function PUT(request, { params }) {
           apiType: node.type === "openai-compatible" ? apiType : undefined,
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
+          ...(authHeaders !== undefined ? { authHeaders: authHeaders && typeof authHeaders === "object" ? authHeaders : undefined } : {}),
+          ...(customHeaders !== undefined ? { customHeaders: customHeaders && typeof customHeaders === "object" && !Array.isArray(customHeaders) && Object.keys(customHeaders).length ? customHeaders : undefined } : {}),
+          ...(website !== undefined ? { website: typeof website === "string" && /^https?:\/\//i.test(website.trim()) ? website.trim() : undefined } : {}),
         }
       })
     )));

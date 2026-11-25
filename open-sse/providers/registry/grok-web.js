@@ -15,13 +15,21 @@ export default {
   },
   category: "webCookie",
   authType: "cookie",
-  authHint: "Paste your sso= cookie value from grok.com",
+  serviceKinds: ["llm", "image", "video"],
+  // Video: the executor-side generateMedia(kind:"video") exists, but /v1/videos/*
+  // is the xAI transparent proxy (videoConfig.baseUrl) and the executor bridge
+  // for it is not built — advertising the kind only produced 500s. Hide the kind
+  // (image/llm stay listed); drop this hiddenKinds once the bridge lands.
+  hiddenKinds: ["video"],
+  authHint: "Paste your sso= or full Cookie header from grok.com (with cf_clearance for image/video)",
   transport: {
     baseUrl: "https://grok.com/rest/app-chat/conversations/new",
     format: "grok-web",
     authType: "cookie",
   },
   models: [
+    { id: "grok-image", name: "Grok Imagine Image", params: ["n", "size"], kind: "image" },
+    { id: "grok-video", name: "Grok Imagine Video", params: ["seconds", "size"], kind: "video" },
     { id: "grok-3", name: "Grok 3" },
     { id: "grok-3-mini", name: "Grok 3 Mini (Thinking)" },
     { id: "grok-3-thinking", name: "Grok 3 Thinking" },

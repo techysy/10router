@@ -13,6 +13,9 @@
 
 import * as log from "../utils/logger.js";
 import { signedAccountRequest } from "../../../open-sse/services/usage/minimax-code.js";
+import { proxyAwareFetch } from "../../../open-sse/utils/proxyFetch.js";
+import { geoRedirectNote } from "../../../open-sse/utils/error.js";
+import { resolveConnectionProxyConfig } from "../../lib/network/connectionProxy.js";
 
 const TICK_MS = 2 * 60 * 60 * 1000;
 const TICK_JITTER_MS = 10 * 60 * 1000;
@@ -52,6 +55,14 @@ async function getDoneMap() {
   const raw = settings?.minimaxDailyDone;
   doneMap = raw && typeof raw === "object" && !Array.isArray(raw) ? { ...raw } : {};
   return doneMap;
+}
+
+// 签到积分有效期展示：获得日 +1 自然月（官网积分明细页实测规律）。接口无逐笔
+// 到期字段，这是展示口径——正常消耗先烧积分，语义一致。
+function expiryNote(now = new Date()) {
+  const d = new Date(now);
+  d.setMonth(d.getMonth() + 1);
+  return `有效期至 ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function dayKey(nowMs = Date.now()) {
@@ -123,7 +134,6 @@ function signinRequest(conn, path, body) {
  * same way.
  */
 export async function checkinOneMinimax(conn, deps = {}) {
-  const fetchFn = deps.fetch || fetch;
   const token = conn.accessToken;
   const base = {
     connectionId: conn.id,
@@ -135,6 +145,12 @@ export async function checkinOneMinimax(conn, deps = {}) {
     return { ...base, status: "failed", error: "Token unavailable" };
   }
 
+  // 签到请求走连接自身配置的代理（issue #101）：agent.minimax.io 在 CN 网络
+  // 会被 307 重定向到 CN 域名家族，裸 fetch 跟随后签名/鉴权必然失败——
+  // 之前这里用裸 fetch，配置了代理的连接也绕不过。
+  const proxyOptions = await resolveConnectionProxyConfig(conn.providerSpecificData || {});
+  const fetchFn = deps.fetch || ((url, init) => proxyAwareFetch(url, init, proxyOptions));
+
   try {
     // 1. Status
     const { url: statusUrl, init: statusInit } = signinRequest(conn, "/minimax-cloud/api/v1/signin/status");
@@ -143,6 +159,8 @@ export async function checkinOneMinimax(conn, deps = {}) {
       signal: AbortSignal.timeout(15000),
     });
     if (statusRes.status === 401 || statusRes.status === 403) {
+      const geo = geoRedirectNote(statusUrl, statusRes);
+      if (geo) return { ...base, status: "failed", error: geo };
       return { ...base, status: "failed", error: `Authentication failed (${statusRes.status})` };
     }
     if (!statusRes.ok) {
@@ -172,6 +190,8 @@ export async function checkinOneMinimax(conn, deps = {}) {
       signal: AbortSignal.timeout(15000),
     });
     if (claimRes.status === 401 || claimRes.status === 403) {
+      const geo = geoRedirectNote(claimUrl, claimRes);
+      if (geo) return { ...base, status: "failed", error: geo };
       return { ...base, status: "failed", error: `Authentication failed (${claimRes.status})` };
     }
     if (!claimRes.ok) {
@@ -197,7 +217,10 @@ export async function checkinOneMinimax(conn, deps = {}) {
     return {
       ...base,
       status: "checked-in",
-      message: `签到成功第 ${cdata.day_no || 1} 天（+${pts} 积分）`,
+      // 签到积分有效期 = 获得日 +1 自然月（MiniMax 官网积分明细页实测规律：11-09→
+      // 12-09、11-05→12-05 全部吻合）。签到接口本身不带逐笔到期字段——这是展示
+      // 层推算口径，不是接口值；正常消耗会先烧掉它们，与官网语义一致。
+      message: `签到成功第 ${cdata.day_no || 1} 天（+${pts} 积分，${expiryNote()}）`,
       claimedAmount: pts,
     };
   } catch (err) {

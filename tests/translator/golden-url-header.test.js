@@ -1,7 +1,12 @@
 // P0 GOLDEN: lock buildUrl + buildHeaders cho mọi provider trên code CŨ.
 // Sinh snapshot lần đầu (baseline) → sau refactor chạy lại phải khớp y hệt.
 // Mock proxyFetch + uuid-heavy executors KHÔNG cần ở đây vì chỉ gọi buildUrl/buildHeaders (pure).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+// Lock the header shape without reading the test runner's real device identity.
+// Real OS detection and unavailable-identity behavior have dedicated unit tests.
+vi.mock("../../open-sse/shared/deepai/machine.js", () => ({
+  buildDeepaiMachineHeaders: () => ({ "X-DeepAI-Code-Machine": "<HOST>" }),
+}));
 import { PROVIDERS } from "../../open-sse/config/providers.js";
 import { DefaultExecutor } from "../../open-sse/executors/default.js";
 
@@ -20,12 +25,25 @@ const SPECIALIZED = new Set([
   "antigravity", "azure", "gemini-cli", "github", "iflow", "qoder", "qoder-cn", "kiro",
   "codex", "cursor", "vertex", "vertex-partner", "opencode",
   "opencode-go", "grok-web", "perplexity-web", "ollama-local", "commandcode",
-  "xiaomi-tokenplan", "mimo-free",
+  "xiaomi-tokenplan", "mimo-free", "dumate",
   // mimo-desktop 与 xiaomi-mimo 共用 XiaomiMimoExecutor，但不同于后者：它的**每一个**
   // 模型都是 preview，buildUrl/buildHeaders 永不走 DefaultExecutor 分支，所以在这里
   // 快照下来只会锁住一段永远不会执行的代码。xiaomi-mimo 之所以**不**排除，正是因为
   // 它的云模型确实走默认路径。真正会执行的桌面路径锁在 unit/xiaomi-mimo-executor.test.js。
   "mimo-desktop",
+  // amazonquick 只跑自己的 AmazonQuickExecutor（EventStream 会话桥接），URL/headers
+  // 锁在 unit/amazonquick-provider.test.js——同 kiro/perplexity-web 的口径。
+  "amazonquick",
+  // junie 的 JunieExecutor 覆写 buildHeaders（叠三枚 Free-license 头）并在
+  // transformRequest 里做模型映射——golden 这里用 DefaultExecutor 锁出的形状
+  // 永不执行。真实形状锁在 unit/junie-provider.test.js（headers/buildUrl 走
+  // transport.baseUrl）。
+  "junie",
+  // autoclaw / autoclaw-cn 走 AutoclawExecutor（按 token JWT source_id 选域、
+  // 签名头每次现算、请求体整形）——DefaultExecutor 锁出的形状永不执行。真实
+  // 形状锁在 unit/autoclaw-provider.test.js。
+  "autoclaw",
+  "autoclaw-cn",
 ]);
 
 // Phiên bản app được nướng vào vài header (đọc từ package.json lúc chạy):

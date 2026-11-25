@@ -50,7 +50,8 @@ export function createSSEStream(options = {}) {
     connectionId = null,
     body = null,
     onStreamComplete = null,
-    apiKey = null
+    apiKey = null,
+    privacyCtx = null
   } = options;
 
   let buffer = "";
@@ -70,6 +71,8 @@ export function createSSEStream(options = {}) {
   let totalContentLength = 0;
   let accumulatedContent = "";
   let accumulatedThinking = "";
+  let hasToolCallsSeen = false;
+  let lastChunkMetadata = null;
   let ttftAt = null;
   let streamCompleted = false;
   // Set when flush() has to manufacture a terminator the upstream never sent.
@@ -79,6 +82,8 @@ export function createSSEStream(options = {}) {
   // estimated (not real) usage. The stall watchdog only fires on byte gaps, not
   // on an early clean FIN, so flush() is the only place that can tell.
   let endedWithoutTerminal = false;
+  let upstreamTerminalSeen = false;
+  let upstreamTurnComplete = false;
   // A `data:` line that looked like payload but would not parse is dropped by
   // the loops below. That is deliberate for HTML error pages injected mid
   // stream, but the same swallow hides genuine corruption: the client gets a
@@ -131,6 +136,83 @@ export function createSSEStream(options = {}) {
     }
   };
 
+  /**
+   * Is this still-untranslated chunk the upstream's terminal frame?
+   *
+   * The translate lane sees the PROVIDER dialect, so there is no single
+   * `finish_reason` to test. Each family announces completion differently:
+   *   - OpenAI / Responses-ish: choices[0].finish_reason
+   *   - Claude: message_delta carrying stop_reason (message_stop has no delta)
+   *   - Gemini / Antigravity: candidates[0].finishReason
+   * Ollama keeps its terminal in `done`, which the [DONE] branch above handles.
+   */
+  const isUpstreamTerminalChunk = (chunk, upstreamFormat) => {
+    if (!chunk || chunk.error) return false;
+    if (Array.isArray(chunk.choices) && chunk.choices[0]?.finish_reason) return true;
+    if (upstreamFormat === FORMATS.CLAUDE && chunk.type === "message_delta" && chunk.delta?.stop_reason) return true;
+    if (Array.isArray(chunk.candidates) && chunk.candidates[0]?.finishReason) return true;
+    return false;
+  };
+
+  // Issue #96: 兜底防御 —— 如果整个流结束时，accumulatedContent 依然为空，
+  // 且没有任何工具调用（!hasToolCallsSeen），但是产生了非空的推理内容（accumulatedThinking）：
+  // 这属于上游推理中断/未输出正文（Reasoning-only response）。
+  // 很多客户端（如 Hermes Agent）将无 content 视为空回复并整轮丢弃。
+  //
+  // 时序：这一帧必须发在 finish_reason 那一帧**之前**。曾在 [DONE]/flush 处补发，
+  // 结果流变成 `… finish_reason:"stop" → delta.content → [DONE]` —— finish 之后再
+  // 认正文违反 OpenAI 流式约定，OpenAI 官方 SDK 的累积器与若干严格解析器会直接
+  // 停止读取，提升等于没做。现在 finish 帧一到就先发它，[DONE]/flush 只兜底
+  // 「上游根本没发 finish 帧」的情况；promoteReasoningDone 保证全流至多一次。
+  let promoteReasoningDone = false;
+  // Assigned lazily on first use; see the note where it is read. Kept at stream
+  // scope so every synthesized frame in this stream shares one id.
+  let streamFallbackId = null;
+  const promoteReasoningIfNeeded = (controller) => {
+    if (promoteReasoningDone) return;
+    if (accumulatedContent.trim().length === 0 && !hasToolCallsSeen && accumulatedThinking.trim().length > 0) {
+      // 只有 OpenAI 格式的客户端能消费这一帧：翻译模式下面向 Claude/Gemini 的
+      // 流有自己的 thinking 块，硬塞一个 OpenAI chunk 会把两种协议混在一条流里。
+      if (mode === STREAM_MODE.PASSTHROUGH || sourceFormat === FORMATS.OPENAI) {
+        promoteReasoningDone = true;
+        // id/model 必须跟着同一轮里的其它帧走：换一个 id，按 id 归并的客户端
+        // 会把这帧当成另一条消息。直通模式照抄上游 chunk 的 id/model；翻译模式
+        // 下每一帧都是翻译器现造的（claude→openai 是 `chatcmpl-${state.messageId}`），
+        // 照抄上游 id 反而会成为流里唯一的异类。
+        const translateLane = mode === STREAM_MODE.TRANSLATE;
+        const promotedId = translateLane
+          ? (state?.messageId ? `chatcmpl-${state.messageId}` : null)
+          : lastChunkMetadata?.id;
+        // Fallback id is computed ONCE per stream. `Date.now()` inline would
+        // hand this frame a different id than the rest of the stream whenever
+        // the promote happens to straddle a millisecond boundary — and a
+        // synthesized id is exactly what clients merge on.
+        streamFallbackId ??= `chatcmpl-${Date.now().toString(36)}`;
+        const promotedChunk = {
+          id: promotedId || streamFallbackId,
+          object: "chat.completion.chunk",
+          created: Math.floor(Date.now() / 1000),
+          model: (translateLane ? state?.model : lastChunkMetadata?.model) || model || "model",
+          choices: [
+            {
+              index: 0,
+              delta: { content: accumulatedThinking },
+              finish_reason: null,
+            },
+          ],
+        };
+        const promotedOutput = `data: ${JSON.stringify(promotedChunk)}\n\n`;
+        reqLogger?.appendConvertedChunk?.(promotedOutput);
+        controller.enqueue(sharedEncoder.encode(promotedOutput));
+        accumulatedContent = accumulatedThinking;
+        totalContentLength += accumulatedThinking.length;
+      }
+    } else if (accumulatedContent.trim().length > 0 || hasToolCallsSeen) {
+      // 正文或工具调用已经出现 —— 这条流不再是 reasoning-only，不必再判定。
+      promoteReasoningDone = true;
+    }
+  };
+
   // 完成行(buildRequestDetail 落 status:"success" 的那一次)只允许发一次:
   // 早发路径(见下)与 flush() 谁先到谁赢,后到的变空转。两条路径都可能在
   // 同一轮里跑到——[DONE] 之后客户端立刻断开,cancel() 不会让 flush() 执行,
@@ -157,6 +239,18 @@ export function createSSEStream(options = {}) {
     }
 
     if (onStreamComplete) {
+      // Privacy (issue #90): the sliding windows may still hold the tail of a
+      // placeholder the model never finished (truncation only). Those chars
+      // were held back and can no longer reach a frame — account for them so
+      // the row is not booked as a byte-perfect success. Inert text either way.
+      let restoreLost = 0;
+      if (privacyCtx?.chunkRestorer) {
+        const lost = privacyCtx.chunkRestorer.flushLost();
+        if (lost) {
+          restoreLost = lost.length;
+          console.warn(`[PRIVACY] stream ended with ${lost.length} chars of unterminated placeholder fragment(s) held (truncated output) — not restorable, not forwarded`);
+        }
+      }
       onStreamComplete({
         content: accumulatedContent,
         thinking: accumulatedThinking,
@@ -164,7 +258,10 @@ export function createSSEStream(options = {}) {
         // rows carry them so a truncated stream is not booked as a clean
         // success, and so dropped content is not invisible.
         incomplete: endedWithoutTerminal,
+        upstreamTerminalSeen,
+        upstreamTurnComplete,
         parseFailures,
+        ...(restoreLost ? { restoreLost } : {}),
       }, settledUsage, ttftAt);
     }
   };
@@ -200,6 +297,8 @@ export function createSSEStream(options = {}) {
           let injectedUsage = false;
 
           if (trimmed === "data: [DONE]" || trimmed === "data:[DONE]") {
+            upstreamTerminalSeen = true;
+            promoteReasoningIfNeeded(controller);
             output = "data: [DONE]\n\n";
             streamDoneSent = true;
             reqLogger?.appendConvertedChunk?.(output);
@@ -270,9 +369,26 @@ export function createSSEStream(options = {}) {
                 continue;
               }
 
+              // Privacy restore (issue #90): model output text rides the
+              // sliding-window restorer per field path BEFORE accumulation and
+              // serialization; a replacement forces re-serializing the chunk
+              // since the original raw line still carries the placeholder.
+              if (privacyCtx?.chunkRestorer?.restoreChunk(parsed)) {
+                fieldsInjected = true;
+              }
+
               const delta = parsed.choices?.[0]?.delta;
               const content = delta?.content;
               const reasoning = delta?.reasoning_content;
+              if (delta?.tool_calls && Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
+                hasToolCallsSeen = true;
+              }
+              if (parsed.id || parsed.model) {
+                lastChunkMetadata = {
+                  id: parsed.id || lastChunkMetadata?.id,
+                  model: parsed.model || lastChunkMetadata?.model || model,
+                };
+              }
               if (content && typeof content === "string") {
                 totalContentLength += content.length;
                 accumulatedContent += content;
@@ -288,6 +404,10 @@ export function createSSEStream(options = {}) {
               }
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
+              if (isFinishChunk) upstreamTurnComplete = ["stop", "tool_calls", "function_call"].includes(isFinishChunk);
+              // Issue #96: 提升帧必须在 finish 帧之前落地（见 promoteReasoningIfNeeded
+              // 的时序说明）。这里先把累计的推理当作正文发出去，再转发 finish。
+              if (isFinishChunk) promoteReasoningIfNeeded(controller);
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
@@ -349,11 +469,13 @@ export function createSSEStream(options = {}) {
 
         if (isOpenAIResponsesStream && isOpenAIResponsesTerminalEvent(openAIResponsesEventName, parsed)) {
           openAIResponsesTerminalSeen = true;
+          if (openAIResponsesEventName === "response.completed" || parsed?.response?.status === "completed") upstreamTurnComplete = true;
         }
 
         // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
         // For other formats: done=true is the [DONE] sentinel, skip
         if (parsed && parsed.done && targetFormat !== FORMATS.OLLAMA) {
+          upstreamTerminalSeen = true;
           // chat→responses 直连:[DONE] 到达时不再等尾部 usage chunk,
           // 立即补发被延迟的 response.completed 并取消 watchdog。
           flushDeferredCompletion(controller);
@@ -380,6 +502,25 @@ export function createSSEStream(options = {}) {
           // 0/0 token,尽管答复已完整送达(issue #48)。收尾必须由 [DONE] 自己完成。
           finishStream();
           continue;
+        }
+
+        // Issue #96: tool-call detection must cover EVERY upstream dialect, not just
+        // OpenAI deltas. In translate mode the stream carries the *provider* format
+        // (Claude content_block_start / Gemini functionCall), so an OpenAI-shaped
+        // check alone leaves hasToolCallsSeen false and a tool turn then gets a
+        // synthetic text frame appended — the tool result is polluted with prose.
+        if (!hasToolCallsSeen) {
+          if (parsed.type === "content_block_start" && parsed.content_block?.type === "tool_use") {
+            hasToolCallsSeen = true;
+          } else if (parsed.type === "content_block_delta" && parsed.delta?.type === "input_json_delta") {
+            hasToolCallsSeen = true;
+          } else if (Array.isArray(parsed.choices?.[0]?.delta?.tool_calls)
+            && parsed.choices[0].delta.tool_calls.length > 0) {
+            hasToolCallsSeen = true;
+          } else if (Array.isArray(parsed.candidates?.[0]?.content?.parts)
+            && parsed.candidates[0].content.parts.some((p) => p?.functionCall || p?.function_call)) {
+            hasToolCallsSeen = true;
+          }
         }
 
         // Claude format - content
@@ -425,6 +566,11 @@ export function createSSEStream(options = {}) {
 
         // Responses same-format passthrough: re-emit with original event framing
         if (keepsOpenAIResponsesFormat && openAIResponsesEventName) {
+          // Privacy restore (issue #90): this lane re-serializes parsed directly,
+          // so it restores here too — same invariant as the OpenAI passthrough
+          // and the translate loop (a placeholder echoed by the model must never
+          // reach the client, in every output layer).
+          if (privacyCtx?.chunkRestorer) privacyCtx.chunkRestorer.restoreChunk(parsed);
           const output = formatSSE({ event: openAIResponsesEventName, data: parsed }, sourceFormat);
           reqLogger?.appendConvertedChunk?.(output);
           controller.enqueue(sharedEncoder.encode(output));
@@ -434,6 +580,21 @@ export function createSSEStream(options = {}) {
         }
 
         currentOpenAIResponsesEvent = null;
+
+        // Issue #96 (translate lane): the same promote-before-finish ordering as the
+        // passthrough lane above — the terminal frame is about to be translated and
+        // forwarded, so the synthetic content delta has to land first. Detected per
+        // provider dialect, because `parsed` here is still in the UPSTREAM format.
+        if (isUpstreamTerminalChunk(parsed, targetFormat)) {
+          upstreamTerminalSeen = true;
+          const finish = parsed.choices?.[0]?.finish_reason;
+          const stop = parsed.type === "message_delta" ? parsed.delta?.stop_reason : null;
+          const geminiFinish = parsed.candidates?.[0]?.finishReason;
+          upstreamTurnComplete = finish ? ["stop", "tool_calls", "function_call"].includes(finish)
+            : stop ? ["end_turn", "stop_sequence", "tool_use"].includes(stop)
+              : Boolean(geminiFinish && ["STOP", "FUNCTION_CALL"].includes(geminiFinish));
+          promoteReasoningIfNeeded(controller);
+        }
 
         // Translate: targetFormat -> openai -> sourceFormat
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
@@ -453,6 +614,13 @@ export function createSSEStream(options = {}) {
             if (!hasValuableContent(item, sourceFormat)) {
               continue; // Skip this empty chunk
             }
+
+            // Privacy restore (issue #90): structured client-format chunk —
+            // slide each text payload field (content/thinking/text/arguments)
+            // through its window BEFORE formatSSE serializes the frame, so a
+            // placeholder the upstream tokenizer split across chunks reassembles
+            // here and the client only ever sees the restored secret.
+            if (privacyCtx?.chunkRestorer) privacyCtx.chunkRestorer.restoreChunk(item);
 
             // Inject estimated usage if finish chunk has no valid usage
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
@@ -520,6 +688,7 @@ export function createSSEStream(options = {}) {
           // Gemini-family clients (Antigravity, Vertex, Gemini) reject this sentinel with 400 syntax errors.
           const isGeminiFamily = provider === "antigravity" || provider === "gemini" || provider === "vertex";
           if (!streamDoneSent && !isGeminiFamily) {
+            promoteReasoningIfNeeded(controller);
             // We are the ones inventing the terminator, so the upstream never
             // finished. Say so — see the note on `endedWithoutTerminal`. Gemini
             // family is exempt: it has no [DONE] sentinel, so `!streamDoneSent`
@@ -596,6 +765,7 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
+        promoteReasoningIfNeeded(controller);
         finishStream();
       } catch (error) {
         // Never swallow a flush failure: if we bail before finishStream the
@@ -614,7 +784,7 @@ export function createSSEStream(options = {}) {
   });
 }
 
-export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, customToolNames = null) {
+export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, customToolNames = null, privacyCtx = null) {
   return createSSEStream({
     mode: STREAM_MODE.TRANSLATE,
     targetFormat,
@@ -627,11 +797,12 @@ export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, p
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    privacyCtx
   });
 }
 
-export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, privacyCtx = null) {
   return createSSEStream({
     mode: STREAM_MODE.PASSTHROUGH,
     provider,
@@ -640,6 +811,7 @@ export function createPassthroughStreamWithLogger(provider = null, reqLogger = n
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    privacyCtx
   });
 }

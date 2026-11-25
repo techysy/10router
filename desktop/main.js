@@ -31,6 +31,7 @@ const path = require('path');
 const { createPasswordStore } = require('./passwordStore');
 const releaseUpdater = require('./releaseUpdater');
 const updateRequest = require('./updateRequest');
+const updateScheduler = require('./updateScheduler');
 
 // 必须先于一切 getPath('userData') 调用:productName "10Router" 在 Windows(大小写
 // 不敏感)上会与服务数据目录 %APPDATA%\10router 撞名,壳日志会混进服务数据。
@@ -69,6 +70,25 @@ const STRINGS = {
         'win.notReadyTitle': 'Service not ready',
         'win.notReadyBody': 'Please use the tray icon menu "Start Service" and try again.',
         'win.authWindowTitle': 'Account Authorization',
+        'win.sessionLoginTitle': 'Login (Session {n})',
+        'win.sessionLoginReuseTitle': 'Login (Session {n} · Saved)',
+        'win.openSiteUrl': 'URL',
+        'win.openSiteSlot': 'Slot',
+        'win.openSiteShortcuts': 'Shortcuts (click to fill)',
+        'win.openSiteTypeUrl': 'Type a URL first',
+        'win.authSlotTitle': 'Authorize (Account {n})',
+        'win.incognitoLoginTitle': 'Login (Incognito)',
+        'sessionPool.open': 'Session Pool',
+        'sessionPool.openHint': 'Multiple login slots per site — each slot is an isolated saved session.',
+        'sessionPool.slot': 'Session {n}',
+        'sessionPool.loginSlot': 'Login (Slot {n})',
+        'sessionPool.clearSlot': 'Clear Session {n}',
+        'sessionPool.renameSlot': 'Rename',
+        'sessionPool.empty': 'No saved session in this slot.',
+        'sessionPool.captured': '{name}: session captured (slot {n})',
+        'sessionPool.captureFailed': '{name}: session capture failed — please log in again',
+        'sessionPool.cleared': '{name}: session {n} cleared',
+        'sessionPool.renamed': '{name}: session {n} renamed to {label}',
         'menu.checkUpdate': 'Check for Updates',
         'menu.about': 'About 10Router',
         'update.failedTitle': 'Update check failed',
@@ -79,6 +99,7 @@ const STRINGS = {
         'update.latestTitle': 'Up to date',
         'update.latestBody': 'You are on the latest version v{current}.',
         'update.balloonBody': 'v{latest} is available (current v{current}). Open the tray menu "Check for Updates" to visit the Releases download page.',
+        'update.readyBalloonBody': 'v{latest} has been downloaded and verified in the background — open the tray menu "Check for Updates" and click "Install Now".',
         'update.downloadInstall': 'Download and Install',
         'update.downloadBody': 'v{latest} is available (you are on v{current}).\n\n10Router will download 10Router-Win-Setup-{latest}.exe ({size}) from GitHub Releases, verify its SHA256 and run the installer — the app quits during install.',
         'update.downloadingTitle': 'Downloading v{latest}',
@@ -128,6 +149,7 @@ const STRINGS = {
         'appmenu.close': 'Close Window',
         'appmenu.go': 'Go',
         'appmenu.openurl': 'Open URL…',
+        'appmenu.openSite': 'Open Site (with account)…',
         'appmenu.openurl.title': 'Open URL',
         'appmenu.openurl.go': 'Open',
         'appmenu.openurl.invalid': 'Invalid URL — check the address',
@@ -195,6 +217,25 @@ const STRINGS = {
         'win.notReadyTitle': '服务未就绪',
         'win.notReadyBody': '请从托盘图标菜单「启动服务」后重试。',
         'win.authWindowTitle': '账号授权',
+        'win.sessionLoginTitle': '登录（会话 {n}）',
+        'win.sessionLoginReuseTitle': '登录（会话 {n} · 复用）',
+        'win.openSiteUrl': '网址',
+        'win.openSiteSlot': '账号槽',
+        'win.openSiteShortcuts': '常用站点（点击填入）',
+        'win.openSiteTypeUrl': '先输入网址',
+        'win.authSlotTitle': '授权（账号 {n}）',
+        'win.incognitoLoginTitle': '登录（无痕窗口）',
+        'sessionPool.open': '会话池',
+        'sessionPool.openHint': '每站点多个登录槽——各槽是独立的持久登录会话。',
+        'sessionPool.slot': '会话 {n}',
+        'sessionPool.loginSlot': '登录（槽 {n}）',
+        'sessionPool.clearSlot': '清除会话 {n}',
+        'sessionPool.renameSlot': '重命名',
+        'sessionPool.empty': '该槽暂无已存会话。',
+        'sessionPool.captured': '{name}：会话已捕获（槽 {n}）',
+        'sessionPool.captureFailed': '{name}：会话捕获失败——请重新登录',
+        'sessionPool.cleared': '{name}：会话 {n} 已清除',
+        'sessionPool.renamed': '{name}：会话 {n} 已重命名为 {label}',
         'menu.checkUpdate': '检查更新',
         'menu.about': '关于 10Router',
         'update.failedTitle': '检查更新失败',
@@ -205,6 +246,7 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '当前 v{current} 已是最新版本。',
         'update.balloonBody': '发现新版本 v{latest}(当前 v{current})。可打开托盘菜单「检查更新」前往 Releases 下载页。',
+        'update.readyBalloonBody': 'v{latest} 已在后台下载并通过校验——打开托盘菜单「检查更新」后点击「立即安装」即可。',
         'update.downloadInstall': '下载并安装',
         'update.downloadBody': '新版本 v{latest} 已发布(当前 v{current})。\n\n将从 GitHub Releases 下载 10Router-Win-Setup-{latest}.exe({size}),SHA256 校验通过后运行安装——安装时 10Router 会先退出。',
         'update.downloadingTitle': '正在下载 v{latest}',
@@ -254,6 +296,7 @@ const STRINGS = {
         'appmenu.close': '关闭窗口',
         'appmenu.go': '前往',
         'appmenu.openurl': '打开网址…',
+        'appmenu.openSite': '打开服务网址（带账号）…',
         'appmenu.openurl.title': '打开网址',
         'appmenu.openurl.go': '打开',
         'appmenu.openurl.invalid': '网址无效，请检查地址',
@@ -321,6 +364,25 @@ const STRINGS = {
         'win.notReadyTitle': '服務未就緒',
         'win.notReadyBody': '請從系統列圖示選單「啟動服務」後重試。',
         'win.authWindowTitle': '帳號授權',
+        'win.sessionLoginTitle': '登入（工作階段 {n}）',
+        'win.sessionLoginReuseTitle': '登入（工作階段 {n} · 復用）',
+        'win.openSiteUrl': '網址',
+        'win.openSiteSlot': '帳號槽',
+        'win.openSiteShortcuts': '常用站點（點擊填入）',
+        'win.openSiteTypeUrl': '請先輸入網址',
+        'win.authSlotTitle': '授權（帳號 {n}）',
+        'win.incognitoLoginTitle': '登入（無痕視窗）',
+        'sessionPool.open': '工作階段池',
+        'sessionPool.openHint': '每站點多個登入槽——各槽是獨立的持久登入工作階段。',
+        'sessionPool.slot': '工作階段 {n}',
+        'sessionPool.loginSlot': '登入（槽 {n}）',
+        'sessionPool.clearSlot': '清除工作階段 {n}',
+        'sessionPool.renameSlot': '重新命名',
+        'sessionPool.empty': '該槽暫無已存工作階段。',
+        'sessionPool.captured': '{name}：工作階段已擷取（槽 {n}）',
+        'sessionPool.captureFailed': '{name}：工作階段擷取失敗——請重新登入',
+        'sessionPool.cleared': '{name}：工作階段 {n} 已清除',
+        'sessionPool.renamed': '{name}：工作階段 {n} 已重新命名為 {label}',
         'menu.checkUpdate': '檢查更新',
         'menu.about': '關於 10Router',
         'update.failedTitle': '檢查更新失敗',
@@ -331,6 +393,7 @@ const STRINGS = {
         'update.latestTitle': '已是最新版本',
         'update.latestBody': '目前 v{current} 已是最新版本。',
         'update.balloonBody': '發現新版本 v{latest}(目前 v{current})。可開啟系統列選單「檢查更新」前往 Releases 下載頁。',
+        'update.readyBalloonBody': 'v{latest} 已在背景下載並通過校驗——開啟系統列選單「檢查更新」後點擊「立即安裝」即可。',
         'update.downloadInstall': '下載並安裝',
         'update.downloadBody': '新版本 v{latest} 已發布(目前 v{current})。\n\n將從 GitHub Releases 下載 10Router-Win-Setup-{latest}.exe({size}),SHA256 校驗通過後執行安裝——安裝時 10Router 會先結束。',
         'update.downloadingTitle': '正在下載 v{latest}',
@@ -380,6 +443,7 @@ const STRINGS = {
         'appmenu.close': '關閉視窗',
         'appmenu.go': '前往',
         'appmenu.openurl': '開啟網址…',
+        'appmenu.openSite': '開啟服務網址（帶帳號）…',
         'appmenu.openurl.title': '開啟網址',
         'appmenu.openurl.go': '開啟',
         'appmenu.openurl.invalid': '網址無效，請檢查地址',
@@ -637,7 +701,7 @@ async function startServer() {
         notify(tr('notify.started'), `${DASHBOARD_URL}${lanIp ? tr('notify.lanHint', { ip: lanIp, port: PORT }) : ''}`);
         if (!win || win.isDestroyed()) createWindow();      // 启动成功直接打开界面
         else win.loadURL(DASHBOARD_URL).catch(() => { });
-        autoCheckUpdate();                    // 静默检查,仅发现新版本时弹托盘气泡引导
+        scheduleBackgroundUpdateChecks();     // 后台定时检查更新(30s 首检 + 6h 轮询,预下载不自动装)
     } else {
         setState('stopped');
         if (nodeProc) { try { killProcTree(nodeProc.pid); } catch { } }
@@ -693,6 +757,112 @@ function sameOriginUrl(a, b) {
     try { return new URL(a).origin === new URL(b).origin; } catch { return false; }
 }
 
+// ──────────────────────── 会话池(每站点 9 个登录槽) ────────────────────────
+// Chrome 多 profile 式:同一站点并排养多个独立持久登录分区,换号 = 选另一槽开窗,
+// 不再来回清登录态。分区命名 cookie-site-<id>(槽 1)/ cookie-site-<id>-sN(槽 2-9);
+// 收割的 cookie 带 slot 上报,落连接 providerSpecificData.cookieSlot,面板按槽分行。
+// 设计对齐 CreditDaddy 会话池(两仓同 AGPL-3.0),实现按本仓结构重写。
+const SESSION_POOL_SLOTS = 6;
+
+function cookieSiteSlotOf(persistKey) {
+    const m = /-s([2-9])$/.exec(persistKey || '');
+    return m ? Number(m[1]) : 1;
+}
+
+function cookieSitePersistKey(siteId, slot) {
+    const n = Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS);
+    return n === 1 ? `cookie-site-${siteId}` : `cookie-site-${siteId}-s${n}`;
+}
+
+function serializeSessionCookies(cookies) {
+    const byName = new Map();
+    for (const c of cookies || []) {
+        if (c && typeof c.name === 'string' && c.name) byName.set(c.name, String(c.value ?? ''));
+    }
+    return [...byName.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+// CLI token:与 CLI 客户端同式(machineId + '9r-cli-auth' + cli-secret → sha256 前 16 位)。
+// 桌面壳与 CLI/服务同机同 DATA_DIR,读同一对文件即可;读不到机器号时退空(上报会 401,
+// 由面板重登解决,不阻塞收割)。
+function readCliTokenForReport() {
+    try {
+        const mid = fs.readFileSync(path.join(DATA_DIR, 'machine-id'), 'utf8').trim();
+        const secret = fs.readFileSync(path.join(DATA_DIR, 'auth', 'cli-secret'), 'utf8').trim();
+        if (!mid) return '';
+        return crypto.createHash('sha256').update(mid + '9r-cli-auth' + secret).digest('hex').substring(0, 16);
+    } catch { return ''; }
+}
+
+// 关窗时收割该持久分区的全量 cookie(不过滤 URL——带 Path 域的会话 cookie 按 URL
+// 过滤会丢),带 slot 上报 /api/cookie-sites/<site>(POST=capture)。持久分区不擦存储
+// (复用登录态正是其意义);由面板「清除会话」显式抹除。
+async function harvestCookieSiteSession(ses, siteId, slot) {
+    let all = [];
+    try { all = await ses.cookies.get({}); } catch { /* 分区已随窗销毁 */ }
+    const cookie = serializeSessionCookies(all);
+    if (!cookie) return { ok: false, error: 'empty' };
+    const token = readCliTokenForReport();
+    try {
+        const r = await net.fetch(`${BASE_URL}/api/cookie-sites/${encodeURIComponent(siteId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { 'x-10r-cli-token': token } : {}) },
+            body: JSON.stringify({ cookie, slot }),
+            signal: AbortSignal.timeout(10000),
+        });
+        const detail = await r.json().catch(() => ({}));
+        return { ok: r.ok, status: r.status, error: detail.error || (r.ok ? '' : `HTTP ${r.status}`) };
+    } catch (e) {
+        return { ok: false, error: e?.cause?.code || e?.message || String(e) };
+    }
+}
+
+// 打开站点登录窗(会话池入口):persistKey → 持久分区复用登录态;slot 计标题。
+// 与 attachWindowOpenRouting 的一次性授权窗区分:那是仪表盘 window.open 的跨域兜底,
+// 本窗由「会话池 / 登录」显式打开,可重复使用。
+function openSiteLoginWindow(site, slot) {
+    const persistKey = cookieSitePersistKey(site.id, slot);
+    const n = cookieSiteSlotOf(persistKey);
+    const ses = session.fromPartition('persist:' + persistKey);
+    const authWin = new BrowserWindow({
+        width: 480,
+        height: 720,
+        title: tr(n > 1 ? 'win.sessionLoginReuseTitle' : 'win.sessionLoginTitle', { n }),
+        autoHideMenuBar: true,
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#FDFAF6',
+        webPreferences: {
+            session: ses,
+            preload: CONTAINER_PRELOAD,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+    attachContainerCapture(authWin.webContents);
+    attachContextMenu(authWin);
+    authWin.webContents.setWindowOpenHandler(({ url: subUrl }) => {
+        if (/^https:\/\//i.test(subUrl)) {
+            return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { session: ses, preload: CONTAINER_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+        }
+        return { action: 'deny' };
+    });
+    authWin.on('closed', () => {
+        // 注册站点:收割上报(落连接行,面板可见)。通用网址:不 harvest——
+        // 持久分区自存 Cookie,同槽再开直接复用登录态。
+        if (!site.provider) return;
+        harvestCookieSiteSession(ses, site.id, n).then((res) => {
+            try {
+                if (win && !win.isDestroyed()) {
+                    win.webContents.send('cookie-site:captured', { site: site.id, slot: n, ok: res.ok, error: res.error || '' });
+                }
+            } catch { /* 主窗已关 */ }
+            notify(tr('sessionPool.open'), tr(res.ok ? 'sessionPool.captured' : 'sessionPool.captureFailed', { name: site.name, n }));
+        });
+    });
+    authWin.loadURL(site.loginUrl);
+    return authWin;
+}
+
 function attachWindowOpenRouting(openerContents, fixedSession) {
     openerContents.setWindowOpenHandler(({ url, features }) => {
         if (!/^https?:/i.test(url)) return { action: 'deny' };
@@ -700,6 +870,32 @@ function attachWindowOpenRouting(openerContents, fixedSession) {
         if (!/(?:^|,)\s*width\s*=/.test(features || '')) {
             shell.openExternal(url);
             return { action: 'deny' };
+        }
+        // 授权弹窗带 authslot=N(features 里未知键 Chromium 会忽略,只到得了 handler):
+        // 开进该持久身份分区,不清存储——同槽下次授权免登录。回调链不变(opener 保留)。
+        const slotM = /(?:^|,)\s*authslot=(\d+)/.exec(features || '');
+        if (slotM && !fixedSession) {
+            const n = Math.min(Math.max(Number(slotM[1]) || 1, 1), SESSION_POOL_SLOTS);
+            const slotSes = session.fromPartition(`persist:auth-slot-${n}`);
+            openerContents.once('did-create-window', (child) => {
+                attachWindowOpenRouting(child.webContents, slotSes);
+                attachContainerCapture(child.webContents);
+                attachContextMenu(child);
+            });
+            return {
+                action: 'allow',
+                overrideBrowserWindowOptions: {
+                    autoHideMenuBar: true,
+                    title: tr('win.authSlotTitle', { n }),
+                    webPreferences: {
+                        session: slotSes,
+                        preload: CONTAINER_PRELOAD,
+                        contextIsolation: true,
+                        nodeIntegration: false,
+                        sandbox: true,
+                    },
+                },
+            };
         }
         if (fixedSession) {
             // 无痕授权流程内站点自弹的子窗:复用同一分区;不清存储(随顶层授权窗关闭统一清)
@@ -901,6 +1097,7 @@ const UPDATE_HTML = path.join(__dirname, 'update-window.html');
 const UPDATE_PRELOAD = path.join(__dirname, 'preload-update.js');
 let updateWin = null;
 let updateDlCtrl = null;                       // 下载中的 AbortController(关窗/取消 → abort)
+let backgroundDlCtrl = null;                   // 后台静默预下载的 AbortController(手动下载启动时 abort,防两路并发写同一临时文件)
 let updateView = { state: 'checking' };        // 最近一次推给页面的状态(页面晚加载时由 bootstrap 补发)
 let updateCtx = { phase: 'check', inst: null, file: null };   // error 态「重试」所需的上下文
 
@@ -1013,6 +1210,9 @@ function retryUpdatePhase() {
 // Portable 则维持「打开 Releases 页面」的旧引导。
 async function checkForUpdates() {
     openUpdateWindow();
+    const prevPhase = updateCtx.phase;
+    const prevInst = updateCtx.inst;
+    const prevFile = updateCtx.file;
     updateCtx.phase = 'check';
     sendUpdateState('checking', { title: tr('update.checking') });
     let info = null;
@@ -1025,6 +1225,23 @@ async function checkForUpdates() {
         return;
     }
     if (info.hasUpdate) {
+        // 后台已为本版本预下载过安装包 → 直接进 ready 态（秒装，不重新下载）
+        if (updateScheduler.canReuseDownloadedInstaller({
+            phase: prevPhase,
+            instVersion: prevInst ? prevInst.version : null,
+            fileExists: !!prevFile && fs.existsSync(prevFile),
+            latestVersion: info.latestVersion,
+        })) {
+            updateCtx.phase = 'install';
+            updateCtx.inst = prevInst;
+            updateCtx.file = prevFile;
+            sendUpdateState('ready', {
+                title: tr('update.readyTitle', { latest: info.latestVersion }),
+                body: tr('update.readyBody'),
+                installLabel: tr('update.installNow'),
+            });
+            return;
+        }
         await offerUpdate(info.latestVersion, info.currentVersion);
     } else {
         sendUpdateState('latest', {
@@ -1137,6 +1354,12 @@ async function downloadInstallerToTemp(inst, onProgress, signal) {
 // 下载中:进度推页(got/total,页面格式化 % 与 MB)+ 任务栏进度条;
 // 关窗/取消按钮 → AbortController → 静默结束;失败 → error 态(可重试)
 function startUpdateDownload(inst) {
+    // 后台静默预下载在途则先中止（它无 UI、失败静默等下个周期）——两路并发写
+    // 同一个 temp 安装包文件会互相损坏
+    if (backgroundDlCtrl) {
+        try { backgroundDlCtrl.abort(); } catch { /* noop */ }
+        backgroundDlCtrl = null;
+    }
     updateCtx.phase = 'download';
     const ctrl = new AbortController();
     updateDlCtrl = ctrl;
@@ -1182,11 +1405,24 @@ function startUpdateDownload(inst) {
 // 同路径注释见文件尾部 before-quit);失败回落 error 态,可重试。
 async function installDownloadedUpdate() {
     const file = updateCtx.file;
-    if (!file) return;
+    if (!file || !fs.existsSync(file)) {
+        sendUpdateState('error', {
+            title: tr('update.spawnFailedTitle'),
+            detail: tr('update.spawnFailedBody', { message: 'Installer file not found', path: file || '' }),
+        });
+        return;
+    }
     try {
         // 先停服务再 spawn:安装器到达卸载/替换阶段时文件锁必须已经释放。
         await stopServer();
-        spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+        const child = spawn(file, [], { detached: true, stdio: 'ignore' });
+        child.on('error', (e) => {
+            sendUpdateState('error', {
+                title: tr('update.spawnFailedTitle'),
+                detail: tr('update.spawnFailedBody', { message: String((e && e.message) || e), path: file }),
+            });
+        });
+        child.unref();
         app.quit();   // 先退出再让安装器接管;NSIS 遇到残留进程也会引导关闭
     } catch (e) {
         sendUpdateState('error', {
@@ -1225,18 +1461,117 @@ async function checkUpdateViaGitHub() {
     }
 }
 
-// 启动后静默检查更新:仅发现新版本时弹托盘气泡引导(点击气泡打开 Releases);
-// 无更新/网络失败均静默,不打扰。与手动「检查更新」菜单项互补。
-async function autoCheckUpdate() {
+// ───────────────── 后台定时检查更新（预下载，不自动安装） ─────────────────
+// 对齐 CreditDaddy 的「定时检查 + 预下载」，但不自动装：10R 是常驻网关，
+// 静默重启会掐断正在跑的 agent 会话，安装始终由用户点「立即安装」触发。
+// 后台路径绝不打开更新窗（sendUpdateState 在窗口未开时只落 updateView，
+// 用户之后手动开窗经 update:bootstrap 即见最新状态），所有失败一律静默。
+let backgroundUpdateTimer = null;
+let backgroundCheckInFlight = false;
+let lastNotifiedUpdateVersion = null;
+
+// 设置「自动检查更新」的镜像 marker（src/lib/updateCheck.js 同步写入）。
+// 直读文件而非问 /api/version：服务未起/挂了时判定依然正确。
+function autoUpdateCheckDisabled() {
     try {
+        return fs.existsSync(updateScheduler.updateCheckDisabledMarkerPath(DATA_DIR));
+    } catch { return false; }
+}
+
+async function backgroundCheckForUpdates() {
+    if (backgroundCheckInFlight) return;
+    // 每次触发前重读开关：设置里关闭后，已挂着的定时器不再产生任何查询
+    // （手动「检查更新」走强制刷新参数，不受此开关影响）。
+    if (!updateScheduler.shouldRunBackgroundCheck({ markerExists: autoUpdateCheckDisabled() })) return;
+    backgroundCheckInFlight = true;
+    try {
+        // 普通探测(无强制刷新参数):后台路径尊重服务端开关与 1h 缓存,不主动打 npm registry
         const info = await fetchJson(`${BASE_URL}/api/version`);
-        if (info && info.hasUpdate && info.latestVersion) {
+        if (!info || !info.hasUpdate || !info.latestVersion) {
+            lastNotifiedUpdateVersion = null;
+            return;
+        }
+        const action = updateScheduler.resolveBackgroundUpdateAction({
+            hasUpdate: true,
+            latestVersion: info.latestVersion,
+            canInstallInPlace: canInstallInPlace(),
+            alreadyReadyForVersion: updateCtx.phase === 'install'
+                && updateCtx.inst && updateCtx.inst.version === info.latestVersion
+                && !!updateCtx.file && fs.existsSync(updateCtx.file),
+        });
+        if (action === 'pre-download') {
+            // 前台正在手动下载中则避让，不发起并发预下载
+            if (!updateDlCtrl && !backgroundDlCtrl) {
+                await backgroundPreDownload(info.latestVersion);
+            }
+        } else if (action === 'notify-ready') {
+            if (lastNotifiedUpdateVersion !== info.latestVersion) {
+                lastNotifiedUpdateVersion = info.latestVersion;
+                notify(
+                    tr('update.readyTitle', { latest: info.latestVersion }),
+                    tr('update.readyBalloonBody', { latest: info.latestVersion })
+                );
+            }
+        } else if (action === 'notify-only') {
+            if (lastNotifiedUpdateVersion !== info.latestVersion) {
+                lastNotifiedUpdateVersion = info.latestVersion;
+                notify(
+                    tr('update.availableTitle'),
+                    tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
+                );
+            }
+        }
+    } catch { /* 后台路径绝不打扰用户 */ } finally {
+        backgroundCheckInFlight = false;
+    }
+}
+
+// 静默预下载:无进度 UI(downloadInstallerToTemp 的 onProgress 传 null 即可,
+// SHA256 校验内建),成功后 updateCtx 进入 install 态——用户点「立即安装」秒装。
+async function backgroundPreDownload(latestVersion) {
+    if (updateDlCtrl || backgroundDlCtrl) return;
+    let inst = null;
+    try {
+        inst = await resolveInstaller(latestVersion);
+    } catch { /* release 未发布 / 网络失败 → 静默,等下个周期 */ }
+    if (!inst || updateDlCtrl || backgroundDlCtrl) return;
+    // 在途标志全程持有：两路（后台/手动）写的是同一个 temp 路径（asset.name），
+    // 并发写会互相损坏——手动路径启动时会 abort 这条腿，SHA256 门只是最后防线
+    const ctrl = new AbortController();
+    backgroundDlCtrl = ctrl;
+    try {
+        const file = await downloadInstallerToTemp(inst, null, ctrl.signal);
+        if (ctrl.signal.aborted || backgroundDlCtrl !== ctrl) return;
+        updateCtx.phase = 'install';
+        updateCtx.inst = inst;
+        updateCtx.file = file;
+        sendUpdateState('ready', {
+            title: tr('update.readyTitle', { latest: inst.version }),
+            body: tr('update.readyBody'),
+            installLabel: tr('update.installNow'),
+        });
+        if (lastNotifiedUpdateVersion !== inst.version) {
+            lastNotifiedUpdateVersion = inst.version;
             notify(
-                tr('update.availableTitle'),
-                tr('update.balloonBody', { latest: info.latestVersion, current: info.currentVersion })
+                tr('update.readyTitle', { latest: inst.version }),
+                tr('update.readyBalloonBody', { latest: inst.version })
             );
         }
-    } catch { /* 静默失败 */ }
+    } catch { /* 下载/校验失败静默,等下个周期或手动检查 */ } finally {
+        if (backgroundDlCtrl === ctrl) backgroundDlCtrl = null;
+    }
+}
+
+// 调度:启动 30s 后首检(避开启动高峰),之后每 6h 一轮;.unref() 不阻塞退出。
+function scheduleBackgroundUpdateChecks() {
+    if (backgroundUpdateTimer) return;
+    const first = setTimeout(async () => {
+        await backgroundCheckForUpdates();
+        backgroundUpdateTimer = setInterval(backgroundCheckForUpdates, updateScheduler.CHECK_INTERVAL_MS);
+        if (backgroundUpdateTimer.unref) backgroundUpdateTimer.unref();
+    }, updateScheduler.INITIAL_DELAY_MS);
+    if (first.unref) first.unref();
+    backgroundUpdateTimer = first;
 }
 
 // ───────────────── 仪表盘发起的更新请求（数据目录 marker 握手） ─────────────────
@@ -1253,7 +1588,7 @@ function startUpdateRequestPolling() {
         if (quitting) return;
         const req = updateRequest.consumeUpdateRequest(DATA_DIR);
         if (!req) return;
-        if (updateDlCtrl) {
+        if (updateDlCtrl || backgroundDlCtrl) {
             log('dashboard update request ignored: a download is already running');
             return;
         }
@@ -1356,6 +1691,8 @@ function getServiceVersion() {
 // (userData/recent-urls.json, newest-first, 上限 10)、「回到 10Router」一键回家。
 const RECENT_FILE = path.join(app.getPath('userData'), 'recent-urls.json');
 let urlPromptWin = null;
+let sitePromptWin = null;
+let authSlotWin = null;
 
 function loadRecentUrls() {
     try {
@@ -1501,6 +1838,185 @@ document.getElementById('go').addEventListener('click', go);
 
 // 输入框「打开」/回车 → 主进程校验:合法就记最近+主窗体打开(输入窗关闭);
 // 非法关窗并气泡提示。ipcRenderer.send 没有回报通道,提示走 notify。
+// 会话池（#150）：仪表盘 preload 调起站点登录窗（指定槽位）。
+// 站点表与 daemon /api/cookie-sites 同源（这里只取 id/loginUrl/name 供开窗）。
+const SHELL_COOKIE_SITES = [
+    { id: 'lingxi', name: 'WPS 灵犀', loginUrl: 'https://lingxi.kdocs.cn', provider: 'lingxi' },
+    { id: 'dumate', name: 'DuMate 百度搭子', loginUrl: 'https://dumate.baidu.com', provider: 'dumate' },
+];
+
+// 通用网址 → 合成站点:分区键按 host 派生(u-<host>),槽位语义与站点槽一致;
+// provider 为空 = 关窗不 harvest(持久分区自存 Cookie,下次同槽开窗直接复用)。
+function genericSiteFromUrl(url) {
+    const u = new URL(url);
+    const hostKey = u.host.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'site';
+    return { id: `u-${hostKey}`, name: u.host, loginUrl: url, provider: null };
+}
+
+// 授权账号槽(全局身份分区):OAuth 登录页开在 persist:auth-slot-<n> 里,
+// 同一槽跨供应商共享登录态(像 Chrome profile)——上次用槽 3 登过某站,
+// 下次再授权选槽 3 直接免登录。device-code 流靠仪表盘轮询拿 token,开窗方式
+// 不影响回调;关窗不 harvest(授权凭证走服务端 exchange,不落 cookie 连接行)。
+function openAuthSlotWindow(url, slot) {
+    const n = Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS);
+    const ses = session.fromPartition(`persist:auth-slot-${n}`);
+    const authWin = new BrowserWindow({
+        width: 600,
+        height: 720,
+        title: tr('win.authSlotTitle', { n }),
+        autoHideMenuBar: true,
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#FDFAF6',
+        webPreferences: {
+            session: ses,
+            preload: CONTAINER_PRELOAD,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+    attachContainerCapture(authWin.webContents);
+    attachContextMenu(authWin);
+    authWin.webContents.setWindowOpenHandler(({ url: subUrl }) => {
+        if (/^https?:\/\//i.test(subUrl)) {
+            return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { session: ses, preload: CONTAINER_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+        }
+        return { action: 'deny' };
+    });
+    authWin.loadURL(url).catch(() => { /* 站点自行重定向 */ });
+    return authWin;
+}
+
+// 站点表以 daemon /api/cookie-sites 为准（本机 CLI token 鉴权）；静态表兜底。
+ipcMain.handle('session-pool:list', () => SHELL_COOKIE_SITES);
+ipcMain.on('site-pick', (e, pick) => {
+    // 注册站点(siteId 旧调用)或直接给的网址 → 统一成站点对象。
+    // 网址命中注册站点 origin 时沿用注册站点(关窗收割上报);否则通用分区(自存 Cookie)。
+    let site = SHELL_COOKIE_SITES.find((s) => s.id === pick?.siteId) || null;
+    if (!site && pick?.url) {
+        const norm = normalizeOpenUrl(pick.url);
+        if (!norm) return;
+        pushRecentUrl(norm);   // 与「打开网址…」共用同一份 recent-urls.json
+        try {
+            const origin = new URL(norm).origin;
+            site = SHELL_COOKIE_SITES.find((s) => {
+                try { return new URL(s.loginUrl).origin === origin; } catch { return false; }
+            }) || genericSiteFromUrl(norm);
+        } catch { return; }
+    }
+    if (!site) return;
+    if (sitePromptWin && !sitePromptWin.isDestroyed()) sitePromptWin.close();
+    openSiteLoginWindow(site, pick?.slot || 1);
+});
+ipcMain.handle('session-pool:login', (e, siteId, slot) => {
+    const site = SHELL_COOKIE_SITES.find((s) => s.id === siteId);
+    if (!site) return { ok: false, error: 'unknown site' };
+    openSiteLoginWindow(site, slot);
+    return { ok: true, site: siteId, slot: Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS) };
+});
+
+// 仪表盘 OAuth 弹窗「用账号槽打开」:登录页开进选定的授权槽分区(壳内开窗)。
+// 只收 http(s);渲染层给的 URL 不额外信任——分区隔离 + 无 node 集成兜底。
+ipcMain.handle('auth-slot:open', (e, rawUrl, slot) => {
+    const url = normalizeOpenUrl(rawUrl);
+    if (!url) return { ok: false, error: 'invalid url' };
+    openAuthSlotWindow(url, slot);
+    return { ok: true, slot: Math.min(Math.max(Number(slot) || 1, 1), SESSION_POOL_SLOTS) };
+});
+
+// 「打开服务网址（带账号）」：任意网址 × 槽位（身份分区）在壳内开窗。
+// 槽 = 持久分区身份（Chrome profile 式），与站点无关：同一网址不同槽 = 不同账号。
+// 最近打开与「打开网址…」共用 recent-urls.json；点条目填入网址。网址命中注册
+// 站点 origin 时关窗带收割上报，其余靠分区自存 Cookie。不传 title——壳内窗自带标题。
+function promptOpenSite() {
+    if (sitePromptWin && !sitePromptWin.isDestroyed()) { sitePromptWin.focus(); return; }
+    const hasParent = win && !win.isDestroyed();
+    sitePromptWin = new BrowserWindow({
+        width: 460,
+        height: 470,
+        parent: hasParent ? win : null,
+        alwaysOnTop: true,
+        title: tr('appmenu.openSite'),
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        autoHideMenuBar: true,
+        show: true,
+        webPreferences: { contextIsolation: false, nodeIntegration: true, sandbox: false },
+    });
+    attachContextMenu(sitePromptWin);
+    // 最近打开直接推过去（本地文件读取，无需拉 daemon）。
+    sitePromptWin.webContents.once('did-finish-load', () => {
+        const recents = loadRecentUrls();
+        try { if (!sitePromptWin.isDestroyed()) sitePromptWin.webContents.send('site-list', { recents }); } catch { /* 窗已关 */ }
+    });
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+<body style="font-family:inherit;margin:0;padding:10px 12px;background:transparent">
+<div id="main">
+<div style="font-size:12px;color:#888;margin-bottom:4px">${tr('win.openSiteUrl')}</div>
+<input id="url" type="text" placeholder="https://…" autofocus
+  style="flex:1;width:100%;box-sizing:border-box;font-size:13px;padding:5px 8px;border:1px solid #8885;border-radius:6px;background:transparent;color:inherit;outline:none" />
+<div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+<span style="font-size:12px;color:#888">${tr('win.openSiteSlot')}</span>
+<span id="slots" style="display:flex;gap:4px"></span>
+</div>
+<div id="hint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px"></div>
+</div>
+<div style="font-size:12px;color:#888;margin:8px 0 4px">${tr('appmenu.recent')}</div>
+<div id="recents" style="display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto"></div>
+<script>
+const { ipcRenderer } = require('electron');
+const urlInput = document.getElementById('url');
+const hint = document.getElementById('hint');
+function pickSlot(n) {
+    const v = urlInput.value.trim();
+    if (!v) { hint.textContent = ${JSON.stringify(tr('win.openSiteTypeUrl'))}; urlInput.focus(); return; }
+    ipcRenderer.send('site-pick', { url: v, slot: n });
+}
+const slots = document.getElementById('slots');
+for (let n = 1; n <= ${SESSION_POOL_SLOTS}; n++) {
+    const b = document.createElement('button');
+    b.textContent = n;
+    b.title = 'slot ' + n;
+    b.style.cssText = 'width:28px;height:26px;font-size:12px;border:1px solid #8883;border-radius:5px;cursor:pointer;padding:0';
+    b.addEventListener('click', () => pickSlot(n));
+    slots.appendChild(b);
+}
+urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') pickSlot(1); });
+function quickRow(label, sub, url) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #8883;border-radius:6px;cursor:pointer';
+    row.title = url;
+    const name = document.createElement('div');
+    name.style.cssText = 'flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    name.textContent = label;
+    row.appendChild(name);
+    if (sub) {
+        const tag = document.createElement('div');
+        tag.style.cssText = 'font-size:11px;color:#888;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        tag.textContent = sub;
+        row.appendChild(tag);
+    }
+    row.addEventListener('click', () => { urlInput.value = url; urlInput.focus(); urlInput.select(); });
+    return row;
+}
+ipcRenderer.on('site-list', (e, data) => {
+    const recents = data.recents || [];
+    const rc = document.getElementById('recents');
+    for (const it of recents) rc.appendChild(quickRow(it.title || it.url, it.title ? it.url : '', it.url));
+    if (!recents.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:11px;color:#888;padding:2px 8px';
+        empty.textContent = ${JSON.stringify(tr('appmenu.recent.empty'))};
+        rc.appendChild(empty);
+    }
+});
+</script>
+</body></html>`;
+    sitePromptWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+        .catch((e) => { log(`site prompt load failed: ${e.message}`); try { sitePromptWin.close(); } catch { /* ignore */ } });
+    sitePromptWin.on('closed', () => { sitePromptWin = null; });
+}
+
 ipcMain.on('url-prompt-submit', (e, raw) => {
     const fromPrompt = urlPromptWin && !urlPromptWin.isDestroyed() && e.sender === urlPromptWin.webContents;
     // 旧版只传字符串;现版带可选标题 {url, title}
@@ -2053,6 +2569,7 @@ function setAppMenu() {
             submenu: [
                 { label: tr('appmenu.openurl'), accelerator: 'CmdOrCtrl+L', click: promptOpenUrl },
                 { label: tr('appmenu.home'), accelerator: 'CmdOrCtrl+Shift+H', click: () => openInWindow(DASHBOARD_URL) },
+                { label: tr('appmenu.openSite'), click: promptOpenSite },
                 { type: 'separator' },
                 ...(() => {
                     const recents = loadRecentUrls();
@@ -2231,6 +2748,7 @@ if (!gotLock) {
     app.on('before-quit', (e) => {
         quitting = true;
         if (updateRequestTimer) { clearInterval(updateRequestTimer); updateRequestTimer = null; }
+        if (backgroundUpdateTimer) { clearTimeout(backgroundUpdateTimer); clearInterval(backgroundUpdateTimer); backgroundUpdateTimer = null; }
         if (!quitStopping && nodeProc) {
             quitStopping = true;
             e.preventDefault();

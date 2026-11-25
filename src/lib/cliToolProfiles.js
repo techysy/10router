@@ -21,6 +21,7 @@ const ALLOWED_ENV_KEYS = [
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
   "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
 ];
@@ -108,12 +109,15 @@ export function removeProfile(profiles, id) {
 }
 
 // What "the current settings equal this profile" means: endpoint, key and the
-// three model slots — the fields a switch would rewrite.
+// four model slots — the fields a switch would rewrite. Profiles saved before
+// Fable joined the whitelist (2026-11, #102) carry no FABLE key, so they stop
+// auto-matching a settings file that has one until re-saved once.
 const MATCH_ENV_KEYS = [
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ];
 

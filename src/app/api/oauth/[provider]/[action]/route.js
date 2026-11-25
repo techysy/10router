@@ -146,7 +146,9 @@ export async function GET(request, { params }) {
     if (action === "start-proxy") {
       // Trae/Windsurf/Zed use a dynamic-port local callback server (singleton session,
       // state is registered separately via /register-session after /authorize).
-      if (provider === "trae") {
+      // #99 拆线：trae-cn 与 trae 共用同一回调代理（站点由各自 oauth 条目钉死，
+      // 单例会话按 state 匹配，一机一次只登一个）。
+      if (provider === "trae" || provider === "trae-cn") {
         const result = await startTraeProxy();
         return NextResponse.json(result);
       }
@@ -161,7 +163,7 @@ export async function GET(request, { params }) {
         return NextResponse.json(result);
       }
       if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/windsurf/zed" }, { status: 400 });
+        return NextResponse.json({ error: "Proxy only supported for codex/xai/trae/trae-cn/windsurf/zed" }, { status: 400 });
       }
       const appPort = searchParams.get("app_port");
       if (!appPort) {
@@ -188,7 +190,7 @@ export async function GET(request, { params }) {
         return NextResponse.json({ error: "Missing state" }, { status: 400 });
       }
       let session;
-      if (provider === "trae") session = getTraeSessionStatus(state);
+      if (provider === "trae" || provider === "trae-cn") session = getTraeSessionStatus(state);
       else if (provider === "windsurf") session = getWindsurfSessionStatus(state);
       else if (provider === "zed") session = getZedSessionStatus(state);
       else if (provider === "xai") session = getXaiSessionStatus(state);
@@ -236,8 +238,8 @@ export async function GET(request, { params }) {
 
     if (action === "ide-status") {
       // Detect whether the IDE is installed locally (used by import-token UX).
-      if (provider !== "trae" && provider !== "windsurf") {
-        return NextResponse.json({ error: "ide-status only supported for trae/windsurf" }, { status: 400 });
+      if (provider !== "trae" && provider !== "trae-cn" && provider !== "windsurf") {
+        return NextResponse.json({ error: "ide-status only supported for trae/trae-cn/windsurf" }, { status: 400 });
       }
       const status = await detectIdeInstalled(provider);
       return NextResponse.json(status);
@@ -317,12 +319,28 @@ export async function POST(request, { params }) {
         const results = await claimAllQoderAccounts(provider);
         return NextResponse.json({ success: true, results });
       }
+      // AutoClaw（智谱澳龙）每日签到：任务面 daily_signin（幂等），按 token 的
+      // JWT source_id 选域。两条线各自只签自己卡下的连接；手动触发不跳过当日已签。
+      if (provider === "autoclaw" || provider === "autoclaw-cn") {
+        const { runAutoclawCheckinTick } = await import("@/sse/services/autoclawCheckin.js");
+        const results = await runAutoclawCheckinTick({ provider, skipIfCheckedToday: false });
+        return NextResponse.json({ success: true, results });
+      }
       // 签到只对订阅线开放。minimax-free 是免登录网关线,签到在 CreditDaddy
       // 内闭环——这里不认它,卡面也不渲染签到按钮(issue #75)。
       if (provider === "minimax-code" || provider === "minimax-code-global") {
         const { runMinimaxCheckinTick } = await import("@/sse/services/minimaxCheckin.js");
         const results = await runMinimaxCheckinTick({ skipIfCheckedToday: false, provider });
         return NextResponse.json({ success: true, results });
+      }
+      // Trae 国内站每日签到(ug/checkin_credits,移植自 CreditDaddy traeClient):
+      // 只有 site=cn 的连接参与;trae-cn 条目整体放行,trae 条目里 psd.site=cn 的
+      // 存量连接也认。intl 连接由 eligible 过滤跳过,结果里带 skipped 说明。
+      if (provider === "trae" || provider === "trae-cn") {
+        const { runTraeCheckinTick } = await import("@/sse/services/traeCheckin.js");
+        const results = await runTraeCheckinTick({ skipIfCheckedToday: false });
+        const site = provider === "trae-cn" ? "cn" : "cn-connections-only";
+        return NextResponse.json({ success: true, site, results });
       }
       return NextResponse.json({ error: `Check-in not supported for ${provider}` }, { status: 400 });
     }
@@ -350,7 +368,7 @@ export async function POST(request, { params }) {
       const state = searchParams.get("state") || body?.state;
       if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
       let ok = false;
-      if (provider === "trae") ok = registerTraeSession({ state });
+      if (provider === "trae" || provider === "trae-cn") ok = registerTraeSession({ state, provider });
       else if (provider === "windsurf") ok = registerWindsurfSession({ state });
       else if (provider === "zed") ok = registerZedSession({ state, codeVerifier: body?.codeVerifier });
       else return NextResponse.json({ error: "register-session only supported for trae/windsurf/zed" }, { status: 400 });

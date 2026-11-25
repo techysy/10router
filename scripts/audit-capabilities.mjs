@@ -107,6 +107,9 @@ export const ALLOWLIST = {
   "inception/mercury-3": "no-models-dev-entry",
   "inception/mercury-2.5": "no-models-dev-entry",
 
+  // muse-web: muse.ai Hatch 网页端会话模型，无 models.dev 条目，作为内部 agent 渠道
+  "muse-web/muse-chat": "no-models-dev-entry",
+
   // Private codenames with no public spec and no models.dev entry.
   "github/oswe-vscode-prime": "codename",
 
@@ -120,13 +123,12 @@ export const ALLOWLIST = {
   "devin-cli/swe-1.5-fast": "no public spec",
   "devin-cli/swe-1.6": "no public spec",
   "devin-cli/swe-1.6-fast": "no public spec",
-  // Trae 虚拟档:server 按请求挑真实模型（Auto / Work Fast）——同 cursor/default
+  // Trae 虚拟档:server 按请求挑真实模型（Auto Mode）——同 cursor/default
   // 与 kilo-auto 的 aggregator 性质,静态能力行不可能准确。
+  // （trae/work 已随 2026-11-10 国际线目录对齐撤下,官方客户端清单无此档。）
   "trae/auto": "aggregator",
-  "trae/work": "aggregator",
   "github/goldeneye-free-auto": "codename",
   "iflow/iflow-rome-30ba3b": "codename",
-  "dots/dots3-note-prev": "codename",
   "morph/morph-dsv4flash": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch": "codename",
   "tokenrouter/miromind/mirothinker-1-7-deepresearch-mini": "codename",
@@ -142,6 +144,46 @@ export const ALLOWLIST = {
   // kilo/openrouter say 262144/235929 text-only without reasoning.
   "kilo-gateway/kwaipilot/kat-coder-pro-v2.5:free": "conflict",
   "cline/kwaipilot/kat-coder-pro": "conflict", // v1 vs v2/v2.5, same split
+
+  // Loomy (讯飞) 免费活动池：无公开 API 规格、无 models.dev 条目；spark-x2.6 为
+  // 讯飞自家模型（×0.0 免费倍率），规格只能以客户端实测为准，保留地板值。
+  "loomy/spark-x2.6": "no public spec",
+
+  // DuMate (百度搭子) internal selectors: the platform routes "model-text" and
+  // the dm-auto-model/text.L* tiers to a concrete upstream per request — same
+  // aggregator nature as cursor/default and trae/auto.
+  "dumate/model-text": "aggregator",
+  "dumate/dm-auto-model/text.L2": "aggregator",
+  "dumate/dm-auto-model/text.L1": "aggregator",
+  "dumate/dm-auto-model/text.L0": "aggregator",
+
+  // WPS 灵犀 (web 会话线): "auto" 让服务端按请求挑真实模型（plans 目录的
+  // aggregator 性质）; plan_pro/plan_max 是计费档位选择器，不是具体模型——
+  // 同 cursor/default 的 aggregator 口径。doubao_seed_2_1_pro_260628 的
+  // 日期后缀 id 无 models.dev 条目，规格只能以 plans 接口为准，保留地板值。
+  "lingxi/auto": "aggregator",
+  "lingxi/plan_pro": "aggregator",
+  "lingxi/plan_max": "aggregator",
+  "lingxi/doubao_seed_2_1_pro_260628": "no-models-dev-entry",
+
+  // CrowLLM (one-hub 中转) :free 全量锚定（2026-11-21 实拉 /v1/models）。以下 10 款
+  // 中转站上架的小众/内部模型无 models.dev 条目、无公开规格（站方只给 id 与零倍率），
+  // 保留地板值——与 loomy/spark-x2.6 同口径。
+  "crowllm/flint-v1.0:free": "no public spec",
+  "crowllm/hy4-flash:free": "no public spec",
+  "crowllm/jais-3-mova-36b-a4b:free": "no public spec",
+  "crowllm/k2-horizon-375b-a23b:free": "no public spec",
+  "crowllm/liquid/lfm-2.5-2.6b-thinking:free": "no public spec",
+  "crowllm/liquid/lfm-2.5-2.6b:free": "no public spec",
+  "crowllm/longcat-2.5:free": "no public spec",
+  "crowllm/particle-1:free": "no public spec",
+  "crowllm/solar-mini4:free": "no public spec",
+  "crowllm/xing4.0-29b-a4b:free": "no public spec",
+
+  // Capy 自家模型（agent 平台内免费档）：无公开规格、无 models.dev 条目，
+  // 能力以私有 API 实测为准，保留地板值。其余 capy 模型（anthropic/* 等
+  // vendor 前缀 id）走 canonical/CI 层正常解析。
+  "capy/particle/particle-1": "no public spec",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from
@@ -153,7 +195,13 @@ export const ALLOWLIST = {
 // (first-party) + deepinfra / crusoe / kilo / openrouter report the nano-omni as
 // text+image+video+audio; vultr and requesty report text-only. It currently
 // inherits the text-only *nemotron* pattern and is left alone deliberately.
-export const DISPUTED = new Set(["tokenrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"]);
+export const DISPUTED = new Set([
+  "tokenrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  // nemotron-3.5-super-vl-120b-a12b：nvidia VL（vision-language）系确实带视觉，但
+  // crowllm 经 nvidia 池直答纯文本端点，*nemotron* pattern 的 vision 判据在此误报；
+  // 与 nano-omni 同类——knowingly disputed，留着不动。
+  "crowllm/nvidia/nemotron-3.5-super-vl-120b-a12b:free",
+]);
 
 export function audit() {
   const rows = CHAT_MODELS.map((m) => ({ ...m, ...resolveStep(m.provider, m.id), caps: getCapabilitiesForModel(m.provider, m.id) }));
@@ -207,7 +255,7 @@ export function audit() {
     for (const m of entry.models || []) {
       const id = typeof m === "string" ? m : m.id;
       if (!id) continue;
-      const key = `${id} ${(m && m.kind) || "chat"}`;
+      const key = `${id}\x00${(m && m.kind) || "chat"}`;
       if (seen.has(key)) dups.add(id);
       seen.add(key);
     }

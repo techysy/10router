@@ -48,6 +48,14 @@ describe("modelFamilyName normalization", () => {
     expect(modelFamilyName("kmodel")).toBe("kimi");
     expect(modelFamilyName("gfmodel")).toBe("glm");
     expect(modelFamilyName("mmodel")).toBe("minimax");
+    // 2026-11-11 live-traffic gaps: lmodel (QoDuck) is Qoder's Qwen-family test
+    // model, q37fmodel is Qwen3.7-Flash, jmodel is Step-5-Preview. Without these
+    // each leaked out as its own chart legend entry (lmodel was visible at 37.8M
+    // tokens in the daily chart — bigger than most real families).
+    expect(modelFamilyName("lmodel")).toBe("qwen");
+    expect(modelFamilyName("qoder-cn/lmodel")).toBe("qwen");
+    expect(modelFamilyName("q37fmodel")).toBe("qwen");
+    expect(modelFamilyName("jmodel")).toBe("step");
     expect(modelFamilyName("ultimate")).toBe("claude");
     expect(modelFamilyName("qwq-32b-preview")).toBe("qwen");
     // Custom-channel UUID-ish ids collapse into "other".

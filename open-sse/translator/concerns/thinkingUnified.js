@@ -125,12 +125,22 @@ function openAIThinkingDisplay(body) {
   return undefined;
 }
 
+const NATIVE_ONLY_FORMATS = new Set(["gemini-level", "gemini-budget", "claude-budget", "claude-adaptive", "kiro"]);
+
 // Resolve thinking format: provider override > capability > derive(targetFormat).
 function resolveFormat(targetFormat, model, provider) {
+  if (targetFormat === "commandcode") return "commandcode";
+  const transportFmt = provider
+    ? PROVIDERS[provider]?.transports?.find((t) => t.format === targetFormat)?.thinkingFormat
+    : null;
+  if (transportFmt) return transportFmt;
   const providerFmt = provider ? PROVIDERS[provider]?.thinkingFormat : null;
   if (providerFmt) return providerFmt;
   const caps = getCapabilitiesForModel(provider, model);
-  if (caps.thinkingFormat) return caps.thinkingFormat;
+  const isOpenAIWire = targetFormat === "openai" || targetFormat === "responses" || targetFormat === "openai-responses";
+  if (caps.thinkingFormat && !(isOpenAIWire && NATIVE_ONLY_FORMATS.has(caps.thinkingFormat))) {
+    return caps.thinkingFormat;
+  }
   return FORMAT_TO_NATIVE[targetFormat] || "openai";
 }
 
@@ -242,7 +252,7 @@ function stripAll(body) {
 }
 
 // Apply unified thinking config to body in the resolved provider-native format.
-function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null, provider = null, display = null) {
+function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null, provider = null, display = null, model = "") {
   const none = cfg.mode === "none";
   const canDisable = caps.thinkingCanDisable !== false;
   // Model cannot disable thinking → clamp "none" to minimal effort instead.
@@ -270,18 +280,28 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
       break;
     }
     case "claude-adaptive": {
-      if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
+      if (none && canDisable) {
+        body.thinking = { type: caps.thinkingOffType || "disabled" };
+        break;
+      }
+      const level = toLevel(eff);
       // output_config.effort alone does NOT turn thinking on: Anthropic requires
       // an explicit thinking:{type:"adaptive"} on Opus 4.6/4.7/4.8 and Sonnet 4.6
       // ("thinking is off unless you explicitly set it"), and Anthropic-compatible
       // shims (e.g. GitHub Copilot /v1/messages) default thinking off even for
       // Sonnet 5. Send both fields — the documented adaptive shape. Permanently
-      // adaptive models (thinkingCanDisable:false, e.g. Fable) never get the
-      // redundant thinking switch — effort alone drives them.
-      if (canDisable) body.thinking = { type: "adaptive", ...(display ? { display } : {}) };
+      // adaptive models (thinkingCanDisable:false, e.g. Fable 5.1 / Opus 5.5) accept
+      // effort directly; but when a display mode is requested (e.g. "summarized"),
+      // sending thinking:{type:"adaptive", display} is required or thinking is omitted.
+      if (canDisable) {
+        body.thinking = { type: "adaptive", ...(display ? { display } : {}) };
+      } else if (display && level !== "minimal" && /claude/i.test(model)) {
+        body.thinking = { type: "adaptive", display };
+      } else {
+        delete body.thinking;
+      }
       // "auto" is not a value Anthropic accepts in output_config.effort — map it to high.
       // xhigh 按模型分档（Opus/Sonnet 4.6 拒绝该值）——模型未声明支持时钳回 high。
-      const level = toLevel(eff);
       // Claude effort has no "minimal" (always-on models clamp "none" to it).
       body.output_config = { effort: level === "auto" ? "high"
         : level === "xhigh" && !supportedLevels?.includes("xhigh") ? "high"
@@ -328,9 +348,14 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
     case "deepseek": {
       if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
       body.thinking = { type: "enabled" };
-      // DeepSeek: low/medium→high, xhigh/max→xhigh (SenseNova rejects "max").
+      // #106：档位原样透传（low/medium/high/max）——此前 low/medium→high、
+      // max→xhigh 的钳制是为 SenseNova 写的，但 SenseNova 全系已走 openai 方言，
+      // 这个钳制只剩伤害：river.ai 的 DeepSeek-V4.1-Flash 恰好拒 xhigh 收 max，
+      // 客户端本来能用的 max 被网关换成 xhigh 必 400（报错还是上游文案，极易误判
+      // 成「渠道不支持 max」）。xhigh 是非标档（上游多为 openai 四档），钳到 max
+      // —— deepseek 系语义里 max 就是最高思考档。
       const level = toLevel(eff);
-      body.reasoning_effort = level === "xhigh" || level === "max" ? "xhigh" : "high";
+      if (level && level !== "auto") body.reasoning_effort = level === "xhigh" ? "max" : level;
       break;
     }
     case "kimi": {
@@ -375,6 +400,16 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
       if (level) body.reasoning_effort = level;
       break;
     }
+    case "longcat": {
+      // LongCat official switch is thinking {type: enabled|disabled} (2026-11
+      // 《模型参数参考》); reasoning_effort is silently ignored, so a client's
+      // "off" never took effect. Levels have no wire representation until the
+      // thinking_budget field shape is live-probed — everything non-off maps to
+      // plain enabled (upstream default budget).
+      if (none && canDisable) { body.thinking = { type: "disabled" }; break; }
+      body.thinking = { type: "enabled" };
+      break;
+    }
     case "kiro":
       // Kiro thinking handled via system-tag injection in openai-to-kiro.js; no body field here.
       break;
@@ -407,6 +442,6 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
   // a Claude-format client's own body.thinking.display (read before stripAll) wins.
   const display = typeof body.thinking?.display === "string" ? body.thinking.display : intent?.display;
   stripAll(body);
-  applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat, provider, display);
+  applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat, provider, display, cleanModel);
   return body;
 }

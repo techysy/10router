@@ -130,6 +130,7 @@ export async function PATCH(request) {
     if (
       Object.prototype.hasOwnProperty.call(body, "comboStrategy") ||
       Object.prototype.hasOwnProperty.call(body, "comboStickyRoundRobinLimit") ||
+      Object.prototype.hasOwnProperty.call(body, "comboStickyWindowMinutes") ||
       Object.prototype.hasOwnProperty.call(body, "comboStrategies")
     ) {
       resetComboRotation();
@@ -183,6 +184,86 @@ export async function PATCH(request) {
           .then(({ stopMinimaxCheckin }) => stopMinimaxCheckin())
           .catch((error) => console.warn("[MinimaxCheckin] stop failed:", error.message));
       }
+    }
+
+    // Auto daily check-in for Trae CN connections (ug/checkin_credits)
+    if (Object.prototype.hasOwnProperty.call(body, "traeCheckin")) {
+      if (settings.traeCheckin === true) {
+        import("@/sse/services/traeCheckin.js")
+          .then(({ startTraeCheckin }) => startTraeCheckin())
+          .catch((error) => console.warn("[TraeCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/traeCheckin.js")
+          .then(({ stopTraeCheckin }) => stopTraeCheckin())
+          .catch((error) => console.warn("[TraeCheckin] stop failed:", error.message));
+      }
+    }
+
+    // Auto daily check-in for AutoClaw（智谱澳龙，intl + CN; task-center daily_signin）
+    if (Object.prototype.hasOwnProperty.call(body, "autoclawCheckin")) {
+      if (settings.autoclawCheckin === true) {
+        import("@/sse/services/autoclawCheckin.js")
+          .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
+          .catch((error) => console.warn("[AutoclawCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/autoclawCheckin.js")
+          .then(({ stopAutoclawCheckin }) => stopAutoclawCheckin())
+          .catch((error) => console.warn("[AutoclawCheckin] stop failed:", error.message));
+      }
+    }
+
+    // Auto daily credit claim for Meoo (login-equivalent action + ledger verdict)
+    if (Object.prototype.hasOwnProperty.call(body, "meooCheckin")) {
+      if (settings.meooCheckin === true) {
+        import("@/sse/services/meooCheckin.js")
+          .then(({ startMeooCheckin }) => startMeooCheckin())
+          .catch((error) => console.warn("[MeooCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/meooCheckin.js")
+          .then(({ stopMeooCheckin }) => stopMeooCheckin())
+          .catch((error) => console.warn("[MeooCheckin] stop failed:", error.message));
+      }
+    }
+
+    // Auto daily check-in for Lingxi connections (daily_check_in claim)
+    if (Object.prototype.hasOwnProperty.call(body, "lingxiCheckin")) {
+      if (settings.lingxiCheckin === true) {
+        import("@/sse/services/lingxiCheckin.js")
+          .then(({ startLingxiCheckin }) => startLingxiCheckin())
+          .catch((error) => console.warn("[LingxiCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/lingxiCheckin.js")
+          .then(({ stopLingxiCheckin }) => stopLingxiCheckin())
+          .catch((error) => console.warn("[LingxiCheckin] stop failed:", error.message));
+      }
+    }
+
+    // Croli daily check-in and server-claimable rewards (no generated chat).
+    if (Object.prototype.hasOwnProperty.call(body, "croliCheckin")) {
+      if (settings.croliCheckin === true) {
+        import("@/sse/services/croliCheckin.js")
+          .then(({ startCroliCheckin }) => startCroliCheckin())
+          .catch((error) => console.warn("[CroliCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/croliCheckin.js")
+          .then(({ stopCroliCheckin }) => stopCroliCheckin())
+          .catch((error) => console.warn("[CroliCheckin] stop failed:", error.message));
+      }
+    }
+
+    // Daily-grant midnight reset (每日赠送积分优先 policy). Keyed off the
+    // providerStrategies patch: any change that leaves at least one provider
+    // with dailyGrantFirst=true starts the scheduler, none stops it. An
+    // immediate boot pass rolls back any drain that happened before the toggle
+    // was on.
+    if (Object.prototype.hasOwnProperty.call(body, "providerStrategies")) {
+      const grantOn = Object.values(settings.providerStrategies || {}).some((o) => o?.dailyGrantFirst === true);
+      import("@/sse/services/dailyGrantReset.js")
+        .then(({ startDailyGrantReset, stopDailyGrantReset }) => {
+          if (grantOn) startDailyGrantReset();
+          else stopDailyGrantReset();
+        })
+        .catch((error) => console.warn("[DailyGrantReset] toggle failed:", error.message));
     }
 
     const { password, oidcClientSecret, ...safeSettings } = settings;

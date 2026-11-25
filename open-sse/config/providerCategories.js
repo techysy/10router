@@ -42,11 +42,10 @@ const ROLLING_SUBSCRIPTION_PROVIDERS = new Set([
   "commandcode",
   "glm",
   "glm-cn",
-  "minimax-code",
-  "minimax-code-global",
 ]);
 
 const PURE_BALANCE_PROVIDERS = new Set([
+  "loomy",
   "deepseek",
   "stepfun",
   "stepfun-cn",
@@ -54,6 +53,8 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "anthropic",
   "minimax",
   "minimax-cn",
+  "minimax-code",
+  "minimax-code-global",
   "siliconflow-cn",
   "groq",
   "openrouter",
@@ -71,6 +72,12 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "kimi",
   "azure",
   "step_plan",
+  // 积分/额度为可调度余额的供应商（用户 2026-11-22：Meoo 调度偏好要
+  // 「大额优先/小额优先」）。余额由 extractConnectionBalance 从各自
+  // usage payload 提取并持久化为 quotaBalance，排序消费它。
+  "meoo",
+  "qwenwork",
+  "qwenwork-cn",
 ]);
 
 const GATEWAY_FREE_PROVIDERS = new Set([

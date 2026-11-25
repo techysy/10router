@@ -3,11 +3,16 @@ set -euo pipefail
 
 APP_NAME="${TRIM_APPNAME:-10router}"
 APP_DIR="${TRIM_APPDEST:-/var/apps/${APP_NAME}}"
+# 显式导出：面板进程（ensure_panel 的 nohup node）依赖这些变量；经
+# `sudo bash cmd/main start` 手动调用时 sudo 的 env 清洗会吞掉普通赋值，
+# 面板就落到 fallback 路径（DATA_DIR=~/.10router）读错 pid 文件——2026-11-06
+# 真机实测「面板 running:false」的根源。export 后任何调用方式都成立。
+export APP_NAME APP_DIR
 # 数据目录: 优先 TRIM_PKGVAR (fnOS 注入). 兜底: 从 fnOS home 软链 (/volX/@apphome/<app>) 推导卷,
 # 或从 APP_DIR 推导; 不写死具体卷. (某些 fnOS 部署 APP_DIR=/var/apps/<app> 且无 TRIM_PKGVAR)
 APP_VOL=""
 if [ -n "${TRIM_PKGVAR:-}" ]; then
-    DATA_DIR="${TRIM_PKGVAR}"
+    export DATA_DIR="${TRIM_PKGVAR}"
 else
     if [ -L "${APP_DIR}/home" ]; then
         APP_HOME="$(readlink -f "${APP_DIR}/home")"
@@ -17,9 +22,9 @@ else
         APP_VOL="$(printf '%s' "${APP_DIR}" | sed -n 's#^\(/vol[^/]*\)/.*#\1#p')"
     fi
     if [ -n "${APP_VOL}" ]; then
-        DATA_DIR="${APP_VOL}/@appdata/${APP_NAME}"
+        export DATA_DIR="${APP_VOL}/@appdata/${APP_NAME}"
     else
-        DATA_DIR="${APP_DIR}/var"
+        export DATA_DIR="${APP_DIR}/var"
     fi
 fi
 
@@ -27,9 +32,9 @@ fi
 #   fnOS 传 TRIM_APPDEST=/vol4/@appcenter/10router → server 直接在 ${APP_DIR}/server
 #   旧版/部分版本 TRIM_APPDEST=/var/apps/10router    → server 在 ${APP_DIR}/target/server
 if [ -d "${APP_DIR}/server" ]; then
-    SRC_DIR="${APP_DIR}/server"
+export SRC_DIR="${APP_DIR}/server"
 elif [ -d "${APP_DIR}/target/server" ]; then
-    SRC_DIR="${APP_DIR}/target/server"
+export SRC_DIR="${APP_DIR}/target/server"
 else
     echo "ERROR: server dir not found (tried ${APP_DIR}/server and ${APP_DIR}/target/server)" >&2
     exit 1
@@ -42,21 +47,36 @@ for cand in "/var/apps/nodejs_v24/target/bin/node" "${APP_VOL}/@appcenter/nodejs
   [ -x "$cand" ] && NODE_BIN="$cand" && break
 done
 [ -n "$NODE_BIN" ] || NODE_BIN="$(command -v node || echo /usr/bin/node)"
+export NODE_BIN
 if [ ! -x "$NODE_BIN" ]; then
   echo "ERROR: Node.js runtime not found. Please install the 'nodejs_v24' app from the fnOS App Center." >&2
   exit 1
 fi
 
-PORT="${TRIM_SERVICE_PORT:-20127}"
+export PORT="${TRIM_SERVICE_PORT:-20127}"
 HOSTNAME="0.0.0.0"
 LOG="${DATA_DIR}/10router.log"
 PID_FILE="${DATA_DIR}/10router.pid"
+
+# 管理面板（issue #97）：独立进程，主应用 stop/restart 不影响它 ——
+# 定时自动更新的调度器跑在这里。默认只听 127.0.0.1:20125。
+export PANEL_PORT="${PANEL_PORT:-20125}"
+PANEL_PID_FILE="${DATA_DIR}/panel.pid"
+PANEL_LOG="${DATA_DIR}/panel.log"
 
 start() {
     mkdir -p "${DATA_DIR}"
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
         echo "already running (pid $(cat "${PID_FILE}"))"
+        ensure_panel
         return 0
+    fi
+    # 端口自愈：若端口已被残留孤儿进程占用，清理防 EADDRINUSE 及 fnOS appcenter 11000 报错
+    local port_pids
+    port_pids="$(fuser "${PORT}/tcp" 2>/dev/null || true)"
+    if [ -n "${port_pids}" ]; then
+        fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
+        sleep 1
     fi
     # 清理 SQLite WAL/SHM 残留（旧版/跨用户安装后属主可能错误，导致 node:sqlite 无法打开）
     rm -f "${DATA_DIR}/db/data.sqlite-shm" "${DATA_DIR}/db/data.sqlite-wal" 2>/dev/null || true
@@ -100,6 +120,7 @@ start() {
     for i in $(seq 1 60); do
         if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
             echo "started (pid $(cat "${PID_FILE}"))"
+            ensure_panel
             return 0
         fi
         sleep 1
@@ -108,18 +129,48 @@ start() {
     return 0
 }
 
+ensure_panel() {
+    # 主应用健康后再拉起面板；面板挂了不影响主应用，主应用重启也不打断面板调度。
+    # 幂等：面板已活直接返回 —— start 的「already running」早退与正常启动分支都走这里。
+    if [ -f "${PANEL_PID_FILE}" ] && kill -0 "$(cat "${PANEL_PID_FILE}")" 2>/dev/null; then
+        return 0
+    fi
+    # 面板是 fpk cmd/ 的一部分，不随 server 产物热覆盖而变化 —— 用本脚本目录里的副本。
+    # dashboard.js 需要的 env（APP_DIR/DATA_DIR/SRC_DIR/MAIN_PORT）脚本顶部已赋值，直接继承。
+    ( umask 077; nohup "${NODE_BIN}" "${APP_DIR}/cmd/dashboard.js" >> "${PANEL_LOG}" 2>&1 & echo $! > "${PANEL_PID_FILE}" )
+}
+
+stop_panel() {
+    if [ -f "${PANEL_PID_FILE}" ]; then
+        kill "$(cat "${PANEL_PID_FILE}")" 2>/dev/null || true
+        rm -f "${PANEL_PID_FILE}"
+    fi
+}
+
 stop() {
     if [ -f "${PID_FILE}" ]; then
         kill "$(cat "${PID_FILE}")" 2>/dev/null || true
         rm -f "${PID_FILE}"
     fi
-    # 兜底：杀掉残留的 next-server 进程（仅限本应用目录）
+    # 彻底释放业务端口：next-server 子进程的命令行可能不包含 custom-server.js
+    fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
     pkill -f "${SRC_DIR}/custom-server.js" 2>/dev/null || true
+    # 注意：这里刻意不杀管理面板（panel.pid）——面板持有定时自动更新的调度器，
+    # 且更新流程自身会调用 `cmd/main restart`；若 restart 连带杀面板，编排
+    # （含失败回滚）会在半途死亡。面板随应用卸载时才清理（见 cmd/uninstall_init）。
     echo "stopped"
 }
 
 status() {
     if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" 2>/dev/null; then
+        echo "running"
+        return 0
+    fi
+    # 孤儿进程自愈：如果 pid 文件丢失但端口 20127 确实正在被当前应用的 node 监听
+    local port_pid
+    port_pid="$(fuser "${PORT}/tcp" 2>/dev/null | awk '{print $1}' || true)"
+    if [ -n "${port_pid}" ]; then
+        echo "${port_pid}" > "${PID_FILE}" 2>/dev/null || true
         echo "running"
         return 0
     fi

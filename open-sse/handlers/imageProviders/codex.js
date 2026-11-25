@@ -9,7 +9,8 @@ const CODEX_USER_AGENT = `codex_cli_rs/${CODEX_CLI_VERSION}`;
 const CODEX_ORIGINATOR = "codex_cli_rs";
 const CODEX_MODEL_SUFFIX = "-image";
 const CODEX_REF_DETAIL = "high";
-const CODEX_IMAGES_MAIN_MODEL = "gpt-5.6-sol";
+// Only drives the image_generation tool call; any chat model on the plan works as host.
+const CODEX_IMAGES_MAIN_MODEL = "gpt-6-sol";
 const CODEX_TOOL_IMAGE_MODELS = new Set([
   "gpt-image-1.5",
   "gpt-image-2",

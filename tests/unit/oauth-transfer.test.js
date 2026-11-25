@@ -349,6 +349,22 @@ describe("transfer buttons placement — single-auth OAuth providers too", () =>
     ).toHaveLength(2);
   });
 
+  it("supportsTransfer gate covers webCookie / apikey / pure-oauth providers (2026-11-17 普查)", () => {
+    // 2026-11-17 全局普查:transfer 端点与数据层 provider 无关(export 取
+    // accessToken || apiKey,import 按 authType apikey/cookie 落回 apiKey)。
+    // 旧 UI 判定只认 oauth+apikey 双 auth,漏了三类可迁移供应商。
+    // webCookie:凭据在 apiKey(cookie 罐)
+    expect(page).toContain("!!WEB_COOKIE_PROVIDERS[providerId]");
+    // apikey 型 / freeTier+apikey(deepai / gemini-decision)
+    expect(page).toContain('!!FREE_TIER_PROVIDERS[providerId] && authModes.includes("apikey")');
+    // 纯 OAuth 无 apikey 档(trae / trae-cn / mimo-desktop / minimax-code*)——
+    // isOAuth 分支本身覆盖,这里钉 gate 是三条件并集
+    expect(page).toContain("const supportsTransfer = isOAuth || supportsApiKeyAuth");
+    // helper gate 已换成 supportsTransfer(不再直接判 isOAuth&&apikey)
+    const def = page.match(/const renderOAuthTransferButtons[\s\S]{0,160}/)?.[0] || "";
+    expect(def).toContain("supportsTransfer");
+  });
+
   it("mimo-desktop really is single-auth (the arm the fix targets)", () => {
     const registry = readFileSync(
       new URL("../../open-sse/providers/registry/mimo-desktop.js", import.meta.url),
@@ -508,5 +524,45 @@ describe("accountTransfer: Qoder web-session probe at import (issue #44)", () =>
     expect(res.failed).toBe(0);
     expect(res.webSessions).toMatchObject({ checked: 1, ok: 0, failed: 1 });
     expect(res.webSessions.failures[0].reason).toBe("proxy unreachable");
+  });
+
+  // Meoo control-key lines (CreditDaddy sync): the credential rides in
+  // providerSpecificData.meooControlKey — no OAuth token to demand. Same
+  // shape the paste-key import writes, so CD-pushed and pasted rows are
+  // identical to every consumer.
+  it("meoo control-key line imports without any token", async () => {
+    const res = await mod.importAccounts("meoo", [
+      {
+        name: "余师洋",
+        authType: "oauth",
+        providerSpecificData: { meooControlKey: "meoo_ak_cdline_1234567890", creditDaddySync: true },
+      },
+    ]);
+    expect(res.imported).toBe(1);
+    expect(res.failed).toBe(0);
+    const { getProviderConnections } = await import("@/lib/db/repos/connectionsRepo.js");
+    const rows = await getProviderConnections({ provider: "meoo" });
+    const row = rows.find((c) => c.providerSpecificData?.meooControlKey === "meoo_ak_cdline_1234567890");
+    expect(row).toBeTruthy();
+    expect(row.authType).toBe("oauth");
+    expect(row.accessToken).toBeFalsy();
+    expect(row.providerSpecificData.creditDaddySync).toBe(true);
+  });
+
+  it("meoo control-key line re-imports dedup onto the same row", async () => {
+    const res = await mod.importAccounts("meoo", [
+      {
+        name: "余师洋 renamed",
+        providerSpecificData: { meooControlKey: "meoo_ak_cdline_1234567890", creditDaddySync: true },
+      },
+    ]);
+    expect(res.updated).toBe(1);
+    expect(res.imported).toBe(0);
+  });
+
+  it("meoo without any credential still fails loudly", async () => {
+    const res = await mod.importAccounts("meoo", [{ name: "No key" }]);
+    expect(res.failed).toBe(1);
+    expect(res.results[0].error).toContain("Missing accessToken");
   });
 });

@@ -35,6 +35,9 @@ export function mergeQoderLivePricing(staticModels, liveModels) {
         ? (typeof sm.rateMultiplier === "number" ? sm.rateMultiplier : liveMultiplier)
         : (liveMultiplier ?? sm.rateMultiplier),
       promoFreeUntil: sm.promoFreeUntil,
+      // 促销原价：live 目录带 original_price_factor 时透传，0× 徽章的 tooltip
+      // 用它显示「原价 x」——限免抹掉的只是现价，不是价格这个事实。
+      originalRateMultiplier: live.originalRateMultiplier ?? sm.originalRateMultiplier ?? null,
       promotion: live.promotion ?? sm.promotion ?? null,
     };
   });

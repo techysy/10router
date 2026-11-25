@@ -50,6 +50,7 @@ const PROVIDER_ID_TO_ALIAS = {
   kimchi: "kimchi",
   "grok-cli": "grok-cli",
   trae: "trae",
+  "trae-cn": "trae-cn",
   windsurf: "windsurf",
   zed: "zed",
   opencode: "oc",

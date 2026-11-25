@@ -111,9 +111,12 @@ export function generateMachineId() {
  * @param {string} [creds.name]            Display name (optional).
  * @param {string} [creds.email]           Email (optional, can be empty).
  * @param {string} [creds.machineId]       Persisted machine UUID.
+ * @param {object} [site]                  Optional per-site fingerprint
+ *   overrides for sibling products that share the COSY scheme (QwenWork):
+ *   { cosyVersion, clientType, extraHeaders }. Defaults keep Qoder's values.
  * @returns {Record<string, string>} Header map ready to merge onto fetch().
  */
-export function buildCosyHeaders(body, requestUrl, creds) {
+export function buildCosyHeaders(body, requestUrl, creds, site = null) {
   if (!creds?.userId) throw new Error("cosy: user id is empty");
   if (!creds?.authToken) throw new Error("cosy: auth token is empty");
 
@@ -134,11 +137,12 @@ export function buildCosyHeaders(body, requestUrl, creds) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const requestId = uuidv4();
 
+  const cosyVersion = site?.cosyVersion || QODER_IDE_VERSION;
   const payloadJson = JSON.stringify({
     version: "v1",
     requestId,
     info,
-    cosyVersion: QODER_IDE_VERSION,
+    cosyVersion,
     ideVersion: "",
   });
   const payloadB64 = Buffer.from(payloadJson, "utf8").toString("base64");
@@ -156,12 +160,12 @@ export function buildCosyHeaders(body, requestUrl, creds) {
     "Cosy-Key": cosyKey,
     "Cosy-User": creds.userId,
     "Cosy-Date": timestamp,
-    "Cosy-Version": QODER_IDE_VERSION,
+    "Cosy-Version": cosyVersion,
     "Cosy-Machineid": machineId,
     "Cosy-Machinetoken": machineId,
     "Cosy-Machinetype": QODER_MACHINE_TYPE,
     "Cosy-Machineos": QODER_MACHINE_OS,
-    "Cosy-Clienttype": QODER_CLIENT_TYPE,
+    "Cosy-Clienttype": site?.clientType || QODER_CLIENT_TYPE,
     "Cosy-Clientip": "127.0.0.1",
     "Cosy-Bodyhash": bodyHash,
     "Cosy-Bodylength": bodyLength,
@@ -171,5 +175,6 @@ export function buildCosyHeaders(body, requestUrl, creds) {
     "Cosy-Organization-Tags": "",
     "Login-Version": QODER_LOGIN_VERSION,
     "X-Request-Id": uuidv4(),
+    ...(site?.extraHeaders || {}),
   };
 }

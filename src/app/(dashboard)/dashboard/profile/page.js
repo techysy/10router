@@ -14,6 +14,8 @@ import { isRegionalCurrencyEnabled } from "@/shared/utils/currency";
 import { isCompactUnitsEnabled } from "@/shared/utils/compactNumber";
 import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
+import { MODE_META, resolveThemeMeta } from "@/shared/components/ThemeToggle";
+import ThemePickerPanel from "@/shared/components/ThemePicker";
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -25,11 +27,13 @@ function getLocaleFromCookie() {
 }
 
 export default function ProfilePage() {
-  const { theme, setTheme, isDark } = useTheme();
+  const { theme, setTheme, isDark, systemFamily } = useTheme();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
   const [regional, setRegional] = useState(true);
   const [compactUnits, setCompactUnits] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const themeAnchorRef = useRef(null);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   // Turning the login check off is a one-click way to publish every provider and
   // credential to anyone who can route to this port (issue #9, item 4), so it
@@ -379,8 +383,9 @@ export default function ProfilePage() {
   };
 
   const updateComboStickyLimit = async (limit) => {
+    // 0 = no per-request cap (time-window sticky governs switching alone)
     const numLimit = parseInt(limit);
-    if (isNaN(numLimit) || numLimit < 1) return;
+    if (isNaN(numLimit) || numLimit < 0) return;
 
     try {
       const res = await fetch("/api/settings", {
@@ -393,6 +398,24 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error("Failed to update combo sticky limit:", err);
+    }
+  };
+
+  const updateComboStickyWindow = async (minutes) => {
+    const num = parseFloat(minutes);
+    if (isNaN(num) || num <= 0) return;
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comboStickyWindowMinutes: num }),
+      });
+      if (res.ok) {
+        setSettings(prev => ({ ...prev, comboStickyWindowMinutes: num }));
+      }
+    } catch (err) {
+      console.error("Failed to update combo sticky window:", err);
     }
   };
 
@@ -1058,25 +1081,26 @@ export default function ProfilePage() {
                 <p className="text-sm text-text-muted">Running on your machine</p>
               </div>
             </div>
-            <div className="inline-flex p-1 rounded-lg bg-black/5 dark:bg-white/5 w-full sm:w-auto">
-              {["light", "dark", "system"].map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTheme(option)}
-                  className={cn(
-                    "flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md font-medium transition-all flex-1 sm:flex-initial",
-                    theme === option
-                      ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-                      : "text-text-muted hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {option === "light" ? "light_mode" : option === "dark" ? "dark_mode" : "contrast"}
+            <div className="relative w-full sm:w-auto" data-theme-picker-root>
+              {/* 主题多了（8 + system），行内循环按钮放不下也点不过来 ——
+                  与顶栏主题按钮共用 ThemePicker 面板，锚定本按钮下沿弹出。 */}
+              <button
+                ref={themeAnchorRef}
+                type="button"
+                onClick={() => setThemePickerOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={themePickerOpen}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface hover:border-brand-500/50 hover:bg-surface-2 transition-all text-sm w-full sm:w-auto justify-between sm:justify-start"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-text-muted">
+                    {resolveThemeMeta(theme, systemFamily, isDark).icon}
                   </span>
-                  <span className="capitalize text-xs sm:text-sm">{option}</span>
-                </button>
-              ))}
+                  <span className="font-medium">{translate(resolveThemeMeta(theme, systemFamily, isDark).label)}</span>
+                </span>
+                <span className="material-symbols-outlined text-[18px] text-text-muted">palette</span>
+              </button>
+              <ThemePickerPanel open={themePickerOpen} onClose={() => setThemePickerOpen(false)} anchorRef={themeAnchorRef} />
             </div>
           </div>
           <div className="flex flex-col gap-3 pt-4 border-t border-border">
@@ -1873,20 +1897,41 @@ export default function ProfilePage() {
               />
             </div>
 
-            {/* Combo Sticky Round Robin Limit */}
+            {/* Combo Sticky Window (time-window sticky, primary) */}
+            {settings.comboStrategy === "round-robin" && (
+              <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                <div>
+                  <p className="font-medium">Combo Sticky Window</p>
+                  <p className="text-sm text-text-muted">
+                    Minutes a combo keeps answering with the same model before rotating (idle time between requests)
+                  </p>
+                </div>
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={settings.comboStickyWindowMinutes ?? 5}
+                  onChange={(e) => updateComboStickyWindow(e.target.value)}
+                  disabled={loading}
+                  className="w-20 text-center"
+                />
+              </div>
+            )}
+
+            {/* Combo Sticky Round Robin Limit (per-request cap, 0 = window only) */}
             {settings.comboStrategy === "round-robin" && (
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div>
                   <p className="font-medium">Combo Sticky Limit</p>
                   <p className="text-sm text-text-muted">
-                    Calls per combo model before switching
+                    Max consecutive calls per combo model (0 = no cap, window only)
                   </p>
                 </div>
                 <Input
                   type="number"
-                  min="1"
+                  min="0"
                   max="100"
-                  value={settings.comboStickyRoundRobinLimit || 1}
+                  value={settings.comboStickyRoundRobinLimit ?? 0}
                   onChange={(e) => updateComboStickyLimit(e.target.value)}
                   disabled={loading}
                   className="w-20 text-center"
@@ -1899,7 +1944,7 @@ export default function ProfilePage() {
                 ? translate(`Currently distributing requests across all available accounts with ${settings.stickyRoundRobinLimit || 3} calls per account.`)
                 : translate("Currently using accounts in priority order (Fill First).")}
               {settings.comboStrategy === "round-robin"
-                ? ` Combos rotate after ${settings.comboStickyRoundRobinLimit || 1} call${(settings.comboStickyRoundRobinLimit || 1) === 1 ? "" : "s"} per model.`
+                ? ` Combos keep one model while active (idle window: ${settings.comboStickyWindowMinutes ?? 5} min), then rotate to the next.`
                 : " Combos always start with their first model."}
               {" "}
               {translate("Note: Per-provider strategies (such as Earliest Expiry First or specific fallback/round-robin) take precedence over these global defaults.")}
@@ -2063,6 +2108,7 @@ export default function ProfilePage() {
           setLocale(next);
         }}
       />
+
       <ConfirmModal
         isOpen={loginOffConfirmOpen}
         onClose={() => setLoginOffConfirmOpen(false)}

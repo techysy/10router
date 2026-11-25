@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { stripUnsupportedParams } from "../../open-sse/translator/concerns/paramSupport.js";
+import { DefaultExecutor } from "../../open-sse/executors/default.js";
 
 describe("stripUnsupportedParams", () => {
   it("flattens Cloudflare AI OpenAI content-part arrays", () => {
@@ -135,5 +136,28 @@ describe("stripUnsupportedParams", () => {
       stripUnsupportedParams(provider, model, body);
       expect(body.response_format).toBe(response_format);
     }
+  });
+
+  it("normalizes NVIDIA reasoning aliases before forwarding (NIM duplicate-field 400)", () => {
+    const body = {
+      messages: [
+        { role: "assistant", content: "", reasoning: "alias", reasoning_content: "canonical" },
+        { role: "assistant", content: "", reasoning: "alias only" },
+        { role: "assistant", content: "", reasoning_content: "canonical only" },
+      ],
+    };
+
+    const transformed = new DefaultExecutor("nvidia").transformRequest(
+      "deepseek-ai/deepseek-v4-pro",
+      body,
+      true,
+      {},
+    );
+
+    expect(transformed.messages).toEqual([
+      { role: "assistant", content: "", reasoning_content: "canonical" },
+      { role: "assistant", content: "", reasoning_content: "alias only" },
+      { role: "assistant", content: "", reasoning_content: "canonical only" },
+    ]);
   });
 });

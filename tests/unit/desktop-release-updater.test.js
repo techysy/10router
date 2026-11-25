@@ -71,6 +71,13 @@ describe("isNewerVersion", () => {
         expect(isNewerVersion("1.3", "1.2.9")).toBe(true);
         expect(isNewerVersion("1.2", "1.2.0")).toBe(false);
     });
+
+    it("recognizes official release is newer than a test build (e.g. 1.6.5 > 1.6.2-test.45, 1.6.2 > 1.6.2-test.45)", () => {
+        expect(isNewerVersion("1.6.5", "1.6.2-test.45")).toBe(true);
+        expect(isNewerVersion("1.6.2", "1.6.2-test.45")).toBe(true);
+        expect(isNewerVersion("1.6.2-test.45", "1.6.5")).toBe(false);
+        expect(isNewerVersion("1.6.2-test.46", "1.6.2-test.45")).toBe(true);
+    });
 });
 
 describe("findSetupAsset / pickInstaller", () => {

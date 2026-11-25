@@ -35,6 +35,22 @@ export const GEMINI_CONFIG = { ...GOOGLE_OAUTH_CLIENT, ...PROVIDER_OAUTH["gemini
 // of attempting to silently rotate.
 export const QODER_CONFIG = { ...PROVIDER_OAUTH["qoder"] };
 
+// QwenWork （千问办公） OAuth Configuration (device-token flow, Qoder family;
+// the provider files read their site constants from shared/qwenwork).
+export const QWENWORK_CONFIG = { ...PROVIDER_OAUTH["qwenwork"] };
+export const QWENWORK_CN_CONFIG = { ...PROVIDER_OAUTH["qwenwork-cn"] };
+
+// Meoo （秒悟） OAuth Configuration (Authorization Code Flow with PKCE).
+// Public client from the official CLI (no secret); scope "cli.compat".
+// Chat traffic never uses these tokens — the project service AK resolved
+// at login is what the gateway accepts (see providers/meoo.js).
+export const MEOO_CONFIG = { ...PROVIDER_OAUTH["meoo"] };
+
+// Croli（croli.net）— Clerk OAuth application（public client，PKCE S256，无 secret）。
+// issuer clerk.croli.net；credits 池与模型网关在不同域（ds.croli.net/credits 与
+// ds.croli.net/v1），sk 领取在 api.croli.net —— 由 registry 条目的 oauth 块携带。
+export const CROLI_CONFIG = { ...PROVIDER_OAUTH["croli"] };
+
 // iFlow OAuth Configuration (Authorization Code)
 export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };
 
@@ -124,6 +140,18 @@ export const KIMCHI_CONFIG = { ...PROVIDER_OAUTH["kimchi"] };
 // Endpoint: cli-chat-proxy.grok.com — same client_id as xai, different flow + scopes
 export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 
+// Nous Portal OAuth Configuration (Device Code Flow, RFC 8628)
+// Public Hermes client (client_id "hermes-cli", scope "inference:invoke");
+// refresh token travels in the x-nous-refresh-token header — see
+// open-sse/services/tokenRefresh refreshNousToken.
+export const NOUS_CONFIG = { ...PROVIDER_OAUTH["nous"] };
+
+// Junie (JetBrains) OAuth Configuration (Authorization Code + PKCE)
+// Public CLI client (client_id "junie-cli", no secret); the inference
+// credential is the id_token, refresh tokens rotate single-use — see
+// src/lib/oauth/providers/junie.js and tokenRefresh refreshJunieToken.
+export const JUNIE_CONFIG = { ...PROVIDER_OAUTH["junie"] };
+
 // Trae (ByteDance marscode) OAuth — authorization_code flow with local callback.
 //   1) POST GetLoginGuidance {loginTraceID} → {Result.LoginHost}
 //   2) Browser opens ${loginHost}/authorization?client_id=...&login_trace_id=...&auth_callback_url=${cb}
@@ -172,11 +200,34 @@ export const TRAE_CONFIG = {
     "https://api.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
     "https://www.trae.ai/cloudide/api/v3/trae/GetLoginGuidance",
   ],
+  // 国际账号面（cloudide 族：旧 ExchangeToken 刷新 + GetUserInfo）host 已换代
+  // （#99 情报一/二）：api.trae.ai 的 pay/ent 已 404（trae2api-hub 实测 2026-10-19），
+  // USTTP（US）账号只认 grow-normal.traeapi.us。顺序 = 尝试顺序，新 host 优先，
+  // 老 marscode/trae.ai 保留兜底（存量老账号仍走它们）。
   apiOrigins: [
+    "https://grow-normal.trae.ai",
+    "https://grow-normal.traeapi.us",
     "https://api.marscode.com",
     "https://api.trae.ai",
     "https://www.trae.ai",
     "https://www.marscode.com",
+  ],
+  // ── 新版授权（AuthCode + PKCE，muskke/trae-api-proxy v0.5 考古）──
+  // 官方客户端升级为 PKCE 授权码流：authorize URL 带 code_challenge（S256），
+  // 回调回 AuthCode（或 authCodeInfo JSON），用 v3 换票端点 + DeviceInfo 换
+  // access/refresh。旧 refreshToken 回调 + /cloudide/.../ExchangeToken 仍活着，
+  // 作为兼容路径保留（社区至今用它做 refresh）。
+  authCodeExchangePath: "/trae/api/v3/oauth/ExchangeToken",
+  // v3 AuthCode 换票 host（muskke authCodeAPIHosts）。USTTP userTag 的账号
+  // 只认 grow-normal.traeapi.us，其余国际账号走 growsg/grow-normal.trae.ai。
+  authCodeOrigins: [
+    "https://growsg-normal.trae.ai",
+    "https://grow-normal.trae.ai",
+    "https://grow-normal.traeapi.us",
+  ],
+  cnAuthCodeOrigins: [
+    "https://api.trae.cn",
+    "https://api.trae.com.cn",
   ],
   // ── CN (trae.cn) ──────────────────────────────────────────────────────────
   cnLoginGuidanceUrls: [
@@ -191,7 +242,8 @@ export const TRAE_CONFIG = {
   ],
   // Hosts that only ever appear on the intl side — used to tell the two apart
   // when all we have is a pasted callback / an already-stored loginHost.
-  intlHostSuffixes: ["trae.ai", "marscode.com"],
+  // traeapi.us = 国际站新一代生成域名族（USTTP 账号面，#99）。
+  intlHostSuffixes: ["trae.ai", "marscode.com", "traeapi.us"],
   cnHostSuffixes: ["trae.cn", "trae.com.cn", "marscode.cn"],
   // Done-card web console, one per ecosystem (accounts don't cross over).
   consoleUrl: "https://www.trae.ai/settings",
@@ -199,9 +251,15 @@ export const TRAE_CONFIG = {
   exchangeTokenPath: "/cloudide/api/v3/trae/oauth/ExchangeToken",
   getUserInfoPath: "/cloudide/api/v3/trae/GetUserInfo",
   authorizationPath: "/authorization",
-  callbackPath: "/callback",
-  minAppVersion: "3.5.54",
-  defaultAppVersion: "3.5.54",
+  // 回调路径必须是 /authorize——官方客户端用它，且授权页（CN+intl 实测 2026-11-08，
+  // #99 用户报障）在渲染登录 UI 前用 /^http:\/\/127\.0\.0\.1:(\d+)\/authorize$/ 校验
+  // auth_callback_url，路径不是 /authorize 时直接进「登录失败/网络错误」死页，不发任何
+  // 换票请求。此前 /callback 在本地代理侧完全可用，故只在这个站上翻车。
+  callbackPath: "/authorize",
+  // 客户端版本按站点对齐真机（2026-11-07 本机 product.json 实测：CN 3.4.15 / intl 3.6.4）。
+  // 此前单值 3.5.54 在 CN 端是不存在的版本——授权页「网络错误」的头号嫌疑。
+  appVersions: { cn: "3.4.15", intl: "3.6.4" },
+  defaultAppVersion: "3.6.4",
   defaultAppType: "stable",
   defaultPluginVersion: "local",
   // service machine id is derived at runtime; device_id "0" is the stable default

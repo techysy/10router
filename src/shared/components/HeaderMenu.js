@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { useTheme } from "@/shared/hooks/useTheme";
 import ChangelogModal from "./ChangelogModal";
 import { ConfirmModal } from "./Modal";
 import { translate } from "@/i18n/runtime";
@@ -52,7 +51,6 @@ export default function HeaderMenu({ onLogout }) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const menuRef = useRef(null);
 
   const handleShutdown = async () => {
@@ -92,17 +90,28 @@ export default function HeaderMenu({ onLogout }) {
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 top-full mt-2 w-60 bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
+          <div className="absolute right-0 top-full mt-2 w-60 bg-surface theme-card border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
             <MenuItem
               icon="history"
               label={translate("Change Log")}
               onClick={() => { close(); setChangelogOpen(true); }}
             />
+            {/* 项目主页 / 提交 Issue（2026-11-12 对齐 CD 聚合菜单语义）：
+                外链走 anchor（中键/复制链接可用，fnOS webview 当普通链接处理）。 */}
             <MenuItem
-              icon={theme === "system" ? "routine" : theme === "light" ? "light_mode" : "dark_mode"}
-              label={translate(theme === "system" ? "Theme: system" : theme === "light" ? "Theme: light" : "Theme: dark")}
-              onClick={() => { toggleTheme(); close(); }}
+              icon="home"
+              label={translate("Project Homepage")}
+              href="https://github.com/techysy/10router"
+              onClick={close}
             />
+            <MenuItem
+              icon="flag"
+              label={translate("Submit Issue")}
+              href="https://github.com/techysy/10router/issues"
+              onClick={close}
+            />
+            {/* 主题切换不在这里：入口统一到左侧相邻的主题按钮（ThemeToggle，
+                面板锚定按钮弹出），居中弹窗版已废弃。 */}
             <MenuItem
               icon="power_settings_new"
               label={translate("Shutdown")}

@@ -4,8 +4,41 @@ import { createPortal } from "react-dom";
 import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
 import { isNightFreeHour } from "@/shared/utils/nightFree";
-import { offPeakStatus, promotionText } from "@/shared/utils/offPeak";
+import { offPeakStatus, promotionBadgeNote, promotionText } from "@/shared/utils/offPeak";
 import { translate, getCurrentLocale } from "@/i18n/runtime";
+import { cn } from "@/shared/utils/cn";
+
+// Meoo 的价格倾向徽章（2026-11-15 官网同款形态）：三颗点，紫点数
+// 0→3 对应 便宜 → 适中 → 较贵 → 超贵；官方未标注的模型不带此字段。
+const PRICE_TIER_BADGES = {
+  cheap: { label: "Cheap", fill: 0 },
+  moderate: { label: "Moderate", fill: 1 },
+  pricey: { label: "Pricey", fill: 2 },
+  premium: { label: "Premium", fill: 3 },
+};
+
+function PriceTierBadge({ tier }) {
+  const spec = PRICE_TIER_BADGES[tier];
+  if (!spec) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1" title={translate(spec.label)}>
+      <span className="flex items-center gap-[2px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={cn("size-[5px] rounded-full", i < spec.fill ? "bg-primary" : "bg-text-muted/25")}
+            aria-hidden="true"
+          />
+        ))}
+      </span>
+      <span className="whitespace-nowrap text-[9px] text-text-muted">{translate(spec.label)}</span>
+    </span>
+  );
+}
+
+PriceTierBadge.propTypes = {
+  tier: PropTypes.oneOf(["cheap", "moderate", "pricey", "premium"]),
+};
 
 // Local hour, re-evaluated every minute so a row crosses the night boundary
 // live without a remount.
@@ -313,6 +346,13 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
   // window opens, so the number above is already the discounted one — this
   // badge only announces WHY it dropped, and flips green inside the window.
   const offPeak = useOffPeakClock(model.promotion);
+  // Live-catalog promotions ride the same multiplier badge (QwenWork CN 标准
+  // 「会员限免」→ 0x free,「限时1折」→ discounted Nx; Qoder off-peak free
+  // windows → 0x). The upstream's own badge text is the authoritative wording
+  // for WHY the price is what it is — a bare `free` reads as a lasting
+  // property, which a 会员限免 row is not (2026-11-23 user report). "" when
+  // there is no promotion → the tooltip stays exactly as it was.
+  const promoNote = promotionBadgeNote(model.promotion, getCurrentLocale());
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -338,6 +378,32 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <code className="max-w-[72vw] truncate rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px]">{displayModel}</code>
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
+            <PriceTierBadge tier={model.priceTier} />
+            {/* DeepAI Code models carry a per-request Theos price (registry /
+                resolver `theosPerRequest`): 0 = the unmetered free tier,
+                N = spends N Theos from the account's daily grant per
+                request. Same badge posture as paidTier/subPriority below. */}
+            {typeof model.theosPerRequest === "number" && (
+              <Tooltip
+                text={
+                  model.theosPerRequest === 0
+                    ? translate("Unmetered, does not spend Theos")
+                    : `${translate("Quota")}: ${model.theosPerRequest} Theos — ` +
+                      translate("charged against the daily Theos grant")
+                }
+              >
+                <Badge
+                  size="xs"
+                  variant={model.theosPerRequest === 0 ? "success" : "warning"}
+                  icon={model.theosPerRequest === 0 ? "redeem" : "toll"}
+                  className="shrink-0 cursor-help leading-none"
+                >
+                  {model.theosPerRequest === 0
+                    ? translate("Free")
+                    : `${translate("Quota")} ${model.theosPerRequest}`}
+                </Badge>
+              </Tooltip>
+            )}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
             {/* Paid-tier model (registry `paidTier`): the credit page lists it
                 behind a subscription lock, so whether it answers depends on the
@@ -383,9 +449,29 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                     ? `${translate("Night-free window")} (23:00–08:00) — ${translate("rides the free quota")}`
                     : promoFree
                     ? translate("Credit multiplier") + `: ${rateMultiplier}x — ` + translate("promo free until") + ` ${formatPromoEnd(model.promoFreeUntil)}`
+                      // `promoFreeNote` 承载客户端卡片上的额度口径（例如「每日赠送免费额度」
+                      // ——限免不是无限量，用完后仍按原价计费）。没有这段文字时，用户只看到
+                      // free，会以为整段时间随便用。
+                      + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
                     : displayMultiplier === 0
                     ? translate("Credit multiplier") + ": 0x — " + translate("rides the free quota")
+                      // 0× 多为限免（QoDuck 类）：tooltip 保留原价与额度口径，
+                      // 不然用户只看到 free，会以为整段时间随便用。
+                      + (typeof model.originalRateMultiplier === "number" && model.originalRateMultiplier > 0
+                        ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x`
+                        : "")
+                      + (model.promoFreeNote ? ` (${model.promoFreeNote})` : "")
+                      // 上游促销的官方文案（QwenWork CN「会员限免」等）说明
+                      // 这次免费从哪来——会员结余，不是长期免费额度。
+                      + (promoNote ? ` (${promoNote})` : "")
                     : translate("Credit multiplier") + `: ${displayMultiplier}x`
+                      // `discountNote` 承载「夜间折扣/错峰使用」这类**立减型**折扣的
+                      // 时段规则。它们不是免费窗口（nightFree 徽章会亮 free 夸大），
+                      // 所以只作悬停说明，徽章仍显示原价倍率。
+                      + (model.discountNote ? ` — ${model.discountNote}` : "")
+                      // 折扣型促销同理（「限时1折」）：官方文案放进 tooltip，
+                      // 徽章仍显示真实倍率。
+                      + (promoNote ? ` (${promoNote})` : "")
                 }
               >
                 <Badge
@@ -491,10 +577,16 @@ ModelRow.propTypes = {
   model: PropTypes.shape({
     id: PropTypes.string.isRequired,
     rateMultiplier: PropTypes.number,
+    // 促销前的原价倍率（live 目录 original_price_factor），0× 徽章 tooltip 显示用。
+    originalRateMultiplier: PropTypes.number,
     // Listed behind a subscription lock on the provider's credit page.
     paidTier: PropTypes.bool,
     // Tagged "订阅优先" on the credit page: queued ahead for subscribers.
     subPriority: PropTypes.bool,
+    // 限时免费的额度口径说明（客户端原文），随 tooltip 展示。
+    promoFreeNote: PropTypes.string,
+    // 「夜间折扣/错峰使用」这类立减型折扣的时段规则（客户端原文）。
+    discountNote: PropTypes.string,
     // Server-published off-peak window (Qoder catalog `promotion`).
     promotion: PropTypes.object,
     nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),

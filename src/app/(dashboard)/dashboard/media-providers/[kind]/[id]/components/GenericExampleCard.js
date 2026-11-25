@@ -5,6 +5,7 @@ import { Card } from "@/shared/components";
 import { MEDIA_PROVIDER_KINDS, getProviderAlias, resolveProviderId } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { cn } from "@/shared/utils/cn";
 import { Row, KIND_EXAMPLE_CONFIG } from "./exampleShared";
 
 const CLOUDFLARE_TEST_IMAGE_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog.png";
@@ -219,19 +220,26 @@ export function GenericExampleCard({ providerId, kind }) {
     }
   };
 
-  // Mask large b64_json strings in JSON view to keep it readable
+  // Mask large b64_json strings in JSON view to keep it readable. Also masks any
+  // data: URI (music rides its base64 MP3 inside `url`, not `b64_json` — an
+  // unmasked 3MB wall of base64 froze the response box).
   const maskB64 = (obj) => {
     if (!obj || typeof obj !== "object") return obj;
     if (Array.isArray(obj)) return obj.map(maskB64);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
-      out[k] = (k === "b64_json" && typeof v === "string" && v.length > 100)
+      out[k] = (typeof v === "string" && v.length > 100 && (k === "b64_json" || v.startsWith("data:")))
         ? `<${v.length} chars base64>`
         : maskB64(v);
     }
     return out;
   };
   const resultJson = result ? JSON.stringify(maskB64(result.data), null, 2) : "";
+  // Music playback: first audio data URI of the response (real value, not the masked copy)
+  const musicTracks = kind === "music"
+    ? (Array.isArray(result?.data?.data) ? result.data.data.filter((t) => typeof t?.url === "string" && t.url.startsWith("data:audio/")) : [])
+    : [];
+  const musicContent = result?.data?.content || null;
 
   return (
     <Card>
@@ -533,6 +541,34 @@ export function GenericExampleCard({ providerId, kind }) {
         {/* Error */}
         {error && <p className="text-xs text-red-500 break-words">{error}</p>}
 
+        {/* Music playback — ABOVE the JSON dump: the player is the point, and the
+            masked JSON is reference material. Download saves the data URI as .mp3. */}
+        {kind === "music" && musicTracks.length > 0 && (
+          <div className="space-y-3 rounded-lg border border-border bg-sidebar px-3 py-3">
+            {musicTracks.map((track, i) => (
+              <div key={i} className="space-y-1.5">
+                <audio controls src={track.url} className="w-full" />
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-text-muted">
+                    {track.format?.toUpperCase() || "AUDIO"} · track {i + 1}/{musicTracks.length}
+                  </span>
+                  <a
+                    href={track.url}
+                    download={`generated-song-${i + 1}.${track.format || "mp3"}`}
+                    className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">download</span>
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+            {musicContent && (
+              <pre className="rounded-lg bg-surface px-3 py-2 text-xs whitespace-pre-wrap break-all opacity-70 max-h-40 overflow-y-auto">{musicContent}</pre>
+            )}
+          </div>
+        )}
+
         {/* Response */}
         <div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-1.5">
@@ -549,7 +585,7 @@ export function GenericExampleCard({ providerId, kind }) {
               </button>
             )}
           </div>
-          <pre className="bg-sidebar rounded-lg px-3 py-2.5 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70">
+          <pre className={cn("bg-sidebar rounded-lg px-3 py-2.5 text-xs font-mono text-text-main overflow-x-auto whitespace-pre-wrap break-all opacity-70", kind === "music" && musicTracks.length > 0 && "max-h-48 overflow-y-auto")}>
             {result ? resultJson : exConfig.defaultResponse}
           </pre>
           {kind === "image" && (binaryImageUrl || result?.data?.data?.[0]) && (

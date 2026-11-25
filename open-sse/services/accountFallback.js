@@ -235,14 +235,29 @@ export function getModelLockKey(model) {
 }
 
 /**
- * Check if a model lock on a connection is still active.
- * Reads flat field `modelLock_${model}` (or `modelLock___all` when model=null).
+ * The requested model is available only after BOTH its own lock and the
+ * account-wide lock expire. Stale model fields are cleaned lazily and must
+ * never hide a live account lock (for example GitHub's monthly quota lock
+ * written for another model earlier in the day).
+ */
+export function getModelLockUntil(connection, model) {
+  const now = Date.now();
+  let until = 0;
+  for (const key of [getModelLockKey(model), MODEL_LOCK_ALL]) {
+    const expiry = connection?.[key];
+    if (!expiry) continue;
+    const time = new Date(expiry).getTime();
+    if (Number.isFinite(time) && time > now) until = Math.max(until, time);
+  }
+  return until ? new Date(until).toISOString() : null;
+}
+
+/**
+ * Check if a model lock on a connection is still active — either the model's
+ * own field or the account-wide one.
  */
 export function isModelLockActive(connection, model) {
-  const key = getModelLockKey(model);
-  const expiry = connection[key] || connection[MODEL_LOCK_ALL];
-  if (!expiry) return false;
-  return new Date(expiry).getTime() > Date.now();
+  return getModelLockUntil(connection, model) !== null;
 }
 
 /**
@@ -346,13 +361,18 @@ export function buildNeedsReauthUpdate(cooldownMs = NEEDS_REAUTH_COOLDOWN_MS) {
  * escalate to the long duration; otherwise the short one applies.
  * @param {object|null} prev - previous stored state (or null)
  * @param {number} nowMs - current epoch ms (injectable for tests)
+ * @param {{short?: number, long?: number}} [durations] - per-class override of
+ *   CHANNEL_BLOCK_MS (e.g. the #147 Google pseudo-429 family pauses longer than
+ *   a request-shape blip); missing keys fall back to the defaults.
  * @returns {{ until: string, lastAt: string, strikes: number, durationMs: number, escalated: boolean }}
  */
-export function buildChannelBlock(prev, nowMs = Date.now()) {
+export function buildChannelBlock(prev, nowMs = Date.now(), durations = null) {
   const prevLast = prev?.lastAt ? new Date(prev.lastAt).getTime() : 0;
   const withinWindow = prevLast > 0 && nowMs - prevLast <= CHANNEL_BLOCK_ESCALATE_WINDOW_MS;
   const escalated = withinWindow;
-  const durationMs = escalated ? CHANNEL_BLOCK_MS.long : CHANNEL_BLOCK_MS.short;
+  const durationMs = escalated
+    ? (durations?.long ?? CHANNEL_BLOCK_MS.long)
+    : (durations?.short ?? CHANNEL_BLOCK_MS.short);
   return {
     until: new Date(nowMs + durationMs).toISOString(),
     lastAt: new Date(nowMs).toISOString(),
@@ -522,6 +542,33 @@ export function withRealnameHint(message, provider) {
   if (!isRealnameGateText(message)) return message;
   const note = REALNAME_HINT[provider] || REALNAME_HINT_GENERIC;
   return `${message}\n\n提示：${note}`;
+}
+
+// ─── Google 免费层 0 配额模型 ──────────────────────────────────────────────
+// upstream 429 body 带逐项配额明细（"* Quota exceeded for metric: ...
+// generate_content_free_tier_requests, limit: 0, model: gemini-4-argon"）。
+// limit 恒为 0 = 免费层不开放该模型，等重置也不会好；与「暂时超限」是两种
+// 世界，提示要给出路（绑付费计费）而不是「稍候重试」。真相源在 ERROR_RULES
+// 的 "limit: 0" 条目（cooldown 0 立即穿透，不锁账号）。
+
+/** True when the message is a Google free-tier zero-quota rejection. */
+export function isZeroQuotaText(message) {
+  return /limit:\s*0\b/i.test(String(message || "")) && /free.?tier|quota/i.test(String(message || ""));
+}
+
+/**
+ * Append a paid-billing pathway note to a message that IS a zero-quota
+ * rejection. Non-matching messages pass through untouched — apply
+ * unconditionally alongside withRateLimitHint.
+ * @param {string} message - upstream/client-facing message
+ */
+export function withZeroQuotaHint(message) {
+  if (!isZeroQuotaText(message)) return message;
+  return (
+    `${message}\n\n` +
+    `提示：该模型的免费层配额为 0（limit: 0）——不是暂时超限，等多久都不会恢复；` +
+    `出路是在 AI Studio 绑定付费计费（Billing）后调用，或改用免费层开放的模型。`
+  );
 }
 
 /**

@@ -34,6 +34,7 @@ import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType, sanitizeToolSchemas, shouldSanitizeToolSchemas } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isFreeModel, formatFreeRateLimitMessage } from "../utils/freeModel.js";
+import { mountPrivacyRedaction } from "../privacy/index.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -62,7 +63,11 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onCredentialsRefreshFailed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onCredentialsRefreshFailed, onRequestSuccess, onCompletedResponse, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking }) {
+  // Preprocessing and translators mutate nested messages, tool results and
+  // media blocks. Each attempt owns its body so a failed model/account cannot
+  // strip input from the next fallback (or another parallel fusion attempt).
+  body = structuredClone(body);
   const { provider, model } = modelInfo;
   // Executors and credential helpers (e.g. qoderModels.js) branch on
   // credentials.provider to pick the right upstream deployment (cn vs global).
@@ -179,6 +184,18 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const clientTool = detectClientTool(clientRawRequest?.headers || {}, body);
   const passthrough = isNativePassthrough(clientTool, provider);
 
+  // ── Privacy redaction (issue #90): per-connection opt-in, off by default ──
+  // Mounted BEFORE translation (passthrough included) so placeholders ride
+  // through every translator unchanged. mountPrivacyRedaction works on a DEEP
+  // COPY so the caller's body stays pristine: chat.js retries the same body
+  // on the next account attempt, and a trusted channel must never receive
+  // placeholders minted for a failed untrusted one. Fail-open: any error
+  // skips redaction and returns the original body untouched.
+  let privacyCtx = null;
+  ({ body, privacyCtx } = await mountPrivacyRedaction(body, credentials, (e) =>
+    log?.debug?.("PRIVACY", `redaction skipped: ${e?.message || e}`),
+  ));
+
   // Expose raw client headers to translators/executors for session-id resolution
   if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};
 
@@ -261,6 +278,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (toolN) parts.push(`${toolN} TOOL`);
     if (think) parts.push(`THINK:${think}`);
     parts.push(`ACC:${acc}`);
+    if (privacyCtx?.stats?.redacted) parts.push(`PRIV:${privacyCtx.stats.redacted}`);
     log.line(reqTag, "▶", parts.join(" · "));
   }
 
@@ -407,7 +425,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
   try {
-    const result = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions });
+    const result = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed });
     providerResponse = result.response;
     providerUrl = result.url;
     providerHeaders = result.headers;
@@ -454,14 +472,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       // refreshWithRetry's 2nd/3rd attempt reuses the already-consumed RT →
       // invalid_grant → auth_failed retryable=false.
       const newCredentials = await refreshWithRetry(async () => {
-        const result = await executor.refreshCredentials(credentials, log);
+        const result = await executor.refreshCredentials(credentials, log, proxyOptions);
         if (result?.refreshToken && result.refreshToken !== credentials.refreshToken) {
           if (result.accessToken) credentials.accessToken = result.accessToken;
           credentials.refreshToken = result.refreshToken;
         }
         return result;
       }, 3, log);
-      if (newCredentials?.accessToken || newCredentials?.copilotToken) {
+      if (newCredentials?.accessToken || newCredentials?.copilotToken || newCredentials?.apiKey) {
         if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${provider}/${model}`);
         Object.assign(credentials, newCredentials);
         if (onCredentialsRefreshed) {
@@ -471,7 +489,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           await onCredentialsRefreshed(newCredentials);
         }
         try {
-          const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions });
+          const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed });
           // Take the retry's outcome even when it is NOT ok. Keeping the original
           // 401 in that case told the client to re-check an API key when the real
           // problem was a 429/500 on the retry, and markAccountUnavailable scored
@@ -504,7 +522,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, executor);
+    const { statusCode, message, resetsAtMs, unattributed429 } = await parseUpstreamError(providerResponse, executor, providerUrl);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     const responseErrorText = proxyFallbackWarning ? `${message} [Note: ${proxyFallbackWarning}]` : message;
     saveRequestDetail(buildRequestDetail({
@@ -531,14 +549,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // multi-account providers keep their normal fallback path untouched.
     if (statusCode === 429 && isFreeModel(model)) {
       const retryAfterMs = resetsAtMs ? Math.max(0, resetsAtMs - Date.now()) : null;
-      return createErrorResult(statusCode, formatFreeRateLimitMessage(provider, model, retryAfterMs), resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+      return createErrorResult(statusCode, formatFreeRateLimitMessage(provider, model, retryAfterMs), resetsAtMs, upstreamResponseHeaders(providerResponse.headers), { unattributed429 });
     }
     // The API caller only learns THAT the proxy was bypassed: the raw dispatcher
     // error carries the proxy's host:port, which stays in the local logs above.
     const clientErrMsg = proxyFallbackWarning
       ? `${errMsg} [Note: proxy failed; fell back to direct connection]`
       : errMsg;
-    return createErrorResult(statusCode, clientErrMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers));
+    return createErrorResult(statusCode, clientErrMsg, resetsAtMs, upstreamResponseHeaders(providerResponse.headers), { unattributed429 });
   }
 
   // The client asked the model to halt at a stop sequence. Some upstreams accept
@@ -575,7 +593,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       ? translateNonStreamingResponse(rawBody, providerResponseFormat, sourceFormat, customToolNames, toolNameMap)
       : rawBody;
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, onCompletedResponse, pxpipe: pxpipeSummary, reqTag, log, privacyCtx };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 

@@ -11,6 +11,35 @@ import { resolveSessionId } from "../utils/sessionManager.js";
  * request carries the IDE's OpenAI-style reasoning params. Force stream and
  * mirror reasoning_summary exactly like CodeBuddyExecutor.
  */
+
+// Deterministic RFC-4122-v5-shaped UUID from a session key, mirroring the
+// official client's per-conversation id (uuid5 over the session key).
+function stableUuidFrom(key) {
+  const hash = crypto.createHash("sha1").update(key).digest("hex");
+  const timeHigh = ((parseInt(hash.slice(12, 16), 16) & 0x0fff) | 0x5000).toString(16).padStart(4, "0");
+  const clockSeq = ((parseInt(hash.slice(16, 20), 16) & 0x3fff) | 0x8000).toString(16).padStart(4, "0");
+  return [hash.slice(0, 8), hash.slice(8, 12), timeHigh, clockSeq, hash.slice(20, 32)].join("-");
+}
+
+// Read a header case-insensitively, "" when absent/blank. Header names are
+// case-insensitive: a caller (or a previous buildHeaders pass) that wrote
+// `x-conversation-id` must be FOUND — testing the exact key would miss it and
+// a second write under different casing makes undici join both values into
+// "caller, ours", corrupting the id that is supposed to stay stable.
+function readHeader(headers, name) {
+  const key = Object.keys(headers).find((k) => k.toLowerCase() === name.toLowerCase());
+  const value = key ? headers[key] : undefined;
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+// Write under the canonical name, dropping a same-name-different-case key so
+// no duplicate is ever left behind.
+function writeHeader(headers, name, value) {
+  const key = Object.keys(headers).find((k) => k.toLowerCase() === name.toLowerCase());
+  if (key && key !== name) delete headers[key];
+  headers[name] = value;
+}
+
 export class CodeBuddyIntlExecutor extends DefaultExecutor {
   constructor() {
     super("codebuddy-intl");
@@ -19,36 +48,63 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
   buildHeaders(credentials, stream = true, url, model, transformedBody) {
     const headers = super.buildHeaders(credentials, stream, url, model, transformedBody);
 
-    // X-Conversation headers: CodeBuddy / WorkBuddy WAF requires session/conversation
-    // identity headers (X-Conversation-ID, X-Conversation-Request-ID, X-Conversation-Message-ID).
-    // Deriving a stable conversationId from downstream session keeps conversation continuity
-    // while satisfying upstream channel/WAF checks (prevents 11128 unapproved channel errors).
-    try {
-      const sessionId = resolveSessionId({
-        headers: credentials?.rawHeaders,
-        body: transformedBody,
-        connectionId: credentials?.connectionId,
-        scope: "codebuddy-intl"
-      });
-      // Conversation ID: 32-char hex derived from session identity
-      const convId = crypto.createHash("md5").update(sessionId || "codebuddy-intl-default").digest("hex");
-      // Turn / Request ID: unique 32-char hex per request turn
-      const reqHex = crypto.randomBytes(16).toString("hex");
+    // CodeBuddy intl WAF gate (HTTP 400 code 11128 "conversation id missing"):
+    // ALL THREE of X-Conversation-ID / -Request-ID / -Message-ID are required —
+    // any two are still answered 11128 (live A/B, 2026-10-25). X-Request-ID is
+    // not part of the gate; it mirrors the message id because the official
+    // client sends it.
+    //
+    // Idempotent + case-safe: existing non-empty values are preserved, so a
+    // second buildHeaders pass over the same bag (base.js retry) keeps the ids
+    // instead of rotating them, and a caller-tracked conversation survives.
+    const readH = (name) => readHeader(headers, name);
+    const writeH = (name, value) => writeHeader(headers, name, value);
 
-      headers["X-Conversation-ID"] = convId;
-      headers["X-Conversation-Request-ID"] = reqHex;
-      headers["X-Conversation-Message-ID"] = reqHex;
-      headers["X-Request-ID"] = reqHex;
-      headers["X-Agent-Intent"] = "craft";
-      headers["X-Agent-Type"] = "main";
-    } catch {
-      // Fallback: safe random hex IDs if session resolution fails
-      const fallbackId = crypto.randomBytes(16).toString("hex");
-      headers["X-Conversation-ID"] = fallbackId;
-      headers["X-Conversation-Request-ID"] = fallbackId;
-      headers["X-Conversation-Message-ID"] = fallbackId;
-      headers["X-Request-ID"] = fallbackId;
+    // Conversation key, in priority order: explicit body session fields → our
+    // session continuity (client headers / assistant text / connection-derived)
+    // → the opening user message, so one conversation keeps one id even when
+    // no session field exists.
+    const body = transformedBody;
+    const explicit =
+      (typeof body?.session_id === "string" && body.session_id) ||
+      (typeof body?.prompt_cache_key === "string" && body.prompt_cache_key) ||
+      (typeof body?.conversation_id === "string" && body.conversation_id) ||
+      "";
+    let sessionKey = explicit;
+    if (!sessionKey) {
+      try {
+        sessionKey =
+          resolveSessionId({
+            headers: credentials?.rawHeaders,
+            body,
+            connectionId: credentials?.connectionId,
+            scope: "codebuddy-intl",
+          }) || "";
+      } catch { /* first-user-message fallback below covers it */ }
     }
+    if (!sessionKey) {
+      const firstUser = Array.isArray(body?.messages) ? body.messages.find((m) => m?.role === "user") : null;
+      const userText = typeof firstUser?.content === "string"
+        ? firstUser.content
+        : Array.isArray(firstUser?.content)
+          ? firstUser.content.map((b) => (b && typeof b.text === "string" ? b.text : "")).join("\n")
+          : "";
+      sessionKey = userText ? `cbai:${userText}` : credentials?.connectionId || "codebuddy-intl";
+    }
+
+    if (!readH("X-Conversation-ID")) {
+      writeH("X-Conversation-ID", stableUuidFrom(sessionKey));
+    }
+    // One fresh id per build, mirrored across the request/message pair —
+    // existing values (caller-tracked or a previous pass) always win.
+    const requestId = readH("X-Conversation-Request-ID") || readH("X-Request-ID") || crypto.randomUUID();
+    writeH("X-Conversation-Request-ID", requestId);
+    const messageId = readH("X-Conversation-Message-ID") || requestId;
+    writeH("X-Conversation-Message-ID", messageId);
+    writeH("X-Request-ID", messageId);
+    // WAF fingerprint headers we already sent before the gate existed.
+    if (!readH("X-Agent-Intent")) headers["X-Agent-Intent"] = "craft";
+    if (!readH("X-Agent-Type")) headers["X-Agent-Type"] = "main";
 
     return headers;
   }
@@ -125,6 +181,14 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
       } else {
         transformed.messages.push({ ...message, content: sanitizeMessageContent(message.content) });
       }
+    }
+
+    // Forward the conversation-identity fields the gateway tracks (the same
+    // sources the X-Conversation-ID header derives from) instead of consuming
+    // them header-side only — dropping them breaks upstream conversation
+    // association even when the headers are right.
+    for (const key of ["session_id", "prompt_cache_key", "conversation_id"]) {
+      if (typeof body?.[key] === "string" && body[key]) transformed[key] = body[key];
     }
 
     return transformed;

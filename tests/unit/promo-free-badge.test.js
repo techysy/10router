@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { isPromoFree, promoFreeUntilMs } from "../../src/shared/utils/promoFree.js";
+import { promotionBadgeNote } from "../../src/shared/utils/offPeak.js";
 import intl from "../../open-sse/providers/registry/codebuddy-intl.js";
 import cn from "../../open-sse/providers/registry/codebuddy-cn.js";
 import intlQoder from "../../open-sse/providers/registry/qoder.js";
@@ -35,29 +36,49 @@ describe("promoFree / promoFreeUntil", () => {
   });
 });
 
-describe("codebuddy-intl V4.1-Flash launch promo", () => {
-  const entry = intl.models.find((m) => m.id === "deepseek-v4.1-flash");
-
-  it("carries the published rateMultiplier alongside the promoFreeUntil marker", () => {
-    expect(entry).toMatchObject({ name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.11 });
-    expect(entry.promoFreeUntil).toBe("2026-11-01");
+describe("codebuddy intl Hy4 free-now promo", () => {
+  // 2026-11-16 第四版客户端：Hy3 从清单消失（撤行，见 codebuddy-intl-models）；
+  // Hy4 的 Free now 窗口续期（卡片文案「Nov 16-30: Receive a daily free
+  // allowance」）—— intl 侧限免的现存实例。CN 侧同窗不同价（0.05/0.29 原价），
+  // 两侧独立。
+  it("hy4-preview: carries the client's renewed window and stays rate-bearing after it", () => {
+    // 2026-11-18 用户纠正（国际版截图）：Hy4 与 Hy4 flash 是两个独立模型。
+    // Hy4 = 0.29x 正常计费（无 promoFreeUntil）；Free now 窗口属于 hy4-flash。
+    const hy4 = intl.models.find((m) => m.id === "hy4-preview");
+    expect(hy4.promoFreeUntil).toBeUndefined();
+    expect(hy4.rateMultiplier).toBeGreaterThan(0);
+    const flash = intl.models.find((m) => m.id === "hy4-flash");
+    expect(flash.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(flash.promoFreeNote).toMatch(/每日赠送/);
+    expect(isPromoFree(flash, Date.parse("2026-11-29T00:00:00+08:00"))).toBe(true);
+    expect(isPromoFree(flash, Date.parse("2026-11-30T00:00:01+08:00"))).toBe(false);
   });
 
-  it("stays multiplier-identical to the CN gateway (shared credit system)", () => {
-    // The promo must NOT be written as `rateMultiplier: 0` — that would break
-    // this parity and leave a permanent "free" claim behind after the window.
-    const cnEntry = cn.models.find((m) => m.id === "deepseek-v4.1-flash");
-    expect(entry.rateMultiplier).toBe(cnEntry.rateMultiplier);
+  it("V4.1-Flash promo ended with the catalog generation — back to plain 0.11x", () => {
+    const entry = intl.models.find((m) => m.id === "deepseek-v4.1-flash");
+    expect(entry).toMatchObject({ rateMultiplier: 0.11 });
+    expect(entry.promoFreeUntil).toBeUndefined();
   });
 
-  it("does not declare the promo on the CN gateway", () => {
-    expect(cn.models.find((m) => m.id === "deepseek-v4.1-flash").promoFreeUntil).toBeUndefined();
+  it("CN Hy4 keeps its own renewed dated promo; Hy3 retired CN-side too (4th edition)", () => {
+    // 2026-11-16 第四版：CN 客户端同样撤下 Hy3、Hy4 限免续窗 11-30——两侧同日
+    // 同口径。原价口径不变（限免结束后按 rateMultiplier 计）。
+    expect(cn.models.find((x) => x.id === "hy3")).toBeUndefined();
+    // 2026-11-18：Hy4 是独立模型、正常计费 0.29x（限免只属于 hy4-flash）。
+    const hy4 = cn.models.find((x) => x.id === "hy4");
+    expect(hy4.rateMultiplier).toBe(0.29);
+    expect(hy4.promoFreeUntil).toBeUndefined();
   });
 
-  it("is active through Oct 31, 2026", () => {
-    expect(isPromoFree(entry, Date.parse("2026-10-18T12:00:00Z"))).toBe(true);
-    expect(isPromoFree(entry, Date.parse("2026-10-31T23:59:59Z"))).toBe(true);
-    expect(isPromoFree(entry, Date.parse("2026-11-01T00:00:00Z"))).toBe(false);
+  it("CN hy4-flash: new daily-grant promo row (id spelling pending live probe)", () => {
+    // 与 intl 侧同款同窗（11-16 至 11-30）；rateMultiplier 0 交 promoFree 表达
+    // 免费窗，窗口结束前需现网复核回填原价。
+    const m = cn.models.find((x) => x.id === "hy4-flash");
+    expect(m.rateMultiplier).toBe(0);
+    expect(m.promoFreeUntil).toBe("2026-11-30T00:00:00+08:00");
+    expect(m.promoFreeNote).toMatch(/每日赠送/);
+    expect(isPromoFree(m, Date.parse("2026-11-29T00:00:00+08:00"))).toBe(true);
+    expect(isPromoFree(m, Date.parse("2026-11-30T00:00:01+08:00"))).toBe(false);
   });
 });
 
@@ -103,19 +124,49 @@ describe("promo badge rendering contract", () => {
   });
 });
 
-describe("qoder / qoder-cn 的 DeepSeek-V4.1-Flash-1017 限免", () => {
-  // 2026-10-20 Qoder 客户端模型卡：dfmodel = DeepSeek-V4.1-Flash-1017，
-  // 个人版 0.0x 至 2026-10-25 00:00 (UTC+8)，之后回 0.1x。
+describe("qoder / qoder-cn 的 dfmodel（2026-11-18 live 探测）", () => {
+  // 2026-11-18 live 目录探测：dfmodel 显示名已是「DeepSeek-Flash」，
+  // 限免窗口已过（原 2026-10-25 到期），现按 0.1x 正常计费。
   for (const [name, entry] of [["qoder", intlQoder], ["qoder-cn", cnQoder]]) {
-    it(`${name}: dfmodel 名称与限免窗口正确`, () => {
+    it(`${name}: dfmodel 名称与计费正确`, () => {
       const m = entry.models.find((x) => x.id === "dfmodel");
-      expect(m).toMatchObject({
-        name: "DeepSeek-V4.1-Flash 1017",
-        // 必须是带时区的 ISO：裸日期会被解析成 UTC 零点，等于多送 8 小时
-        promoFreeUntil: "2026-10-25T00:00:00+08:00",
-      });
-      expect(isPromoFree(m, Date.parse("2026-10-24T23:59:59+08:00"))).toBe(true);
-      expect(isPromoFree(m, Date.parse("2026-10-25T00:00:01+08:00"))).toBe(false);
+      expect(m).toMatchObject({ name: "DeepSeek-Flash", rateMultiplier: 0.1 });
+      expect(m.promoFreeUntil).toBeUndefined();
     });
   }
+});
+
+describe("promotionBadgeNote（2026-11-23 用户报：CN 会员限免的 free 徽章没有说明）", () => {
+  // QwenWork CN 目录：price_factor 0 + promotion{badge:{zh:"会员限免"}} 的行
+  // 在面板上是 green free 徽章，tooltip 此前只说「走免费额度」，不说免费从哪
+  // 来（会员结余，不是长期免费）。helper 取上游促销自己的徽章文案（读者语言
+  // 优先），交给 ModelRow 的倍率 tooltip。
+  it("surfaces the upstream badge text, reader's language first", () => {
+    const promo = { badge: { zh: "会员限免", en: "Member-exclusive free" }, active: true };
+    expect(promotionBadgeNote(promo, "zh-CN")).toBe("会员限免");
+    expect(promotionBadgeNote(promo, "zh-TW")).toBe("会员限免");
+    expect(promotionBadgeNote(promo, "en")).toBe("Member-exclusive free");
+    // zh-only payload degrades to the zh text for everyone — upstream wording
+    // beats a blank note.
+    expect(promotionBadgeNote({ badge: { zh: "限时1折" }, active: true }, "en")).toBe("限时1折");
+  });
+
+  it("stays silent without a promotion, a badge, or with an explicitly deactivated one", () => {
+    expect(promotionBadgeNote(null, "zh-CN")).toBe("");
+    expect(promotionBadgeNote(undefined, "zh-CN")).toBe("");
+    expect(promotionBadgeNote("会员限免", "zh-CN")).toBe("");
+    // active is optional (Qoder off-peak objects carry it only as fetch-time
+    // state) — absence means shown; an explicit false means withdrawn.
+    expect(promotionBadgeNote({ badge: { zh: "会员限免" } }, "zh-CN")).toBe("会员限免");
+    expect(promotionBadgeNote({ badge: { zh: "会员限免" }, active: false }, "zh-CN")).toBe("");
+    expect(promotionBadgeNote({ active: true }, "zh-CN")).toBe("");
+    expect(promotionBadgeNote({ badge: "会员限免", active: true }, "zh-CN")).toBe("");
+  });
+
+  it("wires the note into both multiplier tooltip branches (0x free and Nx discounted)", () => {
+    // 会员限免 → 0x「走免费额度 (会员限免)」；限时1折 → Nx 倍率徽章的 tooltip
+    // 同样带上官方文案。徽章本身不动（house rule：free 是永不翻译的字面量）。
+    expect(MODEL_ROW).toContain("const promoNote = promotionBadgeNote(model.promotion, getCurrentLocale())");
+    expect(MODEL_ROW.split("(promoNote ? ` (${promoNote})` : \"\")").length - 1).toBe(2);
+  });
 });

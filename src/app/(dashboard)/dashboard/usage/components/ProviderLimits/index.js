@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaPackBar from "@/shared/components/QuotaPackBar";
 import QuotaToolbar from "./QuotaToolbar";
 import QuotaWindowTimeline from "@/shared/components/QuotaWindowTimeline";
 import { detailRows, needsPerPackDetails } from "@/shared/utils/quotaRows";
 import { classifyConnectionCooldown } from "@/shared/utils/connectionCooldown";
+import { hasCdSyncBadge, isCdSyncedConnection, cdSyncBadgeTitleKey } from "@/shared/utils/cdSyncBadge";
 import {
   connectionsCacheKey,
   createLimiter,
@@ -58,13 +60,15 @@ import {
   ACCOUNT_PAGE_SIZE_MAX,
   ACCOUNT_FILTER_OPTIONS,
   QUOTA_SORT_OPTIONS,
+  sortRequestFromExpiringFirst,
 } from "./utils";
 import Card from "@/shared/components/Card";
 import { translate } from "@/i18n/runtime";
 import { ConfirmModal, EditConnectionModal, Modal } from "@/shared/components";
 import AutoPingScheduleModal from "@/app/(dashboard)/dashboard/providers/[id]/AutoPingScheduleModal";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
-import { USAGE_SUPPORTED_PROVIDERS, getProviderWebsite } from "@/shared/constants/providers";
+import { USAGE_SUPPORTED_PROVIDERS, getProviderPagePath } from "@/shared/constants/providers";
+import { getCompatibleNodeFaviconSrc } from "@/shared/utils/providerIcon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 // Maps the stored providerSpecificData.authMethod to a human label for Kiro.
@@ -194,6 +198,12 @@ const KNOWN_PROVIDER_NAMES = {
   "minimax-cn": "MiniMax CN",
   "glm-cn": "GLM CN",
   "kimi-cn": "Kimi CN",
+  "lingxi": "Lingxi",
+  "qwenwork": "QwenWork",
+  "qwenwork-cn": "QwenWork CN",
+  "crowllm": "CrowLLM",
+  "autoclaw": "AutoClaw",
+  "autoclaw-cn": "AutoClaw CN",
 };
 
 export default function ProviderLimits() {
@@ -212,6 +222,7 @@ export default function ProviderLimits() {
   const [countdown, setCountdown] = useState(Math.floor(DEFAULT_REFRESH_INTERVAL_MS / 1000));
   const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [resettingLimitId, setResettingLimitId] = useState(null);
   const [resetConfirmState, setResetConfirmState] = useState(null);
@@ -328,7 +339,11 @@ export default function ProviderLimits() {
           page: String(targetPage),
           pageSize: String(pageSize),
           accountStatus: accountFilter,
-          sort: "priority",
+          // "Resets first" is a server-side sort (earliestPackageExpiry across
+          // pages); the client-side sortVisibleConnections pass below only
+          // re-ranks the current page for cards whose per-pack resetAt has
+          // landed.
+          sort: sortRequestFromExpiringFirst(expiringFirst),
         });
 
         if (providerFilter !== "all") {
@@ -366,7 +381,7 @@ export default function ProviderLimits() {
           for (const c of externalSeeds) writeQuotaEntry(c.id, c.quota);
         }
         writeConnectionsCache(
-          connectionsCacheKey({ page: targetPage, pageSize, accountFilter, providerFilter }),
+          connectionsCacheKey({ page: targetPage, pageSize, accountFilter, providerFilter, expiringFirst }),
           {
             connections: connectionList,
             pagination: nextPagination,
@@ -446,6 +461,8 @@ export default function ProviderLimits() {
         plan: data.plan || null,
         message: data.message || null,
         raw: data,
+        ...(provider === "croli" && Number.isFinite(data.croli?.walletPoints)
+          ? { croliWalletPoints: data.croli.walletPoints } : {}),
         cachedAt: new Date().toISOString(),
       };
 
@@ -656,60 +673,67 @@ export default function ProviderLimits() {
   }, []);
 
   const handleDeleteConnection = useCallback(
-    async (id) => {
+    (id) => {
       // Pushed cards are _meta snapshots, not connections: the confirm says
       // what actually happens (the pusher can just re-push) and the DELETE
-      // targets /api/external-quota/<source>. Native confirm() is not routed
-      // through the i18n layer, so translate explicitly here.
+      // targets /api/external-quota/<source>. ConfirmModal replaces the
+      // native confirm() — the Electron shell renders window.confirm as a
+      // raw OS dialog (2026-11-22 用户报「太原生」).
       const isExternalId = typeof id === "string" && id.startsWith("ext:");
-      if (isExternalId) {
-        if (!confirm(translate("Remove this pushed quota card? The pushing app can re-add it with its next update."))) return;
-      } else if (!confirm("Delete this connection?")) return;
-      setDeletingId(id);
-      try {
-        const url = isExternalId
-          ? `/api/external-quota/${encodeURIComponent(id.slice(4))}`
-          : `/api/providers/${id}`;
-        const res = await fetch(url, { method: "DELETE" });
-        if (res.ok) {
-          setQuotaData((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-          setLoading((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-          setErrors((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
+      setConfirmState({
+        title: isExternalId ? translate("Remove pushed quota card") : translate("Delete Connection"),
+        message: isExternalId
+          ? translate("Remove this pushed quota card? The pushing app can re-add it with its next update.")
+          : translate("Delete this connection?"),
+        onConfirm: async () => {
+          setConfirmState(null);
+          setDeletingId(id);
+          try {
+            const url = isExternalId
+              ? `/api/external-quota/${encodeURIComponent(id.slice(4))}`
+              : `/api/providers/${id}`;
+            const res = await fetch(url, { method: "DELETE" });
+            if (res.ok) {
+              setQuotaData((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+              setLoading((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
 
-          if (typeof window !== "undefined") {
-            try {
-              const cache = getQuotaCache();
-              if (cache[id]) {
-                delete cache[id];
-                window.localStorage.setItem(
-                  QUOTA_CACHE_KEY,
-                  JSON.stringify(cache),
-                );
+              if (typeof window !== "undefined") {
+                try {
+                  const cache = getQuotaCache();
+                  if (cache[id]) {
+                    delete cache[id];
+                    window.localStorage.setItem(
+                      QUOTA_CACHE_KEY,
+                      JSON.stringify(cache),
+                    );
+                  }
+                } catch (e) {
+                  console.error("Error deleting cache entry:", e);
+                }
               }
-            } catch (e) {
-              console.error("Error deleting cache entry:", e);
-            }
-          }
 
-          await reconcileConnectionsPage(fetchConnections, page);
-        }
-      } catch (error) {
-        console.error("Error deleting connection:", error);
-      } finally {
-        setDeletingId(null);
-      }
+              await reconcileConnectionsPage(fetchConnections, page);
+            }
+          } catch (error) {
+            console.error("Error deleting connection:", error);
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      });
     },
     [fetchConnections, page],
   );
@@ -823,7 +847,7 @@ export default function ProviderLimits() {
     // 1) Paint the last-known page + quotas from the browser cache at once.
     //    (Read in an effect, not a state initializer, so SSR markup matches.)
     const cached = readConnectionsCache(
-      connectionsCacheKey({ page, pageSize, accountFilter, providerFilter }),
+      connectionsCacheKey({ page, pageSize, accountFilter, providerFilter, expiringFirst }),
     );
     if (cached) {
       setConnections(cached.connections);
@@ -861,7 +885,9 @@ export default function ProviderLimits() {
     return () => {
       cancelled = true;
     };
-  }, [fetchConnections, scheduleQuotaFetches, page, pageSize, accountFilter, providerFilter]);
+    // expiringFirst 在 fetchConnections 的依赖里（sort 参数随它变），这里补上
+    // 是为了切换沙漏开关时按新排序重新拉页，而不是沿用旧序的缓存页。
+  }, [fetchConnections, scheduleQuotaFetches, page, pageSize, accountFilter, providerFilter, expiringFirst]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1368,7 +1394,7 @@ export default function ProviderLimits() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {renderConnections.map((conn) => {
           const quota = quotaData[conn.id];
-          const providerWebsite = getProviderWebsite(conn.provider);
+          const providerPagePath = getProviderPagePath(conn.provider);
           // Spinner only while a card has NOTHING to show; with cached numbers
           // it keeps them and only the header refresh icon spins.
           const isRefreshing = Boolean(loading[conn.id]);
@@ -1422,19 +1448,16 @@ export default function ProviderLimits() {
               <div className="px-3 py-2 border-b border-black/10 dark:border-white/10">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    {/* 图标点击跳转供应商官网/控制台(注册表 display.website 等,
-                        与 providers/[id] 详情页同一回退链)。解析不到 URL 的
-                        provider(自定义连接)保持纯图标,不渲染链接。 */}
-                    {providerWebsite ? (
-                      <a
-                        href={providerWebsite}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`${translate("Open provider site")} — ${providerWebsite.replace(/^https?:\/\//, "")}`}
-                        className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-                      >
+                    {/* 图标点击 → 仪表盘内该供应商的管理详情页(/dashboard/providers/[id]):
+                        账号/模型/调度都在那里管。官网/控制台外链保留在详情页头部
+                        (Web console / Get API Key),不在配额卡片重复出口。解析不到
+                        详情页的 provider(自定义推送卡)保持纯图标,不渲染链接。
+                        compatible 连接带官网地址 → 站点 favicon 当 logo。 */}
+                    {(() => {
+                      const favicon = getCompatibleNodeFaviconSrc(conn.providerSpecificData?.website);
+                      const iconEl = (
                         <ProviderIcon
-                          src={`/providers/${conn.provider}.png`}
+                          src={favicon || `/providers/${conn.provider}.png`}
                           alt={conn.provider}
                           size={32}
                           className="object-contain"
@@ -1442,20 +1465,24 @@ export default function ProviderLimits() {
                             conn.provider?.slice(0, 2).toUpperCase() || "PR"
                           }
                         />
-                      </a>
-                    ) : (
-                      <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
-                        <ProviderIcon
-                          src={`/providers/${conn.provider}.png`}
-                          alt={conn.provider}
-                          size={32}
-                          className="object-contain"
-                          fallbackText={
-                            conn.provider?.slice(0, 2).toUpperCase() || "PR"
-                          }
-                        />
-                      </div>
-                    )}
+                      );
+                      if (providerPagePath) {
+                        return (
+                          <Link
+                            href={providerPagePath}
+                            title={translate("Open provider page")}
+                            className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+                          >
+                            {iconEl}
+                          </Link>
+                        );
+                      }
+                      return (
+                        <div className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center overflow-hidden">
+                          {iconEl}
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-text truncate">
                         {KNOWN_PROVIDER_NAMES[conn.provider] || (
@@ -1510,16 +1537,14 @@ export default function ProviderLimits() {
                           >
                             {isInactive ? "disabled" : (connState === "needs-reauth" ? translate("Needs re-auth") : connState === "partial" ? "partial" : connState || "unknown")}
                           </span>
-                          {(conn.provider === "qoder" || conn.provider === "qoder-cn") && (
+                          {hasCdSyncBadge(conn.provider) && !conn.external && (
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                conn.providerSpecificData?.creditDaddyWebSession
-                                  ? "bg-primary/10 text-primary"
-                                  : "bg-surface-2 text-text-muted"
+                                isCdSyncedConnection(conn) ? "bg-primary/10 text-primary" : "bg-surface-2 text-text-muted"
                               }`}
-                              title={conn.providerSpecificData?.creditDaddyWebSession ? translate("Synced via CreditDaddy web session (issue feedback goes to CreditDaddy)") : translate("Native Qoder authorization")}
+                              title={translate(cdSyncBadgeTitleKey(conn))}
                             >
-                              {conn.providerSpecificData?.creditDaddyWebSession ? "CD Sync" : "Native"}
+                              {isCdSyncedConnection(conn) ? "CD Sync" : "Native"}
                             </span>
                           )}
                           {conn.providerSpecificData?.profileArn && (
@@ -1588,6 +1613,9 @@ export default function ProviderLimits() {
                         </Tooltip>
                       </>
                     )}
+                    {/* Meoo 每日领积分：额度卡不再放手动按钮（与 dumate 卡对齐，
+                        2026-11-14 用户反馈）——领取入口在实验性页的自动领取
+                        开关（meooCheckin 调度器），供应商详情页连接卡保留手动触发。 */}
                     {AUTO_PING_SETTINGS_KEYS[conn.provider] && conn.authType === "oauth" && (() => {
                       const cfg = autoPingConfigs[conn.provider] || {};
                       const isReactive = cfg.connections?.[conn.id] === true;
@@ -1741,7 +1769,7 @@ export default function ProviderLimits() {
                     </span>
                     <p className="mt-1.5 text-xs text-text-muted">{error}</p>
                   </div>
-                ) : quota?.message ? (
+                ) : quota?.message && !Number.isFinite(quota?.croliWalletPoints) ? (
                   <div className="text-center py-5">
                     <p className="text-xs text-text-muted">{quota.message}</p>
                   </div>
@@ -1753,6 +1781,12 @@ export default function ProviderLimits() {
                         rather than as a filtered one. Say what happened instead.
                         Every hidden row is reachable from the chips below, so
                         point at them. */}
+                    {conn.provider === "croli" && Number.isFinite(quota?.croliWalletPoints) && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-2 text-xs" data-croli-wallet-display="true">
+                        <span className="text-text-muted">{translate("Croli wallet balance")} <span className="font-medium text-text">{quota.croliWalletPoints.toLocaleString()}</span> {translate("credits")}</span>
+                        <span className="text-text-muted">{translate("Separate from daily trial quota")}</span>
+                      </div>
+                    )}
                     {visibleQuotas.length === 0 && rawQuotas.length > 0 && (
                       <div className="text-center py-5">
                         <span className="material-symbols-outlined text-[28px] text-text-muted opacity-40">
@@ -2191,6 +2225,19 @@ export default function ProviderLimits() {
           onSave={(result) => handleSaveAutoPing(scheduleConnection.id, scheduleConnection.provider, result)}
         />
       )}
+
+      {/* 删除连接/推送卡的确认：样式化弹窗替代原生 confirm()（Electron 壳
+          会把 window.confirm 渲染成 OS 原生框，2026-11-22 用户报「太原生」）。 */}
+      <ConfirmModal
+        isOpen={!!confirmState}
+        onClose={() => setConfirmState(null)}
+        onConfirm={confirmState?.onConfirm}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmText={translate("Confirm")}
+        cancelText={translate("Cancel")}
+        variant="danger"
+      />
     </div>
   );
 }

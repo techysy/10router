@@ -1,0 +1,63 @@
+export default {
+  id: "lingxi",
+  priority: 185,
+  alias: "lingxi",
+  aliases: ["lx", "wps-lingxi"],
+  uiAlias: "lingxi",
+  display: {
+    name: "Lingxi",
+    icon: "auto_awesome",
+    color: "#E34D3F",
+    textIcon: "LX",
+    website: "https://lingxi.kdocs.cn",
+    notice: {
+      // 2026-11-15 用户点名：Lingxi 页面同 Loomy —— 点明 CreditDaddy 是
+      // Cookie 收割的主通道（网页会话捕获 + 每日签到 + 自动同步到 10Router），
+      // 产品名渲染成内联链接（最新 Release 页），用户看到就知道去哪下载。
+      text: "Harvest & refresh Lingxi session cookies with CreditDaddy — daily check-in keeps 灵点 credits flowing, balances auto-synced to 10Router.",
+      textLink: {
+        term: "CreditDaddy",
+        href: "https://github.com/techysy/CreditDaddy/releases/latest",
+      },
+    },
+  },
+  category: "webCookie",
+  authType: "cookie",
+  serviceKinds: ["llm"],
+  authHint:
+    "Paste the full Cookie header of a logged-in lingxi.kdocs.cn session (wps_sid / kso_sid …). " +
+    "Capture it in CreditDaddy's 网页会话 page and sync, or copy it from browser devtools. " +
+    "No signature needed (the web client's X-Pop-Token is desktop-SDK-only). " +
+    "While the session lives, 对话-mode turns do not deduct 灵点; the model multipliers only " +
+    "bite on Pro/Max subscriptions.",
+  transport: {
+    baseUrl: "https://lingxi.kdocs.cn/solution/api/aigc/v3/assistant/sessions",
+    format: "openai",
+    authType: "cookie",
+  },
+  // `id` = exact upstream expect_model key (plans endpoint) or "auto" for the
+  // server default; plan_pro/plan_max additionally switch to plan-mode.
+  models: [
+    { id: "auto", name: "自动 (Lingxi Auto)" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", multiplier: "~0.12x" },
+    { id: "deepseek-v4-pro-0813", name: "DeepSeek V4 Pro", multiplier: "0.40x" },
+    { id: "qwen3.8_flash", name: "Qwen3.8-Flash", multiplier: "~0.08x" },
+    { id: "qwen3.8_max", name: "Qwen3.8-Max", multiplier: "~0.80x" },
+    { id: "mimo-v2.6-pro", name: "Xiaomi MiMo-V2.6 Pro", multiplier: "0.10x" },
+    { id: "GLM-5.3-Flash", name: "GLM 5.3 Flash", multiplier: "~0.11x" },
+    { id: "GLM-5.3", name: "GLM 5.3", multiplier: "~0.75x" },
+    { id: "minimax_m3", name: "MiniMax-M3", multiplier: "0.20x" },
+    { id: "doubao_seed_2_1_pro_260628", name: "Doubao Seed 2.1 Pro", multiplier: "~0.50x" },
+    { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro", multiplier: "~1.10x" },
+    { id: "kimi-k3", name: "Kimi K3", multiplier: "1.60x" },
+    { id: "plan_pro", name: "Pro 模式" },
+    { id: "plan_max", name: "Max 模式" },
+  ],
+  // 配额卡：智点余额 + 到期桶（usage/lingxi.js）。凭据是连接上的 Cookie，
+  // usageCookie 让配额页的 cookie-auth 分支放行。
+  features: {
+    usage: true,
+    usageCookie: true,
+  },
+  passthroughModels: true,
+};

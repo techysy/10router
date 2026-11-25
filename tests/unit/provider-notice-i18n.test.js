@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import capyRegistry from "open-sse/providers/registry/capy.js";
 import commandCodeRegistry from "open-sse/providers/registry/commandcode.js";
+import croliRegistry from "open-sse/providers/registry/croli.js";
+import crowllmRegistry from "open-sse/providers/registry/crowllm.js";
 import mimoDesktopRegistry from "open-sse/providers/registry/mimo-desktop.js";
+import nousRegistry from "open-sse/providers/registry/nous.js";
 
 const rootDir = resolve(__dirname, "../..");
 
@@ -33,7 +37,8 @@ describe("Provider Notice i18n", () => {
       resolve(rootDir, "src/app/(dashboard)/dashboard/providers/[id]/page.js"),
       "utf8",
     );
-    expect(pageSource).toContain("{translate(providerInfo.notice.text)}");
+    // textLink（内联产品名链接）按译文分段，translate 仍作用于整条文本。
+    expect(pageSource).toContain("translate(providerInfo.notice.text)");
     expect(pageSource).toContain('{translate("Get API Key →")}');
   });
 
@@ -74,6 +79,90 @@ describe("MiMo Desktop notice i18n", () => {
       );
       expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
       // Guard against a copy-paste placeholder: the translation has to be Chinese.
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+// Same contract as MiMo Desktop above: the Nous Portal notice (#155) shipped
+// with the English text only \u2014 translate() renders it raw in a Chinese UI.
+describe("Nous Portal notice i18n", () => {
+  const noticeKey = nousRegistry.display?.notice?.text;
+
+  it("the Nous card has a notice naming the device-code flow and free models", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("device code");
+    expect(noticeKey).toContain("no credit card");
+  });
+
+  it("both Chinese dictionaries carry the Nous Portal notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+// Same contract as Nous Portal above: the Croli (#156) and CrowLLM notices
+// shipped with the English text only \u2014 translate() renders it raw in a Chinese UI.
+describe("Croli notice i18n", () => {
+  const noticeKey = croliRegistry.display?.notice?.text;
+
+  it("the Croli card has a notice naming the Clerk flow and the daily rewards", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("Clerk");
+    expect(noticeKey).toContain("Daily check-in");
+  });
+
+  it("both Chinese dictionaries carry the Croli notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+describe("CrowLLM notice i18n", () => {
+  const noticeKey = crowllmRegistry.display?.notice?.text;
+
+  it("the CrowLLM card has a notice naming the gateway family and free models", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("one-hub family");
+    expect(noticeKey).toContain(":free");
+  });
+
+  it("both Chinese dictionaries carry the CrowLLM notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
+      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
+    }
+  });
+});
+
+describe("Capy notice i18n", () => {
+  const noticeKey = capyRegistry.display?.notice?.text;
+
+  it("the Capy card has a notice naming the email-code login and free ad models", () => {
+    expect(noticeKey).toBeTruthy();
+    expect(noticeKey).toContain("email code");
+    expect(noticeKey).toContain("ad-funded models");
+  });
+
+  it("both Chinese dictionaries carry the Capy notice", () => {
+    for (const locale of ["zh-CN", "zh-TW"]) {
+      const dict = JSON.parse(
+        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
+      );
+      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
       expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
     }
   });

@@ -121,4 +121,64 @@ describe("selectRelayCarrier", () => {
     selectRelayCarrier(ring);
     expect(ring.map((c) => c.id)).toEqual(snapshot);
   });
+
+  // ── healthOf 自定义谓词（#Loomy-daily-first 单账号烧穿，2026-11-12）──
+  // "烧完"的判定与百分比红区无关：Loomy 没有 percent 窗口，健康 =
+  // dailyGrantRemaining > 0（缺失视为健康，绝不因缺数据预切换）。
+  describe("healthOf custom predicate (daily-grant relay)", () => {
+    const daily = (id, { grant, permanent, lastUsedAt, priority } = {}) => ({
+      id,
+      dailyGrantRemaining: grant,
+      dailyGrantTotal: 5000,
+      permanentBalance: permanent,
+      lastUsedAt,
+      priority,
+      // 无 shortWindowRemaining —— Loomy 不产出 percent 窗口
+    });
+
+    it("carrier keeps burning while its daily grant is live, even if a higher-priority account refilled", () => {
+      const ring = [
+        daily("a", { grant: 4000, priority: 1 }),
+        daily("b", { grant: 2500, lastUsedAt: "2026-11-12T02:00:00Z", priority: 2 }),
+      ];
+      const r = selectRelayCarrier(ring, { healthOf: (c) => (c.dailyGrantRemaining ?? 1) > 0 });
+      expect(r.connection.id).toBe("b");
+      expect(r.stepped).toBe(false);
+    });
+
+    it("drained carrier steps forward to the next account with daily grant left", () => {
+      const ring = [
+        daily("a", { grant: 3000, priority: 1 }),
+        daily("b", { grant: 0, lastUsedAt: "2026-11-12T02:00:00Z", priority: 2 }),
+        daily("c", { grant: 1200, priority: 3 }),
+      ];
+      const r = selectRelayCarrier(ring, { healthOf: (c) => (c.dailyGrantRemaining ?? 1) > 0 });
+      expect(r.connection.id).toBe("c");
+      expect(r.stepped).toBe(true);
+    });
+
+    it("all drained: falls back to the ring head (permanent-points tail handles it)", () => {
+      const ring = [
+        daily("a", { grant: 0, permanent: 9000, priority: 1 }),
+        daily("b", { grant: 0, permanent: 14000, lastUsedAt: "2026-11-12T02:00:00Z", priority: 2 }),
+      ];
+      const r = selectRelayCarrier(ring, { healthOf: (c) => (c.dailyGrantRemaining ?? 1) > 0 });
+      expect(r.connection.id).toBe("a");
+    });
+
+    it("missing dailyGrantRemaining never pre-switches (unknown ⇒ healthy)", () => {
+      const ring = [
+        daily("a", { grant: 0, priority: 1 }),
+        { id: "new", priority: 2, lastUsedAt: "2026-11-12T02:00:00Z" }, // 无快照
+      ];
+      const r = selectRelayCarrier(ring, { healthOf: (c) => (c.dailyGrantRemaining ?? 1) > 0 });
+      expect(r.connection.id).toBe("new");
+      expect(r.stepped).toBe(false);
+    });
+
+    it("without healthOf, the default percentage red-zone behavior is unchanged", () => {
+      const ring = [conn("a", { remaining: 80 }), conn("b", { remaining: 0, lastUsedAt: "2026-10-14T12:00:00Z" })];
+      expect(selectRelayCarrier(ring).connection.id).toBe("a");
+    });
+  });
 });

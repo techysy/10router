@@ -52,6 +52,13 @@ export const TRANSIENT_COOLDOWN_MS = 30 * 1000;
 // Hard cap for provider-reported rate limit cooldown (e.g. codex resets_at can be 5-6h)
 export const MAX_RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000;
 
+// 402 Payment Required: 余额/免费活动包耗尽不会在秒级自愈（每日积分也要等次日
+// 登录刷新）。COOLDOWN.long 的 2 分钟只够"错误呈现"，到期后又对同一欠费渠道
+// 发起必败请求（issue #91 方案 B 的实测缺口）。30 分钟避让 + 到期单次重探：
+// 若已充值/活动恢复则成功并清锁，仍欠费则再锁 30 分钟——代价是每 30 分钟一次
+// 探测请求，换来期间每一次请求都零耗时直落下一个健康渠道。
+export const BILLING_COOLDOWN_MS = 30 * 60 * 1000;
+
 // Google-style quota windows (Antigravity 429 RESOURCE_EXHAUSTED with
 // quotaResetDelay) are the account's REAL reset clock — hours by design.
 // Honoring them needs a bigger ceiling than the generic 30min hint cap.
@@ -77,6 +84,11 @@ export const CHANNEL_BLOCK_MS = {
   // Repeat offence within CHANNEL_BLOCK_ESCALATE_WINDOW_MS: the fingerprint is
   // clearly sticky, back off properly.
   long: 10 * 60 * 1000,
+  // #147 Google 伪 429（WAF 身份识别类）：比形状类错误更长——被盯上的是身份
+  // 指纹，短窗口重试只会再撞一次。首犯 5min 给误伤（真配额恰好裸奔）封顶，
+  // 升级窗内再犯 30min（issue 建议值）。
+  google429: 5 * 60 * 1000,
+  google429Long: 30 * 60 * 1000,
 };
 
 // Re-offending inside this window escalates short → long.
@@ -111,6 +123,14 @@ export const ERROR_RULES = [
   // channel, and walking the account list is what makes it worse.
   { text: "unapproved channel",       channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "illegal api invocation",   channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
+  // CodeBuddy INTL 会话头闸门（2026-10-15 起官方网关强制 X-Conversation-* 头族，
+  // 11128 "conversation id missing" / "request illegal"，无头 100% 拒）：同 CN
+  // unapproved channel 的渠道级语义——所有连接同秒同答，逐号重试只会放大。
+  // 11128 是过载码（还承载 "first message is not system prompt" 这类 body 形状
+  // 问题），所以按 provider + 文案限定，不按码分类。executor 已默认带上头族，
+  // 这两条是头族回退时的防线。
+  { provider: "codebuddy-intl", text: "conversation id missing", channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
+  { provider: "codebuddy-intl", text: "request illegal", channelScope: true, cooldownMs: CHANNEL_BLOCK_MS.short },
   { text: "improperly formed request", cooldownMs: COOLDOWN.long },
   // Missing MiMo Desktop session is a CONFIGURATION state (executors/xiaomi-mimo.js),
   // not a transient fault: cooldown 0 = account never locked, combo falls through
@@ -139,10 +159,16 @@ export const ERROR_RULES = [
   { text: "quota exceeded",           backoff: true },
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
+  // Google 免费层 0 配额模型（2026-11-16 NAS 实测 gemini-4-argon：三项
+  // generate_content_free_tier_* 配额全部 limit: 0）。这不是「暂时超限」——
+  // limit 恒为 0 意味着等多久都不会好，出路是绑付费计费。cooldown 0 立即穿透
+  // 与 real-name 同族：反复重试只会反复撞墙，冷却反而掩盖真实原因（upstream
+  // 原文自带 "Free Tier" + limit: 0 细节行，透传即可自行定位）。
+  { text: "limit: 0",                 cooldownMs: 0 },
 
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },
-  { status: 402, cooldownMs: COOLDOWN.long },
+  { status: 402, cooldownMs: BILLING_COOLDOWN_MS },
   { status: 403, cooldownMs: COOLDOWN.long },
   { status: 404, cooldownMs: COOLDOWN.long },
   { status: 429, backoff: true },

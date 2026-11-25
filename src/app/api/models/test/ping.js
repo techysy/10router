@@ -60,7 +60,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({ model, input: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(90000),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -79,17 +79,21 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "systemone") {
+    // 输入字段按供应商方言（#110）：Gemini Decision 用 input（其上游 /v1beta/
+    // decisions 拒绝 state 字段，报 Unknown parameter 'state'）；Drex 系用 state。
+    // 判定依据 model 前缀（gmd/ 或 gemini-decision/）。
+    const isGeminiDecision = /^(gmd|gemini-decision)\//.test(model);
     const res = await fetch(`${baseUrl}/api/v1/systemone`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model,
-        state: "Customer: I was charged twice for my order this morning.",
+        [isGeminiDecision ? "input" : "state"]: "Customer: I was charged twice for my order this morning.",
         questions: {
           probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
         },
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(90000),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -113,7 +117,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers,
       body: JSON.stringify({ model, prompt: "test" }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(90000),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -142,7 +146,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(90000),
     });
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
@@ -172,9 +176,12 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       // See issue #3010.
       max_tokens: 1024,
       stream: false,
-      messages: [{ role: "user", content: "hi" }],
+      // 探针词不能是裸「hi」:croli 背后 OpenRouter 共享池的风控把高频单 greeting
+      // 词拉黑了(HTTP 400 this prompt previously triggered a content refusal,
+      // 2026-11-21 实测),中性短句直通。这里的内容不被断言,只求触发一次正常补全。
+      messages: [{ role: "user", content: "Reply with OK." }],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(90000),
   });
   const latencyMs = Date.now() - start;
 

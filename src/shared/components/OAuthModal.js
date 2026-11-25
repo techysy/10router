@@ -4,24 +4,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { translate } from "@/i18n/runtime";
 
 // Providers using the dynamic-port local callback proxy.
 // Browser OAuth: popup → auto callback → auto exchange → poll-status.
-const PROXY_OAUTH_PROVIDERS = new Set(["trae", "windsurf", "zed"]);
+const PROXY_OAUTH_PROVIDERS = new Set(["trae", "trae-cn", "windsurf", "zed"]);
 
-// 登录站点选项（issue #69）。Trae 国内站 (trae.cn) 与国际站 (trae.ai) 账号不互通：
-// refresh token 拿到另一端换必回 20101，所以必须由用户显式选站点，不能赌默认值。
-// key 会原样作为 meta.region 传给 /authorize。
-const LOGIN_SITES = {
-  trae: {
-    param: "region",
-    default: "intl",
-    options: [
-      { value: "intl", label: "国际站", hint: "www.trae.ai · 海外账号" },
-      { value: "cn", label: "国内站", hint: "www.trae.cn · 国内手机号 / 抖音账号" },
-    ],
-  },
-};
+// 授权账号槽数量——与 SESSION_POOL_SLOTS(src/app/api/cookie-sites/cookieSiteRegistry.js)
+// 和壳 desktop/main.js 保持一致;改一处必须三处同改。
+const AUTH_SLOT_COUNT = 6;
+
+// #99 拆线：站点选择收敛为两条独立供应商（trae=国际站 / trae-cn=国内站），各自在
+// oauth 条目里钉死站点，弹窗不再出「登录站点」卡片；服务端 meta.region 仍兼容老入口。
 
 // Providers offering a paste-token fallback (import-token flow).
 // UX warns if the IDE (which issues the token) is not installed.
@@ -29,10 +23,18 @@ const PASTE_TOKEN_PROVIDERS = {
   trae: {
     label: "Cloud-IDE-JWT",
     instructions:
-      "Sign in at trae.ai / solo.trae.ai (国际站) or trae.cn (国内站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). CN and intl accounts are not interchangeable.",
+      "Sign in at trae.ai / solo.trae.ai (国际站), open DevTools → Network, copy the Cloud-IDE-JWT token from any request's Authorization header (~14-day lifetime). 国内站 token 请用 Trae CN 导入，两端账号不互通。",
     placeholder: "Paste Cloud-IDE-JWT here...",
     ideName: "Trae",
     ideOptional: true, // token can be grabbed from DevTools without the IDE
+  },
+  "trae-cn": {
+    label: "Cloud-IDE-JWT",
+    instructions:
+      "登录 trae.cn（国内站，支持手机号 / 抖音账号），DevTools → Network 里任取一条请求 Authorization 头的 Cloud-IDE-JWT token 粘贴（约 14 天有效）。国际站 token 请用 Trae 导入，两端账号不互通。",
+    placeholder: "Paste Cloud-IDE-JWT here...",
+    ideName: "Trae",
+    ideOptional: true,
   },
   windsurf: {
     label: "Windsurf API key",
@@ -59,13 +61,15 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const [polling, setPolling] = useState(false);
   // trae/windsurf: choose between browser OAuth (proxy) and paste-token (import)
   const [authMode, setAuthMode] = useState("browser"); // "browser" | "paste-token"
-  // 登录站点（目前只有 trae 用）；切换时重置登录态，避免拿上一站点的会话去换 token。
-  const [loginSite, setLoginSite] = useState("intl");
   const [pasteToken, setPasteToken] = useState("");
   const [ideStatus, setIdeStatus] = useState(null);
   const popupRef = useRef(null);
   const pollingAbortRef = useRef(false);
   const openedRef = useRef(false);
+  // 壳内(桌面端):授权弹窗不直接开——等用户点账号槽,再带 authslot=N 开进
+  // 持久身份分区(壳 window-open 路由识别该标记)。浏览器里保持自动弹窗。
+  const [pendingPopup, setPendingPopup] = useState(null); // { url }
+  const inShell = typeof window !== "undefined" && !!window.sessionPool;
   const { copied, copy } = useCopyToClipboard();
 
   // State for client-only values to avoid hydration mismatch
@@ -84,6 +88,25 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   }, []);
 
   // Define all useCallback hooks BEFORE the useEffects that reference them
+
+  // 统一授权弹窗入口:壳内先挂起等选账号槽(返回 "pending",调用方保持 waiting),
+  // 浏览器直接开(返回是否成功,false=被拦,降级手动粘贴)。
+  const requestAuthPopup = useCallback((url) => {
+    if (typeof window !== "undefined" && window.sessionPool) {
+      setPendingPopup({ url });
+      return "pending";
+    }
+    popupRef.current = window.open(url, "oauth_popup", "width=600,height=700");
+    return !!popupRef.current;
+  }, []);
+
+  // 点账号槽:带 authslot=N 开弹窗(壳 window-open 路由开进持久分区)。
+  // popup 句柄照常保留——postMessage/BroadcastChannel 回调链不受影响。
+  const openAuthPopupAt = useCallback((n) => {
+    if (!pendingPopup?.url) return;
+    popupRef.current = window.open(pendingPopup.url, "oauth_popup", `width=600,height=700,authslot=${n}`);
+    setPendingPopup(null);
+  }, [pendingPopup]);
 
   // Exchange tokens
   const exchangeTokens = useCallback(async (code, state) => {
@@ -206,9 +229,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     // 2. Build the authorize URL with redirect_uri = proxy callback URL.
     const authorizeUrl = new URL(`/api/oauth/${providerId}/authorize`, window.location.origin);
     authorizeUrl.searchParams.set("redirect_uri", startData.callbackUrl);
-    // 登录站点选择原样进 meta，服务端按它决定打哪一端网关（trae: intl / cn）。
-    const siteSpec = LOGIN_SITES[providerId];
-    if (siteSpec) authorizeUrl.searchParams.set(siteSpec.param, loginSite);
     const authRes = await fetch(authorizeUrl);
     const authData = await authRes.json();
     if (!authRes.ok) throw new Error(authData.error);
@@ -225,9 +245,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     // 4. Open popup; proxy auto-exchanges on callback, modal polls poll-status.
     setAuthData({ ...authData, proxyProvider: providerId });
     setStep("waiting");
-    popupRef.current = window.open(authData.authUrl, "oauth_popup", "width=600,height=700");
-    if (!popupRef.current) setStep("input"); // popup blocked → fall back to manual paste
-  }, [loginSite]);
+    if (requestAuthPopup(authData.authUrl) === false) setStep("input"); // popup blocked → fall back to manual paste
+  }, [requestAuthPopup]);
 
   // Start OAuth flow
   const startOAuthFlow = useCallback(async () => {
@@ -253,7 +272,10 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "codebuddy-intl",
         "qoder",
         "qoder-cn",
+        "qwenwork",
+        "qwenwork-cn",
         "grok-cli",
+        "nous",
         "glm",
         "muse",
         "minimax-code",
@@ -277,9 +299,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
         setDeviceData(data);
 
-        // Auto-open verification URL in new tab
+        // 壳内(桌面壳 preload 提供 sessionPool):不跳系统浏览器——留给用户在
+        // 「用账号槽打开」里选身份分区(免登录复用)。浏览器里维持自动开新标签。
         const verifyUrl = data.verification_uri_complete || data.verification_uri;
-        if (verifyUrl) window.open(verifyUrl, "_blank", "noopener,noreferrer");
+        if (verifyUrl && !window.sessionPool?.openAuthSlot) {
+          window.open(verifyUrl, "_blank", "noopener,noreferrer");
+        }
 
         // Pass extraData for Kiro (contains _clientId, _clientSecret) and
         // Qoder (contains _qoderMachineId / _qoderNonce — needed so mapTokens
@@ -324,6 +349,17 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         redirectUri = "http://localhost:1455/auth/callback";
       } else if (provider === "xai") {
         redirectUri = "http://127.0.0.1:56121/callback";
+      } else if (provider === "junie") {
+        // JetBrains 只登记了 CLI 的回环地址 http://localhost:62345（无路径）
+        // ——授权后浏览器跳到这个打不开的地址，用户复制地址栏完整 URL
+        // 粘贴回来即 paste-callback（与 croli 同形）。
+        redirectUri = "http://localhost:62345";
+      } else if (provider === "croli") {
+        // Clerk 只登记 127.0.0.1 回环（任意端口通配）——localhost 是另一个 host
+        // 字符串，OAuth 精确匹配直接拒（invalid_request: redirect_uri 不匹配
+        // 预登记列表，2026-11-21 实测）。授权后 127.0.0.1 必然打不开（NAS 场景
+        // 用户机器上没这个服务），复制地址栏完整 URL 粘贴回来即 paste-callback。
+        redirectUri = `http://127.0.0.1:${appPort}/callback`;
       } else {
         redirectUri = `http://localhost:${appPort}/callback`;
       }
@@ -396,14 +432,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       if (provider === "codex" && codexProxyActive) {
         // Proxy active: callback will be handled server-side (auto-exchange) or via channels (fallback)
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       } else if (provider === "xai" && xaiProxyActive) {
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       } else if (!isLocalhost || provider === "codex" || provider === "xai") {
@@ -413,8 +447,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       } else {
         // Localhost (non-Codex/xAI): Open popup and wait for message
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
-        if (!popupRef.current) {
+        if (requestAuthPopup(data.authUrl) === false) {
           setStep("input");
         }
       }
@@ -422,7 +455,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setError(err.message);
       setStep("error");
     }
-  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig, authMode, startProxyFlow]);
+  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig, authMode, startProxyFlow, requestAuthPopup]);
 
   // Reset state and start OAuth when modal opens
   useEffect(() => {
@@ -438,7 +471,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setPolling(false);
       setAuthMode("browser");
       setPasteToken("");
-      setLoginSite(LOGIN_SITES[provider]?.default || "intl");
       setIdeStatus(null);
       pollingAbortRef.current = false;
       // Best-effort IDE detection for paste-token providers (Trae/Windsurf)
@@ -704,45 +736,36 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     ? "http://127.0.0.1:56121/callback?code=... or copied code"
     : isKimchiProvider
       ? `${placeholderUrl.replace("code=...", "token=...")} or copied token`
-      : placeholderUrl;
+      : provider === "croli"
+        ? `http://127.0.0.1:${window.location.port || (window.location.protocol === "https:" ? "443" : "80")}/callback?code=...`
+        : provider === "junie"
+          ? "http://localhost:62345/?code=..."
+          : placeholderUrl;
 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">
       <div className="flex flex-col gap-4">
+        {/* 壳内:授权弹窗挂起等选账号槽(开进持久分区,同槽下次免登录) */}
+        {inShell && pendingPopup && (step === "waiting" || step === "input") && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+            <span className="text-xs text-text">{translate("Open with account slot:")}</span>
+            {Array.from({ length: AUTH_SLOT_COUNT }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => openAuthPopupAt(n)}
+                className="h-7 w-7 rounded-md border border-border text-xs text-text-muted hover:border-primary hover:text-primary transition-colors"
+                title={translate("Account {n} (isolated login partition)").replace("{n}", String(n))}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Proxy OAuth (trae/windsurf/zed): browser flow; paste-token only when configured */}
         {PROXY_OAUTH_PROVIDERS.has(provider) && (step === "waiting" || step === "input" || step === "error") && (
           <>
-            {/* 登录站点：只在浏览器登录模式、且该 provider 有站点概念时出现。
-                trae 国内/国际账号不互通，选错站点换 token 必 20101，所以必须显式选。 */}
-            {authMode === "browser" && LOGIN_SITES[provider] && (
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-text-muted">登录站点</span>
-                <div className="flex gap-2">
-                  {LOGIN_SITES[provider].options.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        if (opt.value === loginSite) return;
-                        setLoginSite(opt.value);
-                        // 站点变了，登录会话也得重开：先停掉旧回调监听再重跑整条流程。
-                        fetch(`/api/oauth/${provider}/stop-proxy`).catch(() => {});
-                        setAuthData(null);
-                        setError(null);
-                        setStep("waiting");
-                        startOAuthFlow();
-                      }}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${loginSite === opt.value ? "border-primary bg-primary/10 text-primary" : "border-border text-text-muted hover:text-primary"}`}
-                    >
-                      <div className="font-medium">{opt.label}</div>
-                      <div className="text-xs opacity-70">{opt.hint}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {PASTE_TOKEN_PROVIDERS[provider] && (
+            {PASTE_TOKEN_PROVIDERS[provider] && provider !== "trae" && provider !== "trae-cn" && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -764,9 +787,22 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             {authMode === "browser" && (
               <>
                 {step === "waiting" && (
-                  <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
-                    <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
-                    <span className="text-sm">Waiting for browser authorization…</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg bg-sidebar/50">
+                      <span className="material-symbols-outlined text-base text-primary animate-spin">progress_activity</span>
+                      <span className="text-sm">Waiting for browser authorization…</span>
+                    </div>
+                    {/* trae/trae-cn：qoder 式外置直登——浏览器窗口就是主入口，不再摆
+                        模式切换按钮；粘贴 Token 降级为兜底小链接 */}
+                    {(provider === "trae" || provider === "trae-cn") && PASTE_TOKEN_PROVIDERS[provider] && (
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode("paste-token"); setError(null); setStep("input"); }}
+                        className="self-start text-xs text-text-muted hover:text-primary underline-offset-2 hover:underline"
+                      >
+                        无法弹出浏览器？改用粘贴 Token 登录
+                      </button>
+                    )}
                   </div>
                 )}
                 {step === "input" && (
@@ -908,6 +944,23 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                     Open
                   </Button>
                 </div>
+                {/* 壳内(桌面端):用账号槽打开——登录页开进选定持久分区,免登录复用 */}
+                {typeof window !== "undefined" && window.sessionPool?.openAuthSlot && deviceLoginUrl && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                    <span className="text-xs text-text-muted">{translate("Open with account slot:")}</span>
+                    {Array.from({ length: AUTH_SLOT_COUNT }, (_, i) => i + 1).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => window.sessionPool.openAuthSlot(deviceLoginUrl, n)}
+                        className="h-7 w-7 rounded-md border border-border text-xs text-text-muted hover:border-primary hover:text-primary transition-colors"
+                        title={translate("Account {n} (isolated login partition)").replace("{n}", String(n))}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {deviceData.user_code && (
                 <div className="bg-primary/10 p-4 rounded-lg">

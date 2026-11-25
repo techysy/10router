@@ -11,7 +11,8 @@ import {
   checkApiKeyModelAccess,
 } from "../services/auth.js";
 import { getSettings, getChannelBlock, setChannelBlock, clearChannelBlock } from "@/lib/localDb";
-import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint, withInsufficientBalanceHint, isInsufficientBalanceText } from "open-sse/services/accountFallback.js";
+import { buildChannelBlock, channelBlockRemainingMs, formatRetryAfter, withChannelScopeHint, withRateLimitHint, withInsufficientBalanceHint, isInsufficientBalanceText, withZeroQuotaHint } from "open-sse/services/accountFallback.js";
+import { CHANNEL_BLOCK_MS } from "open-sse/config/errorConfig.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { isOversizedForCbcn, describeCbcnOversize } from "open-sse/executors/codebuddy-cn.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
@@ -31,6 +32,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken, persistRefreshedCredentials, markConnectionNeedsReauth } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { INTERNAL_COMPACTION_HEADER } from "@/sse/services/autoCompact.js";
 
 /**
  * Handle chat completion request
@@ -155,6 +157,10 @@ export async function handleChat(request, clientRawRequest = null) {
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    // Time-window sticky (per-combo override wins): within the idle window the
+    // same member keeps answering — group assistants (Hermes/openclaw) interleave
+    // requests, so per-request rotation switched members mid-conversation.
+    const comboStickyWindowMinutes = comboStrategies[modelStr]?.stickyWindowMinutes ?? settings.comboStickyWindowMinutes;
     const retryOnEmpty = comboStrategies[modelStr]?.retryOnEmpty ?? settings.comboRetryOnEmpty ?? false;
     const retryOnEmptyLimit = comboStrategies[modelStr]?.retryOnEmptyLimit ?? settings.comboRetryOnEmptyLimit;
 
@@ -189,6 +195,7 @@ export async function handleChat(request, clientRawRequest = null) {
           // loop + auto-switch stay active below it.
           comboStrategy: "fallback",
           comboStickyLimit,
+          comboStickyWindowMinutes,
           retryOnEmpty,
           retryOnEmptyLimit,
         });
@@ -197,7 +204,7 @@ export async function handleChat(request, clientRawRequest = null) {
       // fall through to the normal handleComboChat below
     }
 
-    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit}, window: ${comboStickyWindowMinutes}m)`);
     return handleComboChat({
       body,
       models: augmentedModels,
@@ -209,6 +216,7 @@ export async function handleChat(request, clientRawRequest = null) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
+      comboStickyWindowMinutes,
       retryOnEmpty,
       retryOnEmptyLimit
     });
@@ -288,9 +296,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
 
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
+      const comboStickyWindowMinutes = comboStrategies[modelStr]?.stickyWindowMinutes ?? chatSettings.comboStickyWindowMinutes;
       const retryOnEmpty = comboStrategies[modelStr]?.retryOnEmpty ?? chatSettings.comboRetryOnEmpty ?? false;
       const retryOnEmptyLimit = comboStrategies[modelStr]?.retryOnEmptyLimit ?? chatSettings.comboRetryOnEmptyLimit;
-      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+      log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit}, window: ${comboStickyWindowMinutes}m)`);
       return handleComboChat({
         body,
         models: augmentedModels,
@@ -302,6 +311,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboName: modelStr,
         comboStrategy,
         comboStickyLimit,
+        comboStickyWindowMinutes,
         retryOnEmpty,
         retryOnEmptyLimit
       });
@@ -363,8 +373,19 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     );
   }
 
+  // `x-connection-id` pins the request to one account. The media example cards
+  // (image/video/music) already send it, and callers that reach chat through a
+  // media endpoint (music → acemusic) need it honoured here too. Only a first
+  // pick: excluded connections still fall through the normal rotation.
+  const preferredConnectionId = excludeConnectionIds.size === 0
+    ? (request?.headers?.get("x-connection-id") || null)
+    : null;
+
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { requestedModel: requestedModel || model });
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, {
+      requestedModel: requestedModel || model,
+      preferredConnectionId,
+    });
 
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
@@ -373,9 +394,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         const baseMsg = `[${provider}/${model}] ${errorMsg}`;
-        const hintedMsg = status === 402 || isInsufficientBalanceText(errorMsg)
-          ? withInsufficientBalanceHint(baseMsg, provider)
-          : withRateLimitHint(baseMsg, provider);
+        const hintedMsg = withZeroQuotaHint(
+          status === 402 || isInsufficientBalanceText(errorMsg)
+            ? withInsufficientBalanceHint(baseMsg, provider)
+            : withRateLimitHint(baseMsg, provider),
+        );
         return unavailableResponse(
           status,
           hintedMsg,
@@ -390,9 +413,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
       log.warn("CHAT", "No more accounts available", { provider });
       const baseLastError = lastError || "All accounts unavailable";
-      const hintedLastError = lastStatus === 402 || isInsufficientBalanceText(baseLastError)
-        ? withInsufficientBalanceHint(baseLastError, provider)
-        : withRateLimitHint(baseLastError, provider);
+      const hintedLastError = withZeroQuotaHint(
+        lastStatus === 402 || isInsufficientBalanceText(baseLastError)
+          ? withInsufficientBalanceHint(baseLastError, provider)
+          : withRateLimitHint(baseLastError, provider),
+      );
       return errorResponse(
         lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE,
         hintedLastError,
@@ -460,6 +485,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       onCredentialsRefreshFailed: async (err) => {
         await markConnectionNeedsReauth(credentials.connectionId, { provider, reason: err, log });
       },
+      onCompletedResponse: provider === "croli" && request?.headers?.get(INTERNAL_COMPACTION_HEADER) !== "1"
+        ? async () => {
+            const { reportCroliCompletedUserTurn } = await import("@/sse/services/croliCheckin.js");
+            await reportCroliCompletedUserTurn(credentials.connectionId, { log });
+          }
+        : undefined,
       onRequestSuccess: async () => {
         await clearAccountError(credentials.connectionId, credentials, model);
         // A success proves the channel is serving again — drop any block
@@ -477,7 +508,34 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     if (result.success) return result.response;
 
     // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
-    const { shouldFallback, channelScope } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs);
+    const { shouldFallback, channelScope, unattributed429 } = await markAccountUnavailable(
+      credentials.connectionId, result.status, result.error, provider, model, result.resetsAtMs,
+      { unattributed429: result.unattributed429 === true },
+    );
+
+    if (shouldFallback && unattributed429) {
+      // #147：Google 伪 429（WAF 身份识别类）。账号已按常规冷却锁住，但
+      // **绝不轮换 sibling**——一次请求亚秒级打穿全池留下的连续被拒记录
+      // 正是 Google abuse 判定吃的信号（60 天日志 1688 次全池锁定 + 两号
+      // TOS_VIOLATION 实证）。改为渠道级暂停：窗口内该 provider 直接快速
+      // 失败（selection 侧已有 channelBlock 预检），时长走 google429 档
+      // （首犯 5min，升级窗内再犯 30min）。
+      const prev = await getChannelBlock(provider);
+      const block = buildChannelBlock(prev, Date.now(), {
+        short: CHANNEL_BLOCK_MS.google429,
+        long: CHANNEL_BLOCK_MS.google429Long,
+      });
+      await setChannelBlock(provider, block);
+      const human = formatRetryAfter(block.until);
+      log.warn("AUTH", `${provider} | unattributed 429 (#147) — channel blocked for ${Math.round(block.durationMs / 1000)}s (strike ${block.strikes}${block.escalated ? ", escalated" : ""}), account fallback aborted`);
+      log.warn("CHAT", `[${provider}/${model}] ${result.error} (unattributed 429, ${human})`);
+      return unavailableResponse(
+        result.status || HTTP_STATUS.SERVICE_UNAVAILABLE,
+        withRateLimitHint(`[${provider}/${model}] ${result.error}`, provider),
+        block.until,
+        human,
+      );
+    }
 
     if (shouldFallback && channelScope) {
       // Channel-scope: stop the whole provider rather than trying the next

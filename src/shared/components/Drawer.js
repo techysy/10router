@@ -11,11 +11,13 @@ export default function Drawer({
   width = "md",
   className
 }) {
+  // 移动端全宽(393px 屏装不下最小 400px 的固定宽,右锚面板左侧被裁),
+  // sm+ 恢复设计宽度。
   const widths = {
-    sm: "w-[400px]",
-    md: "w-[500px]",
-    lg: "w-[600px]",
-    xl: "w-[800px]",
+    sm: "w-full sm:w-[400px]",
+    md: "w-full sm:w-[500px]",
+    lg: "w-full sm:w-[600px]",
+    xl: "w-full sm:w-[800px]",
     full: "w-full",
   };
 

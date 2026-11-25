@@ -17,6 +17,10 @@ const CACHE_KEY = "10r.announcements.cache";
 const SEEN_KEY = "10r.announcements.seen";
 // Anything older than this is stale enough to hide rather than show as news.
 const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+// Display gate: the modal renders at most the latest 10 items (deterministic
+// sort below, then cut) so an accumulating feed can never flood the dialog.
+// The file itself keeps the entries; age-based hiding is MAX_AGE_MS's job.
+const MAX_DISPLAY_ITEMS = 10;
 
 export const ANNOUNCEMENTS_CHANGED_EVENT = "10r-announcements-changed";
 
@@ -81,7 +85,46 @@ function normalizeFeed(raw) {
 function computeUnread() {
   const cached = normalizeFeed(readJson(CACHE_KEY, null));
   const seen = new Set(readSeenIds());
-  return cached.filter((it) => !seen.has(it.id)).length;
+  // The badge only counts what the modal can actually display — unseen items
+  // beyond the display gate must not keep the dot lit forever.
+  return cached.slice(0, MAX_DISPLAY_ITEMS).filter((it) => !seen.has(it.id)).length;
+}
+
+const SYNC_KEY = "10r.announcements.syncedAt";
+const SYNC_TTL_MS = 5 * 60 * 1000;
+let syncInFlight = false;
+
+const FEED_URLS = [
+  "/api/announcements",
+  GITHUB_CONFIG.announcementsUrl,
+  "https://fastly.jsdelivr.net/gh/techysy/10router@main/announcements.json",
+  GITHUB_CONFIG.announcementsUrlFallback,
+].filter(Boolean);
+
+// The header badge must work BEFORE the modal is ever opened: unread count
+// compares against the local cache, and the cache used to be written only when
+// the modal opened — first-time visitors never saw the red dot. Sync the feed
+// quietly on mount (TTL-throttled, same-origin API first, silent on failure).
+async function syncAnnouncementsCache() {
+  if (syncInFlight) return;
+  if (Date.now() - Number(readJson(SYNC_KEY, 0)) < SYNC_TTL_MS) return;
+  syncInFlight = true;
+  try {
+    for (const url of FEED_URLS) {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        writeJson(CACHE_KEY, normalizeFeed(await res.json()));
+        writeJson(SYNC_KEY, Date.now());
+        try {
+          window.dispatchEvent(new Event(ANNOUNCEMENTS_CHANGED_EVENT));
+        } catch { /* non-browser */ }
+        return;
+      } catch { /* try the next mirror; offline → keep the old cache */ }
+    }
+  } finally {
+    syncInFlight = false;
+  }
 }
 
 /** Unread count for the header badge; listens for in-tab updates. */
@@ -95,6 +138,7 @@ export function useUnreadAnnouncements() {
     const onChanged = () => setCount(computeUnread());
     window.addEventListener(ANNOUNCEMENTS_CHANGED_EVENT, onChanged);
     window.addEventListener("storage", onChanged);
+    syncAnnouncementsCache().catch(() => {});
     return () => {
       window.removeEventListener(ANNOUNCEMENTS_CHANGED_EVENT, onChanged);
       window.removeEventListener("storage", onChanged);
@@ -122,19 +166,19 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
     setStale(false);
 
     (async () => {
-      const urls = [GITHUB_CONFIG.announcementsUrl, GITHUB_CONFIG.announcementsUrlFallback].filter(Boolean);
-      for (const url of urls) {
+      for (const url of FEED_URLS) {
         try {
           const res = await fetch(url, { cache: "no-store" });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const feed = normalizeFeed(await res.json());
           if (cancelled) return;
           writeJson(CACHE_KEY, feed);
+          writeJson(SYNC_KEY, Date.now());
           setItems(feed);
           return;
         } catch (err) {
-          if (url === urls[urls.length - 1]) {
-            // Both mirrors failed — fall back to whatever we last saw.
+          if (url === FEED_URLS[FEED_URLS.length - 1]) {
+            // All candidates failed — fall back to whatever we last saw.
             const cached = normalizeFeed(readJson(CACHE_KEY, null));
             if (cancelled) return;
             if (cached.length) {
@@ -173,6 +217,8 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
     if (items.length === 0) {
       return <p className="py-6 text-center text-sm text-text-muted">{translate("No announcements right now")}</p>;
     }
+    const shown = items.slice(0, MAX_DISPLAY_ITEMS);
+    const hidden = items.length - shown.length;
     return (
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {stale && (
@@ -180,19 +226,24 @@ export default function AnnouncementsModal({ isOpen, onClose }) {
             {translate("Showing the last cached copy — the live feed is unreachable right now.")}
           </p>
         )}
-        {items.map((it) => (
+        {hidden > 0 && (
+          <p className="rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 text-xs text-text-muted lg:col-span-2">
+            {translate("Showing the latest 10 announcements — older entries are hidden.")}
+          </p>
+        )}
+        {shown.map((it) => (
           <article
             key={it.id}
             className={cn(
               "rounded-lg border p-2.5",
               it.level === "critical"
-                ? "border-red-500/30 bg-red-500/5"
+                ? "border-red-500/40 bg-red-500/10"
                 : it.level === "warning"
-                  ? "border-amber-500/30 bg-amber-500/5"
+                  ? "border-amber-500/40 bg-amber-500/10"
                   : it.level === "promo"
-                    ? "border-green-500/40 bg-green-500/5"
+                    ? "border-green-500/40 bg-green-500/10"
                     : it.level === "feature"
-                      ? "border-blue-500/40 bg-blue-500/5"
+                      ? "border-blue-500/40 bg-blue-500/10"
                       : "border-black/10 dark:border-white/10 bg-surface/50"
             )}
           >

@@ -12,7 +12,7 @@ import {
   MenuItem,
 } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { getProviderIconSrc } from "@/shared/utils/providerIcon";
+import { getProviderIconSrc, getCompatibleNodeFaviconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
   FREE_PROVIDERS,
@@ -396,6 +396,7 @@ export default function ProvidersPage() {
       color: "#10A37F",
       textIcon: "OC",
       apiType: node.apiType,
+      website: node.website,
     }))
     .filter((p) => matchSearch(p.name));
 
@@ -406,6 +407,7 @@ export default function ProvidersPage() {
       name: node.name || "Anthropic Compatible",
       color: "#D97757",
       textIcon: "AC",
+      website: node.website,
     }))
     .filter((p) => matchSearch(p.name));
 
@@ -420,6 +422,12 @@ export default function ProvidersPage() {
     // "api_key" (placeholder token). Counting "oauth" only made the card show
     // "No connections" next to a live, tested connection on the detail page.
     if (key === "mimo-desktop") return ["oauth", "apikey", "api_key"];
+    // dumate is a webCookie provider surfaced in the OAuth group (QR login) —
+    // its connections carry authType "cookie", so count that alongside "oauth".
+    if (key === "dumate") return ["cookie", "oauth"];
+    // lingxi likewise: pasted WPS session cookie (authType "cookie"), synced
+    // from CreditDaddy or captured in a browser session — no OAuth flow.
+    if (key === "lingxi") return ["cookie"];
     const modes = info?.authModes;
     // Free-tier and API-key providers default to supporting apikey even when the
     // registry entry omits authModes (e.g. cloudflare-ai, byteplus, ollama,
@@ -434,7 +442,19 @@ export default function ProvidersPage() {
   };
 
   const oauthEntries = sortByPriority(
-    Object.entries(OAUTH_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)),
+    // Merge the cookie-login webCookie providers into the OAuth group so they
+    // show up where users expect an interactive login flow. dumate has QR
+    // login; lingxi takes a pasted WPS session cookie (CreditDaddy sync).
+    // The dedicated Web Cookie section stays collapsed below.
+    // loomy likewise (2026-11-15 用户定版): its credential is a login session
+    // captured interactively (CreditDaddy 本机导入/手机直登 or pasted session),
+    // not a "free-tier API key" — surface it with the OAuth group.
+    Object.entries({
+      ...OAUTH_PROVIDERS,
+      ...(WEB_COOKIE_PROVIDERS.dumate ? { dumate: WEB_COOKIE_PROVIDERS.dumate } : {}),
+      ...(WEB_COOKIE_PROVIDERS.lingxi ? { lingxi: WEB_COOKIE_PROVIDERS.lingxi } : {}),
+      ...(FREE_TIER_PROVIDERS.loomy ? { loomy: FREE_TIER_PROVIDERS.loomy } : {}),
+    }).filter(([, info]) => !info.hidden && matchSearch(info.name)),
   ).filter(([key, info]) => matchesStatusFilter(getProviderStats(key, dualAuthTypes(info, key)), info, key));
   // Merge free (noAuth/connectionless) and free-tier (api-key) providers into
   // ONE list sorted by the shared connection-state rule. Without this, the two
@@ -452,7 +472,10 @@ export default function ProvidersPage() {
       .map(([k, info]) => ({ key: k, info, stats: getProviderStats(k, dualAuthTypes(info, k)), isFreeTier: false })),
     ...Object.entries(FREE_TIER_PROVIDERS)
       .filter(
-        ([, info]) =>
+        ([k, info]) =>
+          // loomy surfaces in the OAuth group (session-credential semantics) —
+          // excluded here or it would render twice.
+          k !== "loomy" &&
           !info.hidden &&
           !(info.community && !showCommunityProviders) &&
           matchSearch(info.name) &&
@@ -1171,6 +1194,9 @@ function ApiKeyProviderCard({
   };
 
   const getIconPath = () => {
+    // 官网地址 → 站点 favicon,自定义端点也能亮出真实品牌(#—用户 11-18 口径)
+    const favicon = getCompatibleNodeFaviconSrc(provider.website);
+    if (favicon) return favicon;
     if (isCompatible && provider.apiType)
       return provider.apiType === "responses"
         ? "/providers/oai-r.png"
@@ -1211,6 +1237,11 @@ function ApiKeyProviderCard({
                 {provider.community && (
                   <Badge variant="warning" size="sm" className="shrink-0">
                     {translate("Trial")}
+                  </Badge>
+                )}
+                {provider.freeTrial && (
+                  <Badge variant="success" size="sm" className="shrink-0">
+                    {translate("Free")}
                   </Badge>
                 )}
               </h3>
