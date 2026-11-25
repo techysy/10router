@@ -20,13 +20,34 @@ export function readOrcaTermClaims(token) {
   }
 }
 
+// Errors raised before any request bytes are sent, so a retry cannot replay a single-use code.
+const RETRYABLE_CONNECT_ERRORS = new Set(["UND_ERR_CONNECT_TIMEOUT", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "EAI_AGAIN"]);
+const MAX_CONNECT_RETRIES = 3;
+
 async function requestJson(url, init, proxyOptions) {
-  const response = await proxyAwareFetch(url, {
-    ...init,
-    redirect: "error",
-    headers: { Accept: "application/json", ...init?.headers },
-    signal: AbortSignal.timeout(ORCATERM_CONFIG.requestTimeoutMs),
-  }, proxyOptions);
+  let response;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      response = await proxyAwareFetch(url, {
+        ...init,
+        redirect: "error",
+        headers: { Accept: "application/json", ...init?.headers },
+        signal: AbortSignal.timeout(ORCATERM_CONFIG.requestTimeoutMs),
+      }, proxyOptions);
+      break;
+    } catch (error) {
+      const code = String(error?.cause?.code || error?.code || "");
+      if (attempt < MAX_CONNECT_RETRIES && RETRYABLE_CONNECT_ERRORS.has(code)) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+        continue;
+      }
+      throw new OrcaTermError(
+        `OrcaTerm endpoint unreachable (${code || error?.name || "network error"}); please retry`,
+        502,
+        "NETWORK_ERROR",
+      );
+    }
+  }
   const body = await response.json().catch(() => null);
   if (!response.ok || !body) {
     throw new OrcaTermError(

@@ -83,6 +83,7 @@ export async function POST(request, { params }) {
     // Credentials never travel back to the dashboard.
     return json({ success: true, connection: { id: connection.id, provider: "orcaterm", name: connection.name } });
   } catch (error) {
+    console.error("[orcaterm-oauth] sign-in failed", error?.name, error?.code || error?.cause?.code, error?.message);
     return json({
       error: error instanceof OrcaTermError ? error.message : "OrcaTerm sign-in could not be completed",
     }, error instanceof OrcaTermError ? error.status : 502);
