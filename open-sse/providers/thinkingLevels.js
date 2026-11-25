@@ -38,6 +38,10 @@ const CLAUDE_NO_XHIGH = ["none", "low", "medium", "high", "max"];
 
 // Model-name pattern overrides (glob, first match wins) — more precise than format default.
 const PATTERN_THINKING = [
+  // AutoClaw（智谱澳龙）：上游 reasoning 变体只有 low / high / max（auto /
+  // auto-fast / glm-5.3 系同一档位集），无关闭档。两条线同一目录。
+  { provider: "autoclaw", pattern: "*", levels: ["low", "high", "max"] },
+  { provider: "autoclaw-cn", pattern: "*", levels: ["low", "high", "max"] },
   // Gemini 4 (Argon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
   { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
   // Tiered Gemini 3.8/3.7/3.6 Flash have no MINIMAL tier and cannot disable thinking.

@@ -2,6 +2,7 @@ import { PROVIDERS, PROVIDER_OAUTH } from "../../config/providers.js";
 import { OAUTH_ENDPOINTS, GITHUB_COPILOT, buildKimiHeaders } from "../../config/appConstants.js";
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
+import { refreshAutoclawCredentials } from "../../shared/autoclaw/client.js";
 import { buildClineHeaders, getClineAccessToken } from "../../shared/clineAuth.js";
 import { resolveMeooCredentials } from "../meooAk.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
@@ -156,6 +157,22 @@ export async function refreshJunieToken(refreshToken, log, proxyOptions = null) 
       return null;
     }
   }, log);
+}
+
+// AutoClaw（智谱澳龙）: account-plane refresh (shared by `autoclaw` and
+// `autoclaw-cn`). POST {host}/userapi/v1/refresh with the signed managed-layer
+// headers and { source_id, device_id (the refresh JWT's own claim),
+// refresh_token }; business code 400002 falls back to /userapi/v1/agent-refresh.
+// Host order follows the refresh JWT's source_id (agent* = SMS account → CN
+// host first, else the global host first). The response's `refresh` field is
+// a bool — the new token is `refresh_token`. Treated as single-use rotation
+// (same discipline as Nous/QwenWork): concurrent refreshes are deduped on
+// the current token and the caller persists the rotated pair every time.
+// Dead logins (401/403, invalid_grant/revoked/登录已失效) → invalid_grant.
+export async function refreshAutoclawToken(refreshToken, { region = null, proxyOptions = null, log = null } = {}) {
+  if (!refreshToken) return null;
+  return dedupRefresh("autoclaw", refreshToken, () =>
+    refreshAutoclawCredentials(refreshToken, { region, proxyOptions, log }), log);
 }
 
 // QwenWork （千问办公）: device-token refresh — POST { refresh_token,

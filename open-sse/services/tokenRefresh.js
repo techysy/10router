@@ -18,6 +18,7 @@ import {
   refreshNousToken,
   refreshJunieToken,
   refreshQwenWorkToken,
+  refreshAutoclawToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -43,6 +44,7 @@ export {
   refreshNousToken,
   refreshJunieToken,
   refreshQwenWorkToken,
+  refreshAutoclawToken,
   refreshTraeToken,
   refreshClineToken,
   refreshZedToken,
@@ -208,6 +210,10 @@ const REFRESH_HANDLERS = {
   // QwenWork: device-token refresh, single-use rotation (see providers.js).
   qwenwork: (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork", log),
   "qwenwork-cn": (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork-cn", log),
+  // AutoClaw: one refresher for both account systems — host order follows the
+  // refresh JWT's source_id, the connection's card is only the fallback.
+  autoclaw: (c, log) => refreshAutoclawToken(c.refreshToken, { region: "intl", log }),
+  "autoclaw-cn": (c, log) => refreshAutoclawToken(c.refreshToken, { region: "cn", log }),
   trae: (c, log) => refreshTraeToken(c.refreshToken, c, log),
   // #99 拆线：国内站条目共用同一刷新器——站点由连接 psd.site 决定 origins
   "trae-cn": (c, log) => refreshTraeToken(c.refreshToken, c, log),

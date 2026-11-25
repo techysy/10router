@@ -181,6 +181,13 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
+  // AutoClaw（智谱澳龙）daily sign-in (task-center daily_signin, intl + CN cards). Opt-in.
+  if (settings.autoclawCheckin === true) {
+    import("@/sse/services/autoclawCheckin.js")
+      .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
+      .catch((e) => console.log("[AutoclawCheckin] scheduler start failed:", e.message));
+  }
+
   // Croli daily check-in and server-claimable rewards are opt-in. The scheduler
   // never creates model conversations; successful user chats report their own event.
   if (settings.croliCheckin === true) {

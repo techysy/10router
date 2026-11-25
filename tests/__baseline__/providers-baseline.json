@@ -1597,5 +1597,17 @@
     "format": "openai",
     "clientId": "junie-cli",
     "tokenUrl": "https://oauth.account.jetbrains.com/oauth2/token"
+  },
+  "autoclaw": {
+    "baseUrl": "https://autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/v1/chat/completions",
+    "headers": {},
+    "timeoutMs": 120000,
+    "format": "openai"
+  },
+  "autoclaw-cn": {
+    "baseUrl": "https://autoglm-acceleration-api.zhipuai.cn/autoclaw-proxy/proxy/autoclaw/chat/completions",
+    "headers": {},
+    "timeoutMs": 120000,
+    "format": "openai"
   }
 }

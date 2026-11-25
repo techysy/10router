@@ -319,6 +319,13 @@ export async function POST(request, { params }) {
         const results = await claimAllQoderAccounts(provider);
         return NextResponse.json({ success: true, results });
       }
+      // AutoClaw（智谱澳龙）每日签到：任务面 daily_signin（幂等），按 token 的
+      // JWT source_id 选域。两条线各自只签自己卡下的连接；手动触发不跳过当日已签。
+      if (provider === "autoclaw" || provider === "autoclaw-cn") {
+        const { runAutoclawCheckinTick } = await import("@/sse/services/autoclawCheckin.js");
+        const results = await runAutoclawCheckinTick({ provider, skipIfCheckedToday: false });
+        return NextResponse.json({ success: true, results });
+      }
       // 签到只对订阅线开放。minimax-free 是免登录网关线,签到在 CreditDaddy
       // 内闭环——这里不认它,卡面也不渲染签到按钮(issue #75)。
       if (provider === "minimax-code" || provider === "minimax-code-global") {

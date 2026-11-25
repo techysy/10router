@@ -169,6 +169,20 @@ export default function ExperimentalClient() {
               }
             />
 
+            {/* AutoClaw（智谱澳龙）auto daily sign-in — task-center daily_signin
+                (idempotent), on each connection's own region (intl / CN). */}
+            <CheckinCard
+              title={translate("AutoClaw auto daily sign-in")}
+              desc={translate("Automatically claim the daily sign-in points for AutoClaw and AutoClaw CN connections — idempotent, retried every ~2 hours until today's claim is confirmed")}
+              checked={settings.autoclawCheckin === true}
+              onToggle={() =>
+                patch(
+                  { autoclawCheckin: !(settings.autoclawCheckin === true) },
+                  "Error toggling AutoClaw auto check-in:"
+                )
+              }
+            />
+
             {/* Lingxi auto daily check-in — daily_check_in claim (ported from
                 CreditDaddy lingxiClient). The tasks-state gate never blind-fires
                 the claim; checked-in/already accounts are memoized for the day. */}
