@@ -92,8 +92,9 @@ function normalizeToken(data, requireIdentity = false) {
     : lifetime > 0 ? lifetime : ORCATERM_CONFIG.tokenLifetimeSeconds;
   return {
     accessToken,
-    // This API renews the current access token; it issues no separate refresh token.
-    refreshToken: accessToken,
+    // Renewal accepts the access token in the refreshToken field and may rotate a distinct
+    // refresh token; prefer the server-issued one when present.
+    refreshToken: typeof data.refreshToken === "string" && data.refreshToken ? data.refreshToken : accessToken,
     expiresIn,
     userId,
     displayName: String(data.providerUsername ?? claims.providerUsername ?? ""),
@@ -137,7 +138,7 @@ export async function refreshOrcaTermToken(token, log, proxyOptions = null) {
       const body = await requestJson(ORCATERM_CONFIG.refreshUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "OAuthRefreshToken", data: { accessToken: token } }),
+        body: JSON.stringify({ action: "OAuthRefreshToken", data: { refreshToken: token } }),
       }, proxyOptions);
       checkResult(body);
       const result = body.data?.Response ?? body.data;

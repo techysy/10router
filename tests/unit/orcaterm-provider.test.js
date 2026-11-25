@@ -67,6 +67,18 @@ describe("OrcaTerm authentication", () => {
     expect(proxyAwareFetch).toHaveBeenCalledTimes(1);
     expect(first).toEqual(second);
     expect(first).toMatchObject({ accessToken: newToken, refreshToken: newToken });
+    // The upstream Joi schema requires data.refreshToken; sending accessToken instead
+    // is rejected with INVALID_REQUEST before the token is even inspected.
+    const sent = JSON.parse(vi.mocked(proxyAwareFetch).mock.calls[0][1].body);
+    expect(sent).toEqual({ action: "OAuthRefreshToken", data: { refreshToken: oldToken } });
+  });
+
+  it("prefers a distinct rotated refresh token when the server issues one", async () => {
+    const oldToken = jwt({ nonce: "rotating-source" });
+    const newAccess = jwt({ nonce: "rotated-access" });
+    const newRefresh = jwt({ nonce: "rotated-refresh" });
+    vi.mocked(proxyAwareFetch).mockResolvedValue(json({ data: { Response: { accessToken: newAccess, refreshToken: newRefresh } } }));
+    expect(await refreshOrcaTermToken(oldToken)).toMatchObject({ accessToken: newAccess, refreshToken: newRefresh });
   });
 
   it("distinguishes a revoked grant from transient upstream failures", async () => {
