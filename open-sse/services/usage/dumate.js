@@ -122,11 +122,24 @@ function buildQuotas(result, bonus) {
   const used = (o) => round2(num(o.usedPoints));
   const total = (o) => round2(num(o.totalPoints));
 
+  // Same-name packs get an ordinal, NOT another copy of the suffix.
+  // `while (quotas[name]) name += "·2"` re-attached the SAME marker on every
+  // collision, so a month of daily grants stacked into
+  // 「每日赠送积分·2·2·2·2·2·2·2」 (user screenshot 2026-11-25). Counting per
+  // base name gives 每日赠送积分 / ·2 / ·3 … — the shape the rest of the repo
+  // already uses (codebuddy-cn's `seenRefill[base]`, externalQuota's
+  // disambiguateQuotaNames). The first of a kind keeps its bare name so the
+  // upstream copy is not decorated when there is nothing to disambiguate.
+  const seen = {};
+  const uniqueName = (base) => {
+    seen[base] = (seen[base] || 0) + 1;
+    return seen[base] > 1 ? `${base}·${seen[base]}` : base;
+  };
+
   let i = 0;
   for (const pack of Array.isArray(result.subscription) ? result.subscription : []) {
     if (pack.status !== "active") continue;
-    let name = `订阅·${packLabel(pack, i++, true)}`;
-    while (quotas[name]) name += "·2";
+    const name = uniqueName(`订阅·${packLabel(pack, i++, true)}`);
     quotas[name] = {
       modelKey: packVisibilityKey(pack, "subscription"),
       used: used(pack),
@@ -142,8 +155,7 @@ function buildQuotas(result, bonus) {
   i = 0;
   for (const pack of Array.isArray(result.incremental) ? result.incremental : []) {
     if (pack.status !== "active") continue;
-    let name = packLabel(pack, i++, false);
-    while (quotas[name]) name += "·2";
+    const name = uniqueName(packLabel(pack, i++, false));
     quotas[name] = {
       modelKey: packVisibilityKey(pack, "incremental"),
       used: used(pack),

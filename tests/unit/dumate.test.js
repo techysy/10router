@@ -339,6 +339,97 @@ describe("dumate additive subscription credits", () => {
   });
 });
 
+// 逐包明细同名包编号（2026-11-25 用户截图：「每日赠送积分·2·2·2·2·2·2·2」）。
+// 旧写法 `while (quotas[name]) name += "·2"` 每次冲突都往尾部再贴一个 ·2，
+// 一个月签到下来后缀层层堆叠；正确口径是按 base 计数（每日赠送积分、·2、·3…），
+// 与 codebuddy-cn 的 seenRefill[base] / externalQuota.disambiguateQuotaNames 一致。
+describe("dumate same-name pack numbering", () => {
+  it("numbers repeated daily grants 1..N instead of stacking the ·2 suffix", () => {
+    const day = 86400;
+    const base = Math.floor(Date.now() / 1000) + 3 * day;
+    const incremental = Array.from({ length: 18 }, (_, k) => ({
+      packageType: "grant_point",
+      status: "active",
+      source: "login_bonus",
+      usedPoints: 0,
+      totalPoints: 500,
+      pointsExpireDate: base - k * day,
+    }));
+    const quotas = buildQuotas(
+      { totalPoints: 9000, usedPoints: 0, subscription: [], incremental },
+      null,
+    );
+    const names = Object.keys(quotas).filter((n) => n !== "积分余额");
+    expect(names).toHaveLength(18);
+    expect(names[0]).toBe("每日赠送积分");
+    expect(names[1]).toBe("每日赠送积分·2");
+    expect(names[17]).toBe("每日赠送积分·18");
+    // The bug's signature: a name carrying the marker twice.
+    expect(names.some((n) => /·2·2/.test(n))).toBe(false);
+  });
+
+  it("numbers duplicate subscription packs off the same base", () => {
+    const expires = Math.floor(Date.now() / 1000) + 86400;
+    const quotas = buildQuotas(
+      {
+        totalPoints: 8000,
+        usedPoints: 0,
+        subscription: [
+          { packageType: "plan_pro", status: "active", usedPoints: 0, totalPoints: 4000, pointsExpireDate: expires },
+          { packageType: "plan_pro", status: "active", usedPoints: 0, totalPoints: 4000, pointsExpireDate: expires + 1 },
+        ],
+        incremental: [],
+      },
+      null,
+    );
+    expect(Object.keys(quotas).filter((n) => n !== "积分余额").sort()).toEqual(
+      ["订阅·Pro 套餐", "订阅·Pro 套餐·2"],
+    );
+  });
+
+  it("keeps the first of a kind bare and still numbers across 永久 rows", () => {
+    const quotas = buildQuotas(
+      {
+        totalPoints: 4000,
+        usedPoints: 0,
+        subscription: [],
+        incremental: [
+          { packageType: "grant_point", status: "active", source: "invite_bonus", usedPoints: 0, totalPoints: 2000 },
+          { packageType: "grant_point", status: "active", source: "invite_bonus", usedPoints: 0, totalPoints: 2000 },
+          { packageType: "grant_point", status: "active", source: "invite_bonus", usedPoints: 0, totalPoints: 2000 },
+        ],
+      },
+      null,
+    );
+    expect(Object.keys(quotas).filter((n) => n !== "积分余额")).toEqual([
+      "邀请赠送积分·永久",
+      "邀请赠送积分·永久·2",
+      "邀请赠送积分·永久·3",
+    ]);
+  });
+
+  it("skips inactive packs without burning an ordinal", () => {
+    const expires = Math.floor(Date.now() / 1000) + 86400;
+    const quotas = buildQuotas(
+      {
+        totalPoints: 1000,
+        usedPoints: 0,
+        subscription: [],
+        incremental: [
+          { packageType: "grant_point", status: "active", source: "login_bonus", usedPoints: 0, totalPoints: 500, pointsExpireDate: expires },
+          { packageType: "grant_point", status: "expired", source: "login_bonus", usedPoints: 500, totalPoints: 500, pointsExpireDate: expires },
+          { packageType: "grant_point", status: "active", source: "login_bonus", usedPoints: 0, totalPoints: 500, pointsExpireDate: expires + 1 },
+        ],
+      },
+      null,
+    );
+    expect(Object.keys(quotas).filter((n) => n !== "积分余额")).toEqual([
+      "每日赠送积分",
+      "每日赠送积分·2",
+    ]);
+  });
+});
+
 describe("dumate usage login-failure detection", () => {
   it("treats redirects, 401/403 and non-JSON bodies as session loss", () => {
     expect(isLoginFailure({ status: 302, text: "" })).toBe(true);

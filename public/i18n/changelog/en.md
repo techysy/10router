@@ -30,6 +30,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **DuMate per-pack details no longer stack suffixes**: packs sharing a name used to render as 「Daily credits·2·2·2·2·2·2·2」 — the marker was re-appended on every collision — and now number in order instead (Daily credits, ·2, ·3 …). A month of daily grants is readable again.
+
 - **Zero-credit quota packs no longer count down**: in the per-pack details' "Used up / expired" section, a pack whose credits were fully spent but whose expiry is still ahead used to keep an "expires in Xh Ym" countdown — meaningless over a balance of zero. Such packs now show the absolute expiry date instead (e.g. "expires 09-30"); countdowns are reserved for packs that still have credit. The card header's "N resource packs (available)" countdown already counted only packs with balance and is unchanged.
 
 - **"Resets first" sort button on the quota page fixed**: the hourglass button in the quota page toolbar previously did nothing when clicked, and rendered as a squashed pink chip while active — the sort only worked within the current page and lacked the data to sort by, the page order never followed it across pages, and the button's styles clashed. Accounts are now genuinely ordered by their earliest quota reset/expiry time (across pages; only future reset/expiry times count — expired or permanent accounts sink to the end), and the button's active state renders correctly.
