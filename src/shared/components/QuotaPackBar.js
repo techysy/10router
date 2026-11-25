@@ -9,6 +9,7 @@ import {
   classifyCycleRows,
   cycleRowLines,
   CRITICAL_PCT,
+  earliestQuotaCountdown,
   isAggregateQuotaRow,
   isDrainedGiftPack,
   isRecurringQuotaRow,
@@ -527,6 +528,33 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
   // (2026-10-22 user report: 没有了 xxx 于多久过期).
   const poolHasExpiry = pool.some((p) => p.resetAt);
 
+  /**
+   * The card's ONE countdown — the same function the hourglass sort ranks on, so
+   * a card cannot print `17d 后过期` while sorting at `5d`.
+   *
+   * The candidate set is NOT `barPacks`: the additive pool drops a drained
+   * monthly grant (`isDrainedGiftPack` — right for the sum, wrong for the clock:
+   * that window refills and its date is the news) and never holds a cycle window
+   * at all. So it reads every row the card was handed, normalized numbers
+   * included, plus the itemised `detailOnly` packs (they are the authoritative
+   * dates for a bucket like Qoder's addOn — the shared rule skips the restating
+   * parent via `summarizesDetail`, keeping the countdown on LIVE packs).
+   */
+  const soonest = earliestQuotaCountdown([
+    ...withNums,
+    ...packs.filter((p) => p?.detailOnly === true),
+  ]);
+  // Remaining on the winning row, in its own unit. Rows that never went through
+  // `withNums` (the `detailOnly` packs) carry no `remainingNum`, so fall back to
+  // their raw used/total pair.
+  const soonestAmount = (() => {
+    const row = soonest?.row;
+    if (!row) return 0;
+    if (Number.isFinite(row.remainingNum)) return Math.max(0, Number(row.remainingNum));
+    const total = Number(row.totalNum ?? row.total ?? 0);
+    return Number.isFinite(total) ? Math.max(0, total - Number(row.used ?? 0)) : 0;
+  })();
+
   const renderPoolBar = (poolPacks, poolTotal) => {
     const livePacks = poolPacks
       .filter((p) => p.remainingNum > 0 && p.totalNum > 0)
@@ -680,9 +708,6 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
             - one pool, no packs   → what the number IS ("资源包" / "余额") */}
       {pool.length > 0 && (() => {
         const live = barPacks.filter((p) => p.remainingNum > 0);
-        const soonestLive = live
-          .filter((p) => p.resetAt)
-          .sort((a, b) => String(a.resetAt).localeCompare(String(b.resetAt)))[0] || null;
         // A settled balance keeps its name line even when a breakdown exists
         // (MiMo's 现金/赠送 legs fold into 逐包明细): "N 个资源包" copy is wrong
         // for a stored-value card — the name IS what the number is
@@ -699,15 +724,18 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
             </div>
           );
         }
-        // 全部耗尽但包会回收（antigravity 的窗口配额：烧完后在 resetAt 回血）
+        // 全部耗尽但额度会回来（antigravity 的窗口配额：烧完后在 resetAt 回血）
         // —— meta 行照常给出「已耗尽 + 何时重置」，否则卡片以裸「0 / 1,000」
         // 空条收尾，读起来像数据异常（2026-11-06 用户报告）。一次性烧断的包
-        // （recycles !== true）维持原状：静默，由聚合行自己说话。
+        // 维持原状：静默，由聚合行自己说话——同一个候选规则会把它们排掉
+        // （0 余额的包剩下的日期是记录不是期限，146a065a0 口径）。
+        //
+        // 这一行取的是**池子自身**的回血时刻，不是卡面总倒计时 `soonest`：
+        // 「N 个资源包已耗尽」讲的是池子，若旁边挂上别处周期窗的日期，读起来
+        // 像那批包会一起回来。周期窗的日期在它自己那一行里已经写了。
         if (live.length === 0) {
-          const recycling = barPacks
-            .filter((p) => p.recycles === true && p.resetAt)
-            .sort((a, b) => String(a.resetAt).localeCompare(String(b.resetAt)))[0] || null;
-          if (!recycling) return null;
+          const poolRefill = earliestQuotaCountdown(barPacks);
+          if (!poolRefill) return null;
           return (
             <div className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
               <span className="text-text-muted">
@@ -719,7 +747,7 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
                   0
                 </span>
                 <span className="shrink-0">
-                  {dateWord(true, recycling.resetAt)}
+                  {dateWord(poolRefill.resets, poolRefill.raw)}
                 </span>
               </span>
             </div>
@@ -730,16 +758,28 @@ export default function QuotaPackBar({ packs = [], className, nestedCycle = fals
             <span className="text-text-muted">
               {translate("{count} resource packs").replace("{count}", String(live.length))}
             </span>
-            {soonestLive ? (
+            {soonest ? (
               <span className="inline-flex min-w-0 items-center gap-3 truncate text-text-muted">
-                {/* No pack name: the credit icon + amount + expiry already say
-                    which pack this is. */}
-                <span className="inline-flex shrink-0 items-center gap-1">
-                  <CreditIcon className="size-[11px] shrink-0" />
-                  {fmt(soonestLive.remainingNum)}
-                </span>
+                {/* Two readings of the same winner:
+                    - it still has credit → icon + amount, no name (the amount +
+                      date already identify the pack);
+                    - it is a DRAINED window → printing "✦ 0" beside a healthy
+                      pool total reads like the pool is empty, so the amount is
+                      dropped and the ROW NAME takes its place: without it
+                      "14 个资源包 · 4d 后重置" suggests the packs all reset at
+                      once, when it is the 每月 allowance that refills. */}
+                {soonestAmount > 0 ? (
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    <CreditIcon className="size-[11px] shrink-0" />
+                    {fmt(soonestAmount)}
+                  </span>
+                ) : (
+                  <span className="min-w-0 truncate">
+                    {translateQuotaName(displayPackName(soonest.row?.name)) || soonest.row?.name}
+                  </span>
+                )}
                 <span className="shrink-0">
-                  {dateWord(isResettingRow(soonestLive), soonestLive.resetAt)}
+                  {dateWord(soonest.resets, soonest.raw)}
                 </span>
               </span>
             ) : null}

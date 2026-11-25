@@ -16,6 +16,14 @@ const OPTIONAL_FIELDS = [
   "lastTested", "lastError", "lastErrorAt", "rateLimitedUntil", "expiresIn", "errorCode",
   "consecutiveUseCount", "idToken", "lastRefreshAt",
   "earliestPackageExpiry", "earliestPackageName", "earliestPackageRemaining", "quotaCheckedAt",
+  // Countdown as the QUOTA WALL shows it — the same scan under the display
+  // profile (drained-but-refilling windows and monthly grants included).
+  // `earliestPackageExpiry` is the ROUTING reading, deliberately narrower: a
+  // drained CodeBuddy grant must not pin every account to the same month-end
+  // date. Sorting the wall on the routing value made cards order by a number
+  // their own header did not print (2026-11-25 report), so the display value is
+  // persisted alongside it and feeds the UI only. Relay keeps `earliestPackage*`.
+  "displayPackageExpiry", "displayPackageName",
   // Stored-value currency or token balance for pure-balance providers
   "quotaBalance",
   // Subscription health split (see usage/expiryExtractor.js): the fastest- and

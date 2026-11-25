@@ -36,6 +36,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🐛 Fixed
 
+- **Quota cards now sort by the countdown they print**: a card's header ("next reset / expiry") and the hourglass toggle (Resets first) each computed that answer their own way, so one account could show "in 17d" on the card while being placed by a different date. Both now read one value, and the header no longer drops a cycle allowance that is **spent but refills**: a CodeBuddy card's "Monthly 0/500" now reads "Monthly resets in 5d" instead of only naming packs that still have credit. The other direction is fixed too — a one-shot pack that is already burned no longer poses as "expiring soonest" and pushes its account to the front of the wall. The "Earliest package" badge on provider pages follows the same reading.
+
 - **Qoder CN "Fast" chats again**: upstream only publishes that tier to newer client versions, and our catalog read used a lower one, so its model config was never fetched and picking 快速 failed with `model_config for "fast" not yet known`. The catalog is now read at a version that includes it; the chat request signature is unchanged. Its ×0.6 multiplier label was added too.
 
 - **DuMate per-pack details no longer stack suffixes**: packs sharing a name used to render as 「Daily credits·2·2·2·2·2·2·2」 — the marker was re-appended on every collision — and now number in order instead (Daily credits, ·2, ·3 …). A month of daily grants is readable again.

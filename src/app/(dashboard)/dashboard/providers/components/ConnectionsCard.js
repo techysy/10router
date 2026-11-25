@@ -5,6 +5,7 @@ import { translate } from "@/i18n/runtime";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { classifyConnectionCooldown, sameConnectionCooldown } from "@/shared/utils/connectionCooldown";
 import { translateQuotaError } from "@/shared/utils/quotaError";
+import { connectionCountdown } from "@/shared/utils/quotaRows";
 import { cn } from "@/shared/utils/cn";
 import PropTypes from "prop-types";
 import { Card, Badge, Button, Input, Modal, Select, Toggle, EditConnectionModal, ConfirmModal } from "@/shared/components";
@@ -55,6 +56,10 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
   const proxyDropdownRef = useRef(null);
 
   const proxyPoolMap = new Map((proxyPools || []).map((p) => [p.id, p]));
+  // 与额度页同一口径（见 quotaRows.connectionCountdown）：本文件与 providers/[id]
+  // 的 ConnectionRow 是两份并行实现，「最早到期」徽标必须一起切到展示列，否则
+  // 媒体供应商页与配额墙会对同一个号报两个日期。
+  const countdown = connectionCountdown(connection);
   const boundProxyPoolId = connection.providerSpecificData?.proxyPoolId || null;
   const boundProxyPool = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
@@ -147,14 +152,14 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
               {connection.isActive === false ? "disabled" : (statusLabel || "Unknown")}
             </Badge>
             {hasAnyProxy && <Badge variant={proxyBadgeVariant} size="sm">Proxy</Badge>}
-            {connection.earliestPackageExpiry && (
+            {countdown.date && (
               <Badge
                 variant="outline"
                 size="sm"
-                title={`${translate("Earliest package")}: ${connection.earliestPackageName || translate("Quota package")} (${new Date(connection.earliestPackageExpiry).toLocaleString()})`}
+                title={`${translate("Earliest package")}: ${countdown.name || translate("Quota package")} (${new Date(countdown.date).toLocaleString()})`}
               >
                 <span className="material-symbols-outlined text-[12px] mr-1">schedule</span>
-                {formatExpiry(connection.earliestPackageExpiry)}
+                {formatExpiry(countdown.date)}
               </Badge>
             )}
             {isCooldown && connection.isActive !== false && <CooldownTimer until={modelLockUntil} />}

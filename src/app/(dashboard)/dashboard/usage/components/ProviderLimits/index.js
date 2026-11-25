@@ -1188,6 +1188,25 @@ export default function ProviderLimits() {
     };
   }, [autoRefresh, refreshAll, hasHydratedAutoRefresh, refreshIntervalMs]);
 
+  // The hourglass sort must rank on the SAME rows the card prints, and the card
+  // only ever counts VISIBLE rows (`QuotaPackBar packs={visibleQuotas}`). Hiding
+  // a row is the user saying "that one is not my signal" — ranking by it would
+  // put a card in a position its own header cannot explain, which is the exact
+  // complaint this pass fixes. Built once per (page, quota, visibility) instead of
+  // per card, so the sort and the render still read identical row sets.
+  const visibleSortQuotaData = useMemo(() => {
+    const out = {};
+    for (const conn of connections) {
+      const entry = quotaData[conn.id];
+      if (!entry) continue;
+      out[conn.id] = {
+        ...entry,
+        quotas: filterQuotasByVisibility(conn.id, entry.quotas || [], quotaVisibility, conn.provider),
+      };
+    }
+    return out;
+  }, [connections, quotaData, quotaVisibility]);
+
   const sortedConnections = useMemo(
     () =>
       sortVisibleConnections(
@@ -1196,8 +1215,9 @@ export default function ProviderLimits() {
         expiringFirst,
         providerFilter,
         quotaSortMode,
+        visibleSortQuotaData,
       ),
-    [connections, quotaData, expiringFirst, providerFilter, quotaSortMode],
+    [connections, quotaData, visibleSortQuotaData, expiringFirst, providerFilter, quotaSortMode],
   );
 
   /**

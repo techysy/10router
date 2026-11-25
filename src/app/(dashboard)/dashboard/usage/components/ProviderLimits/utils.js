@@ -1,5 +1,6 @@
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
-import { shortDuration } from "@/shared/utils/quotaRows";
+import { quotaCountdownFromRaw } from "open-sse/utils/quotaTiming.js";
+import { earliestQuotaCountdown, shortDuration } from "@/shared/utils/quotaRows";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 export const QUOTA_CACHE_KEY = "quotaCacheData";
@@ -137,8 +138,12 @@ export function sortVisibleConnections(
   expiringFirst,
   providerFilter,
   quotaSortMode,
+  visibleQuotaData = null,
 ) {
   if (providerFilter === "codex" && quotaSortMode !== "default") {
+    // Reads `quotaData` (ALL rows), never `visibleQuotaData`: this branch ranks on
+    // the FIRST quota row's remaining, so filtering by card visibility would make
+    // hiding a row silently change the sort key.
     return [...connections].sort((a, b) => {
       const remainingA = getConnectionQuotaRemaining(a, quotaData);
       const remainingB = getConnectionQuotaRemaining(b, quotaData);
@@ -155,28 +160,33 @@ export function sortVisibleConnections(
 
   if (!expiringFirst) return groupByProviderStable(connections);
 
-  // Rank by the earliest reset the CARD knows about (per-pack resetAt from the
-  // quota fetch); a card whose quota has not landed yet falls back to the
-  // connection row's persisted earliestPackageExpiry (the same signal the
-  // server-side "expiring" sort uses), and only a row with NEITHER sinks to
-  // the end. Reset times in the past (window already refilled) rank like no
-  // date — the point of this sort is "what is about to reset/expire".
+  // Rank by the SAME signal the card header prints — `earliestQuotaCountdown`,
+  // the display profile. Two surfaces computing "next reset" their own way is how
+  // a card ended up reading `17d 后过期` while sorting at `5d` (2026-11-25 report:
+  // the header dropped the drained 每月 window the sort kept). A card whose quota
+  // has not landed yet falls back to the connection row's persisted
+  // earliestPackageExpiry (what the server-side "expiring" sort ranks on), and
+  // only a row with NEITHER sinks to the end.
   const now = Date.now();
+  // Rows the CARD actually counts. The card renders `visibleQuotas`, so ranking on
+  // the unfiltered list would put a card at a position its own header cannot
+  // explain once the user hides a row — hiding one is saying "that is not my
+  // signal". Falls back to the raw map for callers without a visibility state.
+  const ranked = visibleQuotaData || quotaData;
   const getEarliestResetTime = (connection) => {
-    const resetTimes = (quotaData[connection.id]?.quotas || [])
-      .map((quota) =>
-        quota.resetAt
-          ? new Date(quota.resetAt).getTime()
-          : Number.POSITIVE_INFINITY,
-      )
-      .filter((time) => Number.isFinite(time) && time > now);
-    if (resetTimes.length > 0) return Math.min(...resetTimes);
-    const rowExpiry = connection.earliestPackageExpiry
-      ? new Date(connection.earliestPackageExpiry).getTime()
-      : NaN;
-    return Number.isFinite(rowExpiry) && rowExpiry > now
-      ? rowExpiry
-      : Number.POSITIVE_INFINITY;
+    const soonest = earliestQuotaCountdown(ranked[connection.id]?.quotas, { now });
+    if (soonest) return soonest.time;
+    // Same guards as everywhere else (past = already refilled, year-9999 =
+    // permanent, garbage = nothing). `displayPackageExpiry` is the persisted
+    // DISPLAY reading — the same one the header prints — so a card whose quota has
+    // not landed yet still sits where its countdown says it belongs;
+    // `earliestPackageExpiry` is the narrower ROUTING reading and only the
+    // fallback for rows written before that column existed.
+    return (
+      quotaCountdownFromRaw(connection.displayPackageExpiry, now) ??
+      quotaCountdownFromRaw(connection.earliestPackageExpiry, now) ??
+      Number.POSITIVE_INFINITY
+    );
   };
 
   return [...connections].sort((a, b) => {

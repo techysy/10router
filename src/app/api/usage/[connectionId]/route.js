@@ -4,7 +4,7 @@ import "open-sse/index.js";
 import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
-import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { extractEarliestPackageExpiry, extractDisplayPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { extractConnectionBalance } from "open-sse/services/usage/balanceExtractor.js";
 import { isUnrecoverableRefreshError } from "open-sse/services/tokenRefresh.js";
 import { markConnectionNeedsReauth, NEEDS_REAUTH_MESSAGE } from "@/sse/services/tokenRefresh.js";
@@ -247,14 +247,25 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
     // Persist earliest available package expiry for expire-first routing and balance for balance routing
     try {
       const expiryInfo = extractEarliestPackageExpiry(usage);
+      // The wall's own reading of the same payload (see expiryExtractor): a
+      // drained-but-refilling grant counts here and not in `expiryInfo`, and an
+      // account can have NO routing signal at all while still having a countdown
+      // to show (dumate: spent subscription + permanent top-up). So it is computed
+      // unconditionally and written in both branches below.
+      const displayInfo = extractDisplayPackageExpiry(usage);
       // Croli wallet credits are display-only rewards, not model budget. Keep
       // them out of quotaBalance so pure-balance routing cannot sort on them.
       const parsedBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
       const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
+      const displayPatch = {
+        displayPackageExpiry: displayInfo?.expiry || null,
+        displayPackageName: displayInfo?.name || null,
+      };
       if (expiryInfo) {
         await updateProviderConnection(connection.id, {
           earliestPackageExpiry: expiryInfo.expiry || null,
           earliestPackageName: expiryInfo.name || null,
+          ...displayPatch,
           earliestPackageRemaining:
             typeof expiryInfo.remainingPercentage === "number" ? expiryInfo.remainingPercentage : null,
           shortWindowRemaining:
@@ -272,6 +283,11 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
         await updateProviderConnection(connection.id, {
           earliestPackageExpiry: null,
           earliestPackageName: null,
+          // NOT hardcoded null: an account can have no ROUTING signal while
+          // still owing the wall a countdown (a spent subscription whose monthly
+          // grant refills in 5d — dumate/codebuddy shape). `displayPatch` already
+          // holds null when there is genuinely nothing to show.
+          ...displayPatch,
           earliestPackageRemaining: null,
           shortWindowRemaining: null,
           longWindowRemaining: null,

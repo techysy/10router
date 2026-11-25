@@ -10,7 +10,7 @@ import { ANTIGRAVITY_IDE_USER_AGENT } from "open-sse/providers/shared.js";
 import { GROK_CLI_PAGER_USER_AGENT, GROK_CLI_VERSION } from "open-sse/config/grokCli.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
-import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { extractEarliestPackageExpiry, extractDisplayPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import {
   amazonQuickListConversationsUrl,
@@ -2136,12 +2136,27 @@ export async function testSingleConnection(id, options = {}) {
         // never ran. The resolved proxy for this connection is `effectiveProxy`.
         const usage = await getUsageForProvider(mergedConn, effectiveProxy);
         const expiryInfo = extractEarliestPackageExpiry(usage);
+        const displayInfo = extractDisplayPackageExpiry(usage);
+        // Display-reading twin (see expiryExtractor) — the quota wall sorts on it,
+        // so it is written in BOTH branches: an account can have no ROUTING signal
+        // while still owing the wall a countdown, and skipping the write here would
+        // leave the card parked on a stale position until the next full refresh.
+        const displayPatch = {
+          displayPackageExpiry: displayInfo?.expiry || null,
+          displayPackageName: displayInfo?.name || null,
+        };
         if (expiryInfo) {
           await updateProviderConnection(id, {
             earliestPackageExpiry: expiryInfo.expiry || null,
             earliestPackageName: expiryInfo.name || null,
+            ...displayPatch,
             earliestPackageRemaining:
               typeof expiryInfo.remainingPercentage === "number" ? expiryInfo.remainingPercentage : null,
+            quotaCheckedAt: new Date().toISOString(),
+          });
+        } else if (usage?.quotas && displayInfo) {
+          await updateProviderConnection(id, {
+            ...displayPatch,
             quotaCheckedAt: new Date().toISOString(),
           });
         }

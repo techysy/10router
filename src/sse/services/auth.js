@@ -4,7 +4,7 @@ import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLock
 import { MAX_RATE_LIMIT_COOLDOWN_MS, MAX_QUOTA_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getUsageForProvider } from "open-sse/services/usage.js";
-import { extractEarliestPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
+import { extractEarliestPackageExpiry, extractDisplayPackageExpiry } from "open-sse/services/usage/expiryExtractor.js";
 import { extractConnectionBalance, extractDailyGrantAndPermanent } from "open-sse/services/usage/balanceExtractor.js";
 import { getProviderQuotaCategory, PROVIDER_QUOTA_TYPES } from "open-sse/config/providerCategories.js";
 import { selectRelayCarrier } from "open-sse/services/relaySelection.js";
@@ -214,6 +214,10 @@ function triggerBackgroundQuotaRefresh(connections) {
         };
         const usage = await getUsageForProvider(conn, proxyOptions);
         const expiryInfo = extractEarliestPackageExpiry(usage);
+        // The quota wall's own reading (drained-but-refilling grants included) —
+        // persisted as `displayPackageExpiry` so a card's position on a paginated
+        // wall matches the countdown printed on it. Relay keeps `expiryInfo`.
+        const displayInfo = extractDisplayPackageExpiry(usage);
 
         // Family-partitioned pools (Antigravity: gemini_* / claude_gpt_*) must be
         // stored per family. A single merged reading lets the LONGEST window of
@@ -251,6 +255,12 @@ function triggerBackgroundQuotaRefresh(connections) {
         await updateProviderConnection(conn.id, {
           earliestPackageExpiry: expiryInfo?.expiry || null,
           earliestPackageName: expiryInfo?.name || null,
+          // Display-reading twin, persisted for the quota wall only (see
+          // expiryExtractor): the wall sorts and the card header count down by
+          // this, so a card's position cannot disagree with the number printed on
+          // it. Relay keeps ranking on `earliestPackageExpiry`.
+          displayPackageExpiry: displayInfo?.expiry || null,
+          displayPackageName: displayInfo?.name || null,
           // Live remaining-percentage of the most-constrained bucket — the
           // relay red-zone signal. Undefined when the provider has no
           // percentage quota (relay then degrades to "burn until 429").

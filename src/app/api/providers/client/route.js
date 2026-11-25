@@ -3,6 +3,7 @@ import { getProviderConnections } from "@/lib/localDb";
 import { backfillCodexEmails } from "@/lib/oauth/providers";
 import { USAGE_SUPPORTED_PROVIDERS } from "@/shared/constants/providers";
 import { isUsageEligible } from "@/shared/utils/usageEligibility";
+import { quotaCountdownFromRaw } from "open-sse/utils/quotaTiming.js";
 import { buildExternalConnectionRows, filterClaimedExternalRows, attachClaimRefreshUrls } from "@/lib/externalQuota";
 
 const SAFE_FIELDS = [
@@ -15,7 +16,13 @@ const SAFE_FIELDS = [
   // computeConnectionUsage): feeds the server-side "expiring" sort below and
   // the client-side expiring-first fallback for cards whose quota fetch has
   // not landed yet. A timestamp, no credentials.
+  // `displayPackageExpiry` is the same mirror under the DISPLAY reading (a
+  // drained-but-refilling window and a monthly grant DO count) — what the card
+  // header prints — and is what the sort prefers. `earliestPackageExpiry` stays
+  // the ROUTING reading and is the fallback for rows written before the display
+  // column existed.
   "earliestPackageExpiry",
+  "displayPackageExpiry",
   // Mirrored from a same-name-claimed external push (see attachClaimRefreshUrls)
   // so the connection card's refresh button can call the pusher back. Not a DB
   // column — present only on rows that actually claimed a push with a callback.
@@ -88,17 +95,16 @@ function sortConnections(connections, sort) {
   // resetAt is in the past has already refilled, so it is not "about to
   // reset/expire" — same rule as the client-side fallback in
   // sortVisibleConnections (2026-11-24 用户报：已过期 0 额度的账户排在最前).
-  // Also matches the sentinel rule downstream (year-9999 = permanent).
+  // Both read `quotaCountdownFromRaw`, the one implementation of the date rules
+  // (past / year-9999 sentinel / unparseable → nothing), so server and client
+  // pages of the same wall cannot order the same account differently.
   if (sort === "expiring") {
     const now = Date.now();
-    const expiryTime = (c) => {
-      const t = c?.earliestPackageExpiry ? new Date(c.earliestPackageExpiry).getTime() : NaN;
-      // Expired or sentinel → Infinity, exactly like the client fallback and
-      // the expiryExtractor's isPerpetual rule.
-      return Number.isFinite(t) && t > now && new Date(t).getFullYear() <= 2099
-        ? t
-        : Number.POSITIVE_INFINITY;
-    };
+    // Display reading first, routing reading as the fallback (rows from before
+    // the column existed, or a provider whose refresh has not run since).
+    const expiryTime = (c) =>
+      quotaCountdownFromRaw(c?.displayPackageExpiry ?? c?.earliestPackageExpiry, now) ??
+      Number.POSITIVE_INFINITY;
     return list.sort((a, b) => {
       // Compare VALUES, not the difference: Infinity - Infinity is NaN and a
       // NaN comparator result is treated as "equal", which would silently

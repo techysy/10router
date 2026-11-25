@@ -469,3 +469,101 @@ export function healthHue(pct) {
   }
   return HEALTH_STOPS[HEALTH_STOPS.length - 1][1];
 }
+
+// The clock half of the "earliest reset / expiry" answer lives in the engine
+// (`open-sse/utils/quotaTiming.js`), which the relay path reads too — routing and
+// display must not be able to drift apart on what counts as a deadline. Only the
+// selection primitive is imported: the date rules themselves are consumed from
+// that module directly by whoever needs them, so this file stays the place where
+// ROW MEANING (names, flags, layout) lives, not timestamps.
+import { earliestExpiryBucket } from "open-sse/utils/quotaTiming.js";
+
+// ─── The next reset / expiry ─────────────────────────────────────────────────
+//
+// "When does this account next change on the clock" is ONE question, and it was
+// answered three different ways — the card header, the hourglass sort and the
+// persisted routing column each had their own filter+min. A CodeBuddy CN card
+// therefore printed `17d 后过期` while the same account sorted at `5d`, because
+// the header dropped the drained 每月 window the sort kept (2026-11-25 report).
+// Everything below is the single implementation of that answer; every surface
+// calls `earliestQuotaCountdown` instead of writing its own loop.
+
+/**
+ * The name-based half of the candidate rule, which the engine layer cannot own
+ * (it is deliberately free of row names). Two judgements:
+ *
+ *  - excluded rows: `unlimited` rows (no ceiling to ever run out, so nothing to
+ *    race the clock against — routing has always read their reset as an expiry,
+ *    which is why the veto lives here and not in the shared rule); stored-value
+ *    pools (余额/代金券 have no deadline — printing "in ∞" is noise, and letting
+ *    one into the ranking made "spend the soonest first" pick a balance); and a
+ *    derived restatement (a "Total Points" row, or a bucket whose `packs[]` are
+ *    ranked instead — the same "detail replaces aggregate" rule the cards
+ *    follow). A bare `aggregate: true` is NOT a restatement, so a lone bucket
+ *    keeps its own date.
+ *  - cycle names: whether a row called `Weekly` / `每周` / `session (5h)` refills.
+ *    Display must infer it, because fetchers drop the flag (mimo ships only a
+ *    name, antigravity only `percentScale`) and the card would otherwise hide a
+ *    window it plainly renders. Routing does NOT infer it: promoting a drained
+ *    one-shot pack to "earliest" makes relay burn an account with nothing left.
+ *
+ * @returns {Object} options for `earliestExpiryBucket` / `drivesEarliestExpiry`.
+ */
+export const COUNTDOWN_DISPLAY_RULES = {
+  isExcludedRow: (row) => row?.unlimited === true || isStoredValueRow(row) || isSummaryRow(row),
+  nameInferredCycles: isRecurringQuotaRow,
+  // The card counts a drained grant: CodeBuddy's "每月 0/500, 5d 后重置" is
+  // exactly the countdown the header must show, and it must be the same value the
+  // hourglass sort ranks the card by. Routing keeps excluding it — that asymmetry
+  // is deliberate, see `drivesEarliestExpiry`.
+  excludeDrainedGrants: false,
+};
+
+/**
+ * The soonest countdown across a set of quota rows — the ONE implementation every
+ * display surface calls (card header, meta line, hourglass sort).
+ *
+ * @returns {{ time: number, row: Object, raw: string|Date, resets: boolean }|null}
+ *   `raw` is the row's own timestamp in the shape it arrived in (never re-derived
+ *   from `time`, so callers keep persisting the exact string they received);
+ *   `resets` picks 重置 vs 到期 wording. `null` when nothing qualifies.
+ */
+export function earliestQuotaCountdown(rows = [], options = {}) {
+  const best = earliestExpiryBucket(rows, { ...COUNTDOWN_DISPLAY_RULES, ...options });
+  if (!best) return null;
+  return { ...best, resets: countdownRefills(best.row) };
+}
+
+/**
+ * The connection row's persisted countdown, in the shape every UI badge reads it.
+ *
+ * `displayPackageExpiry` is the wall's own reading; `earliestPackageExpiry` is
+ * what RELAY spends on and stays untouched by this module. The fallback is for
+ * rows written before the display column existed — once refreshed they agree.
+ * A UI surface must never read `earliestPackageExpiry` directly: that is how a
+ * provider page's "最早到期" badge ended up naming a date its own quota card
+ * did not display (2026-11-25 report).
+ *
+ * @returns {{ date: string|null, name: string|null }}
+ */
+export function connectionCountdown(connection) {
+  return {
+    date: connection?.displayPackageExpiry || connection?.earliestPackageExpiry || null,
+    name: connection?.displayPackageName || connection?.earliestPackageName || null,
+  };
+}
+
+/**
+ * Whether to word a countdown as 重置 rather than 到期.
+ *
+ * `isResettingRow` alone is not enough: antigravity's per-model rows arrive
+ * `recurring: false` (upstream never flags them) with `recycles: true` written by
+ * the normalizer exactly because the credits DO come back at resetAt. Reading
+ * only the name-based rule made a burned account offer "…后过期", implying the
+ * quota is gone for good, on the card whose whole point is when it returns
+ * (2026-11-06 report).
+ */
+export function countdownRefills(row) {
+  if (row?.recycles === true) return true;
+  return isResettingRow(row);
+}

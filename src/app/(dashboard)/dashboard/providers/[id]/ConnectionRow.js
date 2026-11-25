@@ -8,6 +8,7 @@ import { hasCdSyncBadge, isCdSyncedConnection, cdSyncBadgeTitleKey } from "@/sha
 import { translate } from "@/i18n/runtime";
 import { extractAccountsVerificationUrl, extractRealnameVerificationUrl } from "@/shared/utils/validationUrl";
 import { translateQuotaError } from "@/shared/utils/quotaError";
+import { connectionCountdown } from "@/shared/utils/quotaRows";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
@@ -35,6 +36,9 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
   const [proxyDropdownStyle, setProxyDropdownStyle] = useState(null);
 
   const proxyPoolMap = new Map((proxyPools || []).map((pool) => [pool.id, pool]));
+  // 与额度页同一口径的「最早到期/重置」（见 quotaRows.connectionCountdown）：
+  // 路由列刻意剔除会回血的耗尽月包，这里读展示列，两处徽标才说同一个日期。
+  const countdown = connectionCountdown(connection);
   const boundProxyPoolId = connection.providerSpecificData?.proxyPoolId || null;
   const boundProxyPool = boundProxyPoolId ? proxyPoolMap.get(boundProxyPoolId) : null;
   const hasLegacyProxy = connection.providerSpecificData?.connectionProxyEnabled === true && !!connection.providerSpecificData?.connectionProxyUrl;
@@ -431,14 +435,14 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 Proxy
               </Badge>
             )}
-            {connection.earliestPackageExpiry && (
+            {countdown.date && (
               <Badge
                 variant="outline"
                 size="sm"
-                title={`${translate("Earliest package")}: ${connection.earliestPackageName || translate("Quota package")} (${new Date(connection.earliestPackageExpiry).toLocaleString()})`}
+                title={`${translate("Earliest package")}: ${countdown.name || translate("Quota package")} (${new Date(countdown.date).toLocaleString()})`}
               >
                 <span className="material-symbols-outlined text-[12px] mr-1">schedule</span>
-                {formatExpiry(connection.earliestPackageExpiry)}
+                {formatExpiry(countdown.date)}
               </Badge>
             )}
             {isCooldown && connection.isActive !== false && !connection.lastError && <CooldownTimer until={modelLockUntil} />}

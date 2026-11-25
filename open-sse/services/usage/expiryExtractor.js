@@ -21,17 +21,21 @@
 export const RED_ZONE_PCT = 5;
 export const YELLOW_ZONE_PCT = 20;
 
+import {
+  drivesEarliestExpiry,
+  isPerpetualBucket,
+  quotaCountdownFromRaw,
+} from "../../utils/quotaTiming.js";
+
+
 // A bucket with no reset date never refills — it is a balance (River's USD,
 // MiniMax Code's Credits), not a window. Balances are spent LAST: they are the
 // fallback that must survive every subscription cycle. They are excluded from
-// both colour selection and the earliest-expiry ordering.
+// both colour selection and the earliest-expiry ordering. The rule itself is
+// `isPerpetualBucket` (shared with the dashboard's countdown surfaces) — this is
+// just the local spelling the rest of this file reads.
 function isPerpetual(quota) {
-  if (!quota || quota.isCreditBalance === true) return true;
-  const raw = quota.resetAt ?? quota.expiresAt;
-  if (raw == null || raw === "") return true;
-  const t = new Date(raw).getTime();
-  // Sentinel "year 9999" dates mean permanent (same rule used below).
-  return !Number.isFinite(t) || new Date(t).getFullYear() > 2099;
+  return isPerpetualBucket(quota);
 }
 
 // Reset period in ms, used to rank windows. A one-shot pack's "period" is
@@ -171,48 +175,40 @@ export function extractEarliestPackageExpiry(usage, options = {}) {
     }
 
     // Packs carry `expiresAt`, top-level buckets carry `resetAt` — accept both.
+    // The date rules (junk string, year-9999 sentinel, already past) come from
+    // quotaTiming, so this cannot drift from the dashboard's surfaces.
     const resetRaw = pkg.resetAt ?? pkg.expiresAt;
-    const resetTime = resetRaw ? new Date(resetRaw).getTime() : NaN;
-    const hasReset = Number.isFinite(resetTime);
-    // Sentinel dates (year 9999) mean "permanent" — same as having no date.
-    const isFuture = hasReset && resetTime > now && new Date(resetTime).getFullYear() <= 2099;
+    const resetTime = quotaCountdownFromRaw(resetRaw, now);
+    const isFuture = resetTime !== null;
 
     // A RECURRING window (recurring:true, e.g. MiMo weekly / MiniMax Code M Plan /
-    // Antigravity 5h+7d) resets instead of dying: when it's drained, the upcoming
-    // reset time is exactly the information the badge exists to show.
+    // Antigravity 5h+7d) resets instead of dying: when it is drained, the upcoming
+    // reset time is exactly the information the badge exists to show. Everything
+    // else that is drained is a burned asset and feeds NO signal at all —
+    // including a `giftPack` (CodeBuddy CN's monthly refill allowance): additive
+    // quota, not a rate limit, and when drained it must not hijack the slot over
+    // unconsumed bonus packs, or every account reports the identical month-end
+    // date and multi-account earliest-expiry dispatch wedges.
     //
-    // However, when a recurring pack is marked `giftPack: true` (e.g. CodeBuddy CN's
-    // Monthly refill allowance alongside multiple bonus packs): it is an additive
-    // quota package, NOT a rate limit. When its cycle balance is 100% drained
-    // (used >= total or remaining <= 0), it must NOT hijack the earliest expiry
-    // timestamp over unconsumed bonus packs! Doing so makes every account report
-    // the identical month-end reset date and wedges multi-account earliest-expiry
-    // dispatch.
-    const isExhausted = () => {
-      const used = Number(pkg.used ?? 0);
-      const total = Number(pkg.total ?? 0);
-      if (total > 0 && used >= total) return true;
-      if (pkg.remaining !== undefined && Number(pkg.remaining) <= 0) return true;
-      if (pkg.remainingPercentage !== undefined && Number(pkg.remainingPercentage) <= 0) return true;
-      return false;
-    };
-
-    if (pkg.recurring !== true || pkg.giftPack === true) {
-      if (isExhausted()) return;
-    }
-    // A row whose reset date exists but is NOT a live future time is spent
-    // (one-shot expired) or mid-refill (recurring past its mark) — it has no
-    // countable future at all, and its stale `remaining` must not feed the
-    // relay red-zone either.
-    if (hasReset && !isFuture) return;
+    // `drivesEarliestExpiry` is that rule verbatim, and the dashboard's countdown
+    // surfaces call the SAME function with display options (`quotaRows.js`):
+    // expiry rules — a live future date, credit left unless the bucket refills,
+    // no balance — now have one implementation instead of four. It also subsumes
+    // the old liveness guards (a past or sentinel date returns false here), so a
+    // row that cannot be counted stops immediately and its stale `remaining`
+    // cannot leak into the red-zone below.
+    if (!drivesEarliestExpiry(pkg, { now })) return;
 
     const remaining = liveRemainingPercentage(pkg);
 
-    // Fed into the earliest-expiry ordering? Balances no — a USD/Credits
-    // remainder has no deadline, and letting it into the sort would make
-    // "spend the soonest-expiring quota first" pick a balance as soonest.
-    const perpetual = isPerpetual(pkg);
-    if (!perpetual && isFuture && resetTime < earliestTime) {
+    // Fed into the earliest-expiry ordering. `drivesEarliestExpiry` above already
+    // guarantees a live future date and that the bucket is not a balance, so the
+    // only thing left is to keep the soonest one and the label to print.
+    // `resetTime` is compared directly rather than re-parsed, and the ISO written
+    // back is the row's OWN value (a `Date` upstream is kept as one ISO string, a
+    // string is passed through untouched) — the column must round-trip what the
+    // provider reported, not a re-derived timestamp.
+    if (isFuture && resetTime < earliestTime) {
       earliestTime = resetTime;
       earliestName = label;
       earliestIso = resetRaw instanceof Date ? resetRaw.toISOString() : String(resetRaw);
@@ -220,6 +216,7 @@ export function extractEarliestPackageExpiry(usage, options = {}) {
 
     // Subscription window split (see RED_ZONE_PCT). Only timed windows take
     // part — balances have no cycle to rank and must not colour the account.
+    const perpetual = isPerpetual(pkg);
     if (perpetual || !isFuture || remaining === null) return;
     windowCount++;
     const period = windowLength(pkg, resetTime, now);
@@ -247,33 +244,8 @@ export function extractEarliestPackageExpiry(usage, options = {}) {
     if (remaining < minRemaining) minRemaining = remaining;
   };
 
-  for (const [name, quota] of Object.entries(usage.quotas)) {
-    if (!quota || typeof quota !== "object") continue;
-
-    // Skip aggregate / summary rows that don't represent a real package
-    const lowerName = name.toLowerCase();
-    if (
-      lowerName.includes("total") ||
-      lowerName.includes("aggregate") ||
-      lowerName.includes("summary")
-    ) {
-      continue;
-    }
-
-    // A bucket that itemises its packs (Qoder's addOn) is only their sum: the
-    // pack list is the authoritative detail ("detail replaces aggregate" — the
-    // same rule the dashboard cards follow). Rank on the packs, never on the
-    // bucket-level resetAt, which producers derive from the soonest pack
-    // *including drained ones*. The per-pack `consider` call applies the same
-    // live/exhausted rules, so a fully drained pack list contributes nothing.
-    if (Array.isArray(quota.packs) && quota.packs.length > 0) {
-      for (const pack of quota.packs) {
-        consider(pack?.name ? `${name} · ${pack.name}` : name, pack);
-      }
-      continue;
-    }
-
-    consider(name, quota);
+  for (const { label, pkg } of quotaCandidates(usage, { family: targetFamily })) {
+    consider(label, pkg);
   }
 
   if (earliestTime < Infinity || Number.isFinite(minRemaining) || windowCount > 0) {
@@ -310,6 +282,85 @@ export function extractEarliestPackageExpiry(usage, options = {}) {
   }
 
   return null;
+}
+
+/**
+ * The packages a usage payload is ranked on — the ONE iteration shared by the
+ * routing extraction below and {@link extractDisplayPackageExpiry}, so the two
+ * readings can never disagree about WHICH buckets were even considered.
+ *
+ *   - aggregate / summary rows ("Total Points") are derived restatements and are
+ *     never packages in their own right;
+ *   - a bucket that itemises its `packs[]` (Qoder's addOn) is only their sum: the
+ *     pack list is authoritative ("detail replaces aggregate" — the same rule the
+ *     dashboard cards follow), because the bucket-level resetAt is produced from
+ *     the soonest pack INCLUDING drained ones.
+ *
+ * @returns {Array<{label: string, pkg: Object}>}
+ */
+function quotaCandidates(usage, { family = null } = {}) {
+  const out = [];
+  for (const [name, quota] of Object.entries(usage?.quotas || {})) {
+    if (!quota || typeof quota !== "object") continue;
+
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes("total") || lowerName.includes("aggregate") || lowerName.includes("summary")) {
+      continue;
+    }
+
+    if (Array.isArray(quota.packs) && quota.packs.length > 0) {
+      for (const pack of quota.packs) {
+        out.push({ label: pack?.name ? `${name} · ${pack.name}` : name, pkg: pack });
+      }
+      continue;
+    }
+
+    out.push({ label: name, pkg: quota });
+  }
+  if (!family) return out;
+  return out.filter(({ label, pkg }) => {
+    const fam = inferBucketFamily(label) || inferBucketFamily(pkg.name) || inferBucketFamily(pkg.displayName);
+    return !fam || fam === family;
+  });
+}
+
+/**
+ * The countdown the QUOTA WALL shows and sorts by — the same candidates as
+ * {@link extractEarliestPackageExpiry} under the DISPLAY reading, i.e. with
+ * drained-but-refilling grants included.
+ *
+ * Why a second reading instead of one: the routing value is deliberately blind to
+ * a drained `giftPack` (CodeBuddy's monthly grant would otherwise pin every
+ * account to the same month-end date and wedge dispatch), but on screen "每月
+ * 0/500 · 5d 后重置" is exactly the news the card must print. With only the
+ * routing value persisted, a paginated wall sorted across pages by a number the
+ * card no longer displayed (2026-11-25 report). So both are stored:
+ * `earliestPackageExpiry` for relay, `displayPackageExpiry` for the UI.
+ *
+ * @returns {{ expiry: string|null, name: string|null, timestamp: number|null }|null}
+ *   `null` when nothing counts — unlike `extractEarliestPackageExpiry`, this one
+ *   carries no health signals, so a null here means "no countdown", not "no data".
+ */
+export function extractDisplayPackageExpiry(usage, options = {}) {
+  if (!usage || typeof usage !== "object" || !usage.quotas) return null;
+  const now = Date.now();
+  let best = null;
+  for (const { label, pkg } of quotaCandidates(usage, { family: options?.family || null })) {
+    if (pkg.unlimited === true) continue; // no ceiling ever runs out
+    const hit = drivesEarliestExpiry(pkg, { now, excludeDrainedGrants: false });
+    if (!hit) continue;
+    const time = quotaCountdownFromRaw(pkg.resetAt ?? pkg.expiresAt, now);
+    if (time === null) continue;
+    if (best === null || time < best.timestamp) {
+      const raw = pkg.resetAt ?? pkg.expiresAt;
+      best = {
+        timestamp: time,
+        expiry: raw instanceof Date ? raw.toISOString() : String(raw),
+        name: label,
+      };
+    }
+  }
+  return best;
 }
 
 /**
