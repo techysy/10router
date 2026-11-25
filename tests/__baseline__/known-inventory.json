@@ -1447,7 +1447,7 @@
   "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog does not carry retired or spurious ids": "passed",
   "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog does not carry the intl-only GPT/Gemini family": "passed",
   "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog leaves no row for the retired V4-Flash ids": "passed",
-  "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog lists exactly the models the CN client publishes (2026-11-16 screenshots, 4th edition)": "passed",
+  "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog lists exactly the models the CN client publishes (2026-11-25 screenshots, 5th edition)": "passed",
   "tests/unit/codebuddy-cn-models.test.js :: CodeBuddy CN static model catalog marks the promo windows and discount rules the client shows": "passed",
   "tests/unit/codebuddy-cn-oversized-guard.test.js :: CodeBuddy CN oversized payload pre-check detects payload exceeding byte size threshold": "passed",
   "tests/unit/codebuddy-cn-oversized-guard.test.js :: CodeBuddy CN oversized payload pre-check detects payload with too many messages": "passed",
