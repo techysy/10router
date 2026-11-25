@@ -39,10 +39,13 @@ export default {
     refreshLeadMs: 10 * 60 * 1000,
   },
   models: [
-    // 正式 id（2026-10）优先；-Preview 保留一个 minor 周期，避免存量连接 /
-    // disabledModels / modelCaps 里写过旧 id 的用户突然 404（issue #70）。
+    // 正式 id（2026-10 上架）为唯一入口。`-Preview` 的过渡保留期（issue #70）
+    // 已结束，2026-11-25 按用户口径下架（上游目录当时未能核实：本机 CreditDaddy
+    // MiniMax 线未开启，无凭据可探）。
+    // 摘行只影响选择器与 `/v1/models`：注册表不是请求闸（`isValidModel` 无调用方，
+    // `getModelUpstreamId` 对未登记 id 原样透传），所以仍写着 `-Preview` 的存量连接 /
+    // 组合照旧把原 id 发给上游——我们不改写、也不静默回落成正式 id，能否仍出字由上游决定。
     { id: "MiniMax-M3.1-Flash", name: "MiniMax M3.1 Flash" },
-    { id: "MiniMax-M3.1-Flash-Preview", name: "MiniMax M3.1 Flash (Preview)" },
     { id: "MiniMax-M3", name: "MiniMax M3" },
     { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
     { id: "MiniMax-M2.7-highspeed", name: "MiniMax M2.7 Highspeed" },

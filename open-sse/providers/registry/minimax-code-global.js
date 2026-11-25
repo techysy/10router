@@ -39,9 +39,9 @@ export default {
     refreshLeadMs: 10 * 60 * 1000,
   },
   models: [
-    // 同 minimax-code：正式 id 优先，-Preview 过渡保留（issue #70）。
+    // 同 minimax-code：`-Preview` 过渡期已结束（issue #70），2026-11-25 下架，
+    // 只留正式 id。注册表不做请求闸，写过旧 id 的请求仍原样透传。
     { id: "MiniMax-M3.1-Flash", name: "MiniMax M3.1 Flash" },
-    { id: "MiniMax-M3.1-Flash-Preview", name: "MiniMax M3.1 Flash (Preview)" },
     { id: "MiniMax-M3", name: "MiniMax M3" },
     { id: "MiniMax-M2.7", name: "MiniMax M2.7" },
     { id: "MiniMax-M2.7-highspeed", name: "MiniMax M2.7 Highspeed" },

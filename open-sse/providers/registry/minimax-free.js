@@ -32,9 +32,9 @@ export default {
     noAuth: true,
   },
   models: [
-    // 正式 id 优先，-Preview 保留一个周期（与订阅双线同口径，issue #70/#75）
+    // 正式 id 优先；`-Preview` 过渡期已结束（与订阅双线同口径，issue #70/#75），
+    // 2026-11-25 下架。CreditDaddy 网关按 id 透传，写着旧 id 的存量请求照样发出。
     { id: "MiniMax-M3.1-Flash", name: "MiniMax M3.1 Flash" },
-    { id: "MiniMax-M3.1-Flash-Preview", name: "MiniMax M3.1 Flash (Preview)" },
     { id: "MiniMax-M3", name: "MiniMax M3" },
     { id: "MiniMax-M2.7-highspeed", name: "MiniMax M2.7 Highspeed" },
     { id: "MiniMax-M2.7", name: "MiniMax M2.7" },

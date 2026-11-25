@@ -112,7 +112,7 @@ describe("Always-on adaptive models keep a requested thinking display", () => {
   });
 
   it("non-Claude always-on models keep the effort-only wire shape", () => {
-    const body = applyThinking("claude", "MiniMax-M3.1-Flash-Preview", { messages: [] }, "minimax-code", summarized);
+    const body = applyThinking("claude", "MiniMax-M3.1-Flash", { messages: [] }, "minimax-code", summarized);
     expect(body.thinking).toBeUndefined();
     expect(body.output_config).toEqual({ effort: "high" });
   });

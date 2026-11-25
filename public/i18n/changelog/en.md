@@ -50,6 +50,10 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.
 
+### 🧹 Catalog recalibration
+
+- **MiniMax preview model delisted**: `MiniMax-M3.1-Flash-Preview` has reached the end of its transition period (the formal MiniMax M3.1 Flash shipped a full cycle ago), so all three MiniMax Code lines — MiniMax Code, MiniMax Code Global and MiniMax Code Free — dropped it; it no longer appears in the model list or `/v1/models`. We do not rewrite the old id to the formal one: requests still pointing at it (a combo you built earlier, a manually locked model) go upstream unchanged, so if upstream has retired the id you'll get an error there. Re-pick `MiniMax-M3.1 Flash` in your combos / connections. Existing connections need no re-login.
+
 ## v1.8.3 (2026-11-22)
 
 ### ✨ New

@@ -367,7 +367,7 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, targetFormat = null,
     case "minimax": {
       // M3 adaptive; M2.x cannot disable (handled via canDisable clamp).
       body.thinking = { type: none && canDisable ? "disabled" : "adaptive" };
-      // M3.1 系列（M3.1-Flash 与 -Preview）支持可调思考深度（官方客户端档位 default/low/medium/
+      // M3.1 系列（M3.1-Flash；下架的 -Preview 靠保留的能力行走同一形状）支持可调思考深度（官方客户端档位 default/low/medium/
       // high/xhigh/max）: effort 附加在 adaptive 形态里透传——CreditDaddy 网关实测
       // 200 接受（不认识该字段的旧上游会静默忽略,无害）。default 省略字段走上游
       // 默认;minimal 是 none 被 canDisable 钳制出来的档,MiniMax 无此档,同样省略。

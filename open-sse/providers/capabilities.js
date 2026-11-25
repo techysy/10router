@@ -343,16 +343,21 @@ export const MODEL_CAPABILITIES = {
   // text+image+video 进）。codebuddy-cn 的同名条目在 provider 层优先，不受影响。
   "space-bunny":               { vision: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 524288 },
   // MiniMax Code（CreditDaddy MiniMax 线实测 + 官方客户端设置面板 2026-10-03）：
-  //   - M3.1-Flash-Preview：思考深度五档（default/low/medium/high/xhigh/max，
+  //   - M3.1-Flash：思考深度五档（default/low/medium/high/xhigh/max，
   //     无 off → canDisable:false），thinking.effort 由 minimax 形态透传；
   //   - M3：思考是开/关切换（客户端有「思考」开关、无档位）→ canDisable:true,
   //     显式成行修正 *minimax-m3* pattern 的 canDisable:false（该行写于 M3 无
   //     开关的旧认知）；上下文 512K/1M 两档是 MiniMax 侧的用量分档（1M 用量
   //     较高），能力表按上限声明。
-  // 正式 id 与 -Preview 各占一行、数值一致（issue #71）：不写正式行会落到
+  // 正式 id 与旧 -Preview 各占一行、数值一致（issue #71）：不写正式行会落到
   // `*minimax-m3*` 家族兜底，videoInput 丢失（视频块被剥）、maxOutput 压到
   // 131072、thinkingCanDisable 语义错位——全是静默掉档，没有任何报错。
   "MiniMax-M3.1-Flash":         { vision: true, videoInput: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 },
+  // `-Preview` 已于 2026-11-25 从三条 minimax-code 线下架（用户口径，正式 id 上位满
+  // 一个周期），但本行与下面的小写行**故意留着**：注册表不是请求闸（`isValidModel`
+  // 无调用方、`getModelUpstreamId` 原样透传），存量组合 / modelLock / disabledModels
+  // 里写过旧 id 的请求仍会带着它走到这里；删行就落 `*minimax-m3*` 兜底，踩回 #71
+  // 那个静默掉档的坑（剥 videoInput、512000→131072）。转售商目录若还在下发该 id 同理。
   "MiniMax-M3.1-Flash-Preview": { vision: true, videoInput: true, reasoning: true, thinkingFormat: "minimax", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 512000 },
   // 小写 / 命名空间拼写（tokenrouter 的 `minimax/minimax-m3.1-flash` 一类）。
   // canonical 查表区分大小写，不写这两行会落到 `*minimax-m3*` 家族兜底：
