@@ -118,6 +118,10 @@ export const MODEL_CAPABILITIES = {
   "ling-3.0-flash-fin-free":   { reasoning: true, thinkingFormat: "openai", contextWindow: 131072, maxOutput: 32768 },
   // 3.1 窗口翻倍到 256K（models.dev opencode 262144/32768），仍纯文本进。
   "ling-3.1-flash-free":       { reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 32768 },
+  // 裸键 ling-3.1-flash（无 -free 后缀）：QwenWork CN live 目录 2026-11-25 上架
+  // （限时1折 0.1x，is_vl:false 纯文本）。models.dev llmgateway 条目报 1M/32768。
+  // 不写会落 `*ling-*` 兜底（128K、无 thinkingFormat），窗口被砍 1/8。
+  "ling-3.1-flash":            { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32768 },
   "nemotron-3-ultra-free":     { reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 },
   "nemotron-3.5-lightning-free": { reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 65536 },
   "claude-opus-5-thinking-agentic": {pdf: true,  vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
@@ -175,6 +179,11 @@ export const MODEL_CAPABILITIES = {
   // 改它们会波及别人，因此只加精确行。来源都是第一方 models.dev 条目；与转售商冲突时
   // 取第一方。
   "glm-5.3":        { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 }, // zai + zhipuai 一致；thinking 不可关闭
+  // GLM-5.4（2026-11-23 发布，models.dev zai/zhipuai-coding-plan 两条一致）：多模态旗舰
+  // text+image+video+pdf、1M/131072、reasoning effort low/high/max。QwenWork CN live 目录
+  // 同日上架（2026-11-25 探测，1.2x 首发上线），id 与第一方同名——与 glm-5.3 同理由写
+  // canonical。不写会落 `*glm-5*` 兜底：200K 窗口、vision:false，图片被剥。
+  "glm-5.4":        { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
   "glm-5.2":        { reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 }, // zhipuai：窗口 1M
   "glm-5.1":        { reasoning: true, thinkingFormat: "zai", contextWindow: 200000, maxOutput: 131072 }, // zhipuai：窗口与兜底同值，只有输出上限要改
   "glm-5":          { reasoning: true, thinkingFormat: "zai", contextWindow: 204800, maxOutput: 131072 }, // zai + zhipuai（models.dev 已标 deprecated）

@@ -74,9 +74,10 @@ describe("QwenWork provider registry", () => {
 
   it("hardcodes the tier + direct model keys in the static list", () => {
     // Static rosters trimmed to the LIVE-verified sets (2026-11-22 client
-    // cross-check): intl = 3 qwork-* tiers + 6 direct; CN = 2 tiers + 11
-    // direct. The burned preview key (qmodel_latest) and the intl-deepseek
-    // naming (deepseek-v4-pro) are gone — they never existed client-side.
+    // cross-check; 2026-11-25 re-probe added CN glm-5.4): intl = 3 qwork-*
+    // tiers + 6 direct; CN = 2 tiers + 12 direct. The burned preview key
+    // (qmodel_latest) and the intl-deepseek naming (deepseek-v4-pro) are
+    // gone — they never existed client-side.
     const intlIds = intl.models.map((m) => m.id);
     expect(intlIds).toEqual([
       "qwork-auto", "qwork-advanced", "qwork-ultimate",
@@ -84,7 +85,7 @@ describe("QwenWork provider registry", () => {
     ]);
     const cnIds = cn.models.map((m) => m.id);
     expect(cnIds).toEqual([
-      "flash", "pro", "qwen4-max", "qwen3.8-max-preview", "qwen3.8-flash", "ling-3.1-flash",
+      "flash", "pro", "qwen4-max", "qwen3.8-max-preview", "qwen3.8-flash", "glm-5.4", "ling-3.1-flash",
       "deepseek-flash", "deepseek-v4-pro", "glm-5.3", "glm-5.3-flash", "kimi-k3.1-pro",
       "minimax-m3.1-flash", "step-5-preview",
     ]);

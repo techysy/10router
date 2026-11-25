@@ -35,6 +35,7 @@ import {
 // jina-ai=embeddings, polly/playht/inworld=TTS, agnes-ai=image).
 export const EXEMPT_PROVIDERS = new Set([
   "opencode-go", "qoder", "qoder-cn", "kilo-gateway",        // credit plans
+  "qwenwork", "qwenwork-cn",                                 // 千问办公团队积分制（price_factor 是积分倍率，非 USD rate sheet；同 qoder 口径）
   "codebuddy-intl", "codebuddy-cn",                          // credit multipliers, no USD rate sheet
   "ollama", "lmstudio", "vllm",                              // local, free
   "cloudflare-ai", "github", "bazaarlink", "opencode", "iflow", // free tiers

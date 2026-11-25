@@ -46,6 +46,7 @@ export default {
     { id: "qwen4-max", name: "Qwen4-Max" },
     { id: "qwen3.8-max-preview", name: "Qwen3.8-Max" },
     { id: "qwen3.8-flash", name: "Qwen3.8-Flash" },
+    { id: "glm-5.4", name: "GLM-5.4" },
     { id: "ling-3.1-flash", name: "Ling-3.1-Flash" },
     { id: "deepseek-flash", name: "DeepSeek-V4.1-Flash" },
     { id: "deepseek-v4-pro", name: "Deepseek-V4-Pro" },
