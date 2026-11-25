@@ -1,4 +1,4 @@
-import { BaseExecutor } from "./base.js";
+import { BaseExecutor, applyNodeCustomHeaders } from "./base.js";
 import { PROVIDERS, PROVIDER_OAUTH } from "../config/providers.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selectAnthropicBeta, mergeAnthropicBeta } from "../providers/shared.js";
 import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
@@ -232,6 +232,14 @@ export class DefaultExecutor extends BaseExecutor {
     }
 
     if (stream) headers["Accept"] = "text/event-stream";
+
+    // #149: per-endpoint custom headers (node-configured, opt-in). Applied
+    // LAST so a gateway needing its own auth/token header can override the
+    // default Bearer — same semantics as BaseExecutor.buildHeaders. Without
+    // this, DefaultExecutor (which overrides buildHeaders) silently dropped
+    // node custom headers on real traffic; only the connection test path
+    // applied them.
+    applyNodeCustomHeaders(headers, credentials);
     return headers;
   }
 
