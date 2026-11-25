@@ -43,9 +43,6 @@ import { getAtomCodeUsage } from "./usage/atomcode.js";
 import { getTraeUsage } from "./usage/trae.js";
 import { getCroliUsage } from "./usage/croli.js";
 import { getQuworkUsage } from "./usage/quwork.js";
-import { getAutoclawUsage } from "./usage/autoclaw.js";
-import { getClixadUsage } from "./usage/clixad.js";
-import { getFreePiUsage } from "./usage/freepi.js";
 import { getXiaohuanxiongUsage } from "./usage/xiaohuanxiong.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
