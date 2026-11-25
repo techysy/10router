@@ -215,3 +215,6 @@ echo "✅ 完成。产物在: $EXPORT"
 echo "   热替换(Git Bash): bash scripts/nas-deploy.sh \"$EXPORT/10router-$FPK_VER-server.tar.gz\""
 echo "   或应用中心安装:   10router-$FPK_VER-url-$PLATFORM.fpk"
 [ "$KEEP" = 0 ] && [ "$STAMPED" = 1 ] && echo "   (测试号已自动回退;要保留加 --keep-version)"
+# 末行条件在 KEEP=1 时短路为假,会把 EXIT trap 里的 $? 污染成 1——产物明明
+# 是好的却打出「失败(1)」(2026-11-25 test.15 实踩)。显式归零。
+exit 0
