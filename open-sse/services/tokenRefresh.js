@@ -1,5 +1,6 @@
 import { PROVIDERS } from "../config/providers.js";
 import { mintCapySessionJwt } from "../shared/capy/client.js";
+import { refreshAtomCodeToken } from "../shared/atomcode/auth.js";
 import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
 import {
   refreshXaiToken,
@@ -207,6 +208,7 @@ const REFRESH_HANDLERS = {
   nous: (c, log) => refreshNousToken(c.refreshToken, log),
   // Junie: form refresh; the returned id_token is the credential (see providers.js).
   junie: (c, log) => refreshJunieToken(c.refreshToken, log),
+  atomcode: (c, log) => refreshAtomCodeToken(c.refreshToken, log),
   // QwenWork: device-token refresh, single-use rotation (see providers.js).
   qwenwork: (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork", log),
   "qwenwork-cn": (c, log) => refreshQwenWorkToken(c.refreshToken, "qwenwork-cn", log),

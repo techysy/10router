@@ -23,6 +23,7 @@
 // 2.0+, Grok, Perplexity). Verify with: curl -s https://models.dev/api.json
 
 import { matchPattern } from "./pricing.js";
+import { ATOMCODE_MODELS } from "../config/atomcode.js";
 
 /**
  * Safe floor — every resolved result is merged over this so consumers
@@ -450,6 +451,14 @@ const QODER_CN_NAME_ALIASES = {
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
+  atomcode: Object.fromEntries(ATOMCODE_MODELS.map((model) => [model.id, {
+    vision: model.vision === true,
+    reasoning: true,
+    thinkingFormat: "openai",
+    contextWindow: model.contextWindow,
+    maxOutput: model.maxOutput,
+    tools: true,
+  }])),
   // Kilo Gateway 的 `kilo-auto/*` 是**路由器档位**（上游自己决定落到哪个模型），
   // id 里没有任何模型家族线索，因此全部落 DEFAULT_CAPABILITIES（200K/64K、
   // vision:false）。kilo 官方条目给出了每档的实际承诺（2026-10-20 models.dev

@@ -39,6 +39,9 @@ import { getCursorUsage } from "./usage/cursor.js";
 import { getTraeUsage } from "./usage/trae.js";
 import { getCroliUsage } from "./usage/croli.js";
 import { getAutoclawUsage } from "./usage/autoclaw.js";
+import { getClixadUsage } from "./usage/clixad.js";
+import { getFreePiUsage } from "./usage/freepi.js";
+import { getAtomCodeUsage } from "./usage/atomcode.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -144,6 +147,12 @@ const USAGE_HANDLERS = {
   // AutoClaw（智谱澳龙）积分钱包 + 每日签到状态；域按 token 的 JWT source_id 走。
   autoclaw: (c) => getAutoclawUsage("autoclaw", c, c.proxyOptions),
   "autoclaw-cn": (c) => getAutoclawUsage("autoclaw-cn", c, c.proxyOptions),
+  // Clixad：网关钱包 /v1/wallet 的 free_tier（每日额度 + 剩余）。
+  clixad: (c) => getClixadUsage(c.accessToken, c.proxyOptions),
+  // FreePi：/me 的每日 credits（allowance/remaining）+ refill_at 刷新时间。
+  freepi: (c) => getFreePiUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  // AtomCode：CodingPlan status-v2 的滚动请求窗口（5h）+ 套餐到期日。
+  atomcode: (c) => getAtomCodeUsage(c.accessToken, c.proxyOptions),
   trae: (c) =>
     String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
       ? getTraeUsage(c.accessToken, c.proxyOptions)
