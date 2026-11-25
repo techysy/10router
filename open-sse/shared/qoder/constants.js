@@ -68,6 +68,24 @@ export const QODER_IDE_VERSION = "1.0.0";
 // request fingerprint stays exactly as before, and no unregistered upstream row
 // (intl's smodel/cmodel) leaks into the picker either.
 export const QODER_CN_CATALOG_VERSION = "1.2.0";
+// CN catalog read also uses the DESKTOP client type. Qoder CN gates catalog
+// membership on `Cosy-Clienttype` as well as on the version: at ct=5 (CLI) the
+// CN catalog publishes 14 keys, at ct=10 (desktop IDE) it publishes those same
+// 14 PLUS `hmodel` (HungerG, the free tier). Verified 2026-11-25 across three
+// CN accounts: the ct=10 catalog is field-for-field identical to ct=5 on all 14
+// shared rows (display_name / price_factor / enable / is_vl / is_reasoning /
+// max_input_tokens / promotion / tags / icon / format / status / context_config
+// / thinking_config / minimal_version / is_free — zero diffs), so nothing else
+// changes shape and no unregistered row leaks in.
+//
+// With ct=10 the version bump is redundant for CN today (1.0.0 already returns
+// all 15), but both are kept: upstream has moved each of these gates
+// independently, and reading at the fingerprint the rows were confirmed under
+// is the defensive choice.
+//
+// Again the CATALOG READ ONLY: chat keeps signing at QODER_CLIENT_TYPE. hmodel
+// answers fine when signed ct=5 (see the registry note for the evidence).
+export const QODER_CN_CATALOG_CLIENT_TYPE = "10";
 export const QODER_CLIENT_TYPE = "5";
 export const QODER_DATA_POLICY = "disagree";
 export const QODER_LOGIN_VERSION = "v2";

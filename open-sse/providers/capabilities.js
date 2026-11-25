@@ -455,6 +455,11 @@ const QODER_NAME_ALIASES = {
 const QODER_CN_NAME_ALIASES = {
   ...QODER_NAME_ALIASES,
   "快速": "fast",
+  // HungerG 只在 CN 注册。国际站的桌面指纹目录同样下发 hmodel，但我们的
+  // 国际站目录读取刻意保持 CLI 指纹：实测 ct=10 会连带带出 `fast`/
+  // `smodel`/`cmodel` 三行国际站未注册的 key，让它们漏进选择器变成死行；
+  // CN 侧 ct=10 相对 ct=5 只多 hmodel 一行，其余逐字段一致，所以那边能切。
+  "HungerG": "hmodel",
   "Step-5-Preview": "jmodel",
   "Qwen3.7-Flash": "q37fmodel",
   "GLM-5.2": "gm51model",
@@ -910,6 +915,12 @@ export const PROVIDER_CAPABILITIES = {
     "dfmodel":        { vision: true, reasoning: true, thinkingFormat: "deepseek", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },  // DeepSeek-V4.1-Flash-1017（dfmodel）
     "gmodel":         { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 },      // GLM-5.3
     "gmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 }, // GLM-5.4（2026-11-25 live CN gmodel_latest，is_vl true）
+    // HungerG（`hmodel`，2026-11-25 桌面指纹目录实测下发）：is_vl/is_reasoning
+    // true、max_input_tokens 1M。底座未知，所以 thinkingFormat 直接取条目自己
+    // 声明的 `format:"openai"`（不猜家族）；max_output_tokens 上游一律回 0，
+    // 按 qoder 行的众数 65536 保守夹（宁小勿大，同 codebuddy-cn glm-5.4 的
+    // 处理），待上游给出真实上限再抬。
+    "hmodel":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },
     "gfmodel":        { vision: true, reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 128000 }, // GLM-5.3-Flash
     "gm51model":      { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 48000 },       // GLM-5.2
     "kmodel_latest":  { vision: true, reasoning: true, thinkingFormat: "kimi", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 65536 },      // Kimi-K3.1-Pro

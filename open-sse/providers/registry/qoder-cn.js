@@ -37,29 +37,29 @@ export default {
     // publishes none of them (only Auto + the model keys below). Chat still
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
-    // HungerG（客户端 2026-11-25 截图里的 Free/0x 条目）**故意不注册**。
-    // 真实 key 已挖到 = `hmodel`（display_name HungerG、price_factor 0、
-    // 1M、is_vl/is_reasoning true），但它拿不到可用通道：
-    //   ① 只在 `Cosy-Clienttype: 10`（桌面 IDE 指纹）下下发，且只出现在
-    //      assistant/app 场景，chat 场景没有。我们的目录读取用 clientType 5
-    //      —— 那里连 `hmodel` 这个 key 都不存在，注册了也只是又一个取不到
-    //      model_config 的死行（同 `fast` 之前的样子）。
-    //   ② 条目里 minimal_version 对 cli/qoder_work/mobile/jb_plugin/
-    //      cloud_agents/qoder_wake 全部写死 "9999.9999.9999" —— 上游明确
-    //      把所有非桌面通道排除在外（桌面 app 本身不在名单里，所以它可用：
-    //      用户 21:34 那次 HungerG 对话在 ~/.qoder-cn 会话日志里确实回出了
-    //      assistant 正文，model=hmodel）。
-    //   ③ 实测（同账号同时段，用 ct=10 目录取到的 config 以 cli 形状打
-    //      agent_chat_generation）：5 次一律回 10605
-    //      `isQueued, queueCount:1, waitTime:60, serviceAvailable:true`、
-    //      零内容，而对照组 `auto` 正常流式出字。跨 4 分半不变，读作
-    //      「非桌面通道不放行」而非临时拥堵。
-    // 若哪天上游给它开通道，先看 minimal_version 是否回落、ct=5 目录里是否
-    // 出现该 key，再补 registry + 能力行。
-    // 快速 = `fast`，0.6x。2026-11-25 live 探测：CN 目录只在 Cosy-Version
-    // ≥1.2.0 时下发这一行（1.0.0 返回 13 条，≥1.2.0 返回 14 条），所以
-    // catalog 读取已升到 QODER_CN_CATALOG_VERSION —— 否则这行永远取不到
-    // model_config，聊天必报 `model_config for "fast" not yet known`。
+    // HungerG（客户端 2026-11-25 截图里的 Free/0x 条目）= 上游 key `hmodel`。
+    // 目录读取已改用桌面指纹（QODER_CN_CATALOG_CLIENT_TYPE），这一行才拿得到。
+    // 实测（2026-11-25，三号交叉）：
+    //   - ct=5 的 CN 目录 14 条**没有** hmodel；ct=10 是 15 条，且其余 14 行
+    //     与 ct=5 逐字段完全一致（15 个字段零差异），所以切过去不影响别的行。
+    //   - 聊天用**我们原有的 cli 形状 + ct=5 签名**即可放行：备用号与 auto
+    //     交错跑，hmodel 4/4 次出正文、auto 2/2 次正常；响应帧形状与 auto
+    //     不同（id 为 `hex.hex`、首帧无 reasoning_content）—— 不是被静默
+    //     降级成 auto 后回的字。
+    //   - 条目里 minimal_version 对 cli/qoder_work/mobile/jb_plugin/
+    //     cloud_agents/qoder_wake 写死 9999.9999.9999，但那是**目录可见性**
+    //     口径，不是推理端点的准入：实测 cli 形状照样出字。
+    // ⚠️ 别把「恒定 10605 isQueued」当成通道封禁——主号与 #187 同期连
+    //    `auto` 都同样被排队（账号级 p4 限流），只有未限流的备用号能作数。
+    //    判定必须带同期对照组，且对照组也要红过一次才算模型本身的问题。
+    // price_factor 0 + tags:[free] + is_free:true → 免费档；1M、is_vl、
+    // is_reasoning、思考档 low/high/max 可关（thinking_config.disabled 存在）。
+    { id: "hmodel", name: "HungerG", rateMultiplier: 0 },
+    // 快速 = `fast`，0.6x。2026-11-25 live 探测：CN 目录按客户端指纹决定下发
+    // 哪些行——ct=5 下 1.0.0 只有 13 条（无 fast）、≥1.2.0 才有 14 条；ct=10
+    // 下 15 条（fast + hmodel 都在）。catalog 读取已改用
+    // QODER_CN_CATALOG_VERSION + QODER_CN_CATALOG_CLIENT_TYPE；在此之前这行
+    // 永远取不到 model_config，聊天必报 `model_config for "fast" not yet known`。
     { id: "fast", name: "快速", rateMultiplier: 0.6 },
     { id: "qmodel_38max", name: "Qwen3.8-Max", rateMultiplier: 0.5, discountNote: "每晚 22:00—次日 8:00 错峰 4 折（10 PM-8 AM UTC+8）" },
 

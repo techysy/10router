@@ -6,6 +6,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### ✨ New
 
+- **HungerG (free tier) is usable on Qoder CN**: the official ×0 HungerG model now works through 10Router (free, 1M context, image input, labelled "Free" upstream). It was previously only visible in the official desktop client's catalog — our catalog read used the command-line client's identity, so the row never appeared. Existing Qoder CN connections need no re-login; just "Refresh model list" on the provider page. It's an official free tier and can queue at peak times (handled the same way as other Qoder models).
+
 - **GLM-5.4 added for Qoder / Qoder CN**: the official catalog shipped GLM-5.4 (×0.8, 1M context, image input, labelled "New" upstream), selectable on both the CN and international sides. It shares GLM-5.3's price but is a separate model with its own catalog row. Existing Qoder connections need no re-login — just "Refresh model list" on the provider page.
 
 - **CodeBuddy CN (Tencent WorkBuddy) catalog & badge alignment**: the official client shipped GLM-5.4 (0.69x, 1M context, multimodal, no badge); every other model’s multiplier and badge was checked line-by-line and is unchanged — Hy4 flash “limited-time free” (0.00x, daily free credits Nov 16–30), DeepSeek “night discount”, GLM 5.3 / 5.3 Flash / Kimi “subscription priority” all stay. Existing CodeBuddy CN connections need no re-login — just “Refresh model list”.
