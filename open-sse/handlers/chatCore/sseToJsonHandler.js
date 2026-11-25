@@ -139,6 +139,11 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     try {
       const chunk = JSON.parse(payload);
       if (chunk?.error) streamError = chunk.error;
+      // Responses API failures arrive as response.failed with the error nested
+      // under response.error (no top-level error) — without this the
+      // non-streaming SSE path returned HTTP 200 with an empty body.
+      else if (chunk?.response?.error) streamError = chunk.response.error;
+      else if (chunk?.response?.status === "failed") streamError = { message: "Upstream response failed" };
       else chunks.push(chunk);
     } catch { /* ignore malformed lines */ }
   }

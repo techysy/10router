@@ -36,10 +36,15 @@ describe("an in-flight streaming request is not recorded as a success (#48)", ()
     // connection mid-answer with a clean FIN) is booked `truncated` instead of
     // success, because it would otherwise land as success with estimated
     // usage. A stream the upstream terminated properly keeps `success`.
-    const completed = /status:\s*contentObj\?\.incomplete\s*\?\s*"(\w+)"\s*:\s*"(\w+)"/.exec(src);
-    expect(completed, "onStreamComplete status not found").toBeTruthy();
-    expect(completed[1]).toBe("truncated");
-    expect(completed[2]).toBe("success");
+    // The status is now computed once as turnStatus: an upstream mid-stream
+    // error books "error" (2026-11-25 12:09 incident), a manufactured
+    // terminator books "truncated", a properly terminated stream "success".
+    const turnStatus = /const turnStatus = upstreamError \? "(\w+)" : \(contentObj\?\.incomplete \? "(\w+)" : "(\w+)"\);/.exec(src);
+    expect(turnStatus, "onStreamComplete turnStatus not found").toBeTruthy();
+    expect(turnStatus[1]).toBe("error");
+    expect(turnStatus[2]).toBe("truncated");
+    expect(turnStatus[3]).toBe("success");
+    expect(src).toContain("status: turnStatus");
   });
 });
 

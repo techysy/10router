@@ -147,7 +147,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, { comboLegLabel: m });
         },
         log,
         comboName: modelStr,
@@ -186,7 +186,7 @@ export async function handleChat(request, clientRawRequest = null) {
           body,
           models: ordered,
           handleSingleModel: withCapacityAdapterStripping(
-            (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+            (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, { comboLegLabel: m }),
             adapterAdded
           ),
           log,
@@ -209,7 +209,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, { comboLegLabel: m }),
         adapterAdded
       ),
       log,
@@ -232,7 +232,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, { comboLegLabel: m }),
         adapterAdded
       ),
       log,
@@ -259,7 +259,7 @@ export async function handleChat(request, clientRawRequest = null) {
  * `requestedModel` 是客户端要求的原始模型 id（可能带 [1m] 标记），与解析后的
  * 基础 id 分开传递：账号 enabledModels 勾选过滤按它判断（codex [1m]）。
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, { inferFallback = true, requestedModel = null } = {}) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, { inferFallback = true, requestedModel = null, comboLegLabel = null } = {}) {
   const modelInfo = await getModelInfo(modelStr, { inferFallback });
 
   // If provider is null, this might be a combo name - check and handle
@@ -286,7 +286,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, { comboLegLabel: m });
           },
           log,
           comboName: modelStr,
@@ -304,7 +304,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, { comboLegLabel: m }),
           adapterAdded
         ),
         log,
@@ -466,6 +466,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
+      comboLegLabel,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
       // Shared with every other handler on purpose: the inlined copies used to

@@ -23,6 +23,20 @@ const STREAM_MODE = {
   PASSTHROUGH: "passthrough" // No translation, normalize output, extract usage
 };
 
+// Upstream mid-stream errors arrive in several shapes (Responses
+// response.failed nests the error under response.error, OpenAI sends a bare
+// {"error": ...} frame, translators stash it on state.error). Normalize to
+// one { message, type, code } shape for the failure row and the detail row.
+function normalizeUpstreamError(err) {
+  if (!err) return null;
+  if (typeof err === "string") return { message: err, type: "server_error", code: "server_error" };
+  return {
+    message: err.message || "Upstream error",
+    type: err.type || "server_error",
+    code: err.code || "server_error",
+  };
+}
+
 /**
  * Create unified SSE transform stream
  * @param {object} options
@@ -84,6 +98,10 @@ export function createSSEStream(options = {}) {
   let endedWithoutTerminal = false;
   let upstreamTerminalSeen = false;
   let upstreamTurnComplete = false;
+  // Normalized upstream mid-stream error (e.g. Responses response.failed):
+  // set the moment one is seen, in any lane. A failed turn must be booked
+  // as a failure, not a success — finishStream hands it to onStreamComplete.
+  let upstreamError = null;
   // A `data:` line that looked like payload but would not parse is dropped by
   // the loops below. That is deliberate for HTML error pages injected mid
   // stream, but the same swallow hides genuine corruption: the client gets a
@@ -260,6 +278,7 @@ export function createSSEStream(options = {}) {
         incomplete: endedWithoutTerminal,
         upstreamTerminalSeen,
         upstreamTurnComplete,
+        upstreamError,
         parseFailures,
         ...(restoreLost ? { restoreLost } : {}),
       }, settledUsage, ttftAt);
@@ -310,6 +329,15 @@ export function createSSEStream(options = {}) {
           if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
             try {
               const parsed = JSON.parse(trimmed.slice(5).trim());
+
+              // Mid-stream upstream error in passthrough mode: the raw error
+              // frame is forwarded as-is (correct wire behavior), but the
+              // turn must still be booked as a failure. Responses failures
+              // nest the error under response.error (response.failed) — a
+              // top-level check alone would miss them.
+              if (!upstreamError && (parsed?.error || parsed?.response?.error || parsed?.response?.status === "failed")) {
+                upstreamError = normalizeUpstreamError(parsed?.error || parsed?.response?.error || { message: "Upstream response failed" });
+              }
 
               const idFixed = fixInvalidId(parsed);
 
@@ -470,6 +498,14 @@ export function createSSEStream(options = {}) {
         if (isOpenAIResponsesStream && isOpenAIResponsesTerminalEvent(openAIResponsesEventName, parsed)) {
           openAIResponsesTerminalSeen = true;
           if (openAIResponsesEventName === "response.completed" || parsed?.response?.status === "completed") upstreamTurnComplete = true;
+          // A failed terminal event (response.failed / error) ends the turn in
+          // failure, not success. The Responses passthrough lane forwards the
+          // raw event (correct wire behavior); the translate lane gets its
+          // error frame from the translator below. Either way the turn is
+          // booked as failed — capture it once, here.
+          if (!upstreamError && (openAIResponsesEventName === "response.failed" || openAIResponsesEventName === "error" || parsed?.response?.status === "failed")) {
+            upstreamError = normalizeUpstreamError(parsed?.response?.error || parsed?.error);
+          }
         }
 
         // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
@@ -598,6 +634,11 @@ export function createSSEStream(options = {}) {
 
         // Translate: targetFormat -> openai -> sourceFormat
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
+
+        // The translator surfaces an upstream mid-stream error on state (and
+        // as an error frame, never as assistant text) — capture it so the
+        // turn is booked as a failure, not a success.
+        if (state?.error && !upstreamError) upstreamError = normalizeUpstreamError(state.error);
 
         // Log OpenAI intermediate chunks (if available)
         if (translated?._openaiIntermediate) {

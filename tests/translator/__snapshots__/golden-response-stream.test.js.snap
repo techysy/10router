@@ -416,22 +416,14 @@ exports[`GOLDEN response stream: Ollama → OpenAI > content + thinking + tool_c
 ]
 `;
 
-exports[`GOLDEN response stream: OpenAI-Responses (codex) → OpenAI > error event → error chunk (fallback id/created) 1`] = `
+exports[`GOLDEN response stream: OpenAI-Responses (codex) → OpenAI > error event → error frame (no fake text chunk) 1`] = `
 [
   {
-    "choices": [
-      {
-        "delta": {
-          "content": "[Error] model_not_found",
-        },
-        "finish_reason": "stop",
-        "index": 0,
-      },
-    ],
-    "created": 0,
-    "id": "chatcmpl-<TS>",
-    "model": "unknown",
-    "object": "chat.completion.chunk",
+    "error": {
+      "code": "server_error",
+      "message": "model_not_found",
+      "type": "server_error",
+    },
   },
 ]
 `;
