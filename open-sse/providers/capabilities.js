@@ -23,6 +23,7 @@
 // 2.0+, Grok, Perplexity). Verify with: curl -s https://models.dev/api.json
 
 import { matchPattern } from "./pricing.js";
+import { ORCATERM_CONFIG, ORCATERM_MODELS } from "../config/orcaterm.js";
 import { ATOMCODE_MODELS } from "../config/atomcode.js";
 
 /**
@@ -451,6 +452,14 @@ const QODER_CN_NAME_ALIASES = {
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
+  orcaterm: Object.fromEntries(ORCATERM_MODELS.map((model) => [model.id, {
+    vision: model.vision === true,
+    reasoning: true,
+    thinkingFormat: "openai",
+    contextWindow: 128000,
+    maxOutput: ORCATERM_CONFIG.maxOutputTokens,
+    tools: true,
+  }])),
   atomcode: Object.fromEntries(ATOMCODE_MODELS.map((model) => [model.id, {
     vision: model.vision === true,
     reasoning: true,

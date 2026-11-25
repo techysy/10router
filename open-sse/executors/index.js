@@ -40,6 +40,7 @@ import { LingxiExecutor } from "./lingxi.js";
 import { CapyExecutor } from "./capy.js";
 import { AmazonQuickExecutor } from "./amazonquick.js";
 import { JunieExecutor } from "./junie.js";
+import { OrcaTermExecutor } from "./orcaterm.js";
 import { AutoclawExecutor } from "./autoclaw.js";
 import { AtomCodeExecutor } from "./atomcode.js";
 import { ClixadExecutor } from "./clixad.js";
@@ -52,6 +53,7 @@ const executors = {
   amazonquick: new AmazonQuickExecutor(),
   aq: new AmazonQuickExecutor(), // Alias for amazonquick
   junie: new JunieExecutor(),
+  orcaterm: new OrcaTermExecutor(),
   autoclaw: new AutoclawExecutor("autoclaw"),
   "autoclaw-cn": new AutoclawExecutor("autoclaw-cn"),
   atomcode: new AtomCodeExecutor(),

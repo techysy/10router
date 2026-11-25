@@ -40,6 +40,7 @@ const ICON_ALIASES = {
   "muse-web": "muse",
   "gemini-web": "gemini",
   "chatgpt-web": "openai",
+  orcaterm: "tencent",
   // AutoClaw 国内/国际两线同一品牌标（AutoGLM 官方 favicon）
   "autoclaw-cn": "autoclaw",
   // DuMate 有官方专属标（public/providers/dumate.png，DuMate 控制台

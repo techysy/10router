@@ -1852,6 +1852,37 @@ exports[`GOLDEN buildHeaders (default executor providers) > openrouter → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > orcaterm → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "Origin": "https://orcaterm.com",
+    "Referer": "https://orcaterm.com/terminal",
+    "X-Product": "orcaterm",
+    "X-Referer": "https://orcaterm.com/terminal",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "Origin": "https://orcaterm.com",
+    "Referer": "https://orcaterm.com/terminal",
+    "X-Product": "orcaterm",
+    "X-Referer": "https://orcaterm.com/terminal",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "Origin": "https://orcaterm.com",
+    "Referer": "https://orcaterm.com/terminal",
+    "X-Product": "orcaterm",
+    "X-Referer": "https://orcaterm.com/terminal",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > oxion → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -3095,6 +3126,13 @@ exports[`GOLDEN buildUrl (default executor providers) > openrouter → url (stre
 {
   "nonStream": "https://openrouter.ai/api/v1/chat/completions",
   "stream": "https://openrouter.ai/api/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > orcaterm → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
+  "stream": "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
 }
 `;
 

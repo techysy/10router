@@ -189,6 +189,7 @@ import p186 from "./atomcode.js";
 import p187 from "./clixad.js";
 import p188 from "./freepi.js";
 import p189 from "./xiaohuanxiong.js";
+import p190 from "./orcaterm.js";
 
 export default [
   p0,
@@ -381,4 +382,5 @@ export default [
   p187,
   p188,
   p189,
+  p190,
 ];

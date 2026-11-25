@@ -6,6 +6,8 @@
 
 ### ✨ 新增
 
+- **新增供应商 OrcaTerm（腾讯云）**：用微信扫码登录你自己的 OrcaTerm 账号（腾讯云终端），登录后即可通过它的原生接口跑 DeepSeek V4.1 Flash、DeepSeek V4、Kimi K3、GLM 5.3 / 5.2、Hunyuan 3 等 8 款模型（前缀 `orcaterm/`）。支持工具调用（工具定义经提示注入、结果回传续聊）与图片输入（DeepSeek V4.1 Flash / Kimi K3，base64 PNG/JPEG/WebP/GIF，最多 4 张/单张 10MB/总 20MB）。凭据约 2 小时自动续期，续期请求自动去重；被吊销后重新扫码即可。
+
 - **新增供应商商汤小浣熊（Raccoon）**：用微信扫二维码登录（小浣熊小程序内点确认），无需在服务器上装任何客户端；登录后即可用它的 OpenAI 兼容接口跑 Raccoon、SenseNova、Qwen4 Max、GLM 5.3、Kimi K3.1 Pro、DeepSeek V4.1 Flash 等模型，前缀 `xhx/`。连接卡片的额外面板会显示积分余额（可用/日常/月度/奖励/充值）与积分任务进度（注册礼包、桌面端登录、移动端登录、邀请进度）——小浣熊的积分按任务和邀请自动发放，没有每日签到需要点。登录凭据约 30 天有效，过期重新扫码即可。
 
 - **新增供应商 AtomCode、Clixad、FreePi（三个带免费额度的车道）**：AtomCode（AtomGit CodingPlan）用 AtomGit 账号登录，登录时自动领取 Lite 体验版（每 5 小时 300 次请求），模型 qwen3.8-27b、glm5.3-flash；Clixad 用 GitHub 登录，每日 12 万 credits，8 款免费模型（GPT-5 Nano、GPT-6 Luna、Claude Haiku 5.5、GLM-5.3 Flash 等）；FreePi 用 GitHub 登录（广告位买单），每日 4000 credits，particle、DeepSeek V4.1 Flash、GLM-5.3 Flash 三款。三者都带额度卡。这是各家客户端的接口：上游策略变更可能失效或风控，请自担账号风险（FreePi 条款明确禁止代理访问）。
