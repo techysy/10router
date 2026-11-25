@@ -283,6 +283,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "freepi",
         "minimax-code",
         "minimax-code-global",
+        "xiaohuanxiong",
       ];
       if (deviceCodeProviders.includes(provider)) {
         setIsDeviceCode(true);

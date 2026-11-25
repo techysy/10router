@@ -2428,6 +2428,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > xai → headers (api
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > xiaohuanxiong → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > xiaomi-mimo → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -3279,6 +3298,13 @@ exports[`GOLDEN buildUrl (default executor providers) > xai → url (stream + no
 {
   "nonStream": "https://api.x.ai/v1/chat/completions",
   "stream": "https://api.x.ai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > xiaohuanxiong → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://xiaohuanxiong.com/api/web/llm/v2/chat/completions",
+  "stream": "https://xiaohuanxiong.com/api/web/llm/v2/chat/completions",
 }
 `;
 

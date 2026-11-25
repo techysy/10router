@@ -188,6 +188,15 @@ export const ALLOWLIST = {
   // FreePi 自家模型（广告赞助的免费档，id 无任何 pattern 命中）：无公开规格、
   // 无 models.dev 条目，保留地板值——与 capy/particle/particle-1 同口径。
   "freepi/particle": "no public spec",
+
+  // 小浣熊（#169）自家 Raccoon 系列：内部版本号 id（raccoon-090dd3 等），官方无
+  // 公开规格，无 pattern 命中 → 保留地板值。sn-sensenova 两款 flash 带 sn- 前缀
+  // 剥不掉（canonical 只有带点 sensenova-6.8-flash-lite 键），同样落地板。
+  "xiaohuanxiong/raccoon-090dd3": "no public spec (internal id)",
+  "xiaohuanxiong/raccoon-19b265": "no public spec (internal id)",
+  "xiaohuanxiong/raccoon-405a1c": "no public spec (internal id)",
+  "xiaohuanxiong/sn-sensenova-6-8-flash": "no public spec (sn- prefixed)",
+  "xiaohuanxiong/sn-sensenova-6-8-flash-lite": "no public spec (sn- prefixed)",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from

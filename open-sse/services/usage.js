@@ -36,12 +36,17 @@ import { getGlmUsage } from "./usage/glm.js";
 import { getCommandCodeUsage } from "./usage/commandcode.js";
 import { getMiniMaxCodeUsage } from "./usage/minimax-code.js";
 import { getCursorUsage } from "./usage/cursor.js";
+import { getAutoclawUsage } from "./usage/autoclaw.js";
+import { getClixadUsage } from "./usage/clixad.js";
+import { getFreePiUsage } from "./usage/freepi.js";
+import { getAtomCodeUsage } from "./usage/atomcode.js";
 import { getTraeUsage } from "./usage/trae.js";
 import { getCroliUsage } from "./usage/croli.js";
 import { getAutoclawUsage } from "./usage/autoclaw.js";
 import { getClixadUsage } from "./usage/clixad.js";
 import { getFreePiUsage } from "./usage/freepi.js";
 import { getAtomCodeUsage } from "./usage/atomcode.js";
+import { getXiaohuanxiongUsage } from "./usage/xiaohuanxiong.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
 
 /**
@@ -153,6 +158,8 @@ const USAGE_HANDLERS = {
   freepi: (c) => getFreePiUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   // AtomCode：CodingPlan status-v2 的滚动请求窗口（5h）+ 套餐到期日。
   atomcode: (c) => getAtomCodeUsage(c.accessToken, c.proxyOptions),
+  // 小浣熊：积分任务制（无签到/claim 端点），balance+tasks 两接口拼配额行。
+  xiaohuanxiong: (c) => getXiaohuanxiongUsage(c.accessToken, c.proxyOptions),
   trae: (c) =>
     String(c.providerSpecificData?.site || "").toLowerCase() === "cn"
       ? getTraeUsage(c.accessToken, c.proxyOptions)

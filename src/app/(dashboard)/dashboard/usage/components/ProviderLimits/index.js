@@ -207,6 +207,7 @@ const KNOWN_PROVIDER_NAMES = {
   "atomcode": "AtomCode",
   "clixad": "Clixad",
   "freepi": "FreePi",
+  "xiaohuanxiong": "商汤小浣熊",
 };
 
 export default function ProviderLimits() {

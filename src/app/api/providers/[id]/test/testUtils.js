@@ -50,6 +50,15 @@ import { buildAccountValidationMessage } from "open-sse/utils/error.js";
 // OAuth provider test endpoints
 const OAUTH_TEST_CONFIG = {
   claude: { checkExpiry: true, refreshable: true },
+  // 小浣熊：model_catalog 用 IAM Bearer 直接探活（无 refresh_token，过期只能重扫）。
+  xiaohuanxiong: {
+    url: "https://xiaohuanxiong.com/api/web/llm/v2/model_catalog",
+    method: "GET",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+    extraHeaders: { Accept: "application/json" },
+    refreshable: false,
+  },
   codex: {
     url: "https://chatgpt.com/backend-api/codex/responses",
     method: "POST",

@@ -6,6 +6,8 @@
 
 ### ✨ 新增
 
+- **新增供應商商湯小浣熊（Raccoon）**：用微信掃二維碼登入（小浣熊小程式內點確認），無需在伺服器上裝任何客戶端；登入後即可用它的 OpenAI 相容介面跑 Raccoon、SenseNova、Qwen4 Max、GLM 5.3、Kimi K3.1 Pro、DeepSeek V4.1 Flash 等模型，前綴 `xhx/`。連接卡片的額外面板會顯示積分餘額（可用/日常/月度/獎勵/儲值）與積分任務進度（註冊禮包、桌面端登入、行動端登入、邀請進度）——小浣熊的積分按任務和邀請自動發放，沒有每日簽到需要點。登入憑據約 30 天有效，過期重新掃碼即可。
+
 - **新增供應商 AtomCode、Clixad、FreePi（三個帶免費額度的車道）**：AtomCode（AtomGit CodingPlan）用 AtomGit 帳號登入，登入時自動領取 Lite 體驗版（每 5 小時 300 次請求），模型 qwen3.8-27b、glm5.3-flash；Clixad 用 GitHub 登入，每日 12 萬 credits，8 款免費模型（GPT-5 Nano、GPT-6 Luna、Claude Haiku 5.5、GLM-5.3 Flash 等）；FreePi 用 GitHub 登入（廣告位買單），每日 4000 credits，particle、DeepSeek V4.1 Flash、GLM-5.3 Flash 三款。三者都帶額度卡。這是各家客戶端的介面：上游策略變更可能失效或風控，請自擔帳號風險（FreePi 條款明確禁止代理存取）。
 
 - **新增供應商 AutoClaw + AutoClaw 國內版（智譜澳龍，非官方）**：用你自己的 AutoClaw（智譜 AutoGLM 桌面端）帳號——國際版用 z.ai 登入（完成滑塊驗證、授權後把瀏覽器跳到的 localhost:18432 網址貼回來），國內版用 +86 手機驗證碼。模型：AutoClaw Auto / Auto Fast / GLM-5.3 Flash（免費）/ GLM-5.3 Coding，1M 上下文，思考檔位 low/high/max。帶積分餘額卡和可選的每日自動簽到（實驗功能頁）。這是逆向的桌面端介面：帳號存在被限制的風險；10Router 使用期間請勿讓 AutoClaw 桌面端同時登入同一帳號。

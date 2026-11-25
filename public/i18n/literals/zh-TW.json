@@ -1274,5 +1274,6 @@
   "Delete Connection": "刪除連線",
   "Remove pushed quota card": "移除推送額度卡",
   "Amazon Quick has no public API key: calls ride your logged-in quick.aws.com web session — just paste a Copy as cURL from your browser and the rest is extracted automatically. Usage draws on your Quick plan's monthly agent hours.": "Amazon Quick 沒有公開 API Key：呼叫走你已登入的 quick.aws.com 網頁會話——在瀏覽器裡 Copy as cURL 整段貼上即可，其餘自動識別。用量走你的 Quick 方案每月 agent 小時。",
-  "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打開 quick.aws.com 登入，在聊天框隨便發一句話；② 按 F12 點『網路』，找一條叫 ws-rpc 的請求，右鍵 → 複製 → Copy as cURL；③ 整段貼到上方框裡保存就行。測試變紅了，重複一遍即可。"
+  "① 先打开 quick.aws.com 登录，在聊天框随便发一句话；② 按 F12 点『网络』，找一条叫 ws-rpc 的请求，右键 → 复制 → Copy as cURL；③ 整段粘到上方框里保存就行。测试变红了，重复一遍即可。": "① 先打開 quick.aws.com 登入，在聊天框隨便發一句話；② 按 F12 點『網路』，找一條叫 ws-rpc 的請求，右鍵 → 複製 → Copy as cURL；③ 整段貼到上方框裡保存就行。測試變紅了，重複一遍即可。",
+  "微信扫码登录（小浣熊小程序内确认）。IAM token ~30 天有效，过期重新扫码即可。积分按任务/邀请自动发放，配额跟踪器显示积分余额与任务进度。": "微信掃碼登入（小浣熊小程式內確認）。IAM token ~30 天有效，過期重新掃碼即可。積分按任務/邀請自動發放，配額追蹤器顯示積分餘額與任務進度。"
 }

@@ -39,6 +39,7 @@ import muse from "./muse.js";
 import atomcode from "./atomcode.js";
 import clixad from "./clixad.js";
 import freepi from "./freepi.js";
+import xiaohuanxiong from "./xiaohuanxiong.js";
 import { minimaxCode, minimaxCodeGlobal } from "./minimax-code.js";
 
 // Provider configurations
@@ -78,6 +79,7 @@ const PROVIDERS = {
   atomcode,
   clixad,
   freepi,
+  xiaohuanxiong,
   "minimax-code": minimaxCode,
   "minimax-code-global": minimaxCodeGlobal,
 };
