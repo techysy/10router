@@ -37,6 +37,25 @@ export default {
     // publishes none of them (only Auto + the model keys below). Chat still
     // accepts those keys server-side; they simply no longer get dashboard rows.
     { id: "auto", name: "Auto" },
+    // HungerG（客户端 2026-11-25 截图里的 Free/0x 条目）**故意不注册**。
+    // 真实 key 已挖到 = `hmodel`（display_name HungerG、price_factor 0、
+    // 1M、is_vl/is_reasoning true），但它拿不到可用通道：
+    //   ① 只在 `Cosy-Clienttype: 10`（桌面 IDE 指纹）下下发，且只出现在
+    //      assistant/app 场景，chat 场景没有。我们的目录读取用 clientType 5
+    //      —— 那里连 `hmodel` 这个 key 都不存在，注册了也只是又一个取不到
+    //      model_config 的死行（同 `fast` 之前的样子）。
+    //   ② 条目里 minimal_version 对 cli/qoder_work/mobile/jb_plugin/
+    //      cloud_agents/qoder_wake 全部写死 "9999.9999.9999" —— 上游明确
+    //      把所有非桌面通道排除在外（桌面 app 本身不在名单里，所以它可用：
+    //      用户 21:34 那次 HungerG 对话在 ~/.qoder-cn 会话日志里确实回出了
+    //      assistant 正文，model=hmodel）。
+    //   ③ 实测（同账号同时段，用 ct=10 目录取到的 config 以 cli 形状打
+    //      agent_chat_generation）：5 次一律回 10605
+    //      `isQueued, queueCount:1, waitTime:60, serviceAvailable:true`、
+    //      零内容，而对照组 `auto` 正常流式出字。跨 4 分半不变，读作
+    //      「非桌面通道不放行」而非临时拥堵。
+    // 若哪天上游给它开通道，先看 minimal_version 是否回落、ct=5 目录里是否
+    // 出现该 key，再补 registry + 能力行。
     // 快速 = `fast`，0.6x。2026-11-25 live 探测：CN 目录只在 Cosy-Version
     // ≥1.2.0 时下发这一行（1.0.0 返回 13 条，≥1.2.0 返回 14 条），所以
     // catalog 读取已升到 QODER_CN_CATALOG_VERSION —— 否则这行永远取不到
