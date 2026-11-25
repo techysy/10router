@@ -181,17 +181,19 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[MeooCheckin] scheduler start failed:", e.message));
   }
 
+  // AutoClaw（智谱澳龙）daily sign-in (task-center daily_signin, intl + CN cards). Opt-in.
+  if (settings.autoclawCheckin === true) {
+    import("@/sse/services/autoclawCheckin.js")
+      .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
+      .catch((e) => console.log("[AutoclawCheckin] scheduler start failed:", e.message));
+  }
+
   // QuWork daily reward auto-claim (status-gated). Account-token renewal is
   // the generic background OAuth refresh (REFRESH_HANDLERS.quwork).
   if (settings.quworkCheckin === true) {
     import("@/sse/services/quworkCheckin.js")
       .then(({ startQuworkCheckin }) => startQuworkCheckin())
       .catch((e) => console.log("[QuworkCheckin] scheduler start failed:", e.message));
-  // AutoClaw（智谱澳龙）daily sign-in (task-center daily_signin, intl + CN cards). Opt-in.
-  if (settings.autoclawCheckin === true) {
-    import("@/sse/services/autoclawCheckin.js")
-      .then(({ startAutoclawCheckin }) => startAutoclawCheckin())
-      .catch((e) => console.log("[AutoclawCheckin] scheduler start failed:", e.message));
   }
 
   // Croli daily check-in and server-claimable rewards are opt-in. The scheduler

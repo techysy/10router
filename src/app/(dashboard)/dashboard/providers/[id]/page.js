@@ -32,8 +32,8 @@ import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import CapyLoginModal from "../components/CapyLoginModal";
-import QuworkLoginModal from "../components/QuworkLoginModal";
 import AutoclawSmsModal from "../components/AutoclawSmsModal";
+import QuworkLoginModal from "../components/QuworkLoginModal";
 import AutoclawOAuthModal from "../components/AutoclawOAuthModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
@@ -102,9 +102,9 @@ export default function ProviderDetailPage() {
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [showCapyLoginModal, setShowCapyLoginModal] = useState(false);
-  const [showQuworkLoginModal, setShowQuworkLoginModal] = useState(false);
   const [showAutoclawSmsModal, setShowAutoclawSmsModal] = useState(false);
   const [showAutoclawOAuthModal, setShowAutoclawOAuthModal] = useState(false);
+  const [showQuworkLoginModal, setShowQuworkLoginModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
   const [showMeooImportApikey, setShowMeooImportApikey] = useState(false);
@@ -214,9 +214,6 @@ export default function ProviderDetailPage() {
       setShowCapyLoginModal(true);
       return;
     }
-    // QuWork: phone + SMS (slider captcha popup) or pasted tokens — no browser-OAuth URL.
-    if (providerId === "quwork") {
-      setShowQuworkLoginModal(true);
     // AutoClaw CN has no OAuth link either: +86 phone SMS two-step login.
     if (providerId === "autoclaw-cn") {
       setShowAutoclawSmsModal(true);
@@ -226,6 +223,12 @@ export default function ProviderDetailPage() {
     // Aliyun slider captcha solved in the user's browser — dedicated modal.
     if (providerId === "autoclaw") {
       setShowAutoclawOAuthModal(true);
+      return;
+    }
+
+    // QuWork: phone + SMS (slider captcha popup) or pasted tokens — no browser-OAuth URL.
+    if (providerId === "quwork") {
+      setShowQuworkLoginModal(true);
       return;
     }
     if (isOAuth) {
@@ -3076,10 +3079,6 @@ export default function ProviderDetailPage() {
           onAdded={refreshAfterConnectionChange}
         />
       )}
-      {providerId === "quwork" && showQuworkLoginModal && (
-        <QuworkLoginModal
-          isOpen
-          onClose={() => setShowQuworkLoginModal(false)}
       {providerId === "autoclaw" && showAutoclawOAuthModal && (
         <AutoclawOAuthModal
           isOpen
@@ -3091,6 +3090,13 @@ export default function ProviderDetailPage() {
         <AutoclawSmsModal
           isOpen
           onClose={() => setShowAutoclawSmsModal(false)}
+          onAdded={refreshAfterConnectionChange}
+        />
+      )}
+      {providerId === "quwork" && showQuworkLoginModal && (
+        <QuworkLoginModal
+          isOpen
+          onClose={() => setShowQuworkLoginModal(false)}
           onAdded={refreshAfterConnectionChange}
         />
       )}
