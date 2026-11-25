@@ -209,6 +209,7 @@ const KNOWN_PROVIDER_NAMES = {
   "freepi": "FreePi",
   "xiaohuanxiong": "商汤小浣熊",
   "orcaterm": "OrcaTerm",
+  "quwork": "QuWork",
 };
 
 export default function ProviderLimits() {

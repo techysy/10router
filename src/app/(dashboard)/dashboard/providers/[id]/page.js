@@ -32,6 +32,7 @@ import SessionPoolModal from "./SessionPoolModal";
 import AddApiKeyModal from "./AddApiKeyModal";
 import LoomySmsModal from "../components/LoomySmsModal";
 import CapyLoginModal from "../components/CapyLoginModal";
+import QuworkLoginModal from "../components/QuworkLoginModal";
 import AutoclawSmsModal from "../components/AutoclawSmsModal";
 import AutoclawOAuthModal from "../components/AutoclawOAuthModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -101,6 +102,7 @@ export default function ProviderDetailPage() {
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [showLoomySmsModal, setShowLoomySmsModal] = useState(false);
   const [showCapyLoginModal, setShowCapyLoginModal] = useState(false);
+  const [showQuworkLoginModal, setShowQuworkLoginModal] = useState(false);
   const [showAutoclawSmsModal, setShowAutoclawSmsModal] = useState(false);
   const [showAutoclawOAuthModal, setShowAutoclawOAuthModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
@@ -212,6 +214,9 @@ export default function ProviderDetailPage() {
       setShowCapyLoginModal(true);
       return;
     }
+    // QuWork: phone + SMS (slider captcha popup) or pasted tokens — no browser-OAuth URL.
+    if (providerId === "quwork") {
+      setShowQuworkLoginModal(true);
     // AutoClaw CN has no OAuth link either: +86 phone SMS two-step login.
     if (providerId === "autoclaw-cn") {
       setShowAutoclawSmsModal(true);
@@ -3071,6 +3076,10 @@ export default function ProviderDetailPage() {
           onAdded={refreshAfterConnectionChange}
         />
       )}
+      {providerId === "quwork" && showQuworkLoginModal && (
+        <QuworkLoginModal
+          isOpen
+          onClose={() => setShowQuworkLoginModal(false)}
       {providerId === "autoclaw" && showAutoclawOAuthModal && (
         <AutoclawOAuthModal
           isOpen

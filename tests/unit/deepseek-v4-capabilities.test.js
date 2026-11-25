@@ -71,7 +71,8 @@ describe("DeepSeek V4 capability resolution", () => {
 // V4.1-Flash ("Change the model name to deepseek-flash to call the latest V4.1
 // Flash model"), and opencode-go exposes the same bare id. QwenWork （千问办公）
 // resells it under the same bare key in its qwork catalog (added 2026-11-21) —
-// it joins the offerer set below, and the canonical-row assertions in this
+// it joins the offerer set below (as does QuWork, whose llm.quwork.cn catalog
+// lists the same bare id), and the canonical-row assertions in this
 // block are exactly what keep its profile honest there too. Without a canonical row
 // the id falls through to the `*deepseek*` pattern — the V3.2 profile of 128K
 // context / 64000 output / no vision — so images are stripped and max_tokens is
@@ -86,7 +87,7 @@ const OFFICIAL_ID = REGISTRY.flatMap((entry) =>
 describe("DeepSeek V4.1-Flash official id (deepseek-flash)", () => {
   it("is offered by the first-party provider and by opencode-go", () => {
     const providers = OFFICIAL_ID.map((m) => m.provider).sort();
-    expect(providers).toEqual(["deepseek", "opencode-go", "qwenwork", "qwenwork-cn"]);
+    expect(providers).toEqual(["deepseek", "opencode-go", "quwork", "qwenwork", "qwenwork-cn"]);
   });
 
   it("resolves from the canonical row, not the V3 *deepseek* wildcard", () => {

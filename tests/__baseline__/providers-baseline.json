@@ -1600,17 +1600,6 @@
     "clientId": "junie-cli",
     "tokenUrl": "https://oauth.account.jetbrains.com/oauth2/token"
   },
-  "orcaterm": {
-    "baseUrl": "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
-    "format": "openai",
-    "headers": {
-      "X-Product": "orcaterm",
-      "Origin": "https://orcaterm.com",
-      "Referer": "https://orcaterm.com/terminal",
-      "X-Referer": "https://orcaterm.com/terminal"
-    },
-    "tokenUrl": "https://orcaterm.com/oauth/wechat/exchange"
-  },
   "autoclaw": {
     "baseUrl": "https://autoglm-api.autoglm.ai/autoclaw-proxy/proxy/autoclaw/v1/chat/completions",
     "headers": {},
@@ -1653,5 +1642,26 @@
     "format": "openai",
     "clientId": "raccoon-desktop",
     "tokenUrl": "https://xiaohuanxiong.com/api/web/auth/v1/login_with_authorization_code"
+  },
+  "orcaterm": {
+    "baseUrl": "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
+    "format": "openai",
+    "headers": {
+      "X-Product": "orcaterm",
+      "Origin": "https://orcaterm.com",
+      "Referer": "https://orcaterm.com/terminal",
+      "X-Referer": "https://orcaterm.com/terminal"
+    },
+    "tokenUrl": "https://orcaterm.com/oauth/wechat/exchange"
+  },
+  "quwork": {
+    "baseUrl": "https://llm.quwork.cn/v1/chat/completions",
+    "validateUrl": "https://llm.quwork.cn/v1/models",
+    "headers": {
+      "X-QurWork-Env": "prod",
+      "X-QurWork-Version": "1.7.5"
+    },
+    "timeoutMs": 180000,
+    "format": "openai"
   }
 }

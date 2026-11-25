@@ -1100,3 +1100,39 @@ export async function refreshClineToken(providerId, refreshToken, log) {
     }
   }, log);
 }
+
+// QuWork: renew the ~2h account token (Bearer old token → GET /api/user/refresh).
+// The llm_token (apiKey, inference) is never rotated, so a failed refresh only
+// affects points/daily reward — return null (like CodeBuddy) instead of an
+// unrecoverable marker so the connection stays in inference rotation.
+export async function refreshQuworkToken(refreshToken, log, proxyOptions = null) {
+  if (!refreshToken) return null;
+  return dedupRefresh("quwork", refreshToken, async () => {
+    const oauth = PROVIDER_OAUTH.quwork || {};
+    try {
+      const response = await proxyAwareFetch(oauth.refreshUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+          "X-QurWork-Env": "prod",
+          "X-QurWork-Version": oauth.clientVersion,
+        },
+        signal: AbortSignal.timeout(20000),
+      }, proxyOptions);
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body || body.success === false) {
+        log?.error?.("TOKEN_REFRESH", "Failed to refresh QuWork token", { status: response.status, message: body?.message });
+        return null;
+      }
+      const data = body.data && typeof body.data === "object" ? body.data : body;
+      const next = typeof data.token === "string" && data.token ? data.token : refreshToken;
+      const expireMs = Number(data.expire) > 0 ? Number(data.expire) * 1000 : Date.now() + 2 * 3600_000;
+      const expiresIn = Math.max(60, Math.floor((expireMs - Date.now()) / 1000));
+      return { accessToken: next, refreshToken: next, expiresIn };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", `QuWork token refresh error: ${error?.message || error}`);
+      return null;
+    }
+  });
+}

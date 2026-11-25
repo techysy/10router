@@ -305,6 +305,11 @@ function buildCliPackage() {
   // the bundle's node_modules or every importer throws MODULE_NOT_FOUND at runtime. Output
   // tracing normally copies it; this is the same belt-and-braces guard used for sql.js.
   ensureModuleInBundle("open");
+  // undici is loaded with a dynamic `await import("undici")` by open-sse/utils/proxyFetch.js
+  // (connection-level proxy / proxy pool dispatcher). Output tracing does not follow that
+  // import, so without this guard the package ships without undici and proxied requests
+  // silently fall back to a direct connection.
+  ensureModuleInBundle("undici");
   const betterDir = path.join(cliAppDir, "node_modules", "better-sqlite3");
   if (fs.existsSync(betterDir)) {
     fs.rmSync(betterDir, { recursive: true, force: true });

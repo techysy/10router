@@ -1962,6 +1962,31 @@ exports[`GOLDEN buildHeaders (default executor providers) > poolside → headers
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > quwork → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-QurWork-Env": "prod",
+    "X-QurWork-Version": "1.7.5",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-QurWork-Env": "prod",
+    "X-QurWork-Version": "1.7.5",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-QurWork-Env": "prod",
+    "X-QurWork-Version": "1.7.5",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > qwenwork → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -3164,6 +3189,13 @@ exports[`GOLDEN buildUrl (default executor providers) > poolside → url (stream
 {
   "nonStream": "https://inference.poolside.ai/v1/chat/completions",
   "stream": "https://inference.poolside.ai/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > quwork → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://llm.quwork.cn/v1/chat/completions",
+  "stream": "https://llm.quwork.cn/v1/chat/completions",
 }
 `;
 

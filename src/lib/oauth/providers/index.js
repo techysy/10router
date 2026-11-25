@@ -28,6 +28,7 @@ import cline from "./cline.js";
 import clinepass from "./clinepass.js";
 import gitlab from "./gitlab.js";
 import codebuddyCn from "./codebuddy-cn.js";
+import quwork from "./quwork.js";
 import codebuddyIntl from "./codebuddy-intl.js";
 import kimchi from "./kimchi.js";
 import trae from "./trae.js";
@@ -69,6 +70,7 @@ const PROVIDERS = {
   gitlab,
   "codebuddy-cn": codebuddyCn,
   "codebuddy-intl": codebuddyIntl,
+  quwork,
   kimchi,
   trae,
   "trae-cn": traeCn,

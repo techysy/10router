@@ -238,6 +238,19 @@ export async function PATCH(request) {
       }
     }
 
+    // QuWork daily reward auto-claim (status-gated, never blind-claims).
+    if (Object.prototype.hasOwnProperty.call(body, "quworkCheckin")) {
+      if (settings.quworkCheckin === true) {
+        import("@/sse/services/quworkCheckin.js")
+          .then(({ startQuworkCheckin }) => startQuworkCheckin())
+          .catch((error) => console.warn("[QuworkCheckin] start failed:", error.message));
+      } else {
+        import("@/sse/services/quworkCheckin.js")
+          .then(({ stopQuworkCheckin }) => stopQuworkCheckin())
+          .catch((error) => console.warn("[QuworkCheckin] stop failed:", error.message));
+      }
+    }
+
     // Croli daily check-in and server-claimable rewards (no generated chat).
     if (Object.prototype.hasOwnProperty.call(body, "croliCheckin")) {
       if (settings.croliCheckin === true) {

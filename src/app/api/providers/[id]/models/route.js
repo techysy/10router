@@ -15,6 +15,7 @@ import { resolveMeooModels } from "open-sse/services/meooModels.js";
 import { resolveDeepaiModels } from "open-sse/services/deepaiModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+import { quworkLiveModels, quworkProbeInference } from "open-sse/shared/quwork/client.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import codexProvider from "open-sse/providers/registry/codex.js";
@@ -529,6 +530,34 @@ const PROVIDER_MODELS_CONFIG = {
   // the live catalog. Live ids pass through verbatim: an id missing from
   // the static spec table rides the resolver's fallback spec, so models
   // Meoo configures later surface here without a registry update.
+  // QuWork: the gateway's own /v1/models (llm_token), names from the public
+  // desktop catalog; falls back to that catalog. Uses the connection's generic
+  // proxy config (none → global outbound proxy), like grok-cli.
+  quwork: {
+    customResolver: async (connection) => {
+      const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+      const proxyOptions = {
+        connectionProxyEnabled: proxy.connectionProxyEnabled === true,
+        connectionProxyUrl: proxy.connectionProxyUrl || "",
+        connectionNoProxy: proxy.connectionNoProxy || "",
+        vercelRelayUrl: proxy.vercelRelayUrl || "",
+        strictProxy: proxy.strictProxy === true,
+      };
+      const catalog = await quworkLiveModels({ proxyOptions });
+      let warning;
+      try {
+        const probe = await quworkProbeInference(connection.apiKey, { proxyOptions });
+        if (probe.ok && probe.models.length) {
+          const known = new Map(catalog.map((m) => [m.id, m]));
+          return { models: probe.models.map((id) => ({ id, name: known.get(id)?.name || id })) };
+        }
+        if (!probe.ok) warning = `QuWork /v1/models: ${probe.error}; using desktop catalog.`;
+      } catch (e) {
+        warning = `QuWork /v1/models failed (${e?.message || e}); using desktop catalog.`;
+      }
+      return { models: catalog, ...(warning ? { warning } : {}) };
+    },
+  },
   meoo: {
     customResolver: async (connection) => {
       let warning;

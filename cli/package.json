@@ -29,7 +29,8 @@
     "node-forge": "^1.3.3",
     "node-machine-id": "^1.1.12",
     "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "react-dom": "19.2.1",
+    "undici": "^7.19.2"
   },
   "comment_postinstall": "`|| exit 0` is deliberate: this hook only warms ~/.10router/runtime, and cli.js re-runs the same ensureSqliteRuntime/ensureTrayRuntime on every start, so a failure here costs nothing. Without it npm aborts the whole install — e.g. running Windows npm against a WSL path, where cmd.exe cannot cd to a UNC directory, falls back to C:\\Windows and node then cannot find hooks/postinstall.js at all, so the script's own try/catch never gets to run.",
   "comment_sqlite": "sql.js + better-sqlite3 are NOT bundled here. They are installed into ~/.10router/runtime/node_modules by hooks/postinstall.js (and re-checked at runtime by cli.js). This avoids Windows EBUSY errors when updating the global CLI, since native .node files no longer live under the locked install dir. Both runtime deps are installed WITH save (never --no-save): the runtime dir is a single shared npm project, so a package found in node_modules but missing from runtime/package.json is pruned as extraneous by the other hook's next install, and the two hooks would otherwise uninstall each other in a ping-pong.",

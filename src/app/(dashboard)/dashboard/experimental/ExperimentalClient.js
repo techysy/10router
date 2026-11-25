@@ -213,6 +213,20 @@ export default function ExperimentalClient() {
               }
             />
 
+            {/* QuWork daily reward auto-claim — status-gated (claim only when
+                daily-reward/status says can_claim). */}
+            <CheckinCard
+              title={translate("QuWork auto daily reward")}
+              desc={translate("Automatically claim the QuWork daily sign-in points for every QuWork connection with an account token (checks status first, never blind-claims)")}
+              checked={settings.quworkCheckin === true}
+              onToggle={() =>
+                patch(
+                  { quworkCheckin: !(settings.quworkCheckin === true) },
+                  "Error toggling QuWork auto daily reward:"
+                )
+              }
+            />
+
             {/* CodeBuddy CN auto daily check-in (shares the UI slot with import/export) */}
             <CheckinCard
               title={translate("CodeBuddy CN auto daily check-in")}
