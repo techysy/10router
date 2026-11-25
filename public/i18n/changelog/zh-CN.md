@@ -6,6 +6,8 @@
 
 ### ✨ 新增
 
+- **新增供应商 AtomCode、Clixad、FreePi（三个带免费额度的车道）**：AtomCode（AtomGit CodingPlan）用 AtomGit 账号登录，登录时自动领取 Lite 体验版（每 5 小时 300 次请求），模型 qwen3.8-27b、glm5.3-flash；Clixad 用 GitHub 登录，每日 12 万 credits，8 款免费模型（GPT-5 Nano、GPT-6 Luna、Claude Haiku 5.5、GLM-5.3 Flash 等）；FreePi 用 GitHub 登录（广告位买单），每日 4000 credits，particle、DeepSeek V4.1 Flash、GLM-5.3 Flash 三款。三者都带额度卡。这是各家客户端的接口：上游策略变更可能失效或风控，请自担账号风险（FreePi 条款明确禁止代理访问）。
+
 - **新增供应商 AutoClaw + AutoClaw 国内版（智谱澳龙，非官方）**：用你自己的 AutoClaw（智谱 AutoGLM 桌面端）账号——国际版用 z.ai 登录（完成滑块验证、授权后把浏览器跳到的 localhost:18432 地址粘回来），国内版用 +86 手机验证码。模型：AutoClaw Auto / Auto Fast / GLM-5.3 Flash（免费）/ GLM-5.3 Coding，1M 上下文，思考档位 low/high/max。带积分余额卡和可选的每日自动签到（实验功能页）。这是逆向的桌面端接口：账号存在被限制的风险；10Router 使用期间请勿让 AutoClaw 桌面端同时登录同一账号。
 
 - **组合轮询支持时间窗粘滞**：组合选择「轮询」策略时，此前每个请求都换下一个模型——群助手（多人插话）场景下对话会话被不停切来切去。现在活跃时段内固定用同一个模型，空闲超过窗口（默认 5 分钟，设置页可调，组合卡上可按组合覆盖）才轮到下一个；也可以在设置页改回按请求数切换。

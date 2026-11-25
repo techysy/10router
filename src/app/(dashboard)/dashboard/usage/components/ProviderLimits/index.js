@@ -204,6 +204,9 @@ const KNOWN_PROVIDER_NAMES = {
   "crowllm": "CrowLLM",
   "autoclaw": "AutoClaw",
   "autoclaw-cn": "AutoClaw CN",
+  "atomcode": "AtomCode",
+  "clixad": "Clixad",
+  "freepi": "FreePi",
 };
 
 export default function ProviderLimits() {

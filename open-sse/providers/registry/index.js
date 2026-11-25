@@ -185,6 +185,9 @@ import p182 from "./atlascloud.js";
 import p183 from "./junie.js";
 import p184 from "./autoclaw.js";
 import p185 from "./autoclaw-cn.js";
+import p186 from "./atomcode.js";
+import p187 from "./clixad.js";
+import p188 from "./freepi.js";
 
 export default [
   p0,
@@ -373,4 +376,7 @@ export default [
   p183,
   p184,
   p185,
+  p186,
+  p187,
+  p188,
 ];

@@ -41,6 +41,9 @@ import { CapyExecutor } from "./capy.js";
 import { AmazonQuickExecutor } from "./amazonquick.js";
 import { JunieExecutor } from "./junie.js";
 import { AutoclawExecutor } from "./autoclaw.js";
+import { AtomCodeExecutor } from "./atomcode.js";
+import { ClixadExecutor } from "./clixad.js";
+import { FreePiExecutor } from "./freepi.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
@@ -51,6 +54,9 @@ const executors = {
   junie: new JunieExecutor(),
   autoclaw: new AutoclawExecutor("autoclaw"),
   "autoclaw-cn": new AutoclawExecutor("autoclaw-cn"),
+  atomcode: new AtomCodeExecutor(),
+  clixad: new ClixadExecutor(),
+  freepi: new FreePiExecutor(),
   "gemini-cli": new GeminiCLIExecutor(),
   github: new GithubExecutor(),
   iflow: new IFlowExecutor(),

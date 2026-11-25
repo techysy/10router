@@ -184,6 +184,10 @@ export const ALLOWLIST = {
   // 能力以私有 API 实测为准，保留地板值。其余 capy 模型（anthropic/* 等
   // vendor 前缀 id）走 canonical/CI 层正常解析。
   "capy/particle/particle-1": "no public spec",
+
+  // FreePi 自家模型（广告赞助的免费档，id 无任何 pattern 命中）：无公开规格、
+  // 无 models.dev 条目，保留地板值——与 capy/particle/particle-1 同口径。
+  "freepi/particle": "no public spec",
 };
 
 // Media-kind models (kind: "image" | "video" | "tts" | …) are excluded from

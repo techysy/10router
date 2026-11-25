@@ -278,6 +278,28 @@ exports[`GOLDEN buildHeaders (default executor providers) > atlascloud → heade
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > atomcode → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "atomcode/5.2.8",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "atomcode/5.2.8",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "atomcode/5.2.8",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > atria → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -640,6 +662,28 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > clixad → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-Clixad-Client": "cli/0.0.1-beta.54",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-Clixad-Client": "cli/0.0.1-beta.54",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "X-Clixad-Client": "cli/0.0.1-beta.54",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > cloudflare-ai → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -951,6 +995,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > featherless → head
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > fireworks → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > freepi → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -2526,6 +2589,13 @@ exports[`GOLDEN buildUrl (default executor providers) > atlascloud → url (stre
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > atomcode → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://llm-api.atomgit.com/v1/chat/completions",
+  "stream": "https://llm-api.atomgit.com/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > atria → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.atria-asi.ai/v1/chat/completions",
@@ -2624,6 +2694,13 @@ exports[`GOLDEN buildUrl (default executor providers) > clinepass → url (strea
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > clixad → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://clixad.onrender.com/v1/chat/completions",
+  "stream": "https://clixad.onrender.com/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > cloudflare-ai → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.cloudflare.com/client/v4/accounts/ACC123/ai/v1/chat/completions",
@@ -2719,6 +2796,13 @@ exports[`GOLDEN buildUrl (default executor providers) > fireworks → url (strea
 {
   "nonStream": "https://api.fireworks.ai/inference/v1/chat/completions",
   "stream": "https://api.fireworks.ai/inference/v1/chat/completions",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > freepi → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.freepi.ai/v1/chat/completions",
+  "stream": "https://api.freepi.ai/v1/chat/completions",
 }
 `;
 

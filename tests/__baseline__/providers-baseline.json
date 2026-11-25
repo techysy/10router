@@ -1609,5 +1609,29 @@
     "headers": {},
     "timeoutMs": 120000,
     "format": "openai"
+  },
+  "atomcode": {
+    "baseUrl": "https://llm-api.atomgit.com/v1/chat/completions",
+    "format": "openai",
+    "thinkingFormat": "openai",
+    "headers": {
+      "User-Agent": "atomcode/5.2.8"
+    },
+    "tokenUrl": "https://acs.atomgit.com/auth/token"
+  },
+  "clixad": {
+    "baseUrl": "https://clixad.onrender.com/v1/chat/completions",
+    "format": "openai",
+    "thinkingFormat": "openai",
+    "headers": {
+      "X-Clixad-Client": "cli/0.0.1-beta.54"
+    }
+  },
+  "freepi": {
+    "baseUrl": "https://api.freepi.ai/v1/chat/completions",
+    "format": "openai",
+    "thinkingFormat": "openai",
+    "headers": {},
+    "tokenUrl": "https://api.freepi.ai/auth/token"
   }
 }

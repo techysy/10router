@@ -36,6 +36,9 @@ import windsurf from "./windsurf.js";
 import zed from "./zed.js";
 import glm from "./glm.js";
 import muse from "./muse.js";
+import atomcode from "./atomcode.js";
+import clixad from "./clixad.js";
+import freepi from "./freepi.js";
 import { minimaxCode, minimaxCodeGlobal } from "./minimax-code.js";
 
 // Provider configurations
@@ -72,6 +75,9 @@ const PROVIDERS = {
   zed,
   glm,
   muse,
+  atomcode,
+  clixad,
+  freepi,
   "minimax-code": minimaxCode,
   "minimax-code-global": minimaxCodeGlobal,
 };
