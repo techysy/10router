@@ -13,9 +13,11 @@ const OFFERED = REGISTRY.flatMap((entry) =>
 
 const VISION_EXP = OFFERED.filter((m) => /vision/i.test(m.id));
 // V4.1-Flash (and its thinker variants) is multimodal per its model card and
-// models.dev; everything else in the family is text→text.
-const MULTIMODAL = OFFERED.filter((m) => /v4\.1-flash/i.test(m.id));
-const TEXT_ONLY = OFFERED.filter((m) => !/vision|v4\.1-flash/i.test(m.id));
+// models.dev; everything else in the family is text→text. loomy's
+// `deepseek-v4-flash-1017` is the same V4.1-Flash 1017 snapshot under a
+// flattened id (live /models reports text+image, 1M/384K) — multimodal too.
+const MULTIMODAL = OFFERED.filter((m) => /v4\.1-flash|v4-flash-1017/i.test(m.id));
+const TEXT_ONLY = OFFERED.filter((m) => !/vision|v4\.1-flash|v4-flash-1017/i.test(m.id));
 
 describe("DeepSeek V4 capability resolution", () => {
   it("offers both a vision and a text variant (sanity check on the fixture)", () => {

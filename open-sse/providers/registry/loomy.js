@@ -37,17 +37,18 @@ export default {
       scheme: "bearer",
     },
   },
-  // 2026-11-08 实测收紧（客户端模型选择器 + /models 双源核对）：上游 8 → 5 款
-  // （deepseek-v4-flash-0731 仍可调但客户端选择器已隐藏），qwen-3.8-max /
-  // MiniMax-M3 / Kimi-k2.6 下线不可调，新增 mimo-v2.5（全模态）。倍率对齐
-  // 客户端标注（积分消耗倍数，Spark-X2.6 限时免费 ×0.0）。
+  // 2026-11-25 实测对齐（6 个 NAS session 打 /models 全一致 + 客户端选择器截图）：
+  // 聊天 5 款——spark-x2.6 限时免费已结束（×2.5），新增 deepseek-v4-flash-1017
+  // （即客户端「DeepSeek V4.1 Flash 1017」，×2.0，vision，1M/384K）；0731 与
+  // mimo-v2.5 已从 live 目录消失（0731 上轮已只是选择器隐藏，本轮彻底下架）。
+  // 倍率 = 客户端标注的积分消耗倍数（标准 1.0x）。live 目录另有 3 款画图模型
+  // 与 auto 档，本 provider 只做 chat（serviceKinds: ["llm"]），不收录。
   models: [
-    { id: "spark-x2.6", name: "Spark X2.6 正式版", rateMultiplier: 0, promoFreeNote: "限时免费" },
+    { id: "spark-x2.6", name: "Spark X2.6 正式版", rateMultiplier: 2.5 },
     { id: "qwen3.8-flash", name: "Qwen 3.8 Flash", rateMultiplier: 0.8 },
     { id: "DeepSeek-V4.1-Flash", name: "DeepSeek V4.1 Flash", rateMultiplier: 2.0 },
-    { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash 0731", rateMultiplier: 3.0 },
+    { id: "deepseek-v4-flash-1017", name: "DeepSeek V4.1 Flash 1017", rateMultiplier: 2.0 },
     { id: "GLM-5.3-Flash", name: "GLM 5.3 Flash", rateMultiplier: 0.8 },
-    { id: "mimo-v2.5", name: "MiMo V2.5", rateMultiplier: 3.3 },
   ],
   serviceKinds: ["llm"],
   passthroughModels: true,

@@ -630,15 +630,14 @@ export const PROVIDER_CAPABILITIES = {
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
   // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压
   // 到 65536 / 128000）——按各家族第一方剖面全量显式声明。
-  // spark-x2.6 无公开规格（讯飞自家模型，×0.0 免费），保留 floor + allowlist。
+  // spark-x2.6 无公开规格（讯飞自家模型），保留 floor + allowlist。
+  // 2026-11-25 live /models：spark-x2.6 限时免费结束（×2.5），0731/mimo-v2.5
+  // 下架，新增 deepseek-v4-flash-1017（vision 与 V4.1-Flash 同剖面，1M/384K）。
   "loomy": {
-    "qwen3.8-flash":          { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
-    "DeepSeek-V4.1-Flash":    { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
-    "deepseek-v4-flash-0731": { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
-    "GLM-5.3-Flash":          { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
-    // mimo-v2.5（2026-11-08 新增，live /models 实测）：全模态输入（image/audio/video），
-    // reasoning_efforts 档位（none→xhigh）→ openai 形状；窗口 1048576（live 原值）。
-    "mimo-v2.5":              { vision: true, audioInput: true, videoInput: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
+    "qwen3.8-flash":            { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
+    "DeepSeek-V4.1-Flash":      { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-1017":   { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "GLM-5.3-Flash":            { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
   },
   // Capy 的广告档模型 id 带 `-ads` 后缀（`deepseek/deepseek-v4.1-flash-ads`、
   // `zai/glm-5.3-flash-ads`），既不是 canonical 名也不命中家族 pattern 的完整
@@ -793,16 +792,17 @@ export const PROVIDER_CAPABILITIES = {
     // 与 hy4 的 1M 不同窗。Hy 同族思考强制常开；vision/reasoning 暂按 Hy 同档
     // 声明（「Agent 任务又快又省」官方定位，待服务端 product-config 校准）。
     "hy4-flash":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
-    // Hy4 flash（客户端 2026-11-16 正式发布，日常主力档）：卡片 960K 上下文，
-    // 与 hy4 的 1M 不同窗。Hy 同族思考强制常开；vision/reasoning 暂按 Hy 同档
-    // 声明（「Agent 任务又快又省」官方定位，待服务端 product-config 校准）。
-    "hy4-flash":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 960000, maxOutput: 64000 },
     // Space-Bunny（官方应用 2026-10-02 上架）：原生多模态输入 → vision:true；
     // 思考"极致"档与 Hy 系同族（强制常开，canDisable:false 待服务端
     // product-config 回来后校准）；1M 输入，输出上限暂取 Hy 同档 64000。
     "space-bunny":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
     "glm-5.3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
     "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 32000 },
+    // GLM-5.4（客户端 2026-11-25 第五版清单新上，0.69x）：CN 网关 product-config
+    // 尚未取到，形态暂按 canonical glm-5.4 行（1M/131072、全模态）压到 openai
+    // 思考形状（transport 已写死 openai，provider 行优先）；maxOutput 待
+    // product-config 校准——先按 glm-5.3 的 48000 夹，宁小勿大（真夹子）。
+    "glm-5.4":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 48000 },
     "kimi-k3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 32000 },
     // DeepSeek-V4-Pro：纯文本（模型卡 text→text；models.dev 124 条命中一致报
     // attach:false，火山方舟第一方 deepseek-v4-pro-ga-260813 亦然）。1M 输入 /

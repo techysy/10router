@@ -1,7 +1,7 @@
 // Loomy (讯飞) 内置 freeTier 收录形状钉（issue #92 的内置化收尾）：
 // chat 认 Bearer（transport.auth），/models 只认 `token:` 头（PROVIDER_MODELS_CONFIG
-// 的 authHeader 覆盖），6 个模型为 2026-11-08 上游收紧后的实测清单，凭据为客户端
-// session（约 14 天）。
+// 的 authHeader 覆盖），5 个模型为 2026-11-25 live /models 实测清单（6 个 NAS
+// session 全一致），凭据为客户端 session（约 14 天）。
 import { describe, it, expect } from "vitest";
 import { FREE_TIER_PROVIDERS, AI_PROVIDERS } from "../../src/shared/constants/providers.js";
 import { getModelsByProviderId } from "../../open-sse/config/providerModels.js";
@@ -19,17 +19,31 @@ describe("Loomy provider registration", () => {
     expect(AI_PROVIDERS.loomy).toBeDefined();
   });
 
-  it("ships the tightened live-verified lineup (spark-x2.6 free default, MiMo V2.5 added)", () => {
+  it("ships the 2026-11-25 live-verified lineup (spark-x2.6 ×2.5, 1017 variant added)", () => {
     const models = getModelsByProviderId("loomy").map((m) => m.id);
     expect(models).toEqual(expect.arrayContaining([
       "spark-x2.6", "qwen3.8-flash", "DeepSeek-V4.1-Flash",
-      "deepseek-v4-flash-0731", "GLM-5.3-Flash", "mimo-v2.5",
+      "deepseek-v4-flash-1017", "GLM-5.3-Flash",
     ]));
-    expect(models).toHaveLength(6);
+    expect(models).toHaveLength(5);
+    // 2026-11-25 live 下架：不得回流
+    expect(models).not.toContain("deepseek-v4-flash-0731");
+    expect(models).not.toContain("mimo-v2.5");
     // 2026-11-08 上游收紧：三款下线不可调，不得回流
     expect(models).not.toContain("qwen-3.8-max");
     expect(models).not.toContain("MiniMax-M3");
     expect(models).not.toContain("Kimi-k2.6");
+  });
+
+  it("pins rate multipliers to the client's credit-cost labels (2026-11-25)", () => {
+    const byId = Object.fromEntries(getModelsByProviderId("loomy").map((m) => [m.id, m]));
+    // spark-x2.6 限时免费已结束——若再出现 rateMultiplier 0 / promoFree 就是回退
+    expect(byId["spark-x2.6"].rateMultiplier).toBe(2.5);
+    expect(byId["spark-x2.6"].promoFreeNote).toBeUndefined();
+    expect(byId["DeepSeek-V4.1-Flash"].rateMultiplier).toBe(2.0);
+    expect(byId["deepseek-v4-flash-1017"].rateMultiplier).toBe(2.0);
+    expect(byId["GLM-5.3-Flash"].rateMultiplier).toBe(0.8);
+    expect(byId["qwen3.8-flash"].rateMultiplier).toBe(0.8);
   });
 
   it("does not fall through to DEFAULT_CAPABILITIES for any shipped model", () => {
