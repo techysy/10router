@@ -26,6 +26,9 @@ vi.mock("open-sse/utils/proxyFetch.js", () => ({ proxyAwareFetch: vi.fn() }));
 const { BaseExecutor, applyNodeCustomHeaders } = await import(
   "../../open-sse/executors/base.js"
 );
+const { DefaultExecutor } = await import(
+  "../../open-sse/executors/default.js"
+);
 const { testApiKeyConnection } = await import(
   "../../src/app/api/providers/[id]/test/testUtils.js"
 );
@@ -91,6 +94,40 @@ describe("BaseExecutor.buildHeaders merges per-endpoint custom headers (#149)", 
     });
     expect(headers["x-api-key"]).toBe("sk");
     expect(headers["x-extra"]).toBe("v");
+  });
+});
+
+describe("DefaultExecutor.buildHeaders applies per-endpoint custom headers (#149)", () => {
+  // Regression: DefaultExecutor overrides buildHeaders and never called
+  // applyNodeCustomHeaders, so node custom headers were silently dropped on
+  // real traffic (only the connection TEST path applied them). The xc node
+  // (User-Agent: pi/1.6.0 for Xingchi's client whitelist) only works once
+  // this main path applies them.
+  const exec = new DefaultExecutor("openai-compatible-x");
+  const creds = {
+    apiKey: "sk_default",
+    providerSpecificData: {
+      customHeaders: {
+        "User-Agent": "pi/1.6.0",
+        "x-gateway-token": "abc",
+        "Authorization": "Bearer custom",
+        "content-length": "9",
+      },
+    },
+  };
+
+  it("applies custom headers after auth (custom wins, User-Agent rides)", () => {
+    const headers = exec.buildHeaders(creds);
+    expect(headers["User-Agent"]).toBe("pi/1.6.0");
+    expect(headers["x-gateway-token"]).toBe("abc");
+    expect(headers.Authorization).toBe("Bearer custom");
+    expect(headers["content-length"]).toBeUndefined();
+  });
+
+  it("is a no-op without customHeaders", () => {
+    const headers = exec.buildHeaders({ apiKey: "sk" });
+    expect(headers.Authorization).toBe("Bearer sk");
+    expect(headers["User-Agent"]).toBeUndefined();
   });
 });
 
