@@ -13,6 +13,7 @@ import {
   coerceResponsesOutput,
 } from "../formats/responsesApi.js";
 import { ROLE, OPENAI_BLOCK, RESPONSES_ITEM } from "../schema/index.js";
+import { normalizeChatImageDetail } from "../concerns/imageDetail.js";
 
 const MAX_TOOL_NAME_LEN = 128;
 
@@ -87,7 +88,7 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
           if (c.type === RESPONSES_ITEM.OUTPUT_TEXT) return { type: OPENAI_BLOCK.TEXT, text: c.text };
           if (c.type === RESPONSES_ITEM.INPUT_IMAGE) {
             const url = c.image_url || c.file_id || "";
-            return { type: OPENAI_BLOCK.IMAGE_URL, image_url: { url, detail: c.detail || "auto" } };
+            return { type: OPENAI_BLOCK.IMAGE_URL, image_url: { url, detail: normalizeChatImageDetail(c.detail) } };
           }
           return c;
         })

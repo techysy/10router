@@ -4,6 +4,8 @@
 
 ## Unreleased（随下一版发布）
 
+- **Responses→Chat 归一化 image_url.detail（#178，DuMate 400）**（2026-11-26）：Codex 发图带 `detail:"original"`（Responses API 合法值），DuMate 的 Chat 入口只收 auto/low/high，请求在模型调用前直接 400。两条 Responses→Chat 路径（`translator/formats/responsesApi.js` 的 `convertResponsesApiFormat` 与 `translator/request/openai-responses.js` 的 `openaiResponsesToOpenAIRequest`）此前都写 `c.detail || "auto"`——只补缺失、不校验非法值。修法=集中归一化：新 `translator/concerns/imageDetail.js` 的 `normalizeChatImageDetail()`，合法集与默认值落 `schema/defaults.js`（`CHAT_IMAGE_DETAILS`/`DEFAULT_IMAGE_DETAIL`），两条路径共用；auto/low/high 保留，缺失/非法（含 original）→ auto。反向 Chat→Responses（`openaiToOpenAIResponsesRequest`）与 codex executor 的 `prefetchImages`（目标本就是 Responses 端点，original 合法）不动；将来真有上游支持 original 再走显式 provider quirk，不在通用层透传。测试：新 `tests/unit/image-detail-normalize.test.js` 11 例（归一化函数边界 / 两条路径 / file_id 兜底 / 多轮多图 / 反向不回归），known-inventory 文本插入 11 键；Responses 相关既有套件（translator 全量 + multiturn/nonstream/custom-tools/empty-toolcalls/modality-strip/multimodal-drop-lock/parallel-tool-calls/completed-output/codex-image-fetch）CI=1 复跑，4 红全部命中 known-fails 基线，无新增失败。三基线 + capability/pricing 审计绿。未打真实上游（本机无 DuMate 凭据），依据报告者实测矩阵 + 翻译层单测等价覆盖。
+
 - **额度卡「最早到期/重置」三面口径统一 + 健壮化**（2026-11-26，用户报「额度卡的排序还需要健壮化一下」+ 截图）：同一个问题此前三处各自实现，且互相不同——
   ① 卡片头部 `QuotaPackBar` 的 `soonestLive` 先 `barPacks.filter(p => p.remainingNum > 0)` 把耗尽行全剔，而 CodeBuddy 的「每月」周期窗又被上游 `isDrainedGiftPack` 刻意排除在池外（扣总额时是对的，读时钟时是错的），于是耗尽但 5d 后回血的窗被头部吞掉；另有一段只在 live 全空时才走的 `recycling` 分支，混合形态永远进不去。
   ② 卡间排序 `sortVisibleConnections.getEarliestResetTime` 取 quotas 里所有 `resetAt > now` 的最小值，算进了那个 5d 窗——**头部 17d、排序键 5d**，用户看到的「排序不对」就是这个。
