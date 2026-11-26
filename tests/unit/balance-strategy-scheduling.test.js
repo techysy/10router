@@ -235,3 +235,38 @@ describe("到期优先 — 一次性到期包必须走 pack-first 臂（不得�
     expect(res.connectionId).toBe("a9862f14");
   });
 });
+
+// 用户 2026-11-26「比如 quwork 也可以看下」。quwork/dumate/lingxi/deepai/
+// autoclaw/clixad/freepi 此前归 GENERIC —— 详情页的调度下拉只有
+// 到期优先/轮询/手动三档，「大额优先/小额优先」这两个选项压根不出现，
+// 调度臂也不会读 quotaBalance。归入 PURE_BALANCE 后必须真的能按余额选号。
+describe("新归类为 PURE_BALANCE 的供应商 — 余额排序真的接通", () => {
+  for (const provider of ["quwork", "dumate", "lingxi", "deepai", "autoclaw", "clixad", "freepi"]) {
+    it(`${provider}: 小额优先选中余额最小的号`, async () => {
+      mocks.getProviderConnections.mockResolvedValue([
+        { id: "hi", provider, priority: 1, quotaBalance: 9000 },
+        { id: "lo", provider, priority: 2, quotaBalance: 120 },
+      ]);
+      mocks.getSettings.mockResolvedValue({
+        fallbackStrategy: "fill-first",
+        providerStrategies: { [provider]: { balanceStrategy: "lowest-first" } },
+      });
+
+      expect((await getProviderCredentials(provider)).connectionId).toBe("lo");
+    });
+  }
+
+  it("croli 保持 GENERIC — 钱包积分不参与余额调度（不得成为路由信号）", async () => {
+    mocks.getProviderConnections.mockResolvedValue([
+      { id: "hi", provider: "croli", priority: 1, quotaBalance: 9000 },
+      { id: "lo", provider: "croli", priority: 2, quotaBalance: 120 },
+    ]);
+    mocks.getSettings.mockResolvedValue({
+      fallbackStrategy: "fill-first",
+      providerStrategies: { croli: { balanceStrategy: "lowest-first" } },
+    });
+
+    // 非 PURE_BALANCE → 余额排序臂不参与，仍按手动优先级取 #1
+    expect((await getProviderCredentials("croli")).connectionId).toBe("hi");
+  });
+});

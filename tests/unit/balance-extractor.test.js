@@ -55,4 +55,21 @@ describe("getProviderQuotaCategory", () => {
     expect(getProviderQuotaCategory("minimax-code")).toBe(PROVIDER_QUOTA_TYPES.PACK_ASSET);
     expect(getProviderQuotaCategory("minimax-code-global")).toBe(PROVIDER_QUOTA_TYPES.PACK_ASSET);
   });
+
+  // 2026-11-26 补齐（用户「比如 quwork 也可以看下」）：以下供应商的 usage 都有
+  // extractConnectionBalance 认得的余额行（quotaBalance 会落库），却在 GENERIC
+  // 里连「大额/小额优先」选项都没有。归 PURE_BALANCE 只放开 UI 入口与排序臂，
+  // 默认仍是手动优先级，到期优先臂不受影响。
+  it("classifies stored-value providers with a routable balance row as PURE_BALANCE", () => {
+    for (const p of ["quwork", "dumate", "lingxi", "deepai", "autoclaw", "autoclaw-cn", "clixad", "freepi"]) {
+      expect(getProviderQuotaCategory(p)).toBe(PROVIDER_QUOTA_TYPES.PURE_BALANCE);
+    }
+  });
+
+  // croli 的 usage 注释明确「never insert wallet credits into quotas, where
+  // they could drive account routing」——钱包积分是账本奖励，不是推理预算，
+  // 不得成为路由信号，必须保持 GENERIC（不进余额调度）。
+  it("keeps croli GENERIC — its wallet credits must never drive routing", () => {
+    expect(getProviderQuotaCategory("croli")).toBe(PROVIDER_QUOTA_TYPES.GENERIC);
+  });
 });
