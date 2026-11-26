@@ -411,10 +411,13 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       if (balStrategy && balStrategy !== "priority") override.balanceStrategy = balStrategy;
       else delete override.balanceStrategy;
 
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) delete updated[providerId];
-      else updated[providerId] = override;
-      await fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerStrategies: updated }) });
+      // 单 provider 原子写入：整块 providerStrategies 回写会把别的 provider
+      // （并发标签页 / 调度器刚写的项）连带覆盖掉，见 api/settings 的注释。
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerStrategyPatch: { [providerId]: override } }),
+      });
     } catch (e) { console.log("saveStrategy error:", e); }
   };
 

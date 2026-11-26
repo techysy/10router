@@ -33,6 +33,13 @@ const PACK_ASSET_PROVIDERS = new Set([
   "codebuddy-intl",
   "qoder",
   "qoder-cn",
+  // MiniMax Code 的积分桶是一次性到期包（usage/minimax-code.js ledgerBucketRow:
+  // detailOnly + recurring:false + 每桶自己的 expireAt），与 CodeBuddy/Qoder 同
+  // 性质。此前误归 PURE_BALANCE：开「到期优先」时红区号被 relay 下沉到队尾，
+  // 12-05 到期的包眼看烂掉还先烧 12-09 的（用户 2026-11-26「其他供应商优先
+  // 测量也有问题」实测现网 minimax-code 三红一黄）。
+  "minimax-code",
+  "minimax-code-global",
 ]);
 
 const ROLLING_SUBSCRIPTION_PROVIDERS = new Set([

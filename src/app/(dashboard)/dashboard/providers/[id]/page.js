@@ -872,17 +872,12 @@ export default function ProviderDetailPage() {
         delete override.dailyGrantFirst;
       }
 
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) {
-        delete updated[providerId];
-      } else {
-        updated[providerId] = override;
-      }
-
+      // 单 provider 原子写入（服务端事务内合并）：整块 providerStrategies 回写
+      // 会用本标签页的快照覆盖别的 provider 的策略，见 api/settings 的注释。
       await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerStrategies: updated }),
+        body: JSON.stringify({ providerStrategyPatch: { [providerId]: override } }),
       });
     } catch (error) {
       console.log("Error saving provider strategy:", error);

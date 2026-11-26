@@ -88,13 +88,11 @@ export default function NoAuthProxyCard({ providerId }) {
       else override.proxyPoolId = poolId;
       if (strategy === "none") delete override.rotateStrategy;
       else override.rotateStrategy = strategy;
-      const updated = { ...current };
-      if (Object.keys(override).length === 0) delete updated[providerId];
-      else updated[providerId] = override;
+      // 单 provider 原子写入：整块回写会覆盖别的 provider 的策略（见 api/settings）。
       await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerStrategies: updated }),
+        body: JSON.stringify({ providerStrategyPatch: { [providerId]: override } }),
       });
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);

@@ -10,7 +10,8 @@ import {
 
 // Settings
 export {
-  getSettings, updateSettings, mutateSettingsMap, isCloudEnabled, getCloudUrl, exportSettings,
+  getSettings, updateSettings, mutateSettingsMap, setProviderStrategyOverride,
+  isCloudEnabled, getCloudUrl, exportSettings,
   getChannelBlock, setChannelBlock, clearChannelBlock,
 } from "./repos/settingsRepo.js";
 

@@ -215,6 +215,35 @@ export async function mutateSettingsMap(key, mutator) {
   return nextValue;
 }
 
+/**
+ * Atomically replace ONE provider's strategy override inside the settings
+ * transaction, leaving every other provider's entry untouched.
+ *
+ * Why this exists: the dashboard saves a strategy by GET-ing the whole
+ * `providerStrategies` map, editing its own provider, and PATCH-ing the map
+ * back. `updateSettings` merges top-level keys only, so that write REPLACES
+ * the map — any provider added by a concurrent tab, a scheduler, or a request
+ * that is not in the client's snapshot is silently dropped. Meoo's
+ * 「余额优先」 vanished exactly this way (2026-11-26: PS.meoo absent from the DB
+ * while the dropdown still showed 小额优先).
+ *
+ * `override` null/empty removes the provider's entry (back to global defaults).
+ */
+export async function setProviderStrategyOverride(providerId, override) {
+  if (typeof providerId !== "string" || !providerId.trim()) {
+    throw new TypeError("setProviderStrategyOverride requires a providerId");
+  }
+  return mutateSettingsMap("providerStrategies", (map) => {
+    const next = { ...map };
+    if (override && typeof override === "object" && !Array.isArray(override) && Object.keys(override).length > 0) {
+      next[providerId] = override;
+    } else {
+      delete next[providerId];
+    }
+    return next;
+  });
+}
+
 export async function isCloudEnabled() {
   const settings = await getSettings();
   return settings.cloudEnabled === true;

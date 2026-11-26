@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getSettings, updateSettings } from "@/lib/localDb";
+import { getSettings, updateSettings, setProviderStrategyOverride } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
@@ -106,6 +106,24 @@ export async function PATCH(request) {
     if (Object.prototype.hasOwnProperty.call(body, "oidcClientSecret")) {
       if (!body.oidcClientSecret || !String(body.oidcClientSecret).trim()) {
         delete body.oidcClientSecret;
+      }
+    }
+
+    // Per-provider strategy saves must never replace the whole map.
+    //
+    // Every dashboard caller builds its patch by GET-ing providerStrategies,
+    // editing its own provider, and PATCH-ing the map back — and updateSettings
+    // merges TOP-LEVEL keys only, so that write overwrites every other
+    // provider's entry with the client's (possibly stale, possibly concurrent)
+    // snapshot. This is how Meoo's 「余额优先」 disappeared from the DB while the
+    // dropdown still displayed it (2026-11-26). `providerStrategyPatch` carries
+    // ONE provider's override and is merged inside the settings transaction;
+    // an empty/null override removes that provider's entry.
+    const strategyPatch = body.providerStrategyPatch;
+    delete body.providerStrategyPatch;
+    if (strategyPatch && typeof strategyPatch === "object" && !Array.isArray(strategyPatch)) {
+      for (const [pid, override] of Object.entries(strategyPatch)) {
+        await setProviderStrategyOverride(pid, override);
       }
     }
 
@@ -269,7 +287,7 @@ export async function PATCH(request) {
     // with dailyGrantFirst=true starts the scheduler, none stops it. An
     // immediate boot pass rolls back any drain that happened before the toggle
     // was on.
-    if (Object.prototype.hasOwnProperty.call(body, "providerStrategies")) {
+    if (Object.prototype.hasOwnProperty.call(body, "providerStrategies") || strategyPatch) {
       const grantOn = Object.values(settings.providerStrategies || {}).some((o) => o?.dailyGrantFirst === true);
       import("@/sse/services/dailyGrantReset.js")
         .then(({ startDailyGrantReset, stopDailyGrantReset }) => {

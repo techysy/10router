@@ -47,8 +47,12 @@ describe("extractConnectionBalance", () => {
 });
 
 describe("getProviderQuotaCategory", () => {
-  it("classifies minimax-code and minimax-code-global as PURE_BALANCE", () => {
-    expect(getProviderQuotaCategory("minimax-code")).toBe(PROVIDER_QUOTA_TYPES.PURE_BALANCE);
-    expect(getProviderQuotaCategory("minimax-code-global")).toBe(PROVIDER_QUOTA_TYPES.PURE_BALANCE);
+  // 2026-11-26 重分类：MiniMax Code 的积分桶是一次性到期包（ledgerBucketRow
+  // detailOnly + recurring:false + 每桶 expireAt），开「到期优先」时必须走
+  // pack-first 严格消费臂——PURE_BALANCE 会让红区号被 relay 下沉到队尾，
+  // 最近到期的包烂掉（用户实测现网三红一黄先烧 12-09 不烧 12-05）。
+  it("classifies minimax-code and minimax-code-global as PACK_ASSET", () => {
+    expect(getProviderQuotaCategory("minimax-code")).toBe(PROVIDER_QUOTA_TYPES.PACK_ASSET);
+    expect(getProviderQuotaCategory("minimax-code-global")).toBe(PROVIDER_QUOTA_TYPES.PACK_ASSET);
   });
 });
