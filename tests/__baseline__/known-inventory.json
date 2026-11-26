@@ -1,4 +1,6 @@
 {
+  "tests/unit/balance-strategy-scheduling.test.js :: 余额优先 — 未知余额与刷新门 余额为 0（已耗尽）的号在两个方向上都沉到队尾": "passed",
+  "tests/unit/balance-strategy-scheduling.test.js :: 余额优先 — 未知余额与刷新门 负余额同样按耗尽处理": "passed",
   "tests/unit/balance-strategy-scheduling.test.js :: 新归类为 PURE_BALANCE 的供应商 — 余额排序真的接通 quwork: 小额优先选中余额最小的号": "passed",
   "tests/unit/balance-strategy-scheduling.test.js :: 新归类为 PURE_BALANCE 的供应商 — 余额排序真的接通 dumate: 小额优先选中余额最小的号": "passed",
   "tests/unit/balance-strategy-scheduling.test.js :: 新归类为 PURE_BALANCE 的供应商 — 余额排序真的接通 lingxi: 小额优先选中余额最小的号": "passed",

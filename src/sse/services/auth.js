@@ -630,7 +630,17 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         const balA = typeof a.quotaBalance === "number" ? a.quotaBalance : null;
         const balB = typeof b.quotaBalance === "number" ? b.quotaBalance : null;
 
-        // Accounts without known balance sort last
+        // A drained account (balance <= 0) is spent: it must sink to the tail in
+        // BOTH directions. "Lowest balance first" is a spend-the-smallest-reward
+        // rule, not "try the empty one first" — before this, a 0-balance account
+        // sorted ahead of everything and every request burned a round on a
+        // guaranteed upstream 403 (2026-11-26 live: `balance-lowest-first
+        // selected f2b0d6e3 | balance=0`).
+        const drainedA = balA !== null && balA <= 0;
+        const drainedB = balB !== null && balB <= 0;
+        if (drainedA !== drainedB) return drainedA ? 1 : -1;
+
+        // Accounts without known balance sort last (but ahead of drained ones)
         if (balA !== null && balB === null) return -1;
         if (balA === null && balB !== null) return 1;
         if (balA !== null && balB !== null && balA !== balB) {

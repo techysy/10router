@@ -137,6 +137,41 @@ describe("余额优先 — 未知余额与刷新门", () => {
     expect(res.connectionId).toBe("known-low");
   });
 
+  // 2026-11-26 test.19 现网实测抓到：`balance-lowest-first selected f2b0d6e3
+  // (#洋芋) | balance=0` —— 余额耗尽的号被「小额优先」排到最前，每次请求先撞
+  // 一轮必失败的 403 再回退。小额优先是「先烧最小的余额」，不是「先试空号」。
+  it("余额为 0（已耗尽）的号在两个方向上都沉到队尾", async () => {
+    for (const strategy of ["lowest-first", "highest-first"]) {
+      vi.clearAllMocks();
+      mocks.getProviderConnections.mockResolvedValue([
+        { id: "drained", provider: "meoo", priority: 1, quotaBalance: 0 },
+        { id: "healthy-low", provider: "meoo", priority: 2, quotaBalance: 400 },
+        { id: "healthy-high", provider: "meoo", priority: 3, quotaBalance: 4000 },
+      ]);
+      mocks.getSettings.mockResolvedValue({
+        fallbackStrategy: "fill-first",
+        providerStrategies: { meoo: { balanceStrategy: strategy } },
+      });
+
+      const res = await getProviderCredentials("meoo");
+      expect(res.connectionId).not.toBe("drained");
+      expect(res.connectionId).toBe(strategy === "lowest-first" ? "healthy-low" : "healthy-high");
+    }
+  });
+
+  it("负余额同样按耗尽处理", async () => {
+    mocks.getProviderConnections.mockResolvedValue([
+      { id: "negative", provider: "meoo", priority: 1, quotaBalance: -50 },
+      { id: "healthy", provider: "meoo", priority: 2, quotaBalance: 900 },
+    ]);
+    mocks.getSettings.mockResolvedValue({
+      fallbackStrategy: "fill-first",
+      providerStrategies: { meoo: { balanceStrategy: "lowest-first" } },
+    });
+
+    expect((await getProviderCredentials("meoo")).connectionId).toBe("healthy");
+  });
+
   it("全部余额未知时退化到 priority 顺序", async () => {
     mocks.getProviderConnections.mockResolvedValue([
       { id: "u1", provider: "meoo", priority: 1 },
