@@ -414,6 +414,31 @@ const CODEX_EXTENDED_CAPS = { ...CODEX_GPT_56_DEFAULT_CAPS, contextWindow: 87200
 // 否则回落到 `*gpt-5*` 通配时 vision/search 字段会丢（上游 89ffac5a）。
 const DEVIN_CLI_GPT_CAPS = { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 128000 };
 
+// Gemini 4 Hydrogen (Sonar) on Antigravity — one profile, four registry ids
+// (the bare live entity + three tier aliases routed onto it, #174). Values come
+// from the live fetchAvailableModels row (2026-11-26, identical on 3 accounts):
+// maxTokens 1048576 / maxOutputTokens 65536 / supportsImages / supportsVideo /
+// supportsThinking with minThinkingBudget 32. Image input was additionally
+// confirmed with a real 32×32 two-colour PNG (answered the correct colour);
+// video rests on the catalog declaration only, not probed. thinkingCanDisable:
+// false matches the 400 "Thinking level MINIMAL is not supported for this
+// model" the live entity answers — same always-on contract as the *gemini-4*
+// pattern, restated here because the output ceiling differs.
+const GEMINI_4_HYDROGEN_CAPS = {
+  vision: true,
+  videoInput: true,
+  // supportedMimeTypes on the same row carries application/pdf — declared here
+  // so replacing the *gemini-4* pattern (which also said pdf:true) does not
+  // quietly start stripping documents.
+  pdf: true,
+  reasoning: true,
+  search: true,
+  thinkingFormat: "gemini-level",
+  thinkingCanDisable: false,
+  contextWindow: 1048576,
+  maxOutput: 65536,
+};
+
 // Qoder 的客户端还可以按 registry 的显示名寻址（如 "qoder/Qwen3.8-Max"）。没有
 // 别名时这些名字会绕过 provider 行，落进通用族 pattern（*qwen*max* 等）或地板，
 // 拿到的是「思考可关」的通用语义——与 qoder 执行器丢弃客户端 thinking 意图、
@@ -530,6 +555,19 @@ export const PROVIDER_CAPABILITIES = {
     "gemini-4-argon-high":     { vision: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 1048576 },
     "gemini-4-argon-medium":   { vision: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 1048576 },
     "gemini-4-argon-low":      { vision: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 1048576 },
+    // Gemini 4 Hydrogen (Sonar): spec read off the live fetchAvailableModels row
+    // (2026-11-26, 3 accounts identical): 1M in / **65536** out, images + video,
+    // thinking always-on. Without these rows the id resolves through the
+    // `*gemini-4*` pattern, which carries the Argon-locked 1M output and no
+    // videoInput — over-promising the window (clients read
+    // `max_completion_tokens` from it) and hiding a modality the catalog
+    // declares. All four registry ids (the bare entity + the three tier aliases
+    // that route onto it, #174) share one object.
+    "gemini-4-hydrogen-sonar":  GEMINI_4_HYDROGEN_CAPS,
+    "gemini-4-hydrogen":        GEMINI_4_HYDROGEN_CAPS,
+    "gemini-4-hydrogen-high":   GEMINI_4_HYDROGEN_CAPS,
+    "gemini-4-hydrogen-medium": GEMINI_4_HYDROGEN_CAPS,
+    "gemini-4-hydrogen-low":    GEMINI_4_HYDROGEN_CAPS,
     "gemini-pro-agent": {
       vision: true,
       audioInput: true,

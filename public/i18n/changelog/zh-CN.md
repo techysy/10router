@@ -36,6 +36,8 @@
 
 ### 🐛 修复
 
+- **Antigravity 的 Gemini 4 Hydrogen 现在真的能用了**：注册表里那三个「高/中/低」档位是按隔壁 Argon 家族的写法推出来的，上游从来没实测过——实测下来这三个 id（带不带括号写法）一律回 404「找不到该实体」，于是每次选中都会被扣一次 120 秒的按模型锁号再换号重试，组合里留着这一席就是每轮白打。我们拿自己的账号（3 个）实拉了上游目录：Hydrogen 在上游只有一个真实模型条目 `gemini-4-hydrogen-sonar`。现在三个档位 id 都改指向这个真实条目，档位本身照旧生效（走上游的思考档位参数，实测高/中/低分别思考 42/39/21 token 后正常出字），另外补上按上游规格对齐的窗口/输出/图片/视频/PDF 标注，并把不带后缀的 `ag/gemini-4-hydrogen` 也接上（按同系列惯例落到「中」档）。已经建好的组合、连接里的模型锁定不用改，直接就能用了。
+
 - **Loomy 四个模型不再冒充能读图**：Loomy 的公开接口（Qwen 3.8 Flash、DeepSeek V4.1 Flash、DeepSeek V4.1 Flash 1017、GLM 5.3 Flash）此前被标成支持图片，但它的 Bearer 通道实际只认文本——带图请求要么直接报「请求有误」，要么返回 200 但模型只是把图片编码当文字读、答非所问。官方网页端的附件走的是另一套私有上传接口，当前接入方式够不到。现在这四款如实标为纯文本：组合收到图片时会自动让给真正能读图的成员，纯文本请求照常走 Loomy 不受影响。
 
 - **Responses 转 Chat 的图片 detail 归一化（DuMate 400 修复）**：Codex 等 Responses 客户端发图片时会带 `detail: "original"`——这是 Responses API 的合法值，但只收 auto/low/high 的 Chat 上游（如 DuMate）会直接 400，模型还没跑就被拒。此前两条 Responses→Chat 转换路径都把这个值原样透传。现在统一归一化：auto/low/high 保留，缺失或非法值（含 original）一律落到 auto。任何包含 DuMate 成员的组合收到带图请求都不再因此报错；Chat→Responses 方向不受影响。

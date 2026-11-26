@@ -63,17 +63,35 @@ export default {
     // 4 Argon: tiered entity family like 3.8 — bare id 404s, thinking level
     // rides the entity name; effort floor is LOW (no "minimal" tier, see
     // thinkingLevels.js).
+    // ⚠️ 2026-11-26 live probe (3 free-tier accounts, NAS): no Argon row appears
+    // in fetchAvailableModels and every spelling answers 404 "Requested entity
+    // was not found". Kept anyway — ported from upstream on a tier we cannot
+    // inspect, so this is evidence of plan gating, not proof the ids are dead
+    // (unlike Hydrogen below, whose replacement entity the same catalog does
+    // publish). Re-probe on a paid account before retiring these rows.
     { id: "gemini-4-argon-high", name: "Gemini 4 Argon (High)", upstreamModelId: "gemini-4-argon-high(high)" },
     { id: "gemini-4-argon-medium", name: "Gemini 4 Argon (Medium)", upstreamModelId: "gemini-4-argon-medium(medium)" },
     { id: "gemini-4-argon-low", name: "Gemini 4 Argon (Low)", upstreamModelId: "gemini-4-argon-low(low)" },
-    // 4 Hydrogen: same tiered entity family as Argon (IDE picker 2026-11-16,
-    // "Gemini 4 Hydrogen Medium" New). Entity ids are pattern-inferred from
-    // the Argon family — `*gemini-4*` capability/effort wildcards already
-    // cover them. Upstream 9router has no Hydrogen rows yet; no live probe
-    // (jio 套餐无权限). Orchestrator (Argon) 亦缺上游实体 id 证据,未收录。
-    { id: "gemini-4-hydrogen-high", name: "Gemini 4 Hydrogen (High)", upstreamModelId: "gemini-4-hydrogen-high(high)" },
-    { id: "gemini-4-hydrogen-medium", name: "Gemini 4 Hydrogen (Medium)", upstreamModelId: "gemini-4-hydrogen-medium(medium)" },
-    { id: "gemini-4-hydrogen-low", name: "Gemini 4 Hydrogen (Low)", upstreamModelId: "gemini-4-hydrogen-low(low)" },
+    // 4 Hydrogen: the entity the upstream catalog actually publishes on our
+    // accounts is `gemini-4-hydrogen-sonar` (NAS live probe 2026-11-26, 3
+    // accounts × fetchAvailableModels: one hydrogen row, no tiered ones).
+    // The three tier ids this file used to send (pattern-inferred from Argon,
+    // never live-probed — see 2089bb78f) answer 404 "Requested entity was not
+    // found" both with and without the level suffix, so every request burned a
+    // 120s model lock + an account walk (#174). The tier ids stay as aliases
+    // onto the live entity with the level carried in the suffix — the same
+    // shape the 3.7/3.6 family below uses — so existing combos/locks keep
+    // working and now answer. Effort also stays reachable on the single id
+    // through the client's own reasoning_effort.
+    { id: "gemini-4-hydrogen-sonar", name: "Gemini 4 Hydrogen (Sonar)", upstreamModelId: "gemini-4-hydrogen-sonar" },
+    // The un-tiered name routes to the medium tier (gemini-3.8-flash precedent).
+    // Users who had set up `ag/gemini-4-hydrogen` hit 404 through passthrough;
+    // the alias makes that spelling answer. Same entity as the row above — the
+    // only difference is whether a thinking level is stated explicitly.
+    { id: "gemini-4-hydrogen", name: "Gemini 4 Hydrogen", upstreamModelId: "gemini-4-hydrogen-sonar(medium)" },
+    { id: "gemini-4-hydrogen-high", name: "Gemini 4 Hydrogen (High)", upstreamModelId: "gemini-4-hydrogen-sonar(high)" },
+    { id: "gemini-4-hydrogen-medium", name: "Gemini 4 Hydrogen (Medium)", upstreamModelId: "gemini-4-hydrogen-sonar(medium)" },
+    { id: "gemini-4-hydrogen-low", name: "Gemini 4 Hydrogen (Low)", upstreamModelId: "gemini-4-hydrogen-sonar(low)" },
     // 3.8 uses its own tiered entity family — upstream serves
     // `gemini-3.8-flash-<tier>(<level>)` (the bare id 404s "Requested entity
     // was not found"). The un-tiered alias routes to the medium tier.

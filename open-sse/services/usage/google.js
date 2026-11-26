@@ -195,6 +195,10 @@ export async function getAntigravityUsage(accessToken, providerSpecificData, pro
         'gemini-3.1-pro-high',
         'gemini-pro-agent',
         'gemini-3.1-pro-low',
+        // #174: the Hydrogen family publishes exactly one entity on the accounts
+        // we can probe — the tier ids are aliases onto it, so the catalog (and
+        // therefore this fallback quota parse) only ever carries this key.
+        'gemini-4-hydrogen-sonar',
         'claude-sonnet-5-5-high',
         'claude-sonnet-5-5-medium',
         'claude-sonnet-5-5-low',
