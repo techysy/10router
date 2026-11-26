@@ -639,16 +639,24 @@ export const PROVIDER_CAPABILITIES = {
   },
   // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进
-  // *deepseek-v4* 文本档（vision 被剥）与 *qwen* / *glm-5* 通用档（输出被压
-  // 到 65536 / 128000）——按各家族第一方剖面全量显式声明。
+  // *deepseek-v4* 文本档与 *qwen* / *glm-5* 通用档（输出被压到
+  // 65536 / 128000）——窗口/输出/思考形态按各家族第一方剖面全量显式声明。
   // spark-x2.6 无公开规格（讯飞自家模型），保留 floor + allowlist。
   // 2026-11-25 live /models：spark-x2.6 限时免费结束（×2.5），0731/mimo-v2.5
-  // 下架，新增 deepseek-v4-flash-1017（vision 与 V4.1-Flash 同剖面，1M/384K）。
+  // 下架，新增 deepseek-v4-flash-1017（与 V4.1-Flash 同剖面，1M/384K）。
+  // ⚠️ vision 一律 false（#179）：live /models 虽标 text+image，但公开 Bearer
+  // 通道 loomyad.xunfei.cn/api/v1/chat/completions 实为文本通道——标准
+  // image_url 请求 400「请求有误」，个别 200 也只是把 base64 当文本读（模型
+  // 自述无法解码）。Web 客户端的附件走 /api/chat/files + file_ref 私有协议，
+  // 当前 transport 够不到（404 / 409 Server Action unavailable）。声明 true
+  // 会让组合把图片优先派给 Loomy 然后拿到假答案；false 则让通用视觉兜底
+  // （reorderByCapabilities 硬能力分层）把图片让给真正能读图的成员。将来
+  // 若做 Web 附件 executor 再恢复 vision。
   "loomy": {
-    "qwen3.8-flash":            { vision: true, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
-    "DeepSeek-V4.1-Flash":      { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
-    "deepseek-v4-flash-1017":   { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
-    "GLM-5.3-Flash":            { vision: true, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
+    "qwen3.8-flash":            { vision: false, reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000, maxOutput: 131072 },
+    "DeepSeek-V4.1-Flash":      { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-1017":   { vision: false, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
+    "GLM-5.3-Flash":            { vision: false, reasoning: true, thinkingFormat: "zai", contextWindow: 1000000, maxOutput: 131072 },
   },
   // Capy 的广告档模型 id 带 `-ads` 后缀（`deepseek/deepseek-v4.1-flash-ads`、
   // `zai/glm-5.3-flash-ads`），既不是 canonical 名也不命中家族 pattern 的完整

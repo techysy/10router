@@ -15,9 +15,13 @@ const VISION_EXP = OFFERED.filter((m) => /vision/i.test(m.id));
 // V4.1-Flash (and its thinker variants) is multimodal per its model card and
 // models.dev; everything else in the family is text→text. loomy's
 // `deepseek-v4-flash-1017` is the same V4.1-Flash 1017 snapshot under a
-// flattened id (live /models reports text+image, 1M/384K) — multimodal too.
-const MULTIMODAL = OFFERED.filter((m) => /v4\.1-flash|v4-flash-1017/i.test(m.id));
-const TEXT_ONLY = OFFERED.filter((m) => !/vision|v4\.1-flash|v4-flash-1017/i.test(m.id));
+// flattened id (live /models reports text+image, 1M/384K) — but loomy's public
+// Bearer transport is text-only in practice (#179: image_url → 400, or 200 with
+// the model reading raw base64 as text). The model is multimodal; that channel
+// is not. Keep the real vision channels asserted here and exclude loomy
+// explicitly — its own vision:false rows are pinned in loomy-vision-text-channel.test.js.
+const MULTIMODAL = OFFERED.filter((m) => m.provider !== "loomy" && /v4\.1-flash|v4-flash-1017/i.test(m.id));
+const TEXT_ONLY = OFFERED.filter((m) => m.provider !== "loomy" && !/vision|v4\.1-flash|v4-flash-1017/i.test(m.id));
 
 describe("DeepSeek V4 capability resolution", () => {
   it("offers both a vision and a text variant (sanity check on the fixture)", () => {
