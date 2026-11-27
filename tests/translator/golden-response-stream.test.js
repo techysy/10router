@@ -109,7 +109,9 @@ describe("GOLDEN response stream: OpenAI-Responses (codex) → OpenAI", () => {
     expect(runStream(FORMATS.OPENAI_RESPONSES, FORMATS.OPENAI, events)).toMatchSnapshot();
   });
 
-  it("error event → error chunk (fallback id/created)", () => {
+  // 2026-11-25: an upstream error is a real { error } frame now, never a
+  // fake `[Error] ...` content chunk with finish_reason "stop" (12:09 incident).
+  it("error event → error frame (no fake text chunk)", () => {
     const events = [
       { type: "error", error: { message: "model_not_found" } },
     ];

@@ -452,6 +452,13 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       
       // Success (2xx) - return response
       if (result.ok) {
+        // result.ok on a streaming Response only means the stream STARTED
+        // (HTTP 2xx head). A mid-stream upstream failure still arrives as
+        // 200, so claiming "succeeded" here books failures as successes.
+        // Only a complete non-streaming body is a success at this point;
+        // streaming legs report their real outcome from onStreamComplete
+        // (streamingHandler), threaded via comboLegLabel.
+        const isStream = (result.headers?.get?.("content-type") || "").includes("text/event-stream");
         // Success (2xx) - return response unless empty/zero-content on a non-final seat
         const isLastModel = i === rotatedModels.length - 1;
         if (!isLastModel) {
@@ -495,13 +502,15 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
             );
             continue;
           }
-          log.info("COMBO", `Model ${modelStr} succeeded`);
+          if (isStream) log.info("COMBO", `Model ${modelStr} streaming (HTTP ${result.status})`);
+          else log.info("COMBO", `Model ${modelStr} succeeded`);
           return gate.response;
         }
         if (retryOnEmpty && hasFallback && emptyRetries >= retryOnEmptyLimit) {
           log.warn("COMBO", `Model ${modelStr}: empty-retry budget (${retryOnEmptyLimit}) exhausted, returning response as-is`);
         }
-        log.info("COMBO", `Model ${modelStr} succeeded`);
+        if (isStream) log.info("COMBO", `Model ${modelStr} streaming (HTTP ${result.status})`);
+        else log.info("COMBO", `Model ${modelStr} succeeded`);
         return result;
       }
 

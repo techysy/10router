@@ -756,12 +756,20 @@ export function openaiResponsesToOpenAIResponse(chunk, state) {
       state.error = error;
       state.finishReasonSent = true;
 
-      // Surface the error as an OpenAI-compatible error chunk
-      return buildChunk(
-        { id: state.chatId || `chatcmpl-${Date.now()}`, created: state.created || Math.floor(Date.now() / 1000), model: state.model || MODEL_FALLBACK },
-        { content: `[Error] ${error.message || JSON.stringify(error)}` },
-        OPENAI_FINISH.STOP
-      );
+      // Surface the error as a real OpenAI SSE error frame — never as assistant
+      // text. A `[Error] ...` content chunk with finish_reason "stop" reads as
+      // a successful answer (HTTP 200, no error signal): the client keeps
+      // chatting with a dead turn and the failure leaves no usage row. The
+      // stream layer forwards this frame verbatim; the non-streaming SSE→JSON
+      // path turns it into a real HTTP error via parseSSEToOpenAIResponse.
+      const errObj = typeof error === "object" ? error : { message: String(error) };
+      return {
+        error: {
+          message: errObj.message || "Upstream error",
+          type: errObj.type || "server_error",
+          code: errObj.code || "server_error",
+        },
+      };
     }
     return null;
   }

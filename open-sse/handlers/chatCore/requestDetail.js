@@ -94,13 +94,17 @@ export function formatDoneLine({ usage, latency }) {
   return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, latency = null, usageKey = undefined, label = "USAGE", silent = false }) {
-  if (!tokens || typeof tokens !== "object") return;
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, latency = null, usageKey = undefined, label = "USAGE", silent = false, status = "ok", error = null }) {
+  const isError = status === "error";
+  if ((!tokens || typeof tokens !== "object") && !isError) return;
 
-  const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
-  const outTokens = tokens.output_tokens ?? tokens.completion_tokens ?? 0;
+  const inTokens = tokens?.input_tokens ?? tokens?.prompt_tokens ?? 0;
+  const outTokens = tokens?.output_tokens ?? tokens?.completion_tokens ?? 0;
 
-  if (inTokens === 0 && outTokens === 0) return;
+  // A failed turn usually has no usage at all — but it still happened, so it
+  // still gets a row (status "error"), or the failure is invisible in
+  // usageHistory. Successful zero-token rows keep the old drop.
+  if (inTokens === 0 && outTokens === 0 && !isError) return;
 
   if (!silent) {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -110,9 +114,10 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
 
   // Canonicalize to one storage convention (prompt_tokens cache-inclusive) so
   // cached/cache-creation tokens survive to cost calc + stats. See canonicalizeUsage.
-  const normalized = canonicalizeUsage(tokens) || {
-    prompt_tokens: tokens.prompt_tokens ?? tokens.input_tokens ?? 0,
-    completion_tokens: tokens.completion_tokens ?? tokens.output_tokens ?? 0
+  const safeTokens = (tokens && typeof tokens === "object") ? tokens : {};
+  const normalized = canonicalizeUsage(safeTokens) || {
+    prompt_tokens: safeTokens.prompt_tokens ?? safeTokens.input_tokens ?? 0,
+    completion_tokens: safeTokens.completion_tokens ?? safeTokens.output_tokens ?? 0
   };
 
   // Latency observation rides on the usage row itself (meta.latencyMs/ttftMs):
@@ -126,6 +131,15 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     if (typeof latency.ttft === "number" && latency.ttft > 0) {
       meta.ttftMs = Math.round(latency.ttft);
     }
+  }
+  // Failure rows carry the upstream error that killed the turn, so the row
+  // is diagnosable without the requestDetails ring.
+  if (error && typeof error === "object") {
+    meta.upstreamError = {
+      message: error.message || "Upstream error",
+      ...(error.type ? { type: error.type } : {}),
+      ...(error.code ? { code: error.code } : {}),
+    };
   }
 
   saveRequestUsage({
@@ -141,6 +155,7 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     // identical token counts collapse into one row (the legacy content-only
     // dedup silently ate the second).
     usageKey,
+    status,
     meta: Object.keys(meta).length > 0 ? meta : undefined
   }).catch(() => {});
 }

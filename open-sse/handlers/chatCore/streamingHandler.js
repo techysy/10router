@@ -177,7 +177,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, onCompletedResponse, finalizedRef = { current: false } }) {
+export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log, onCompletedResponse, comboLegLabel, finalizedRef = { current: false } }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
@@ -192,6 +192,13 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
     };
     const safeContent = contentObj?.content || "[Empty streaming response]";
     const safeThinking = contentObj?.thinking || null;
+
+    // An upstream mid-stream error (captured by the stream layer) fails the
+    // turn even though the client already got HTTP 200: the detail row must
+    // read "error" (with the upstream message) and the usage row must be a
+    // failure row, or the failure is invisible in both tabs.
+    const upstreamError = contentObj?.upstreamError || null;
+    const turnStatus = upstreamError ? "error" : (contentObj?.incomplete ? "truncated" : "success");
 
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
@@ -218,9 +225,12 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
         // text — the fragment never matched a secret — but the client lost it,
         // so the row must not read as a byte-perfect success.
         ...(contentObj?.restoreLost ? { restoreLost: contentObj.restoreLost } : {}),
+        // Upstream mid-stream failure: the real error message, so the Details
+        // tab shows why the turn failed instead of a partial "success".
+        ...(upstreamError ? { error: upstreamError.message || "Upstream error" } : {}),
       },
       pxpipe,
-      status: contentObj?.incomplete ? "truncated" : "success"
+      status: turnStatus
     }, { id: streamDetailId })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
@@ -228,6 +238,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
     // Count only a clean finish emitted by the upstream parser. EOF and a
     // synthesized [DONE] do not establish a completed user turn.
     const cleanTerminal = !contentObj?.incomplete && !contentObj?.restoreLost && !contentObj?.parseFailures
+      && !upstreamError
       && contentObj?.upstreamTerminalSeen === true && contentObj?.upstreamTurnComplete === true;
     if (cleanTerminal && typeof onCompletedResponse === "function") {
       Promise.resolve().then(onCompletedResponse).catch((err) => {
@@ -235,8 +246,17 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
       });
     }
 
+    // Combo legs: the head-time "succeeded" log is gone for streams
+    // (combo.js) — the real outcome is only known here, so this is where it
+    // is recorded. Solo requests have no comboLegLabel and log nothing extra.
+    if (comboLegLabel) {
+      if (cleanTerminal) log?.info?.("COMBO", `Model ${comboLegLabel} succeeded`);
+      else if (upstreamError) log?.warn?.("COMBO", `Model ${comboLegLabel} failed: ${upstreamError.message || "Upstream error"}`);
+      else if (contentObj?.incomplete) log?.warn?.("COMBO", `Model ${comboLegLabel} ended incomplete`);
+    }
+
     // Persist stream usage to DB (no console line; the "📊 done" line below is authoritative)
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, latency, usageKey: randomUUID(), label: "STREAM USAGE", silent: true });
+    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, latency, usageKey: randomUUID(), label: "STREAM USAGE", silent: true, status: upstreamError ? "error" : "ok", error: upstreamError || undefined });
     if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency }));
   };
 
