@@ -1,3 +1,4 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { ORCATERM_CONFIG } from "../../config/orcaterm.js";
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "../../services/tokenRefresh/dedup.js";
@@ -74,13 +75,17 @@ function checkResult(body) {
   }
 }
 
+function pickString(...values) {
+  return values.find((value) => typeof value === "string" && value) || "";
+}
+
 function normalizeToken(data, requireIdentity = false) {
   const accessToken = data?.accessToken || data?.AccessToken;
   if (typeof accessToken !== "string" || !accessToken) {
     throw new OrcaTermError("OrcaTerm returned no access token");
   }
   const claims = readOrcaTermClaims(accessToken);
-  const userId = String(data.userId ?? claims.userId ?? "");
+  const userId = String(data.userId ?? data.User?.UserId ?? claims.userId ?? "");
   if (requireIdentity && !userId) throw new OrcaTermError("OrcaTerm returned no account identity");
   const claimedLifetime = Number(claims.exp) - Math.floor(Date.now() / 1000);
   if (Number.isFinite(claimedLifetime) && claimedLifetime <= 0) {
@@ -92,13 +97,56 @@ function normalizeToken(data, requireIdentity = false) {
     : lifetime > 0 ? lifetime : ORCATERM_CONFIG.tokenLifetimeSeconds;
   return {
     accessToken,
-    // Renewal accepts the access token in the refreshToken field and may rotate a distinct
-    // refresh token; prefer the server-issued one when present.
-    refreshToken: typeof data.refreshToken === "string" && data.refreshToken ? data.refreshToken : accessToken,
+    // Desktop (PKCE) grants carry a distinct refresh token that rotates on every renewal.
+    // Web-widget grants do not; their access token is the only credential to fall back on.
+    refreshToken: pickString(data.refreshToken, data.RefreshToken) || accessToken,
     expiresIn,
     userId,
-    displayName: String(data.providerUsername ?? claims.providerUsername ?? ""),
+    displayName: String(data.providerUsername ?? data.User?.Username ?? claims.providerUsername ?? ""),
   };
+}
+
+/**
+ * Desktop sign-in, as the official OrcaTerm desktop client does it: open the
+ * authorize page in a browser with a session id and a PKCE challenge, then redeem
+ * the session with OAuthExchangeToken. Only this grant returns a refresh token;
+ * the embedded WeChat widget (/oauth/wechat/exchange) issues an access token alone,
+ * and OrcaTerm no longer renews an access token by itself.
+ */
+export function createOrcaTermPkceLogin() {
+  const orcaSessionId = randomUUID();
+  const codeVerifier = randomBytes(48).toString("base64url");
+  const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
+  const url = new URL(ORCATERM_CONFIG.authorizeUrl);
+  url.search = new URLSearchParams({
+    provider: "wechat",
+    source: "desktop",
+    return_url: ORCATERM_CONFIG.desktopReturnUrl,
+    session_id: orcaSessionId,
+    codeChallenge,
+    codeChallengeMethod: "S256",
+  }).toString();
+  return { orcaSessionId, codeVerifier, authorizeUrl: url.toString() };
+}
+
+export async function exchangeOrcaTermSession(orcaSessionId, codeVerifier, proxyOptions = null) {
+  const action = "OAuthExchangeToken";
+  const body = await requestJson(`${ORCATERM_CONFIG.apiUrl}?action=${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, data: { sessionId: orcaSessionId, codeVerifier } }),
+  }, proxyOptions);
+  checkResult(body);
+  const result = body.data?.Response ?? body.data;
+  if (result?.Error) {
+    const code = String(result.Error.Code || "").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+    throw new OrcaTermError(
+      `OrcaTerm sign-in is not complete (${code || "upstream error"}). Finish the WeChat scan, or start a new sign-in.`,
+      400,
+      code || "ORCATERM_ERROR",
+    );
+  }
+  return normalizeToken(result, true);
 }
 
 export async function startOrcaTermLogin() {

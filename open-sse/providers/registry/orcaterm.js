@@ -26,8 +26,8 @@ export default {
     },
   },
   oauth: {
-    authorizeUrl: ORCATERM_CONFIG.wechatConfigUrl,
-    tokenUrl: ORCATERM_CONFIG.exchangeUrl,
+    authorizeUrl: ORCATERM_CONFIG.authorizeUrl,
+    tokenUrl: `${ORCATERM_CONFIG.apiUrl}?action=OAuthExchangeToken`,
     refreshUrl: ORCATERM_CONFIG.refreshUrl,
     refreshLeadMs: 10 * 60 * 1000,
   },

@@ -3,7 +3,7 @@ import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
 import { ORCATERM_CONFIG } from "../../open-sse/config/orcaterm.js";
 import { OrcaTermExecutor } from "../../open-sse/executors/orcaterm.js";
 import { buildOrcaTermRequest, OrcaTermReply, readOrcaTermEvents } from "../../open-sse/shared/orcaterm/protocol.js";
-import { exchangeOrcaTermCode, refreshOrcaTermToken, startOrcaTermLogin } from "../../open-sse/shared/orcaterm/auth.js";
+import { exchangeOrcaTermCode, exchangeOrcaTermSession, refreshOrcaTermToken, startOrcaTermLogin } from "../../open-sse/shared/orcaterm/auth.js";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
 import { getExecutor } from "../../open-sse/executors/index.js";
 import { parseModel } from "../../open-sse/services/model.js";
@@ -79,6 +79,32 @@ describe("OrcaTerm authentication", () => {
     const newRefresh = jwt({ nonce: "rotated-refresh" });
     vi.mocked(proxyAwareFetch).mockResolvedValue(json({ data: { Response: { accessToken: newAccess, refreshToken: newRefresh } } }));
     expect(await refreshOrcaTermToken(oldToken)).toMatchObject({ accessToken: newAccess, refreshToken: newRefresh });
+  });
+
+  it("keeps the rotated refresh token from the desktop grant's PascalCase response", async () => {
+    const oldRefresh = jwt({ nonce: "desktop-refresh" });
+    const newAccess = jwt({ nonce: "desktop-access" });
+    const newRefresh = jwt({ nonce: "desktop-rotated" });
+    vi.mocked(proxyAwareFetch).mockResolvedValue(json({ data: { Response: {
+      Code: 0, AccessToken: newAccess, RefreshToken: newRefresh, ExpiresIn: 7200,
+    } } }));
+    expect(await refreshOrcaTermToken(oldRefresh)).toMatchObject({ accessToken: newAccess, refreshToken: newRefresh });
+  });
+
+  it("redeems a desktop session for an access token, a refresh token and the account identity", async () => {
+    const access = jwt({ nonce: "pkce-access" });
+    const refresh = jwt({ nonce: "pkce-refresh" });
+    vi.mocked(proxyAwareFetch).mockResolvedValue(json({ data: { Response: {
+      Code: 0, AccessToken: access, RefreshToken: refresh, ExpiresIn: 7200,
+      User: { UserId: 42, Username: "Orca user" },
+    } } }));
+    const result = await exchangeOrcaTermSession("orca-session", "verifier");
+    expect(result).toMatchObject({ accessToken: access, refreshToken: refresh, userId: "42", displayName: "Orca user" });
+    expect(JSON.parse(vi.mocked(proxyAwareFetch).mock.calls[0][1].body)).toEqual({
+      action: "OAuthExchangeToken", data: { sessionId: "orca-session", codeVerifier: "verifier" },
+    });
+    vi.mocked(proxyAwareFetch).mockResolvedValue(json({ data: { Response: { Error: { Code: "TOKEN_EXPIRED" } } } }));
+    await expect(exchangeOrcaTermSession("orca-session", "verifier")).rejects.toMatchObject({ status: 400, code: "TOKEN_EXPIRED" });
   });
 
   it("distinguishes a revoked grant from transient upstream failures", async () => {

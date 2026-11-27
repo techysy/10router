@@ -4,6 +4,10 @@ export const ORCATERM_CONFIG = {
   exchangeUrl: "https://orcaterm.com/oauth/wechat/exchange",
   refreshUrl: "https://orcaterm.com/cgi/api?action=OAuthRefreshToken",
   apiUrl: "https://orcaterm.com/cgi/api",
+  // Desktop sign-in: browser authorize page + PKCE, redeemed with OAuthExchangeToken.
+  // Unlike the embedded web widget, this grant carries a distinct refresh token.
+  authorizeUrl: "https://orcaterm.com/oauth/authorize",
+  desktopReturnUrl: "orcaterm://oauth_callback",
   bridgeUrl: "https://orcaterm.com/oauth/wechat/bridge",
   wechatSdkUrl: "https://res.wx.qq.com/connect/zh_CN/htmledition/js/wxLogin.js",
   chatUrl: "https://lightai.cloud.tencent.com/assistant/chat?name=orcaterm&mode=0&csrfCode=&sseresume=true",
