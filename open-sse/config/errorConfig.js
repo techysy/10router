@@ -154,6 +154,9 @@ export const ERROR_RULES = [
   { text: "realname verification",    cooldownMs: 0 },
   // ModelScope 未绑定阿里云账号提示（配置状态，cooldown 0 立即穿透与提示）
   { text: "bind your alibaba cloud account", cooldownMs: 0 },
+  // Clixad 托管在 Render，Render WAF 按请求内容回 403 HTML（路径穿越、; curl … | bash、
+  // JNDI、反引号+curl -fL 等字样）。是这一次请求的内容问题，不是账号：cooldown 0，不锁账号、combo 立即穿透。
+  { text: "web application firewall", cooldownMs: 0 },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
