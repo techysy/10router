@@ -9,7 +9,8 @@ import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, getProviderAlias } from "@/shared/constants/providers";
-import { translate } from "@/i18n/runtime";
+import { translate, getCurrentLocale } from "@/i18n/runtime";
+import { promotionBadgeNote } from "@/shared/utils/offPeak";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
@@ -35,6 +36,11 @@ const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(
 // 组合选择器会远落后于详情页的 live 目录，2026-11-23 用户报）。静态
 // 目录只作拉取失败/为空时的兜底 —— 不同账号可能拿到不同的模型清单。
 const LIVE_CATALOG_PROVIDERS = ["cursor", "zed", "qwenwork", "qwenwork-cn"];
+
+// 上游促销徽章文案（「限免」/「会员限免」/「首发上线」/「限时1折」），按当前
+// 语言取。详情页 ModelRow 走同一个 promotionBadgeNote，两处口径必须一致：
+// 徽章只说价格，文案在 title 里解释这价格从哪来。
+const promoBadgeNote = (promotion) => promotionBadgeNote(promotion, getCurrentLocale());
 
 export default function ModelSelectModal({
   isOpen,
@@ -761,6 +767,7 @@ export default function ModelSelectModal({
               {group.models.map((model) => {
                 const isSelected = selectedModel === model.value;
                 const isPlaceholder = model.isPlaceholder;
+                const promoNote = promoBadgeNote(model.promotion);
                 return (
                   <button
                     key={model.value}
@@ -796,18 +803,25 @@ export default function ModelSelectModal({
                       ) : (
                         <>
                           {model.name}
-                          {/* live 目录行的倍率徽章（详情页 ModelRow 同口径）：
-                              0x 或激活的 promotion → 绿 free；其余带倍率出 Nx。 */}
+                          {/* live 目录行的倍率徽章（详情页 ModelRow 同口径）。
+                              「免费」只认 rateMultiplier === 0：目录侧已经做过
+                              判定（price_factor 0 且无激活促销 → 不发倍率），所以
+                              0 就是真免费。**不能**再或上 `|| model.promotion` —
+                              促销不等于免费：CN live 目录实测（2026-11-27，四个
+                              真号一致）glm-5.4「首发上线」1.2x、ling-3.1-flash
+                              「限时1折」0.1x 都带激活 promotion 却是打折，或上去
+                              就成了对用户谎报免费。促销文案只进 title 解释价格
+                              从哪来（ModelRow 的 promotionBadgeNote 同款）。 */}
                           {model.isLive && typeof model.rateMultiplier === "number" && (
                             <span
                               className={`shrink-0 rounded px-1 text-[9px] font-normal leading-none ${
-                                model.rateMultiplier === 0 || model.promotion
+                                model.rateMultiplier === 0
                                   ? "bg-green-500/10 text-green-600 dark:text-green-400"
                                   : "bg-surface-2 text-text-muted font-mono"
                               }`}
-                              title={`${translate("Credit multiplier")}: ${model.rateMultiplier}x${model.originalRateMultiplier ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x` : ""}`}
+                              title={`${translate("Credit multiplier")}: ${model.rateMultiplier}x${model.originalRateMultiplier ? ` — ${translate("standard rate")} ${model.originalRateMultiplier}x` : ""}${promoNote ? ` (${promoNote})` : ""}`}
                             >
-                              {model.rateMultiplier === 0 || model.promotion ? "free" : `${model.rateMultiplier.toFixed(2)}x`}
+                              {model.rateMultiplier === 0 ? "free" : `${model.rateMultiplier.toFixed(2)}x`}
                             </span>
                           )}
                           <CapacityBadges caps={getCaps(model.value)} />

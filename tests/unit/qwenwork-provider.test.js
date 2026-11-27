@@ -466,6 +466,126 @@ describe("chat-modes-v2 catalog merge", () => {
     expect(modelsById["qwen4-max"].rateMultiplier).toBe(1.4);
   });
 
+  it("CN live shape (2026-11-27 probe): badges[] + promotion on one row → free multiplier AND the 限免 text both reach the UI plane", async () => {
+    // Real CN catalog (four live accounts, byte-identical): the 限免 rows carry
+    // the SAME promo text twice — chat-modes `badges:[{kind:"promotion",
+    // labels:{zh}}]` and `promotion:{badge:{zh},active:true}` — while
+    // model/list carries only `promotion` and never `badges`. So `promotion`
+    // is the authoritative source and the badge is its mirror: reading
+    // promotion alone already yields the free multiplier plus the wording
+    // ModelRow shows. Wiring badges[] in as a second trigger would be
+    // redundant, and wiring it in INSTEAD would go dumb on model/list-only
+    // deployments. This test pins the observed shape so an upstream switch
+    // (badges without promotion) is caught here, not by a user's screenshot.
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("/api/desktop/chat-modes")
+        ? {
+          schema_version: 2,
+          catalog: [
+            {
+              key: "minimax-m3.1-flash",
+              i18n: { display_name: { en: "MiniMax-M3.1-Flash", zh: "MiniMax-M3.1-Flash" }, description: { zh: "多模态，擅长办公、Agent 与编程" } },
+              frontier: true, enable: true, is_vl: true, is_reasoning: true,
+              max_input_tokens: 1000000, price_factor: 0, show_zero_price_factor: true,
+              format: "anthropic/messages",
+              badges: [{ kind: "promotion", labels: { en: "Free for Now", zh: "限免" } }],
+              promotion: { badge: { en: "Free for Now", zh: "限免" }, active: true, ruleId: "glm-5.4", timezone: "Asia/Shanghai", windowEnd: "23:59", windowStart: "00:00" },
+            },
+            {
+              key: "glm-5.4",
+              i18n: { display_name: { en: "GLM-5.4", zh: "GLM-5.4" } },
+              frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 1.2,
+              badges: [{ kind: "promotion", labels: { en: "Now Live", zh: "首发上线" } }],
+              promotion: { badge: { en: "Now Live", zh: "首发上线" }, active: true, timezone: "Asia/Shanghai", windowEnd: "23:59", windowStart: "00:00" },
+            },
+            {
+              key: "ling-3.1-flash",
+              i18n: { display_name: { en: "Ling-3.1-Flash", zh: "Ling-3.1-Flash" } },
+              frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0.1,
+              badges: [{ kind: "promotion", labels: { en: "90% OFF", zh: "限时1折" } }],
+              promotion: { badge: { en: "90% OFF", zh: "限时1折" }, active: true, ruleId: "ling-discount", timezone: "Asia/Shanghai", windowEnd: "23:59", windowStart: "00:00" },
+            },
+          ],
+        }
+        : {
+          // model/list side of the same live probe: same keys, same factors,
+          // promotion WITHOUT badges, and the SNAKE_CASE window fields
+          // (window_start:"" here, camelCase windowStart in chat-modes).
+          qwork: [
+            { key: "flash", display_name: "标准", price_factor: 0, is_vl: true, is_reasoning: true, max_input_tokens: 1000000, promotion: { active: true, badge: { en: "Free for Members", zh: "会员限免" }, rule_id: "", window_start: "", window_end: "", timezone: "Asia/Shanghai" } },
+            { key: "minimax-m3.1-flash", display_name: "MiniMax-M3.1-Flash", price_factor: 0, is_vl: true, is_reasoning: true, max_input_tokens: 1000000, format: "anthropic/messages", promotion: { active: true, badge: { en: "Free for Now", zh: "限免" }, rule_id: "", window_start: "", window_end: "", timezone: "Asia/Shanghai" } },
+            { key: "glm-5.4", display_name: "GLM-5.4", price_factor: 1.2, max_input_tokens: 1000000 },
+            { key: "ling-3.1-flash", display_name: "Ling-3.1-Flash", price_factor: 0.1, max_input_tokens: 1000000 },
+          ],
+          chat: [],
+          app: [],
+        };
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork-cn",
+      providerSpecificData: { userId: "u-cn-live-1" },
+    });
+    const byId = Object.fromEntries(result.models.map((m) => [m.id, m]));
+
+    // 限免: price_factor 0 + active promotion → 0 reaches the UI, and the
+    // upstream's own text travels with it (ModelRow's tooltip reads
+    // promotion.badge via promotionBadgeNote).
+    expect(byId["minimax-m3.1-flash"].rateMultiplier).toBe(0);
+    expect(byId["minimax-m3.1-flash"].promotion.badge.zh).toBe("限免");
+    // 首发上线 / 限时1折: promoted but NOT free — the real factors stay.
+    expect(byId["glm-5.4"].rateMultiplier).toBe(1.2);
+    expect(byId["ling-3.1-flash"].rateMultiplier).toBe(0.1);
+    // badges[] survives into rawConfigs untouched (chat's slim model_config
+    // reads that map, so nothing here must reshape it).
+    expect(result.rawConfigs.get("minimax-m3.1-flash").badges).toEqual([
+      { kind: "promotion", labels: { en: "Free for Now", zh: "限免" } },
+    ]);
+    // 标准 tier: chat-modes drops it (frontier:false), so its free state comes
+    // from model/list's promotion object ALONE — the proof that promotion, not
+    // badges, is the source the UI plane depends on.
+    expect(byId.flash.rateMultiplier).toBe(0);
+    expect(byId.flash.promotion.badge.zh).toBe("会员限免");
+    expect(result.rawConfigs.get("flash").badges).toBeUndefined();
+  });
+
+  it("a badges[] row with NO promotion object does not claim free (fail-safe, mirrors the price_factor 0 rule)", async () => {
+    // The conservative half of the same coin: `badges` alone is not treated as
+    // pricing evidence, so if upstream ever ships the mirror without the
+    // promotion object, a price_factor 0 row stays "multiplier unpublished"
+    // (no badge) instead of asserting free rides we have not verified — the
+    // 31db16271 discipline, which no badges-driven rewrite may regress.
+    proxyAwareFetchMock.mockImplementation((url) => {
+      const payload = String(url).includes("/api/desktop/chat-modes")
+        ? {
+          schema_version: 2,
+          catalog: [
+            {
+              key: "hypothetical-badge-only",
+              i18n: { display_name: { zh: "假想行" } },
+              frontier: true, enable: true, max_input_tokens: 1000000, price_factor: 0,
+              badges: [{ kind: "promotion", labels: { zh: "限免" } }],
+            },
+          ],
+        }
+        : { qwork: [
+          { key: "hypothetical-badge-only", display_name: "假想行", price_factor: 0, max_input_tokens: 1000000 },
+        ], chat: [], app: [] };
+      return Promise.resolve({ ok: true, status: 200, json: async () => payload, text: async () => JSON.stringify(payload) });
+    });
+    const { resolveQwenWorkModels } = await import("../../open-sse/services/qwenworkModels.js");
+    const result = await resolveQwenWorkModels({
+      accessToken: "at-1",
+      provider: "qwenwork-cn",
+      providerSpecificData: { userId: "u-badge-only-1" },
+    });
+    const row = result.models.find((m) => m.id === "hypothetical-badge-only");
+    expect(row.rateMultiplier).toBeNull();
+    expect(row.promotion).toBeNull();
+  });
+
   it("keeps the model/list catalog when chat-modes fetch fails", async () => {
     proxyAwareFetchMock.mockImplementation((url) => {
       if (String(url).includes("/api/desktop/chat-modes")) {

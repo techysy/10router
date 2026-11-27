@@ -188,6 +188,17 @@ async function fetchQwenWorkCatalogRaw(credentials, signal, proxyOptions = null)
     // on qwork-auto drew ~0.52 credits). Only an active promotion makes zero
     // actually free (CN 标准「会员限免」, ling-3.1「限时1折」) — otherwise the
     // multiplier stays unpublished so ModelRow renders no misleading badge.
+    //
+    // `promotion` is the authoritative promo source, NOT chat-modes' `badges[]`
+    // (which the shape comment below mentions without any code reading it —
+    // that is deliberate, not a gap). Live 2026-11-27, four real accounts:
+    // every CN row carrying badges ALSO carries an identical promotion (8/8,
+    // wording byte-equal), no row has badges alone, and model/list publishes
+    // promotion on 8 rows with badges on ZERO — the 标准 tier row's free state
+    // is reachable only through promotion. So badges is a client-side mirror:
+    // consuming it would be redundant at best and would go silent on a
+    // model/list-only deployment. `badges` still survives untouched in
+    // rawConfigs for anything that ever needs the client's exact payload.
     const promoActive = !!(entry.promotion && entry.promotion.active !== false);
     const priceRaw = typeof entry.price_factor === "number" ? entry.price_factor : null;
     models.push({

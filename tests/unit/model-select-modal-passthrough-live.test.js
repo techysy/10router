@@ -53,4 +53,24 @@ describe("ModelSelectModal passthrough live catalog", () => {
     expect(src).toContain('translate("Credit multiplier")');
     expect(src).toContain("standard rate");
   });
+
+  it("treats an active promotion as a DISCOUNT, not as free — only multiplier 0 badges free", () => {
+    // 2026-11-27 CN live probe (four real accounts, identical): glm-5.4
+    // 「首发上线」ships price_factor 1.2 + an active promotion, and
+    // ling-3.1-flash 「限时1折」ships 0.1 + an active promotion. The badge
+    // used to read `rateMultiplier === 0 || model.promotion`, so both of
+    // those paid rows rendered as green `free` in the combo picker while the
+    // detail page (ModelRow: showFreeBadge from the multiplier alone) said
+    // 1.20x / 0.10x — two surfaces, two prices, one of them a lie. Free is
+    // decided solely by the multiplier, because the catalog side already
+    // gated it (price_factor 0 with no active promotion → multiplier null).
+    const badge = src.slice(src.indexOf("model.isLive && typeof model.rateMultiplier"));
+    expect(badge).toMatch(/model\.rateMultiplier === 0\s*\?\s*"free"/);
+    expect(badge.slice(0, badge.indexOf("translate(\"Credit multiplier\")"))).not.toMatch(/model\.promotion/);
+    // The promotion's own text still travels — into the tooltip, same helper
+    // ModelRow uses, so the wording matches between the two surfaces.
+    expect(src).toContain("promotionBadgeNote");
+    expect(src).toMatch(/const promoNote = promoBadgeNote\(model\.promotion\);/);
+    expect(src).toMatch(/\$\{promoNote \? ` \(\$\{promoNote\}\)` : ""\}/);
+  });
 });
