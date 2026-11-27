@@ -152,7 +152,7 @@ describe("served changelog files", () => {
     // 只打 v1.8.3，served 三语文件的 v1.8.3 段在打标前已落 main（同 v1.8.1
     // 先例：发版 commit 落日期，tag 由 gh release create 服务端创建，CI 跑在
     // 打标前）。Self-retires the moment v1.8.3 is tagged.
-    const PRE_RELEASE_LEAD = "1.8.3";
+    const PRE_RELEASE_LEAD = "1.8.5";
     let newestTag = null;
     try {
       newestTag = execFileSync("git", ["describe", "--tags", "--abbrev=0"], {
