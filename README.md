@@ -4,6 +4,10 @@
 
 # 10Router
 
+<!-- yarkr:badges:start -->
+[![Indexed on Yarkr](https://api.yarkr.com/functions/v1/api/api/v1/badges/repos/techysy/10router/version.svg)](https://yarkr.com/arks/techysy/10router)
+<!-- yarkr:badges:end -->
+
 **本地智能 AI 路由网关与用量仪表盘：单一端点统一接入 100+ 供应商 · 1000+ 模型，内置 RTK 智能压缩、多格式实时翻译、故障自动降级与用量精准计价**
 
 [![Release](https://img.shields.io/github/v/release/techysy/10router?label=%E7%89%88%E6%9C%AC&color=2563eb)](https://github.com/techysy/10router/releases/latest)
@@ -331,3 +335,37 @@ npx vitest run --dir tests
 - **为什么**：本仓库的大量实现（协议逆向、指纹对齐、签到链路、executor 接入等）是真机调试的成果。AGPL 要求任何二次利用——包括网络服务形态——必须同样开源，防止这些成果被闭源拿走；而已发布的 MIT 版本不受影响。
 - **方向不变**：[decolua/9router](https://github.com/decolua/9router) 为 MIT，吸收上游实现始终合法；反向（我们的实现被吸收回 MIT 主线）自 v1.8.1 起不再可行。上游派生部分的 MIT 声明按其条款保留在 [LICENSE](LICENSE) 中。
 - 对完整 LICENSE 的任何疑问或商业授权需求，请提 issue。
+
+<!-- yarkr:install:start -->
+## Install with Yarkr
+
+This repo is indexed on [Yarkr](https://yarkr.com/arks/techysy/10router) as the ark [techysy/10router](https://yarkr.com/arks/techysy/10router), so its skills install into Claude Code, Codex, Cursor and other agent harnesses with one command.
+
+### CLI
+
+Install the whole ark, which Yarkr keeps equal to this repo:
+
+```bash
+npx yarkr-cli sync techysy/10router
+```
+
+Or add individual skills:
+
+```bash
+npx yarkr-cli add skill:techysy/10router/10router
+npx yarkr-cli add skill:techysy/10router/10router-add-provider
+npx yarkr-cli add skill:techysy/10router/10router-chat
+```
+
+No Node.js? `curl -fsSL https://yarkr.com/install.sh | sh` (macOS, Linux) or `irm https://yarkr.com/install.ps1 | iex` (Windows PowerShell) installs `yarkr` as a standalone binary; then type `yarkr` in place of `npx yarkr-cli`.
+
+### MCP
+
+Connect your agent to the ark over MCP:
+
+```bash
+npx yarkr-cli mcp add techysy/10router
+```
+
+Or point any MCP client at `https://api.yarkr.com/functions/v1/api/mcp/o/techysy/10router`.
+<!-- yarkr:install:end -->
