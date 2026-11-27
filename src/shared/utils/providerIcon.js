@@ -41,8 +41,9 @@ const ICON_ALIASES = {
   "gemini-web": "gemini",
   "chatgpt-web": "openai",
   orcaterm: "tencent",
-  // AutoClaw 国内/国际两线同一品牌标（AutoGLM 官方 favicon）
-  "autoclaw-cn": "autoclaw",
+  // AutoClaw 两线**不共用**品牌标：官方就是两套设计——国际站 autoglm.ai 挂
+  // 白底黑 α（favicon-oversea.svg），国内站 autoglm.zhipuai.cn 挂橙底米白 α
+  // （favicon.svg 内嵌 512px）。各自取各自的图，别再 autoclaw-cn → autoclaw 借标。
   // DuMate 有官方专属标（public/providers/dumate.png，DuMate 控制台
   // channelLogo 裁出的笑脸）——不再借用通用百度标。
 };
