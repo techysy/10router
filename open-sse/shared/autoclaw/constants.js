@@ -105,17 +105,50 @@ export function autoclawRedirectUri(vendor = AUTOCLAW_DEFAULT_VENDOR, port = AUT
   return `http://localhost:${port}/auth/callback-${vendor}`;
 }
 
-// Models (route ids, prefix kept on the user-facing side and in
-// X-Request-Model; the body `model` has the zai_/zaicoding_ prefix stripped).
-// zai_glm-5-turbo and the tdpsk_deepseek-* rows were delisted upstream
+// Models — transcribed from the desktop client's own catalog endpoint
+// GET <host>/autoclaw-proxy/proxy/autoclaw-model-config (needs a live token;
+// the same payload lands in the client's settings.json models.catalog).
+// Live-read + call-verified on the CN account 2026-11-26: all six ids answer
+// 200. Route ids keep the zai_/zaicoding_ prefix on the user-facing side and
+// in X-Request-Model; the body `model` has it stripped.
+//
+// Two ids are NOT what the display name suggests — guessing them 400s:
+//   · GLM-5.4 is `zai_glm-x-preview` (the "x-preview" slot is the 5.4 flagship)
+//   · GLM-5.3 is `zaicoding_glm-5.3` (zai_glm-5.3 does not exist)
+// `zai_glm-5-turbo` and the tdpsk_deepseek-* rows were delisted upstream
 // (calls answer 400 illegal model) — not listed.
+//
+// rateMultiplier = upstream `creditCostFactor` verbatim (0.4 / 1 / 2.25 …).
+// The client's picker prints only the qualitative `creditConsumptionLevel`
+// (低/中/高) in its 消耗 column; both facts ride the row so ModelRow can show
+// the number AND the tier without inventing either. Order = the client's sort.
+//
+// vision comes from the catalog's `input` array, cross-checked live with a
+// four-quadrant probe image (2026-11-26): five models read the colours back
+// correctly (prompt_tokens 59 → 161), while zaicoding_glm-5.3 answers 500
+// "parse response failed" on any image and is catalogued input:["text"].
 export const AUTOCLAW_MODELS = [
-  { id: "zai_auto", name: "AutoClaw Auto（自动路由）" },
-  { id: "zai_auto-fast", name: "AutoClaw Auto Fast" },
-  { id: "zai_glm-5.3-flash", name: "GLM-5.3 Flash（免费）" },
-  { id: "zaicoding_glm-5.3", name: "GLM-5.3 Coding" },
+  { id: "zai_auto", name: "Auto", rateMultiplier: 0.4, creditLevel: "low" },
+  { id: "zai_auto-fast", name: "Auto-Fast", rateMultiplier: 1, creditLevel: "medium" },
+  {
+    id: "zai_glm-x-preview",
+    name: "GLM-5.4",
+    rateMultiplier: 2.25,
+    creditLevel: "high",
+    discountNote: "限时半价",
+  },
+  {
+    id: "zaicoding_glm-5.3",
+    name: "GLM-5.3",
+    rateMultiplier: 2.25,
+    creditLevel: "high",
+    discountNote: "限时半价",
+  },
+  { id: "zai_glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.5, creditLevel: "low" },
+  { id: "zai_glm-5.3-flashx-legal", name: "GLM-5.3-FlashX-Legal", rateMultiplier: 1.4, creditLevel: "medium" },
 ];
 export const AUTOCLAW_DEFAULT_MODEL = "zai_auto";
+// 1M on every row except FlashX-Legal, which the catalog caps at 300K.
 export const AUTOCLAW_CONTEXT_WINDOW = 1_000_000;
 // Upstream reasoning variants are low / high / max only.
 export const AUTOCLAW_REASONING_LEVELS = ["low", "high", "max"];

@@ -660,20 +660,34 @@ export const PROVIDER_CAPABILITIES = {
   },
   // AutoClaw（智谱澳龙）国际/国内两线同一模型目录：zai_/zaicoding_ 前缀的
   // 路由 id 不命中任何 canonical/家族 pattern（会落 DEFAULT 200K 且无
-  // reasoning）。上游 1M 窗口；思考变体只有 low/high/max（无关闭档，见
-  // thinkingLevels.js），走 openai reasoning_effort，executor 再钳一次。
-  // max_tokens 族在 executor 里一律剥掉（上游 406），maxOutput 仅作展示。
+  // reasoning）。窗口/输出按客户端目录接口 autoclaw-model-config 的
+  // contextWindow / maxTokens 逐行声明（2026-11-26 live）：五行 1M，
+  // FlashX-Legal 只有 300K；输出 393216 / 307200 / 131072 三档，此前
+  // 全表一律 131072 把 Auto 的 393216 与两个旗舰的 307200 压掉了。
+  // 思考变体只有 low/high/max（无关闭档，见 thinkingLevels.js），走
+  // openai reasoning_effort，executor 再钳一次。max_tokens 族在 executor
+  // 里一律剥掉（上游 406），maxOutput 仅作展示。
+  //
+  // vision 按目录 input 数组 + 四象限判别图实测（带图 prompt_tokens
+  // 59→161 且四色答对才算真视觉，Loomy #179 的教训）：五行 true，
+  // zaicoding_glm-5.3 目录 input:["text"]、带图实测 500 → false。
+  // ⚠️ GLM-5.4 的路由键是 zai_glm-x-preview，不是 zai_glm-5.4。
+  // intl 端无可用账号，两线继续共用同一目录（结构未变）；CN 已实测。
   "autoclaw": {
-    "zai_auto":           { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zai_auto-fast":      { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zai_glm-5.3-flash":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zaicoding_glm-5.3":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_auto":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 393216 },
+    "zai_auto-fast":           { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+    "zai_glm-x-preview":       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 307200 },
+    "zaicoding_glm-5.3":       { vision: false, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 307200 },
+    "zai_glm-5.3-flash":       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+    "zai_glm-5.3-flashx-legal":{ vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 307200, maxOutput: 131072 },
   },
   "autoclaw-cn": {
-    "zai_auto":           { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zai_auto-fast":      { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zai_glm-5.3-flash":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
-    "zaicoding_glm-5.3":  { reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+    "zai_auto":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 393216 },
+    "zai_auto-fast":           { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+    "zai_glm-x-preview":       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 307200 },
+    "zaicoding_glm-5.3":       { vision: false, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 307200 },
+    "zai_glm-5.3-flash":       { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 131072 },
+    "zai_glm-5.3-flashx-legal":{ vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 307200, maxOutput: 131072 },
   },
   // 讯飞 Loomy 免费活动池（内置 freeTier 收录）。上游模型 id 大小写敏感
   // （DeepSeek-V4.1-Flash 大写开头），大写不命中 canonical 键会掉进

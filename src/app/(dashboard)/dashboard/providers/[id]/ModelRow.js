@@ -5,6 +5,7 @@ import { Badge, CapacityBadges, Tooltip } from "@/shared/components";
 import { isPromoFree } from "@/shared/utils/promoFree";
 import { isNightFreeHour } from "@/shared/utils/nightFree";
 import { offPeakStatus, promotionBadgeNote, promotionText } from "@/shared/utils/offPeak";
+import { creditLevelBadge } from "@/shared/utils/creditLevel";
 import { translate, getCurrentLocale } from "@/i18n/runtime";
 import { cn } from "@/shared/utils/cn";
 
@@ -353,6 +354,10 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
   // property, which a 会员限免 row is not (2026-11-23 user report). "" when
   // there is no promotion → the tooltip stays exactly as it was.
   const promoNote = promotionBadgeNote(model.promotion, getCurrentLocale());
+  // 消耗档（AutoClaw 客户端「消耗 低/中/高」那一列）：定性徽章，与上面的
+  // 数字倍率并列而不是替代——上游两个事实都给了（creditConsumptionLevel +
+  // creditCostFactor），就两个都如实显示。供应商未声明时不渲染。
+  const creditLevel = creditLevelBadge(model.creditLevel);
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -439,6 +444,23 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
                   className="shrink-0 cursor-help leading-none"
                 >
                   {translate("Sub priority")}
+                </Badge>
+              </Tooltip>
+            )}
+            {/* Qualitative consumption tier (registry `creditLevel`): the
+                upstream client's 「消耗」column — AutoClaw prints 低/中/高 per
+                model. Shown next to the multiplier badge, never instead of it:
+                the tier and the number are two published facts, and deriving
+                one from the other would invent thresholds upstream owns. */}
+            {creditLevel && (
+              <Tooltip text={translate("Credit consumption tier")}>
+                <Badge
+                  size="xs"
+                  variant={creditLevel.variant}
+                  icon={creditLevel.icon}
+                  className="shrink-0 cursor-help leading-none"
+                >
+                  {translate("Consumption") + " " + translate(creditLevel.label)}
                 </Badge>
               </Tooltip>
             )}
@@ -587,6 +609,8 @@ ModelRow.propTypes = {
     promoFreeNote: PropTypes.string,
     // 「夜间折扣/错峰使用」这类立减型折扣的时段规则（客户端原文）。
     discountNote: PropTypes.string,
+    // 定性消耗档（AutoClaw 客户端「消耗」列的 低/中/高），canonical low/medium/high。
+    creditLevel: PropTypes.oneOf(["low", "medium", "high"]),
     // Server-published off-peak window (Qoder catalog `promotion`).
     promotion: PropTypes.object,
     nightFree: PropTypes.shape({ from: PropTypes.number, to: PropTypes.number }),

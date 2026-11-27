@@ -101,10 +101,67 @@ describe("AutoClaw registry", () => {
     expect(PROVIDERS["autoclaw"].format).toBe("openai");
   });
 
-  it("lists the four live upstream models on both cards", () => {
-    const ids = ["zai_auto", "zai_auto-fast", "zai_glm-5.3-flash", "zaicoding_glm-5.3"];
+  // 客户端目录接口 autoclaw-model-config 的六行（2026-11-26 live + 逐个实调 200）。
+  // 顺序即客户端 sort，名称即客户端 alias——两个 id 与显示名不同形，写死在这里
+  // 是为了让「按名字猜 id」这类回退立刻红：GLM-5.4 是 zai_glm-x-preview，
+  // GLM-5.3 只有 zaicoding_ 前缀那一把。
+  it("lists the six live upstream models on both cards, in the client's order", () => {
+    const ids = [
+      "zai_auto",
+      "zai_auto-fast",
+      "zai_glm-x-preview",
+      "zaicoding_glm-5.3",
+      "zai_glm-5.3-flash",
+      "zai_glm-5.3-flashx-legal",
+    ];
     expect(PROVIDER_MODELS["autoclaw"].map((m) => m.id)).toEqual(ids);
     expect(PROVIDER_MODELS["autoclaw-cn"].map((m) => m.id)).toEqual(ids);
+  });
+
+  it("uses the client's own display names, not invented ones", () => {
+    const names = Object.fromEntries(PROVIDER_MODELS["autoclaw-cn"].map((m) => [m.id, m.name]));
+    expect(names).toEqual({
+      "zai_auto": "Auto",
+      "zai_auto-fast": "Auto-Fast",
+      "zai_glm-x-preview": "GLM-5.4",
+      "zaicoding_glm-5.3": "GLM-5.3",
+      "zai_glm-5.3-flash": "GLM-5.3-Flash",
+      "zai_glm-5.3-flashx-legal": "GLM-5.3-FlashX-Legal",
+    });
+    // Flash 不是免费档：上游给它 creditCostFactor 0.5 / 消耗「低」，
+    // 旧名「（免费）」会让用户以为不扣积分。
+    expect(names["zai_glm-5.3-flash"]).not.toContain("免费");
+  });
+
+  it("carries the published creditCostFactor as rateMultiplier and the 消耗 tier alongside it", () => {
+    // 两个事实都来自同一份目录，都是上游给的数字/档位，不是我们推算的。
+    const expected = {
+      "zai_auto": [0.4, "low"],
+      "zai_auto-fast": [1, "medium"],
+      "zai_glm-x-preview": [2.25, "high"],
+      "zaicoding_glm-5.3": [2.25, "high"],
+      "zai_glm-5.3-flash": [0.5, "low"],
+      "zai_glm-5.3-flashx-legal": [1.4, "medium"],
+    };
+    for (const p of ["autoclaw", "autoclaw-cn"]) {
+      for (const m of PROVIDER_MODELS[p]) {
+        expect([m.id, m.rateMultiplier, m.creditLevel]).toEqual([m.id, ...expected[m.id]]);
+      }
+    }
+    // 没有一行是 0x——0 会被 ModelRow 渲染成绿色 free，等于宣称不扣积分。
+    for (const m of PROVIDER_MODELS["autoclaw-cn"]) expect(m.rateMultiplier).toBeGreaterThan(0);
+  });
+
+  it("marks 限时半价 on exactly the two rows the client badges, as a note not a number", () => {
+    // 官方只说「半价」，没给折后倍率。写 rateMultiplier 1.125 会假装知道
+    // 绝对值（且与目录公布的 2.25 冲突），所以走 discountNote 承载原文。
+    const noted = PROVIDER_MODELS["autoclaw-cn"].filter((m) => m.discountNote).map((m) => m.id);
+    expect(noted).toEqual(["zai_glm-x-preview", "zaicoding_glm-5.3"]);
+    for (const id of noted) {
+      const m = PROVIDER_MODELS["autoclaw-cn"].find((x) => x.id === id);
+      expect(m.discountNote).toBe("限时半价");
+      expect(m.rateMultiplier).toBe(2.25);
+    }
   });
 
   it("carries the fixed TokenServer loopback redirect for the intl OAuth", () => {
@@ -112,13 +169,35 @@ describe("AutoClaw registry", () => {
     expect(autoclawRedirectUri("zai")).toBe("http://localhost:18432/auth/callback-zai");
   });
 
-  it("declares 1M context and the low/high/max reasoning variants", () => {
+  it("declares the catalog's per-row window / output and the low/high/max reasoning variants", () => {
+    // 逐行照抄目录的 contextWindow / maxTokens。全表统一 1M+131072 是旧写法：
+    // FlashX-Legal 实际只有 300K，Auto 的输出是 393216、两个旗舰 307200。
+    const specs = {
+      "zai_auto": [1_048_576, 393_216],
+      "zai_auto-fast": [1_048_576, 131_072],
+      "zai_glm-x-preview": [1_048_576, 307_200],
+      "zaicoding_glm-5.3": [1_048_576, 307_200],
+      "zai_glm-5.3-flash": [1_048_576, 131_072],
+      "zai_glm-5.3-flashx-legal": [307_200, 131_072],
+    };
     for (const p of ["autoclaw", "autoclaw-cn"]) {
-      for (const m of ["zai_auto", "zai_auto-fast", "zai_glm-5.3-flash", "zaicoding_glm-5.3"]) {
-        const caps = getCapabilitiesForModel(p, m);
-        expect(caps.reasoning).toBe(true);
-        expect(caps.contextWindow).toBe(1_000_000);
-        expect(getThinkingLevels(p, m)).toEqual(["low", "high", "max"]);
+      expect(Object.keys(specs)).toEqual(PROVIDER_MODELS[p].map((m) => m.id));
+      for (const [id, [ctx, out]] of Object.entries(specs)) {
+        const caps = getCapabilitiesForModel(p, id);
+        expect([id, caps.reasoning, caps.contextWindow, caps.maxOutput]).toEqual([id, true, ctx, out]);
+        expect(getThinkingLevels(p, id)).toEqual(["low", "high", "max"]);
+      }
+    }
+  });
+
+  it("declares vision per the catalog's input array, text-only where the image call fails", () => {
+    // 五行目录 input 含 image，四象限判别图实测答对四色（prompt_tokens 59→161）；
+    // zaicoding_glm-5.3 目录 input:["text"]，带图实测 500 → 必须 false，
+    // 否则组合会把图片派给它然后拿到解析失败（Loomy #179 同类）。
+    for (const p of ["autoclaw", "autoclaw-cn"]) {
+      for (const m of PROVIDER_MODELS[p]) {
+        expect([m.id, getCapabilitiesForModel(p, m.id).vision])
+          .toEqual([m.id, m.id !== "zaicoding_glm-5.3"]);
       }
     }
   });
