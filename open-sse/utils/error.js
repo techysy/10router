@@ -218,8 +218,32 @@ export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders 
     error: message,
     resetsAtMs,
     ...(flags?.unattributed429 ? { unattributed429: true } : {}),
+    // #176: upstream never answered at all (transport exception from
+    // executor.execute — connect timeout / fetch failed / proxy dead). Distinct
+    // from a REAL 502 body, which went through parseUpstreamError and carries no
+    // flag; the combo transport breaker counts only this kind.
+    ...(flags?.transport ? { transport: true } : {}),
     response: errorResponse(statusCode, message, extraHeaders)
   };
+}
+
+// #176: stamp a finished Response as "this seat died at the TRANSPORT layer".
+// A Symbol because the seat loop is the only reader: a plain property would
+// ride JSON clones and leak into client-visible shapes. Set by the account
+// loop in src/sse/handlers/chat.js, read by the combo seat loop in
+// open-sse/services/combo.js (the transport breaker).
+export const TRANSPORT_FAULT = Symbol.for("10router:transport-fault");
+
+export function markTransportFault(response, isFault = true) {
+  if (!response || typeof response !== "object" || !isFault) return response;
+  try {
+    Object.defineProperty(response, TRANSPORT_FAULT, { value: true, configurable: true, enumerable: false });
+  } catch { /* frozen response — the breaker simply won't count it */ }
+  return response;
+}
+
+export function isTransportFault(response) {
+  return response?.[TRANSPORT_FAULT] === true;
 }
 
 /**

@@ -476,7 +476,7 @@ export class AmazonQuickExecutor extends BaseExecutor {
     this.providerId = providerId;
   }
 
-  async execute({ model, body, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, credentials, signal, log, proxyOptions = null, timeoutMsOverride = null }) {
     const creds = resolveAmazonQuickCredentials(credentials);
     const url = creds.awsAccountId
       ? amazonQuickChatUrl(creds.awsAccountId, creds.csrf)
@@ -531,7 +531,8 @@ export class AmazonQuickExecutor extends BaseExecutor {
 
     // Abort if upstream doesn't return response headers within the
     // configured budget (agent turns are slow; see registry timeoutMs).
-    const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
+    // #176: a combo member probe runs on chatCore's short budget instead.
+    const timeoutMs = timeoutMsOverride || this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
     const connectCtrl = new AbortController();
     const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
     const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;

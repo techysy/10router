@@ -639,7 +639,7 @@ export class QoderExecutor extends BaseExecutor {
   //   - body encoded with QoderEncodeBody before signing
   //   - COSY headers built from the *encoded* body bytes
   //   - response stream re-wrapped from {statusCodeValue, body} to OpenAI SSE
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, timeoutMsOverride = null }) {
     // PAT (pt-...) → exchange for short-lived job token + resolve userId so
     // downstream COSY signing + catalog fetch work. Device tokens (dt-...) and
     // job tokens (jt-...) skip this and are used directly.
@@ -754,7 +754,8 @@ export class QoderExecutor extends BaseExecutor {
     };
 
     // Abort if upstream doesn't return response headers within connect timeout.
-    const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
+    // #176: a combo member probe runs on chatCore's short budget.
+    const timeoutMs = timeoutMsOverride || this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
 
     // A: send → peek → on 10605 wait the poll interval and re-sign/resend the
     // SAME body (the signature is timestamped per request, the body is not).

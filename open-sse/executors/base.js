@@ -136,7 +136,15 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  // `timeoutMsOverride` / `noTransportRetry` (#176): a combo member is a PROBE,
+  // not a delivery — it must not get the full connect window, and a transport
+  // exception there must not run the 502 ladder (the seat loop IS the retry;
+  // inside-seat retries multiply a dead member's budget ×4 — measured 249s).
+  // Real HTTP statuses keep their configured ladders: a genuine 502 answer is
+  // an answer, and skipping its retry would change healthy-member behaviour.
+  // chatCore threads these down; direct requests never set them, so their
+  // delivery window and retry behaviour are untouched.
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, timeoutMsOverride = null, noTransportRetry = false }) {
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
@@ -172,9 +180,12 @@ export class BaseExecutor {
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 
-      // Abort if upstream doesn't return response headers within connection timeout
+      // Abort if upstream doesn't return response headers within connection timeout.
+      // #176: a combo member probe uses the shorter budget chatCore passed in, so a
+      // dead seat hands off in seconds instead of burning FETCH_CONNECT_TIMEOUT_MS
+      // (or a registry's 120/180/300s) before the loop moves on.
       const connectCtrl = new AbortController();
-      const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
+      const timeoutMs = timeoutMsOverride || this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
       const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
       const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
 
@@ -210,8 +221,11 @@ export class BaseExecutor {
         // Connect timeout is internal — convert to retryable network error, don't propagate AbortError
         if (error.name === "AbortError" && !isConnectTimeout) throw error;
 
-        // Map network/fetch exceptions to 502 retry config
-        if (await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }
+        // Map network/fetch exceptions to 502 retry config.
+        // #176: on a combo member probe this ladder is skipped outright — the
+        // member loop is the retry, so re-posting to a transport-dead upstream
+        // only multiplies the handoff latency.
+        if (!noTransportRetry && await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }
 
         if (urlIndex + 1 < fallbackCount) {
           log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
@@ -221,6 +235,9 @@ export class BaseExecutor {
       }
     }
 
+    // Nothing ever returned a response: lastError is only assigned in the catch
+    // below (transport), so prefer it; the bare message means every URL answered
+    // with an HTTP status (no transport fault — chatCore does NOT mark it #176).
     throw lastError || new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`);
   }
 }

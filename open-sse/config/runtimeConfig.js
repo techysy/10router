@@ -66,6 +66,13 @@ export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_M
 // Fetch connect timeout: abort if upstream doesn't return response headers within this duration
 export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);
 
+// Combo member probe budget (#176). When a combo seat is being tried, the
+// connect-timeout for THAT request is shortened to this, so a dead member's
+// TCP-accepts-but-never-responds hang doesn't consume the full delivery budget
+// before the combo loop hands off to the next member. Direct (non-combo)
+// requests are NOT affected — they keep FETCH_CONNECT_TIMEOUT_MS. Env: COMBO_PROBE_TIMEOUT_MS.
+export const COMBO_PROBE_TIMEOUT_MS = envMs("COMBO_PROBE_TIMEOUT_MS", 12 * 1000);
+
 // chat→responses 直连路由里,response.completed 为等真实 usage 尾部 chunk 而
 // 延迟(见 translator/response/openai-responses.js)。上游 stall(无尾部 chunk、
 // 无 [DONE]、连接不断开)时这个等待不能无界:watchdog 超时兜底补发终态事件。

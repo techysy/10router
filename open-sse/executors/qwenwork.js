@@ -622,7 +622,7 @@ export class QwenWorkExecutor extends BaseExecutor {
   //   - body encoded with the shared WAF-bypass encoder before signing
   //   - COSY headers built from the *encoded* body bytes, QwenWork fingerprint
   //   - response stream re-wrapped from {statusCodeValue, body} to OpenAI SSE
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, timeoutMsOverride = null }) {
     const url = this.buildUrl(credentials);
     const psd = credentials?.providerSpecificData || {};
     if (!psd.userId) {
@@ -718,7 +718,9 @@ export class QwenWorkExecutor extends BaseExecutor {
     };
 
     // Abort if upstream doesn't return response headers within connect timeout.
-    const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
+    // #176: a combo member probe runs on chatCore's short budget instead of the
+    // full delivery window; direct requests pass no override and keep the default.
+    const timeoutMs = timeoutMsOverride || this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
 
     // Send → peek → on 10605 wait the poll interval and re-sign/resend the
     // SAME body (the signature is timestamped per request, the body is not).

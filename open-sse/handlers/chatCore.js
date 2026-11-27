@@ -10,7 +10,7 @@ import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModel
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
-import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, TOKEN_SAVER_HEADER, COMBO_PROBE_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { getExecutor } from "../executors/index.js";
@@ -63,7 +63,15 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onCredentialsRefreshFailed, onRequestSuccess, onCompletedResponse, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking }) {
+// `comboProbe` (#176): this call is ONE SEAT of a combo rotation, not a
+// stand-alone delivery. It shortens the connect budget to COMBO_PROBE_TIMEOUT_MS
+// and disables the in-executor transport-retry ladder — the seat loop IS the
+// retry, so re-posting to a dead upstream inside a seat multiplies the handoff
+// latency (measured worst case ~249s on 60s + 3×(60s+3s)). It also flags a
+// no-response-at-all failure with `transport` so the combo member breaker can
+// count it. Direct (non-combo) requests never set it: their delivery window,
+// retry ladder and error shape are untouched.
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onCredentialsRefreshFailed, onRequestSuccess, onCompletedResponse, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, comboProbe = false }) {
   // Preprocessing and translators mutate nested messages, tool results and
   // media blocks. Each attempt owns its body so a failed model/account cannot
   // strip input from the next fallback (or another parallel fusion attempt).
@@ -424,8 +432,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Most executors return their registry format. Cursor AgentService is an
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
+  // #176: a combo seat gets the short probe budget and no in-executor transport
+  // ladder. Both execute() call sites below use it, so the post-refresh retry
+  // can't silently restore the full delivery window.
+  const probeOpts = comboProbe ? { timeoutMsOverride: COMBO_PROBE_TIMEOUT_MS, noTransportRetry: true } : {};
   try {
-    const result = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed });
+    const result = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed, ...probeOpts });
     providerResponse = result.response;
     providerUrl = result.url;
     providerHeaders = result.headers;
@@ -461,7 +473,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (log?.errorLine) {
       log.errorLine(reqTag, "✗", `ERROR 502 · ${provider}/${model} · ${Date.now() - requestStartTime}ms\n    ${errMsg}${error.stack ? `\n    ${error.stack}` : ""}`);
     }
-    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+    // #176: reaching here means executor.execute threw — no HTTP response was
+    // ever received (a real upstream 502 body comes back as a response object and
+    // goes through parseUpstreamError, NOT this catch). That is a TRANSPORT fault,
+    // and on a combo seat it is what the member breaker counts. A client
+    // disconnect is excluded (it took the 499 branch above, and its name is
+    // AbortError); only a genuine upstream non-answer flags here. Direct requests
+    // never set comboProbe, so their error shape is byte-for-byte unchanged.
+    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg, null, null, { transport: comboProbe && error.name !== "AbortError" });
   }
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)
@@ -489,7 +508,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           await onCredentialsRefreshed(newCredentials);
         }
         try {
-          const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed });
+          const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, providerSessionId: sessionSeed, clientTool, signal: streamController.signal, log, proxyOptions, onCredentialsRefreshed, ...probeOpts });
           // Take the retry's outcome even when it is NOT ok. Keeping the original
           // 401 in that case told the client to re-check an API key when the real
           // problem was a 429/500 on the retry, and markAccountUnavailable scored
