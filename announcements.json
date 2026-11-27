@@ -7,58 +7,8 @@
     "link": "可选，显示「了解更多」按钮",
     "note": "id 唯一且不变更（未读红点与已读标记依赖它）；本文件推送到 main 即生效，无需发版；条数纪律：公告只放「持续生效/仍需用户行动」的内容，功能发布类随版本进更新日志，不留长挂；展示门禁：弹窗只渲染最新 10 条（AnnouncementsModal MAX_DISPLAY_ITEMS，超出自动收起），正文一两句话讲完，细节走链接或更新日志"
   },
-  "updatedAt": "2026-11-22",
+  "updatedAt": "2026-11-27",
   "items": [
-    {
-      "id": "2026-11-22-qwenwork-provider",
-      "date": "2026-11-22",
-      "level": "feature",
-      "title": "千问办公 QwenWork：设备码登录选团队，档位 + 直通模型",
-      "body": "阿里办公 Agent 双站接入（国际 qwenwork.ai / 国内 qwenwork.cn）：设备码登录，授权页选团队即按其套餐计费。标准 / 高级 / 旗舰档位 + Qwen4-Max 等直通模型全系 1M 上下文。注意：刷新令牌只由网关刷新，勿同时登录官方桌面客户端；Free 档调直通模型 403（付费解锁）。",
-      "titleEn": "QwenWork: device-code sign-in with team billing, tiers + direct models",
-      "bodyEn": "Alibaba's workplace agent joins (intl qwenwork.ai / CN qwenwork.cn): device-code sign-in, pick a team and its plan pays the credits. Standard / Advanced / Flagship tiers plus direct models like Qwen4-Max, all 1M context. Note: refresh tokens are gateway-only — don't sign into the official desktop app simultaneously; Free plans get 403 on direct models.",
-      "link": "https://qwenwork.ai"
-    },
-    {
-      "id": "2026-11-22-capy-provider",
-      "date": "2026-11-22",
-      "level": "feature",
-      "title": "Capy：一次请求一轮真实 agent，免开桌面端",
-      "body": "agent 平台接入：一次请求就是一轮真实 agent 任务，线程复用、不需要开着官方桌面端；邮箱验证码登录。三个全 0 计费免费模型（GLM-5.3-Flash 广告版 / DeepSeek V4.1 Flash 广告版 / Particle-1）。须知：配对的无头设备与桌面端一样会执行命令与文件操作——不需要此能力就不配对设备即可。",
-      "titleEn": "Capy: one request = one real agent run, no desktop app needed",
-      "bodyEn": "Agent platform: each request is one real agent run — threads are reused and the official desktop app need not be running; sign in with an email code. Three free all-zero-priced models (GLM-5.3-Flash ads / DeepSeek V4.1 Flash ads / Particle-1). Notice: a paired headless device executes commands and file operations like the desktop app does — don't pair a device if you don't want that.",
-      "link": "https://capy.ai"
-    },
-    {
-      "id": "2026-11-22-crowllm-provider",
-      "date": "2026-11-22",
-      "level": "feature",
-      "title": "CrowLLM：180+ 模型一个 Key，40 个 :free 零倍率",
-      "body": "one-hub 聚合网关：一个 API Key 透传 180+ 模型；带 :free 后缀的模型完全免费（40 个，含 qwen4-max:free，实测日成功率 91%+、延迟偏高）。「获取 API 密钥」入口接邀请码池轮换。",
-      "titleEn": "CrowLLM: 180+ models behind one key, 40 :free at zero rate",
-      "bodyEn": "one-hub aggregator gateway: one API key unlocks 180+ passthrough models; :free models cost nothing (40 of them, incl. qwen4-max:free — 91%+ daily success, latency on the slow side). The Get API Key entry rotates an invite pool.",
-      "link": "https://crowllm.com"
-    },
-    {
-      "id": "2026-11-22-croli-provider",
-      "date": "2026-11-22",
-      "level": "feature",
-      "title": "Croli：Clerk OAuth + 积分池，原生签到与积分面板",
-      "body": "Clerk OAuth（Google / GitHub / 邮箱）面板内登录。每日签到 +100（连续加成）、每日首聊 +200（真实回合上报，不烧 trial 额度）；详情页带积分任务中心，实验性页可开自动签到。注册引导走邀请码池。",
-      "titleEn": "Croli: Clerk OAuth + credits pool, native check-in and credits panel",
-      "bodyEn": "Clerk OAuth (Google / GitHub / email) entirely in the panel. Daily check-in +100 (streak bonuses), first chat of the day +200 — reported from real completed turns, no trial quota burned; the detail page carries a task center and the Experimental page adds auto check-in. Signup rotates an invite pool.",
-      "link": "https://croli.net"
-    },
-    {
-      "id": "2026-11-22-nous-portal-provider",
-      "date": "2026-11-22",
-      "level": "feature",
-      "title": "Nous Portal：设备码登录，免费档免绑卡",
-      "body": "Hermes 同款设备码 OAuth：授权后把「复制此 URL」粘回面板即完成登录。免费档 qwen4-max:free 等免绑卡；实时目录 400+ 模型透传。注意：刷新令牌只由网关刷新，勿同时登录 Hermes CLI。",
-      "titleEn": "Nous Portal: device-code sign-in, free tier without a card",
-      "bodyEn": "Hermes-style device-code OAuth: paste the \"copy this URL\" page back into the panel to finish. Free tier (qwen4-max:free and friends) needs no card; 400+ models passthrough. Note: gateway-only refresh — don't sign into the Hermes CLI simultaneously.",
-      "link": "https://portal.nousresearch.com"
-    },
     {
       "id": "2026-11-16-license-agpl-notice",
       "date": "2026-11-16",
@@ -80,34 +30,84 @@
       "link": "https://forum.qoder.com/t/topic/13804"
     },
     {
-      "id": "2026-11-16-deepai-code-provider",
-      "date": "2026-11-16",
-      "level": "feature",
-      "title": "DeepAI Code 供应商：27 模型免费档，面板内直接登录",
-      "body": "deepai.org 桌面编程 agent 接入免费额度区：11 个免费不计量模型 + 16 个按次花每日 Theos。面板内 Google/Apple 登录粘回即建连，也可直接粘贴已有 Key。",
-      "titleEn": "DeepAI Code provider: 27 models free-tier, panel-native sign-in",
-      "bodyEn": "DeepAI Code (deepai.org coding agent) joins the free tier: 11 unmetered models + 16 metered against the daily Theos grant. Google/Apple sign-in runs in the panel — paste the callback back, or paste an existing key.",
-      "link": "https://deepai.org"
+      "id": "2026-11-26-scheduling-balance-priority",
+      "date": "2026-11-26",
+      "level": "warning",
+      "title": "「余额优先」修好了：此前设过不生效的，现在会真的生效",
+      "body": "详情页的「小额优先 / 大额优先」以前会把选择丢掉（整张策略表被页面快照整体写回），还会被全局「轮询」压过——现在已生效，运行日志会记一行选中结果可直接核对。另外余额为 0 或已透支的号不再被「小额优先」顶到最前，改为沉到队尾；QuWork、DuMate、灵犀、DeepAI、AutoClaw 双端、Clixad、FreePi 七家的详情页新出现这个入口。",
+      "titleEn": "Balance-first scheduling is fixed — what you set before now actually applies",
+      "bodyEn": "\"Lowest / highest balance first\" used to be lost on save (the whole strategy table was rewritten from a page snapshot) and could be overridden by a global round-robin; it now sticks and logs the chosen account so you can verify it. Accounts at zero or negative balance no longer lead the queue on lowest-first — they sink to the back. Seven providers gained the entry: QuWork, DuMate, Lingxi, DeepAI, AutoClaw (both lines), Clixad, FreePi.",
+      "link": "https://github.com/techysy/10router/blob/main/docs/zh-CN/routing-strategy-and-combos-guide.md"
     },
     {
-      "id": "2026-11-16-wps-lingxi-provider",
-      "date": "2026-11-16",
+      "id": "2026-11-27-combo-failover-and-sticky-rotation",
+      "date": "2026-11-27",
       "level": "feature",
-      "title": "WPS 灵犀供应商：粘贴 Cookie 即用，原生签到与到期桶",
-      "body": "供应商页 Capture Session 三步引导（书签签 / 直接粘贴）或从 CreditDaddy 一键同步。配额卡按智点口径呈现——余额 + 逐包到期桶 + 倒计时；实验性页可开每日自动领灵点（100/天、第七天 200）。免费档日常对话不扣灵点。",
-      "titleEn": "WPS Lingxi provider: paste a cookie to start, native check-in and expiry buckets",
-      "bodyEn": "Capture Session on the provider page (bookmarklet or direct paste), or one-click sync from CreditDaddy. The quota card speaks credits — balance + expiry buckets + countdown; the Experimental page adds auto daily claim (100/day, 200 on day seven). Free-tier chat costs no credits.",
-      "link": "https://lingxi.kdocs.cn"
+      "title": "组合：排前渠道假死秒级让位，轮询按时间窗粘滞",
+      "body": "组合排前的成员若上游只挂连接不回应，以前最坏干等约 249 秒才换下一个（客户端自己的超时先到，看起来像整个组合卡死）；现在改用专门的短探测预算（默认 12 秒，环境变量 COMBO_PROBE_TIMEOUT_MS 可调），连续两次全无应答的成员临时往后垫、但不会被踢出轮换。轮询策略同时改为活跃时段固定同一个模型、空闲超过窗口（默认 5 分钟，设置页可调，也可改回按请求数切换）才轮换。",
+      "titleEn": "Combos: a dead channel yields in seconds, rotation sticks within a time window",
+      "bodyEn": "A leading combo member that only holds the socket used to cost up to ~249s before the next one got a turn — your client timed out first and the whole combo looked frozen. A dedicated probe budget (12s by default, COMBO_PROBE_TIMEOUT_MS) handles it now, and a member with two back-to-back no-answers is temporarily pushed back rather than dropped from rotation. Round-robin also keeps the same model while traffic is active and only rotates once idle passes the window (5 minutes, configurable, or switch back to per-request).",
+      "link": "https://github.com/techysy/10router/blob/main/public/i18n/changelog/zh-CN.md"
     },
     {
-      "id": "2026-11-15-meoo-provider",
-      "date": "2026-11-15",
+      "id": "2026-11-25-free-lanes-junie-atomcode-clixad-freepi",
+      "date": "2026-11-25",
+      "level": "promo",
+      "title": "四条免费车道：Junie Lite / AtomCode / Clixad / FreePi",
+      "body": "Junie（JetBrains）免费账号即可用 Junie Lite 车道；AtomCode 登录时自动领 Lite 体验版（每 5 小时 300 次请求）；Clixad 每日 12 万 credits、8 款免费模型；FreePi 每日 4000 credits（广告位买单）。四家都带额度卡。须知：这是各家客户端自己的接口，上游策略变更可能失效或触发风控，请自担账号风险，且只用自己的账号登录。",
+      "titleEn": "Four free lanes: Junie Lite / AtomCode / Clixad / FreePi",
+      "bodyEn": "Junie's free lane opens to any JetBrains account; AtomCode auto-claims a Lite trial on sign-in (300 requests per 5 hours); Clixad grants 120k credits a day across 8 free models; FreePi grants 4k (an ad slot pays for it). All four ship a quota card. Notice: these are the clients' own endpoints — upstream policy changes can break them or trip risk control, so weigh the account risk and sign in with your own account only.",
+      "link": "https://github.com/techysy/10router/blob/main/public/i18n/changelog/zh-CN.md"
+    },
+    {
+      "id": "2026-11-26-qoder-freemodels-promo-closing",
+      "date": "2026-11-26",
+      "level": "promo",
+      "title": "Qoder 双端可用 HungerG（0x 免费）；CodeBuddy 限免临近截止",
+      "body": "官方那个 0x 的 HungerG（1M 上下文、可读图）此前只在桌面客户端目录里出现，现在 Qoder 国内版与国际版都能选，国际版同时补上 Fast（0.6x）；GLM-5.4 也上了 Qoder、CodeBuddy CN、千问办公国内版与 ZCode 免费线。CodeBuddy CN 的 Hy4 flash 限免按官方标注只到 11 月底，到期后徽章自动回落原价——趁现在用。已建的连接无需重新登录，刷新模型列表即可看到。",
+      "titleEn": "HungerG (0x) opens on both Qoder lines; a CodeBuddy promo is about to close",
+      "bodyEn": "The official 0x HungerG (1M context, vision) used to appear only in the desktop app's catalog — it is selectable on Qoder CN and intl now, with Fast (0.6x) added to intl; GLM-5.4 also landed on Qoder, CodeBuddy CN, QwenWork CN and the ZCode free line. CodeBuddy CN's Hy4 flash free promo runs only to the end of November per the official note, after which the badge falls back to its real rate on its own. Existing connections need no re-login — refresh the model list.",
+      "link": "https://github.com/techysy/10router/blob/main/public/i18n/changelog/zh-CN.md"
+    },
+    {
+      "id": "2026-11-25-quwork-raccoon-orcaterm-autoclaw",
+      "date": "2026-11-25",
       "level": "feature",
-      "title": "Meoo 秒悟供应商：OAuth 登录 / 控制面 Key 双通道",
-      "body": "OAuth（CLI 同款 PKCE）或粘贴控制面 Key 双通道接入；项目服务 AK 自动解析、失效自愈。积分账户完整呈现——余额 + 逐包到期；实验性页可开每日自动领积分。",
-      "titleEn": "Meoo provider: OAuth or control-plane key, full points ledger",
-      "bodyEn": "Connect via OAuth (CLI-style PKCE) or a control-plane key; the per-project AK resolves itself and self-heals. Points ledger shows balance + per-batch expiry; the Experimental page adds an auto daily-claim toggle.",
-      "link": "https://meoo.com"
+      "title": "四家扫码 / 签到型供应商：QuWork、商汤小浣熊、OrcaTerm、AutoClaw",
+      "body": "QuWork（+86 短信登录、积分卡、每日签到、微信绑定与兑换码激活）、商汤小浣熊（微信扫码，积分按任务和邀请自动发）、OrcaTerm（腾讯云终端微信扫码，支持工具调用与读图）、AutoClaw 国内 / 国际版（智谱澳龙，GLM-5.3 Flash 免费 + 可选自动签到）。两点需要行动：QuWork 网关拒绝非中国大陆 IP（HTTP 405），服务器在海外请给该连接配国内代理；AutoClaw 走逆向桌面端接口，10Router 使用期间勿让桌面端同登同一账号。",
+      "titleEn": "Four QR / check-in providers: QuWork, Raccoon, OrcaTerm, AutoClaw",
+      "bodyEn": "QuWork (+86 SMS, credit ledger, daily check-in, WeChat binding and code redemption), SenseNova Raccoon (WeChat QR, credits auto-granted by tasks and invites), OrcaTerm (Tencent Cloud terminal, WeChat QR, tools and vision supported) and AutoClaw CN / intl (Zhipu, GLM-5.3 Flash free, optional auto check-in). Two things need action: QuWork rejects non-mainland-China IPs (HTTP 405), so give that connection a mainland proxy when the server is overseas; AutoClaw rides a reverse-engineered desktop API — don't keep the desktop app signed into the same account while 10Router uses it.",
+      "link": "https://github.com/techysy/10router/blob/main/public/i18n/changelog/zh-CN.md"
+    },
+    {
+      "id": "2026-11-23-amazonquick-provider",
+      "date": "2026-11-23",
+      "level": "feature",
+      "title": "Amazon Quick：没有 API Key，粘一段 Copy as cURL 即用",
+      "body": "AWS 的办公 agent（Q Business 的后继）没有公开 chat API，调用走你已登录的 quick.aws.com 浏览器会话：在网页聊天里发一句话，F12 找一条 ws-rpc 请求右键 Copy as cURL，整段粘进连接框即可。模型是 fast / smart / advanced 三档，消耗套餐的月度 agent 小时。会话不能自动续期，测试变红就是过期了，重贴一段即可。",
+      "titleEn": "Amazon Quick: no API key — paste one Copy as cURL and go",
+      "bodyEn": "AWS's workplace agent (successor to Q Business) has no public chat API, so calls ride your signed-in quick.aws.com browser session: send one message in the web chat, find a ws-rpc request in DevTools, right-click → Copy as cURL, paste the whole thing into the connection box. Three tiers (fast / smart / advanced), billed against your plan's monthly agent hours. The session can't be refreshed — a red connection test means it expired, so paste a fresh one.",
+      "link": "https://quick.aws.com"
+    },
+    {
+      "id": "2026-11-23-atlascloud-numes",
+      "date": "2026-11-23",
+      "level": "feature",
+      "title": "Numes 与 Atlas Cloud：两个 OpenAI 兼容网关，Numes 带 :free 与 BTC 余额",
+      "body": "Numes 是多家独立供应商的推理市场，余额可选美元或比特币（创建 Key 时固定币种），模型 ID 与 OpenRouter 同形态，带 :free 后缀的完全免费（GLM-5.3、DeepSeek V4.1 Flash、Kimi K3.1 Pro 等），已预置 34 款主力模型、其余填 ID 即用。Atlas Cloud 是纯 API Key 接入的兼容网关。",
+      "titleEn": "Numes and Atlas Cloud: two OpenAI-compatible gateways, Numes with :free and a BTC balance",
+      "bodyEn": "Numes is an inference marketplace routed across independent providers — balance in USD or bitcoin (fixed when the key is created), OpenRouter-shaped model ids, and a :free suffix that costs nothing (GLM-5.3, DeepSeek V4.1 Flash, Kimi K3.1 Pro and friends); 34 models are preloaded and the rest work by id. Atlas Cloud is a plain API-key gateway.",
+      "link": "https://numes.ai"
+    },
+    {
+      "id": "2026-11-27-trae-free-tier-reach",
+      "date": "2026-11-27",
+      "level": "info",
+      "title": "Trae 免费账号实际只有豆包可用；本轮清单数值未经 live 验证",
+      "body": "Trae 国际线按官方客户端重排了清单，除 Auto Mode 与豆包 Seed-2.1-Turbo 外全部带锁（需 Lite / Pro / Pro+ / Ultra），徽章现在如实反映免费账号的真实可达面；国内版新增三行带锁模型，并改正 DeepSeek 倍率与闲时口径（空闲时段=北京时间每日 22:00–次日 8:00）。注意：Trae 没有可读的模型目录接口，本轮数值来自官方客户端截图，未经 live 验证。",
+      "titleEn": "On a free Trae account only Doubao is reachable; this catalog round isn't live-verified",
+      "bodyEn": "Trae intl's list now follows the official client, with everything locked except Auto Mode and Doubao Seed-2.1-Turbo (Lite / Pro / Pro+ / Ultra) — the badges finally show what a free account can actually reach. The CN line gained three locked rows and corrected its DeepSeek rates plus the off-peak window (22:00–08:00 Beijing time). Caveat: Trae exposes no readable model catalog, so these figures come from client screenshots and are not live-verified.",
+      "link": "https://www.trae.ai"
     }
   ]
 }
