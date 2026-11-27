@@ -33,6 +33,15 @@ export default {
   //   新增 18 款（GLM-5.3 系 / MiMo-V2.6 / Kimi-K3 / DeepSeek Official 变体 / Step-5-Preview 等）；
   //   保留 Doubao-Seed-Code（当前默认）与 kimi-k2.6；
   //   移除已从 remote 目录下架的 10 款（2.0-Code/m2.7/glm-5 系/V4 基础版/k2.5/3.6/3.5）。
+  // 2026-11-27：**本轮有意不动这一条**（用户口径「国际线 free 只有豆包可以用」经核对
+  //   不适用于此）。理由：本条的数据面是 CD 网关转发的 **solo.trae.cn** SOLO remote
+  //   目录（见文件头注释与 transport.baseUrl），与国际站 IDE 模型选择器（trae.js 的
+  //   core-normal.trae.ai）是两张不同的目录——国际线那张才有「除 Auto Mode / 豆包外
+  //   全部带锁」的会员墙。把 trae.js 的锁状态搬过来，或按国际线截图删这里的行，都会
+  //   把 CN remote 目录改坏。
+  //   本条自身同样没有 live 目录读取（CD 网关只暴露 POST /gateway/trae/v1/messages，
+  //   GET /models 与 /api/models 均 404，2026-11-27 实测），所以这里 2026-10-10 的
+  //   采集已属陈旧，需要另一次针对 **SOLO remote 目录**的实测才能更新——不在本轮范围。
   models: [
     { id: "Doubao-Seed-Code", name: "Doubao Seed Code" },
     { id: "Doubao-Seed-2.1-Pro", name: "Doubao Seed 2.1-Pro" },

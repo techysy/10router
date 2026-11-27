@@ -94,6 +94,12 @@ const CANONICAL_TRAE_MODELS = {
   "deepseek-v4-flash": "DeepSeek-V4-Flash",
   "deepseek-v4-pro": "DeepSeek-V4-Pro",
   "deepseek-v4-pro-official": "DeepSeek-V4-Pro-Official",
+  // 2026-11-27 CN 目录对齐新增两行：ConfigName 大小写沿用**同族已实证**的写法
+  // （glm 系一律首字母大写、kimi 系同），上游目录未 live 复核，故同时进 4001 降级链。
+  // qwen4-max 不在此表：qwen 系实证写法就是小写原样透传（qwen3.8-flash / qwen3.8-max
+  // 两行同形），加一条同名映射等于没加。
+  "glm-5.4": "GLM-5.4",
+  "kimi-k3.1-pro-highspeed": "Kimi-K3.1-Pro-Highspeed",
   "glm-5.3": "GLM-5.3",
   "glm-5.3-flash": "GLM-5.3-Flash",
   "glm-5.3-flashx": "GLM-5.3-FlashX",
@@ -124,6 +130,10 @@ const TRAE_CONFIG_DEGRADE = {
   "GLM-5.3-FlashX": "GLM-5.3-Flash",
   "DeepSeek-V4-Pro-Official": "DeepSeek-V4-Pro",
   "Doubao-Seed-2.1-Turbo": "Doubao-Seed-2.1-Pro",
+  // 2026-11-27 CN 目录新增的两行：ConfigName 未能 live 复核（截图是客户端**显示名**，
+  // 不是线上 ConfigName），一旦上游回 4001 就按同族降档，避免直接失败。
+  "GLM-5.4": "GLM-5.3",
+  "Kimi-K3.1-Pro-Highspeed": "Kimi-K3.1-Pro",
 };
 export function degradeTraeConfigName(configName) {
   const m = String(configName || "").trim();

@@ -63,23 +63,38 @@ export default {
     userInfoUrl: "https://api.trae.com.cn/cloudide/api/v3/trae/GetUserInfo",
     refresh: { encoding: "json" },
   },
-  // 模型目录：显示名 / 倍率 / 标签按官方客户端 2026-11-09 实拍对齐（用户截图四张，
-  // 倍率 = 官方积分消耗速度；#108 发版前校准）。官方清单没有的旧模型**删除**
-  // （用户明确要求：截图上没有的就删掉；老 combo 引用断了可重建，不留僵尸行）。
+  // 模型目录：显示名 / 倍率 / 标签按官方客户端 2026-11-27 实拍对齐（用户截图四张，
+  // 倍率 = 官方「积分消耗速度」；上一轮 2026-11-09 口径已被官方换代覆盖）。
+  // 官方清单没有的旧模型**删除**（用户明确要求：截图上没有的就删掉；老 combo 引用
+  // 断了可重建，不留僵尸行）。数组顺序 = 官方下拉顺序（详情页照此渲染）。
+  // 权威源说明：本轮**未能 live 验证**——Trae 没有可用的模型目录端点（executor 侧
+  // 无 model_list 读取，CN 侧 model/list 属 IDE 通道需真号 + 未探明签名），读 NAS
+  // 生产凭据又超出本次授权，故 4 张客户端截图即权威源，逐张放大复核后落表。
   // 标签字段口径（与 codebuddy-cn 同一套）：
   //   专属补贴 / 会员限时优惠 / 闲时折扣 都是**折扣型**（倍率非 0），用 discountNote
   //   承载规则说明——不亮 free 徽章（promoFree* 会亮 free，夸大）。
-  //   Kimi-K3.1-Pro 官方列表带锁（会员 Lite/Pro/Pro+/Ultra/Express 专属）→ paidTier。
+  //   官方下拉带锁的模型（解锁说明「该模型仅限 会员 Lite/会员 Pro/会员 Pro+/会员
+  //   Ultra/会员 Express 用户，升级后即可解锁」）→ paidTier：GLM-5.4、
+  //   Kimi-K3.1-Pro-Highspeed、Kimi-K3.1-Pro、Qwen4-Max 四行；带锁行官方不显示倍率，
+  //   故一律**不放** rateMultiplier（不编价）。
   // 显示名去掉『Doubao 』前缀（官方列表就叫 Seed-2.1-Turbo）；id 不动（老 combo /
   // 连接引用不受影响）。
+  // 两处易错判读（已逐张放大复核，留此防止下轮再翻）：
+  //   · 0.12x 那行是 **DeepSeek-V4.1-Flash**，不是「V4.1-Hash」——另一张同位置写
+  //     Flash，「H」是低分辨率下 `Fl` 粘连的假象，且 Trae 全线（含国际线）无 Hash。
+  //   · 清单末尾是 Qwen3.8-Max，**没有** Kimi-K2.5（那一行属国际线，别加到 CN）。
   models: [
-    { id: "Doubao-Seed-2.1-Turbo", name: "Seed-2.1-Turbo", rateMultiplier: 0.20, discountNote: "专属补贴：积分消耗 0.20 倍" },
+    { id: "Doubao-Seed-2.1-Turbo", name: "Seed-2.1-Turbo", rateMultiplier: 0.20, discountNote: "专属补贴：原价 0.40 倍，当前补贴 5 折至 0.20 倍；会员专享 2.5 折至 0.10 倍" },
     { id: "Doubao-Seed-2.1-Pro", name: "Seed-2.1-Pro-0915", rateMultiplier: 0.80 },
     { id: "Doubao-Seed-Evolving", name: "Seed-Evolving", rateMultiplier: 0.80 },
     { id: "Doubao-Seed-Code", name: "Seed-Code", rateMultiplier: 0.06, discountNote: "专属补贴：积分消耗 0.06 倍" },
-    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.78, discountNote: "会员限时优惠 0.78 倍，生效至 11-16" },
-    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.06, discountNote: "会员限时优惠 0.06 倍，生效至 11-16" },
-    { id: "DeepSeek-V4-Pro-Official", name: "DeepSeek-V4-Pro", rateMultiplier: 0.36, discountNote: "闲时折扣：北京时间周一至周五 09:00-12:00、14:00-18:00 属忙时 0.36 倍，其余时段 5 折 0.06 倍" },
+    { id: "glm-5.4", name: "GLM-5.4", paidTier: true },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
+    { id: "glm-5.3-flashx", name: "GLM-5.3-FlashX", rateMultiplier: 0.31 },
+    { id: "glm-5.3", name: "GLM-5.3", rateMultiplier: 0.78 },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash", rateMultiplier: 0.12, discountNote: "闲时折扣：空闲时段消耗更低，官方未公布本档折扣幅度" },
+    { id: "DeepSeek-V4-Pro-Official", name: "DeepSeek-V4-Pro", rateMultiplier: 0.72, discountNote: "闲时折扣：空闲时段 5 折 0.72→0.36 倍，空闲时段=北京时间每日 22:00-次日 8:00；另有「更大上下文（Max）」开关，开启后上下文扩展至 1M、积分消耗更多" },
+    { id: "kimi-k3.1-pro-highspeed", name: "Kimi-K3.1-Pro-Highspeed", paidTier: true },
     { id: "kimi-k3.1-pro", name: "Kimi-K3.1-Pro", paidTier: true },
     { id: "kimi-k3", name: "Kimi-K3", rateMultiplier: 1.83 },
     { id: "mimo-v2.6-flash", name: "MiMo-V2.6-Flash", rateMultiplier: 0.06 },
@@ -87,10 +102,9 @@ export default {
     { id: "minimax-m3.1-flash", name: "MiniMax-M3.1-Flash", rateMultiplier: 0.09 },
     { id: "minimax-m3", name: "MiniMax-M3", rateMultiplier: 0.26 },
     { id: "step-5-preview", name: "Step-5-Preview", rateMultiplier: 0.48 },
+    { id: "qwen4-max", name: "Qwen4-Max", paidTier: true },
     { id: "qwen3.8-flash", name: "Qwen3.8-Flash", rateMultiplier: 0.08 },
     { id: "qwen3.8-max", name: "Qwen3.8-Max", rateMultiplier: 1.50 },
-    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", rateMultiplier: 0.08 },
-    { id: "glm-5.3-flashx", name: "GLM-5.3-FlashX", rateMultiplier: 0.31 },
   ],
   features: { usage: true },
 };
