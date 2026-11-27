@@ -13,7 +13,7 @@ export const FREEPI_CONFIG = {
   website: "https://freepi.ai",
   consentVersion: "4",
   // Server enforces a minimum (426 below it); refreshed from /client-version.
-  clientVersion: "0.6.27",
+  clientVersion: "0.6.28",
   maxTokens: 32768,
   pollInterval: 5000,
   requestTimeoutMs: 20000,
