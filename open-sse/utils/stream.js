@@ -1,4 +1,5 @@
 import { translateResponse, initState } from "../translator/index.js";
+import { repairToolCallIndices } from "../translator/concerns/toolCallIndex.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
@@ -56,6 +57,12 @@ export function createSSEStream(options = {}) {
 
   let buffer = "";
   let usage = null;
+
+  // Issue #175: per-stream bookkeeping for tool-call index repair. The translate
+  // lane keeps it on `state` (shared with the response translators); passthrough
+  // has no translator state, so it gets its own object here. One stream, one
+  // ledger — never module scope, or parallel requests would cross-contaminate.
+  const passthroughToolCallState = {};
 
   // Per-stream decoder with stream:true to correctly handle multi-byte chars split across chunks
   const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -365,6 +372,15 @@ export function createSSEStream(options = {}) {
                 }
               }
 
+              // Issue #175: an upstream that announces a NEW call (new id / new
+              // name) on an index already in use gets that call its own slot.
+              // Repaired here, on the parsed chunk, so the bytes we forward and
+              // every accumulator downstream agree. Runs after the empty-name
+              // strip above, so a repeated `name:""` is not read as a rename.
+              if (repairToolCallIndices(passthroughToolCallState, parsed)) {
+                fieldsInjected = true;
+              }
+
               if (!hasValuableContent(parsed, FORMATS.OPENAI)) {
                 continue;
               }
@@ -597,6 +613,10 @@ export function createSSEStream(options = {}) {
         }
 
         // Translate: targetFormat -> openai -> sourceFormat
+        // Issue #175: repair reused tool-call indices BEFORE the translator's
+        // accumulators see the chunk. Only OpenAI-shaped upstream deltas carry
+        // `choices[].delta.tool_calls`; other dialects are untouched by this.
+        repairToolCallIndices(state, parsed);
         const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 
         // Log OpenAI intermediate chunks (if available)
@@ -706,6 +726,7 @@ export function createSSEStream(options = {}) {
         if (buffer.trim()) {
           const parsed = parseSSELine(buffer.trim());
           if (parsed && !parsed.done) {
+            repairToolCallIndices(state, parsed); // #175, same as the main loop
             const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 
             if (translated?._openaiIntermediate) {

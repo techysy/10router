@@ -6,6 +6,7 @@
 
 import fs from "fs";
 import path from "path";
+import { repairToolCallIndices } from "../translator/concerns/toolCallIndex.js";
 
 // Create log directory for responses (Node.js only)
 export function createResponsesLogger(model, logsDir = null) {
@@ -265,7 +266,14 @@ export function createResponsesApiTransformStream(logger = null) {
         }
 
         if (!parsed.choices?.length) continue;
-        
+
+        // Issue #175: this transformer keeps its own accumulators (funcNames /
+        // funcCallIds / funcArgsBuf keyed by index), so it needs the same repair
+        // the stream lane applies. Without it two calls announced at index 0
+        // emitted two output_item.added at the same output_index and the second
+        // overwrote the first.
+        repairToolCallIndices(state, parsed);
+
         const choice = parsed.choices[0];
         const idx = choice.index || 0;
         const delta = choice.delta || {};

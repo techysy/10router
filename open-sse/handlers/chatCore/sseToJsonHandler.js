@@ -10,6 +10,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLin
 import { usageOrEstimate } from "../../utils/usageTracking.js";
 import { ROLE, RESPONSES_ITEM } from "../../translator/schema/index.js";
 import { restoreToolNames } from "../../utils/opencodeFingerprint.js";
+import { repairToolCallIndices } from "../../translator/concerns/toolCallIndex.js";
 import { restoreBody } from "../../privacy/streamRestorer.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 
@@ -130,6 +131,10 @@ function chatCompletionToResponses(responseBody, customToolNames = null) {
 export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
   const chunks = [];
   let streamError = null;
+  // Issue #175: one ledger for this whole SSE body, so a second call announced
+  // on an already-used index gets its own slot instead of being concatenated
+  // into the first (measured: name "get_weatherget_time", two JSON objects glued).
+  const toolCallIndexState = {};
 
   for (const line of String(rawSSE || "").split("\n")) {
     const trimmed = line.trim();
@@ -139,7 +144,10 @@ export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
     try {
       const chunk = JSON.parse(payload);
       if (chunk?.error) streamError = chunk.error;
-      else chunks.push(chunk);
+      else {
+        repairToolCallIndices(toolCallIndexState, chunk);
+        chunks.push(chunk);
+      }
     } catch { /* ignore malformed lines */ }
   }
 
