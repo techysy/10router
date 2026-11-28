@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import {
   getProviderCredentials,
   markAccountUnavailable,
@@ -116,6 +117,7 @@ export async function handleVideoCreate(request, action) {
   }
 
   const preferredConnectionId = request.headers.get("x-connection-id") || null;
+  const routingIdentity = getRoutingIdentity(request, extractApiKey(request), bodyInfo.parsed);
   const idempotencyKey = request.headers.get("idempotency-key") || null;
 
   const excludeConnectionIds = new Set();
@@ -123,7 +125,7 @@ export async function handleVideoCreate(request, action) {
   let lastStatus = null;
 
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId, routingIdentity });
 
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
@@ -162,6 +164,7 @@ export async function handleVideoCreate(request, action) {
     });
 
     if (result.success) {
+      credentials.commitSession?.([]);
       await clearAccountError(credentials.connectionId, credentials, model);
       log.info("VIDEO", `${provider.toUpperCase()} | ${action} accepted (connection ${credentials.connectionId})`);
       return withConnectionHeader(result.response, credentials.connectionId);

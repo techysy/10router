@@ -1391,5 +1391,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ សេចក្តីជូនដំណឹងអំពីហានិភ័យ៖ អ្នកផ្តល់សេវានេះប្រើ Subscription/OAuth Session ដែលមិនមានអាជ្ញាបណ្ណផ្លូវការសម្រាប់ប្រើជា Proxy/Router។ គណនីអាចត្រូវបានដាក់កម្រិត ឬហាមឃាត់។ ប្រើដោយទទួលខុសត្រូវលើហានិភ័យដោយខ្លួនឯង។",
   "✓ Confirm Add": "✓ បញ្ជាក់ការបន្ថែម",
   "📝 Configure providers in dashboard or use environment variables": "📝 កំណត់អ្នកផ្តល់សេវាក្នុងផ្ទាំងគ្រប់គ្រង ឬប្រើ Environment Variables",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ត្រូវការ OAuth។ បន្ថែមឥឡូវ ហើយផ្ទៀងផ្ទាត់បន្ទាប់ពីចុច អនុវត្ត; បញ្ជីឧបករណ៍នឹងត្រូវបានរកឃើញបន្ទាប់ពីការតភ្ជាប់លើកដំបូង។"
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ត្រូវការ OAuth។ បន្ថែមឥឡូវ ហើយផ្ទៀងផ្ទាត់បន្ទាប់ពីចុច អនុវត្ត; បញ្ជីឧបករណ៍នឹងត្រូវបានរកឃើញបន្ទាប់ពីការតភ្ជាប់លើកដំបូង។",
+  "Round Robin — by time": "ប្ដូរវេន — តាមពេលវេលា",
+  "Round Robin — by request count": "ប្ដូរវេន — តាមចំនួនសំណើ",
+  "Round Robin — by session": "ប្ដូរវេន — តាមវគ្គ",
+  "Rotate combo members after an idle window or at the request limit.": "ប្ដូរសមាជិកក្រុមក្រោយពេលទំនេរ ឬពេលដល់កម្រិតសំណើ។",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "ប្រើគណនីដដែលសម្រាប់ចំនួនសំណើជាប់គ្នាដែលបានកំណត់ រួចប្ដូរទៅគណនីបន្ទាប់ដែលអាចប្រើបាន។",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "វគ្គថ្មីប្ដូរតាមវេន។ រក្សាជម្រើសចុងក្រោយដែលជោគជ័យរហូតដល់ទំនេរ 30 នាទី។ បើមិនអាចប្រើបាន ជម្រើសជោគជ័យបន្ទាប់នឹងជំនួស។ បើគ្មានលេខសម្គាល់វគ្គ ប្រើការប្ដូរវេនធម្មតា។",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

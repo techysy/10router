@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Risikohinweis: Dieser Anbieter verwendet eine Abonnement-/OAuth-Sitzung, die nicht offiziell für die Proxy-/Router-Nutzung lizenziert ist. Das Konto kann eingeschränkt oder gesperrt werden. Nutzung auf eigene Gefahr.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM fängt HTTPS-Verkehr von IDE-Tools (Antigravity, GitHub Copilot, Kiro) über lokale CA ab, um Anfragen an Ihre Anbieter umzuleiten. Kann gegen ToS verstoßen → Risiko der Kontosperrung. Nutzung auf eigene Gefahr.",
   "Endpoint is exposed without an API key.": "Der Endpunkt ist ohne API-Schlüssel offengelegt.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Rundlauf — nach Zeit",
+  "Round Robin — by request count": "Rundlauf — nach Anfrageanzahl",
+  "Round Robin — by session": "Rundlauf — nach Sitzung",
+  "Rotate combo members after an idle window or at the request limit.": "Wechselt nach einer Leerlaufzeit oder beim Erreichen des Anfragelimits zum nächsten Kombinationsmitglied.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Verwendet dasselbe Konto für die festgelegte Zahl aufeinanderfolgender Anfragen und wechselt dann zum nächsten verfügbaren Konto.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Neue Sitzungen wechseln reihum. Die letzte erfolgreiche Auswahl bleibt bis zu 30 Minuten Inaktivität erhalten. Ist sie nicht verfügbar, übernimmt die nächste erfolgreiche Auswahl. Ohne Sitzungskennung gilt der normale Rundlauf.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

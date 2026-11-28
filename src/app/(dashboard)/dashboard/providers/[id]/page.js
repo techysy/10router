@@ -14,6 +14,8 @@ import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
+import { RoutingStrategySelect } from "@/shared/components/RoutingStrategySelect";
+import { SESSION_ROUND_ROBIN } from "open-sse/config/routingStrategies.js";
 import { useNotificationStore } from "@/store/notificationStore";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
@@ -890,7 +892,13 @@ export default function ProviderDetailPage() {
   };
 
   const handlePackOrSubStrategyChange = (value) => {
-    if (value === "round-robin") {
+    if (value === SESSION_ROUND_ROBIN) {
+      setEarliestExpiryFirst(false);
+      setDailyGrantFirst(false);
+      setProviderStrategy(value);
+      setBalanceStrategy("priority");
+      saveProviderStrategy(value, providerStickyLimit, false, "priority", false);
+    } else if (value === "round-robin") {
       setEarliestExpiryFirst(false);
       setProviderStrategy("round-robin");
       if (!providerStickyLimit) setProviderStickyLimit("1");
@@ -929,12 +937,12 @@ export default function ProviderDetailPage() {
       setDailyGrantFirst(true);
       setProviderStrategy(null);
       saveProviderStrategy(null, providerStickyLimit, false, "priority", true);
-    } else if (value === "round-robin") {
+    } else if (value === "round-robin" || value === SESSION_ROUND_ROBIN) {
       setEarliestExpiryFirst(false);
       setDailyGrantFirst(false);
-      setProviderStrategy("round-robin");
+      setProviderStrategy(value);
       if (!providerStickyLimit) setProviderStickyLimit("1");
-      saveProviderStrategy("round-robin", providerStickyLimit || "1", false, value, false);
+      saveProviderStrategy(value, providerStickyLimit || "1", false, value === SESSION_ROUND_ROBIN ? "priority" : value, false);
     } else {
       setEarliestExpiryFirst(false);
       setDailyGrantFirst(false);
@@ -2435,19 +2443,21 @@ export default function ProviderDetailPage() {
                 if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
                   // 资源包供应商的 usage 不暴露 daily/permanent 配对，daily-grant 选项不提供
                   // （历史上误存过 qoder-cn 的 dailyGrantFirst，fetchData 已兜底忽略）。
-                  const currentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
+                  const currentValue = earliestExpiryFirst ? "earliest" : (["round-robin", SESSION_ROUND_ROBIN].includes(providerStrategy) ? providerStrategy : "priority");
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-text-muted font-medium">
                           {translate("Scheduling Preference")}
                         </span>
-                        <Select
+                        <RoutingStrategySelect
+                          layer="account"
+                          accessibleLabel="Scheduling Preference"
                           value={currentValue}
                           onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                           options={[
                             { value: "earliest", label: translate("Earliest Pack Expiry") },
-                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "round-robin" },
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
@@ -2472,19 +2482,21 @@ export default function ProviderDetailPage() {
 
                 // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
                 if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
-                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (providerStrategy === "round-robin" ? "round-robin" : "priority"));
+                  const currentValue = earliestExpiryFirst ? "earliest" : (dailyGrantFirst ? "daily-grant" : (["round-robin", SESSION_ROUND_ROBIN].includes(providerStrategy) ? providerStrategy : "priority"));
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-text-muted font-medium">
                           {translate("Scheduling Preference")}
                         </span>
-                        <Select
+                        <RoutingStrategySelect
+                          layer="account"
+                          accessibleLabel="Scheduling Preference"
                           value={currentValue}
                           onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                           options={[
                             { value: "earliest", label: translate("Subscription Relay") },
-                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "round-robin" },
                             { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
@@ -2516,14 +2528,18 @@ export default function ProviderDetailPage() {
                   // (保存时 balanceStrategy 归 priority,不写 override)。
                   const currentValue = earliestExpiryFirst
                     ? "earliest-expiry"
-                    : (dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy));
+                    : providerStrategy === SESSION_ROUND_ROBIN && !dailyGrantFirst && !["lowest-first", "highest-first"].includes(balanceStrategy)
+                      ? SESSION_ROUND_ROBIN
+                      : (dailyGrantAllowed ? balanceStrategy : (balanceStrategy === "daily-grant" ? "priority" : balanceStrategy));
                   return (
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-text-muted font-medium">
                           {translate("Scheduling Preference")}
                         </span>
-                        <Select
+                        <RoutingStrategySelect
+                          layer="account"
+                          accessibleLabel="Scheduling Preference"
                           value={currentValue}
                           onChange={(e) => handleBalanceStrategyChange(e.target.value)}
                           options={[
@@ -2531,13 +2547,13 @@ export default function ProviderDetailPage() {
                             { value: "earliest-expiry", label: translate("Earliest Expiry First") },
                             { value: "lowest-first", label: translate("Lowest Balance First") },
                             { value: "highest-first", label: translate("Highest Balance First") },
-                            { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                            { value: "round-robin" },
                             ...(dailyGrantAllowed ? [{ value: "daily-grant", label: translate("Daily Grant First") }] : []),
                           ]}
                           selectClassName="!py-1 !text-xs w-48"
                         />
                       </div>
-                      {balanceStrategy === "round-robin" && (
+                      {currentValue === "round-robin" && (
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
                           <input
@@ -2564,19 +2580,21 @@ export default function ProviderDetailPage() {
                 }
 
                 // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
-                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (providerStrategy === "round-robin" ? "round-robin" : "priority");
+                const fallbackCurrentValue = earliestExpiryFirst ? "earliest" : (["round-robin", SESSION_ROUND_ROBIN].includes(providerStrategy) ? providerStrategy : "priority");
                 return (
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-text-muted font-medium">
                         {translate("Scheduling Preference")}
                       </span>
-                      <Select
+                      <RoutingStrategySelect
+                          layer="account"
+                          accessibleLabel="Scheduling Preference"
                         value={fallbackCurrentValue}
                         onChange={(e) => handlePackOrSubStrategyChange(e.target.value)}
                         options={[
                           { value: "earliest", label: translate("Earliest Expiry First") },
-                          { value: "round-robin", label: translate("Round Robin (Balanced)") },
+                          { value: "round-robin" },
                           { value: "priority", label: translate("Manual Priority (#1 → #2)") },
                         ]}
                         selectClassName="!py-1 !text-xs w-48"

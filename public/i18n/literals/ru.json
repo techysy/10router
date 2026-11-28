@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Уведомление о риске: Этот провайдер использует сессию подписки/OAuth, не имеющую официальной лицензии для использования через прокси/маршрутизатор. Аккаунт может быть ограничен или заблокирован. Используйте на свой страх и риск.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM перехватывает HTTPS-трафик IDE-инструментов (Antigravity, GitHub Copilot, Kiro) через локальный CA для перенаправления запросов вашим провайдерам. Может нарушить ToS → риск блокировки аккаунта. Используйте на свой страх и риск.",
   "Endpoint is exposed without an API key.": "Эндпоинт открыт без API-ключа.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Циклический выбор — по времени",
+  "Round Robin — by request count": "Циклический выбор — по числу запросов",
+  "Round Robin — by session": "Циклический выбор — по сессиям",
+  "Rotate combo members after an idle window or at the request limit.": "Переключает участника комбинации по истечении интервала простоя или при достижении лимита запросов.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Использует один аккаунт настроенное число запросов подряд, затем переходит к следующему доступному аккаунту.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Новые сессии распределяются по очереди. Последний успешный выбор сохраняется до 30 минут простоя. Если он недоступен, его заменяет следующий успешный. Без идентификатора сессии используется обычная ротация.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

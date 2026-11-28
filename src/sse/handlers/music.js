@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import { extractApiKey, isValidApiKey, checkApiKeyDailyLimit, checkApiKeyModelAccess, getProviderCredentials, markAccountUnavailable } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
@@ -168,7 +169,7 @@ export async function handleMusic(request) {
   const musicConfig = musicConfigFor(modelInfo.provider);
 
   if (musicConfig?.mode === "stepfun-async") {
-    return handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId);
+    return handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId, getRoutingIdentity(request, apiKey, body));
   }
 
   // Chat-native path (acemusic): ride the chat pipeline with the caller's
@@ -207,14 +208,14 @@ export async function handleMusic(request) {
 }
 
 // StepFun native async: credential loop → submit → bounded 5s poll → reshape.
-async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId = null) {
+async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferredConnectionId = null, routingIdentity) {
   const { provider, model } = modelInfo;
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;
 
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId, routingIdentity });
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const msg = lastError || credentials.lastError || "Unavailable";
@@ -229,6 +230,7 @@ async function handleNativeAsyncMusic(body, modelInfo, musicConfig, url, preferr
 
     const result = await runStepfunTask(body, credentials, musicConfig);
     if (result.success) {
+      credentials.commitSession?.([]);
       return Response.json(result.body, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 

@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Aviso de Riesgo: Este proveedor usa una sesión de suscripción/OAuth no licenciada oficialmente para uso de proxy/router. La cuenta puede ser restringida o baneada. Use bajo su propio riesgo.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM intercepta el tráfico HTTPS de herramientas IDE (Antigravity, GitHub Copilot, Kiro) mediante CA local para redirigir solicitudes a sus proveedores. Puede violar los ToS → riesgo de baneo de cuenta. Use bajo su propio riesgo.",
   "Endpoint is exposed without an API key.": "El endpoint está expuesto sin una clave de API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Rotación — por tiempo",
+  "Round Robin — by request count": "Rotación — por número de solicitudes",
+  "Round Robin — by session": "Rotación — por sesión",
+  "Rotate combo members after an idle window or at the request limit.": "Cambia de miembro del grupo tras un intervalo de inactividad o al alcanzar el límite de solicitudes.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Usa la misma cuenta para el número configurado de solicitudes consecutivas y luego pasa a la siguiente cuenta disponible.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Las sesiones nuevas se alternan. Cada sesión conserva la última opción exitosa hasta 30 minutos de inactividad; si no está disponible, la siguiente opción exitosa la sustituye. Sin identificador de sesión se usa la rotación habitual.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

@@ -15,6 +15,8 @@ import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { cn } from "@/shared/utils/cn";
 import { modelDisplayName } from "@/shared/utils/modelDisplayName";
 import { translate } from "@/i18n/runtime";
+import { RoutingStrategySelect, useRoutingLocale } from "@/shared/components/RoutingStrategySelect";
+import { SESSION_ROUND_ROBIN } from "open-sse/config/routingStrategies.js";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
@@ -53,12 +55,14 @@ function normalizeCapEntry(entry) {
 }
 
 export default function CombosPage() {
+  useRoutingLocale();
   const [combos, setCombos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState(null);
   const [activeProviders, setActiveProviders] = useState([]);
   const [comboStrategies, setComboStrategies] = useState({});
+  const [defaultStrategy, setDefaultStrategy] = useState("fallback");
   const [comboCardOrder, setComboCardOrder] = useState([]);
   const [draggingCardId, setDraggingCardId] = useState(null);
   const [dragOverCardId, setDragOverCardId] = useState(null);
@@ -67,9 +71,12 @@ export default function CombosPage() {
   const [confirmState, setConfirmState] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
+  // Deferred fetch (same shape as ConnectionsCard): calling it synchronously in
+  // an effect body trips react-hooks/set-state-in-effect.
   useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(fetchData, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -88,6 +95,7 @@ export default function CombosPage() {
         setActiveProviders(providersData.connections || []);
       }
       setComboStrategies(settingsData.comboStrategies || {});
+      setDefaultStrategy(settingsData.comboStrategy || "fallback");
       if (Array.isArray(settingsData.comboCardOrder)) {
         setComboCardOrder(settingsData.comboCardOrder);
       }
@@ -223,17 +231,18 @@ export default function CombosPage() {
       // window pinned even when the strategy falls back to the global one).
       const isDefaultStrategy = !next.fallbackStrategy || next.fallbackStrategy === "fallback";
       const hasExtras = !!next.retryOnEmpty || next.stickyWindowMinutes != null;
-      if (isDefaultStrategy && !hasExtras) {
+      if (isDefaultStrategy && !hasExtras && (defaultStrategy === "fallback" || !next.fallbackStrategy)) {
         delete updated[comboName];
       } else {
         updated[comboName] = next;
       }
 
-      await fetch("/api/settings", {
+      const response = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comboStrategies: updated }),
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       setComboStrategies(updated);
     } catch (error) {
@@ -260,7 +269,7 @@ export default function CombosPage() {
           </p>
           <ul className="text-sm text-text-muted mt-2 flex flex-col gap-1">
             <li><span className="font-medium text-text-main">{translate("Fallback")}</span> {translate("— tries models in order (next on failure)")}</li>
-            <li><span className="font-medium text-text-main">{translate("Round Robin")}</span> {translate("— rotates models across requests to spread load")}</li>
+            <li>{translate("Round Robin — by time")} / {translate("Round Robin — by session")}</li>
             <li><span className="font-medium text-text-main">{translate("Fusion")}</span> {translate("— queries all models in parallel, then a judge synthesizes one answer. Best quality, but costs the most: every request bills all panel models + the judge (N+1 calls)")}</li>
             <li><span className="font-medium text-text-main">{translate("Router")}</span> {translate("— decision model analyzes user prompt and selects the best-suited member model to answer (fast, capability-aware routing)")}</li>
           </ul>
@@ -316,6 +325,7 @@ export default function CombosPage() {
                   onDelete={() => handleDelete(combo.id)}
                   onPinToTop={handlePinToTop}
                   strategy={comboStrategies[combo.name] || {}}
+                  defaultStrategy={defaultStrategy}
                   onSetStrategy={(patch) => handleSetComboStrategy(combo.name, patch)}
                 />
               </DraggableCard>
@@ -378,16 +388,16 @@ const fmtK = (n) => {
 
 // Labels go through translate() — Select renders option.label verbatim.
 const STRATEGY_OPTIONS = [
-  { value: "fallback", label: translate("Fallback — try in order") },
-  { value: "round-robin", label: translate("Round Robin — rotate") },
-  { value: "fusion", label: translate("Fusion — panel + judge") },
-  { value: "router", label: translate("Router — decision model picks member") },
+  { value: "fallback", label: "Fallback — try in order" },
+  { value: "round-robin", label: "Round Robin — rotate" },
+  { value: "fusion", label: "Fusion — panel + judge" },
+  { value: "router", label: "Router — decision model picks member" },
 ];
 
-function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, onPinToTop, strategy = {}, onSetStrategy }) {
+function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], copied, onCopy, onEdit, onDelete, onPinToTop, strategy = {}, defaultStrategy, onSetStrategy }) {
   const [showJudgeSelect, setShowJudgeSelect] = useState(false);
   const [showRouterSelect, setShowRouterSelect] = useState(false);
-  const current = strategy.fallbackStrategy || "fallback";
+  const current = strategy.fallbackStrategy || defaultStrategy;
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
   const isRouter = current === "router";
@@ -507,7 +517,8 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
           {/* Strategy selector — always visible */}
           <div className="w-full sm:w-[200px]">
-            <Select
+            <RoutingStrategySelect
+              layer="combo"
               options={STRATEGY_OPTIONS}
               value={current}
               onChange={(e) => onSetStrategy({ fallbackStrategy: e.target.value })}
@@ -530,8 +541,8 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
             )}
             {/* Per-combo sticky window (minutes): overrides the global idle window
                 while this combo is round-robin. Empty = use the global setting.
-                Only shown for round-robin — fallback/fusion/router don't rotate. */}
-            {current === "round-robin" && (
+                Session rotation uses this window only for unidentified requests. */}
+            {(current === "round-robin" || current === SESSION_ROUND_ROBIN) && (
               <label
                 className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted"
                 title={translate("Minutes this combo keeps answering with the same model while active; after the idle window it rotates to the next. Empty = use the global setting (Settings page).")}

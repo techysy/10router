@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ הודעת סיכון: ספק זה משתמש במנוי/הפעלת OAuth שאינה מורשית רשמית לשימוש פרוקסי/ראוטר. החשבון עלול להיות מוגבל או חסום. השימוש על אחריותך בלבד.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM יירוט תעבורת HTTPS של כלי IDE (Antigravity, GitHub Copilot, Kiro) באמצעות CA מקומי כדי להפנות בקשות לספקים שלך. עלול להפר את תנאי השירות → סיכון חסימת חשבון. השימוש על אחריותך.",
   "Endpoint is exposed without an API key.": "נקודת הקצה חשופה ללא מפתח API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "סבב — לפי זמן",
+  "Round Robin — by request count": "סבב — לפי מספר בקשות",
+  "Round Robin — by session": "סבב — לפי הפעלה",
+  "Rotate combo members after an idle window or at the request limit.": "עובר לחבר הבא בקבוצה אחרי זמן חוסר פעילות או בהגעה למכסת הבקשות.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "משתמש באותו חשבון למספר הבקשות הרצופות שהוגדר, ואז עובר לחשבון הזמין הבא.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "הפעלות חדשות מוקצות בסבב. הבחירה המוצלחת האחרונה נשמרת עד 30 דקות של חוסר פעילות. אם אינה זמינה, הבחירה המוצלחת הבאה מחליפה אותה. ללא מזהה הפעלה משתמשים בסבב הרגיל.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

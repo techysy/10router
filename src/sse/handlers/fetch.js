@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import {
   getProviderCredentials,
   markAccountUnavailable,
@@ -172,8 +173,9 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
   // address different locks.
   const fetchLockKey = `webfetch:${providerId}`;
 
+  const routingIdentity = getRoutingIdentity(request, apiKey, body);
   while (true) {
-    const credentials = await getProviderCredentials(providerId, excludeConnectionIds, fetchLockKey);
+    const credentials = await getProviderCredentials(providerId, excludeConnectionIds, fetchLockKey, { routingIdentity });
 
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
@@ -210,13 +212,14 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
       onCredentialsRefreshed: async (newCreds) => {
         await persistRefreshedCredentials(credentials.connectionId, newCreds, {
           providerSpecificData: credentials.providerSpecificData,
-          provider,
+          provider: providerId,
           log,
         });
       }
     });
 
     if (result.success) {
+      credentials.commitSession?.([]);
       await clearAccountError(credentials.connectionId, credentials, fetchLockKey);
       return new Response(JSON.stringify(result.data), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }

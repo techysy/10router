@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import {
   getProviderCredentials,
   markAccountUnavailable,
@@ -87,8 +88,9 @@ export async function handleRerank(request) {
   let lastError = null;
   let lastStatus = null;
 
+  const routingIdentity = getRoutingIdentity(request, apiKey, body);
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+  const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { routingIdentity });
 
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
@@ -119,6 +121,7 @@ export async function handleRerank(request) {
     });
 
     if (result.success) {
+      credentials.commitSession?.([]);
       if (result.usage) {
         saveRequestUsage({
           provider,

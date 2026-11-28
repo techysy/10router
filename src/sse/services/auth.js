@@ -14,6 +14,8 @@ import { SENSITIVE_PROVIDERS } from "./backgroundTokenRefresh.js";
 import { hashApiKey } from "@/lib/db/crypto/apiKeyIdentity.js";
 import { errorResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { SESSION_ROUND_ROBIN } from "open-sse/config/routingStrategies.js";
+import { accountSessions } from "open-sse/services/sessionAffinity.js";
 import { resolveRequestLocale, serverTranslate } from "@/i18n/serverTranslate.js";
 import * as log from "../utils/logger.js";
 
@@ -701,6 +703,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // branches that log nothing (pinned / round-robin / fill-first) instead of
     // repeating the same tag twice for relay and pack-asset picks.
     let quotaLogged = false;
+    let commitSession;
+    const sessionPlan = strategy === SESSION_ROUND_ROBIN && !dailyRelayActive && !earliestExpiryFirst
+      ? accountSessions.plan(providerId, options.routingIdentity, connections.map((c) => c.id))
+      : null;
     // Pin to preferred connection if specified and available
     if (preferredConnectionId) {
       connection = orderedConnections.find((c) => c.id === preferredConnectionId);
@@ -771,7 +777,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       quotaLogged = true;
       // Persist the carrier stamp so subsequent requests keep using this account.
       await updateProviderConnection(connection.id, { lastUsedAt: new Date().toISOString() });
-    } else if (strategy === "round-robin") {
+    } else if (sessionPlan) {
+      const eligible = new Map(orderedConnections.map((c) => [c.id, c]));
+      connection = eligible.get(sessionPlan.order.find((id) => eligible.has(id)));
+      if (excludeSet.size === 0) sessionPlan.advance(connection.id);
+      commitSession = (ids) => sessionPlan.commit(connection.id, ids);
+    } else if (strategy === "round-robin" || strategy === SESSION_ROUND_ROBIN) {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
       // Sort by lastUsed (most recent first) to find current candidate
@@ -860,6 +871,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         strictProxy: connectionStrictProxy,
       },
       connectionId: connection.id,
+      ...(commitSession ? { commitSession } : {}),
       // Include current status for optimization check
       testStatus: connection.testStatus,
       lastError: connection.lastError,

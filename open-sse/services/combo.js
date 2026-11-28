@@ -8,6 +8,9 @@ import { unavailableResponse, isTransportFault } from "../utils/error.js";
 import { isTransportCooling, recordTransportFailure, recordTransportSuccess, transportCoolingRemainingMs, resetComboBreaker, resetAllBreakers } from "./comboTransportBreaker.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
+import { SESSION_ROUND_ROBIN } from "../config/routingStrategies.js";
+import { comboSessions } from "./sessionAffinity.js";
+import { onSessionResponse } from "./sessionResponse.js";
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -298,6 +301,7 @@ export function getRotatedModels(models, comboName, strategy, stickyLimit = 0, s
 export function resetComboRotation(comboName) {
   if (comboName) comboRotationState.delete(comboName);
   else comboRotationState.clear();
+  comboSessions.reset(comboName);
   // #176: the transport breaker is the same kind of in-memory scheduling state,
   // and the caller is always a config save (combo PUT/DELETE) or a global
   // settings PATCH. Editing a combo must not leave it parked behind a cooldown
@@ -430,9 +434,13 @@ export function isZeroContentResponse(data) {
  *   before the gate stops engaging (each replay re-bills the full input context)
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 0, comboStickyWindowMinutes, autoSwitch = true, retryOnEmpty = false, retryOnEmptyLimit = DEFAULT_EMPTY_RETRY_LIMIT }) {
-  // Apply rotation strategy if enabled
-  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit, comboStickyWindowMinutes);
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 0, comboStickyWindowMinutes, autoSwitch = true, retryOnEmpty = false, retryOnEmptyLimit = DEFAULT_EMPTY_RETRY_LIMIT, routingIdentity }) {
+  // Only chat callers opt in (routingIdentity is undefined for the media paths,
+  // null = chat without a reliable identity → session plan never engages).
+  const bySession = comboStrategy === SESSION_ROUND_ROBIN && routingIdentity !== undefined;
+  const plan = bySession && comboName && routingIdentity ? comboSessions.plan(comboName, routingIdentity, models) : null;
+  let rotatedModels = plan?.order
+    || getRotatedModels(models, comboName, comboStrategy === SESSION_ROUND_ROBIN ? "round-robin" : comboStrategy, comboStickyLimit, comboStickyWindowMinutes);
 
   // Auto-switch: float models that satisfy the request's required capabilities to the front.
   if (autoSwitch) {
@@ -464,6 +472,8 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       log.warn("COMBO", `${cooled.length}/${rotatedModels.length} member(s) transport-dead, deferred to the back: ${cooled.map((m) => `${m}(${Math.round(transportCoolingRemainingMs(comboName, m) / 1000)}s)`).join(", ")}`);
     }
   }
+
+  if (plan) plan.advance(rotatedModels[0]);
 
   let lastError = null;
   let earliestRetryAfter = null;
@@ -540,12 +550,15 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
             continue;
           }
           log.info("COMBO", `Model ${modelStr} succeeded`);
+          if (plan) onSessionResponse(gate.response, (ids) => plan.commit(modelStr, ids), result);
+          else if (routingIdentity && gate.response !== result) onSessionResponse(gate.response, null, result);
           return gate.response;
         }
         if (retryOnEmpty && hasFallback && emptyRetries >= retryOnEmptyLimit) {
           log.warn("COMBO", `Model ${modelStr}: empty-retry budget (${retryOnEmptyLimit}) exhausted, returning response as-is`);
         }
         log.info("COMBO", `Model ${modelStr} succeeded`);
+        if (plan) onSessionResponse(result, (ids) => plan.commit(modelStr, ids));
         return result;
       }
 

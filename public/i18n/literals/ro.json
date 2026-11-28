@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Notificare de risc: Acest furnizor folosește un abonament/sesiune OAuth care nu este licențiat oficial pentru utilizare proxy/router. Contul poate fi restricționat sau interzis. Utilizați pe propriul risc.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM interceptează traficul HTTPS al instrumentelor IDE (Antigravity, GitHub Copilot, Kiro) prin CA locală pentru a redirecționa cererile către furnizorii dvs. Poate încălca ToS → risc de interzicere a contului. Utilizați pe propriul risc.",
   "Endpoint is exposed without an API key.": "Endpointul este expus fără o cheie API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Rotație — după timp",
+  "Round Robin — by request count": "Rotație — după numărul de cereri",
+  "Round Robin — by session": "Rotație — după sesiune",
+  "Rotate combo members after an idle window or at the request limit.": "Schimbă membrul combinației după un interval de inactivitate sau la atingerea limitei de cereri.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Păstrează același cont pentru numărul configurat de cereri consecutive, apoi trece la următorul cont disponibil.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Sesiunile noi sunt repartizate prin rotație. Ultima alegere reușită rămâne valabilă până la 30 de minute de inactivitate. Dacă nu este disponibilă, este înlocuită de următoarea alegere reușită. Fără ID de sesiune se folosește rotația obișnuită.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

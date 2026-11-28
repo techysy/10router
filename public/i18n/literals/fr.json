@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Avis de risque : Ce fournisseur utilise une session d'abonnement/OAuth non officiellement autorisée pour une utilisation proxy/routeur. Le compte peut être restreint ou banni. Utilisez à vos propres risques.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM intercepte le trafic HTTPS des outils IDE (Antigravity, GitHub Copilot, Kiro) via une CA locale pour rediriger les requêtes vers vos fournisseurs. Peut violer les CGU → risque de bannissement de compte. Utilisez à vos propres risques.",
   "Endpoint is exposed without an API key.": "Le point de terminaison est exposé sans clé API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Rotation — par temps",
+  "Round Robin — by request count": "Rotation — par nombre de requêtes",
+  "Round Robin — by session": "Rotation — par session",
+  "Rotate combo members after an idle window or at the request limit.": "Change de membre du groupe après un délai d’inactivité ou à la limite de requêtes.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Garde le même compte pour le nombre configuré de requêtes consécutives, puis passe au compte disponible suivant.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Les nouvelles sessions alternent. Le dernier choix réussi est conservé pendant 30 min d’inactivité ; s’il devient indisponible, le prochain choix réussi prend le relais. Sans identifiant de session, la rotation habituelle s’applique.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }
