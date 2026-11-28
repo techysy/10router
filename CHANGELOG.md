@@ -2,7 +2,7 @@
 
 > 面向用户的精简更新见 [`public/i18n/changelog/`](https://github.com/techysy/10router/tree/main/public/i18n/changelog)（`en.md` / `zh-CN.md` / `zh-TW.md`，仪表盘「Change Log」按界面语言加载对应文件）。本文件为完整开发日志，按版本从上往下排列。
 
-## v1.8.5（2026-11-27）
+## v1.8.5（2026-11-28）
 
 - **Croli 整体下架**（2026-11-28，用户「Croli 直接下架吧 有问题 不能使用了」）：供应商接入后通道持续不稳——2026-11-25 上游开始按客户端版本放行免费模型（403「请将 Croli 升级到最新版本 (0.0.18 及以上)」，transport 补 `User-Agent: croli/0.0.19` 指纹才解），此后问题仍未断，上游放行口径反复变动、修不胜修，判定不可再用。摘除面照 APInex 整体下架先例做全：registry 条目 + 图标、OAuth 实现（`lib/oauth/providers/croli.js` + `CROLI_CONFIG`）、credits 服务与 usage 读取、每日任务调度器（`croliCheckin`，含 chat.js 的 completed-turn 上报与 experimental 页开关）、`/api/croli/*` 路由、连接测试分支、详情页积分面板、额度卡钱包行、`/api/usage` 两处 croli 余额排除特判、四语词典全部 croli 词条（含仅由 croli 产出的 `Trial daily allowance` 行名）。残留连接是新查出的隐患：注册表没有 croli 后，`DefaultExecutor` 的 `PROVIDERS[provider] || PROVIDERS.openai` 回退会让那条行**带着用户 token 去打 api.openai.com**。故补 `migrations/009-delist-croli-connections.js` 把残留 `provider="croli"` 行置 `isActive=0` 并在 data 里记 `delistReason`（不删凭据；blob 解析不了时只改列、字节原样保留，同 003 的教训），数据迁移不提升 `SCHEMA_VERSION`（TABLES 未变，版本链独立执行）。其余面核实安全：后台刷新跳过未知 provider 并 warn、`/v1/models` 与 `/api/models` 只列现存供应商、拓扑图早有不进注册表供应商的幽灵行过滤（`UsageStats.js` 的 `!AI_PROVIDERS[c.provider]`）。测试与基线同步：删 3 个 croli 专属测试文件、4 处 croli 断言改为下架说明、golden 快照与 known-inventory 摘除对应键（32 条），providers/alias 基线重快照（192→191 providers）。
 

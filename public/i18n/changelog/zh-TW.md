@@ -2,7 +2,7 @@
 
 這裡展示面向用戶的關鍵更新；完整開發明細見 [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md)。
 
-## v1.8.5（2026-11-27）
+## v1.8.5（2026-11-28）
 
 ### ✨ 新增
 

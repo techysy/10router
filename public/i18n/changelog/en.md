@@ -2,7 +2,7 @@
 
 User-facing highlights per release. See [CHANGELOG.md](https://github.com/techysy/10router/blob/main/CHANGELOG.md) for the full developer log.
 
-## v1.8.5 (2026-11-27)
+## v1.8.5 (2026-11-28)
 
 ### ✨ New
 
