@@ -174,23 +174,22 @@ import p171 from "./zcode-free.js";
 import p172 from "./zed.js";
 import p173 from "./deepai.js";
 import p174 from "./nous.js";
-import p175 from "./croli.js";
-import p176 from "./crowllm.js";
-import p177 from "./capy.js";
-import p178 from "./amazonquick.js";
-import p179 from "./qwenwork.js";
-import p180 from "./qwenwork-cn.js";
-import p181 from "./numes.js";
-import p182 from "./atlascloud.js";
-import p183 from "./junie.js";
-import p184 from "./autoclaw.js";
-import p185 from "./autoclaw-cn.js";
-import p186 from "./atomcode.js";
-import p187 from "./clixad.js";
-import p188 from "./freepi.js";
-import p189 from "./xiaohuanxiong.js";
-import p190 from "./orcaterm.js";
-import p191 from "./quwork.js";
+import p175 from "./crowllm.js";
+import p176 from "./capy.js";
+import p177 from "./amazonquick.js";
+import p178 from "./qwenwork.js";
+import p179 from "./qwenwork-cn.js";
+import p180 from "./numes.js";
+import p181 from "./atlascloud.js";
+import p182 from "./junie.js";
+import p183 from "./autoclaw.js";
+import p184 from "./autoclaw-cn.js";
+import p185 from "./atomcode.js";
+import p186 from "./clixad.js";
+import p187 from "./freepi.js";
+import p188 from "./xiaohuanxiong.js";
+import p189 from "./orcaterm.js";
+import p190 from "./quwork.js";
 
 export default [
   p0,
@@ -384,5 +383,4 @@ export default [
   p188,
   p189,
   p190,
-  p191,
 ];

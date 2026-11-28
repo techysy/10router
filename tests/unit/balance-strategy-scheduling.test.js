@@ -291,17 +291,6 @@ describe("新归类为 PURE_BALANCE 的供应商 — 余额排序真的接通", 
     });
   }
 
-  it("croli 保持 GENERIC — 钱包积分不参与余额调度（不得成为路由信号）", async () => {
-    mocks.getProviderConnections.mockResolvedValue([
-      { id: "hi", provider: "croli", priority: 1, quotaBalance: 9000 },
-      { id: "lo", provider: "croli", priority: 2, quotaBalance: 120 },
-    ]);
-    mocks.getSettings.mockResolvedValue({
-      fallbackStrategy: "fill-first",
-      providerStrategies: { croli: { balanceStrategy: "lowest-first" } },
-    });
-
-    // 非 PURE_BALANCE → 余额排序臂不参与，仍按手动优先级取 #1
-    expect((await getProviderCredentials("croli")).connectionId).toBe("hi");
-  });
+  // croli 的「钱包积分不参与余额调度」用例随供应商下架移除（2026-11-28）：
+  // 注册表已无 croli，账号选择链对它的连接只会按未知 provider 正常降级。
 });

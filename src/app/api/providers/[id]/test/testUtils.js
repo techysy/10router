@@ -44,7 +44,6 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
-import { testCroliConnection } from "./croliConnection.js";
 import { testQuworkConnection } from "./quworkConnection.js";
 import { fetchOrcaTermBilling, refreshOrcaTermToken } from "open-sse/shared/orcaterm/auth.js";
 import { buildAccountValidationMessage } from "open-sse/utils/error.js";
@@ -2053,11 +2052,7 @@ export async function testSingleConnection(id, options = {}) {
   // sk- key → /models, session cookie → Preview model — lives in the apikey
   // path's provider switch. Route xiaomi-mimo there regardless of authType,
   // otherwise the Test button reports "Provider test not supported".
-  // Croli verifies OAuth connectivity through its read-only balance endpoint;
-  // no model request is issued and no trial credits are spent.
-  if (connection.provider === "croli") {
-    result = await testCroliConnection(connection, effectiveProxy);
-  } else if (connection.provider === "quwork") {
+  if (connection.provider === "quwork") {
     result = await testQuworkConnection(connection, effectiveProxy);
   } else if (connection.provider === "meoo") {
     // Meoo routes here regardless of authType: the paste-key import stores

@@ -88,27 +88,6 @@ describe("Usage Quota & Provider Limits i18n", () => {
     expect(tableSrc).toContain("export { translateQuotaName }");
   });
 
-  it("Croli quota card strings are localized (trial row name, wallet line, credits unit)", () => {
-    expect(zhCN["Trial daily allowance"]).toBe("试用每日额度");
-    expect(zhCN["Croli wallet balance"]).toBe("Croli 钱包余额");
-    expect(zhCN["Separate from daily trial quota"]).toBe("与每日试用额度分开");
-    expect(zhCN["credits"]).toBe("积分");
-    expect(zhTW["Trial daily allowance"]).toBe("試用每日額度");
-    expect(zhTW["Croli wallet balance"]).toBe("Croli 錢包餘額");
-    expect(zhTW["Separate from daily trial quota"]).toBe("與每日試用額度分開");
-    expect(zhTW["credits"]).toBe("積分");
-
-    // The wallet line must pipe its strings through translate(), not render
-    // them as hardcoded JSX text (the row name goes via QuotaTable's
-    // translateQuotaName, which resolves through the same dictionaries).
-    const indexSrc = readFileSync(
-      resolve(rootDir, "src/app/(dashboard)/dashboard/usage/components/ProviderLimits/index.js"),
-      "utf8",
-    );
-    expect(indexSrc).toContain('{translate("Croli wallet balance")}');
-    expect(indexSrc).toContain("{translate(\"credits\")}");
-    expect(indexSrc).toContain('{translate("Separate from daily trial quota")}');
-    expect(indexSrc).not.toMatch(/>Croli wallet balance </);
-    expect(indexSrc).not.toMatch(/>Separate from daily trial quota</);
-  });
+  // Croli 额度卡（钱包行 + 「与每日试用额度分开」）随供应商下架一并摘除；
+  // 通用词条 "credits" 留在各语言字典里，不再单独断言。
 });

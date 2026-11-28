@@ -41,7 +41,6 @@ import { getClixadUsage } from "./usage/clixad.js";
 import { getFreePiUsage } from "./usage/freepi.js";
 import { getAtomCodeUsage } from "./usage/atomcode.js";
 import { getTraeUsage } from "./usage/trae.js";
-import { getCroliUsage } from "./usage/croli.js";
 import { getQuworkUsage } from "./usage/quwork.js";
 import { getXiaohuanxiongUsage } from "./usage/xiaohuanxiong.js";
 import { extractEarliestPackageExpiry } from "./usage/expiryExtractor.js";
@@ -145,7 +144,6 @@ const USAGE_HANDLERS = {
   // ——api.trae.ai 的 pay 端点 404（TLB 网关层不存在），数据只在官网 dashboard
   // 前端（网页会话线，未考古）。intl 连接给指路文案而不是空 "not implemented"。
   "trae-cn": (c) => getTraeUsage(c.accessToken, c.proxyOptions),
-  croli: (c) => getCroliUsage(c.accessToken, c.proxyOptions),
   quwork: (c) => getQuworkUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   // AutoClaw（智谱澳龙）积分钱包 + 每日签到状态；域按 token 的 JWT source_id 走。
   autoclaw: (c) => getAutoclawUsage("autoclaw", c, c.proxyOptions),

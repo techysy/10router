@@ -66,10 +66,6 @@ describe("getProviderQuotaCategory", () => {
     }
   });
 
-  // croli 的 usage 注释明确「never insert wallet credits into quotas, where
-  // they could drive account routing」——钱包积分是账本奖励，不是推理预算，
-  // 不得成为路由信号，必须保持 GENERIC（不进余额调度）。
-  it("keeps croli GENERIC — its wallet credits must never drive routing", () => {
-    expect(getProviderQuotaCategory("croli")).toBe(PROVIDER_QUOTA_TYPES.GENERIC);
-  });
+  // croli 曾钉住「钱包积分不得成为路由信号」的 GENERIC 例外；2026-11-28 供应商
+  // 下架后该断言失去对象（providerCategories 里的 ⚠️ croli 注释同步说明原因）。
 });

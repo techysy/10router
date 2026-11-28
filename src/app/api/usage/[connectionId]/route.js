@@ -253,9 +253,7 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
       // to show (dumate: spent subscription + permanent top-up). So it is computed
       // unconditionally and written in both branches below.
       const displayInfo = extractDisplayPackageExpiry(usage);
-      // Croli wallet credits are display-only rewards, not model budget. Keep
-      // them out of quotaBalance so pure-balance routing cannot sort on them.
-      const parsedBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
+      const parsedBalance = extractConnectionBalance(usage);
       const balancePatch = typeof parsedBalance === "number" ? { quotaBalance: parsedBalance } : {};
       const displayPatch = {
         displayPackageExpiry: displayInfo?.expiry || null,
@@ -323,7 +321,7 @@ async function computeConnectionUsageUncached(connection, { force = false } = {}
         }
         // Update balance if extracted from claimed rows
         try {
-          const extBalance = connection.provider === "croli" ? null : extractConnectionBalance(usage);
+          const extBalance = extractConnectionBalance(usage);
           if (typeof extBalance === "number") {
             await updateProviderConnection(connection.id, { quotaBalance: extBalance });
           }

@@ -1527,17 +1527,6 @@
     "clientId": "hermes-cli",
     "tokenUrl": "https://portal.nousresearch.com/api/oauth/token"
   },
-  "croli": {
-    "baseUrl": "https://ds.croli.net/v1/chat/completions",
-    "validateUrl": "https://ds.croli.net/v1/models",
-    "headers": {
-      "User-Agent": "croli/0.0.19"
-    },
-    "timeoutMs": 120000,
-    "format": "openai",
-    "clientId": "znV4SkcUsY1AektQ",
-    "tokenUrl": "https://clerk.croli.net/oauth/token"
-  },
   "crowllm": {
     "baseUrl": "https://crowllm.com/v1/chat/completions",
     "validateUrl": "https://crowllm.com/v1/models",

@@ -24,7 +24,6 @@ import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
-import CroliCreditsPanel from "./CroliCreditsPanel";
 import DumateQrModal from "../components/DumateQrModal";
 import OrcaTermOAuthModal from "@/shared/components/OrcaTermOAuthModal";
 import LingxiCaptureModal from "../components/LingxiCaptureModal";
@@ -116,7 +115,6 @@ export default function ProviderDetailPage() {
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
   const [oauthTransferEnabled, setOauthTransferEnabled] = useState(false); // per-provider toggle (falls back to legacy global)
-  const [croliAutoCheckin, setCroliAutoCheckin] = useState(false);
   const [codeBuddyCheckinEnabled, setCodeBuddyCheckinEnabled] = useState(false); // experimental auto daily check-in toggle
   const [codeBuddyCompensationEnabled, setCodeBuddyCompensationEnabled] = useState(false); // experimental auto compensation toggle
   // cbcn check-in manual trigger: running flag (per-account results go to the
@@ -531,7 +529,6 @@ export default function ProviderDetailPage() {
   // Must appear in every action row — single-auth providers (minimax-code is
   // OAuth-only) take the non-dual branch, which once lacked it.
   const hasClaimCheckin = ["qoder", "qoder-cn", "minimax-code", "minimax-code-global", "trae", "trae-cn"].includes(providerId);
-  const showCroliCredits = providerId === "croli";
   /**
    * The Export/Import button pair, hoisted out of the dual-auth-only branch.
    *
@@ -750,7 +747,6 @@ export default function ProviderDetailPage() {
       const nodesData = await nodesRes.json();
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-      if (providerId === "croli") setCroliAutoCheckin(settingsData.croliCheckin === true);
       if (connectionsRes.ok) {
         const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
         setConnections(filtered);
@@ -2826,7 +2822,6 @@ export default function ProviderDetailPage() {
                       {renderOAuthTransferButtons("w-full sm:w-auto")}
                       {codeBuddyCheckinOn && renderCbCheckinBlock()}
                       {hasClaimCheckin && renderQoderCheckinBlock()}
-                      {showCroliCredits && <CroliCreditsPanel connections={connections} initialAutoCheckin={croliAutoCheckin} />}
                     </>
                   ) : (
                     <>
@@ -2845,7 +2840,6 @@ export default function ProviderDetailPage() {
                       )}
                       {renderOAuthTransferButtons("w-full sm:w-auto")}
                       {hasClaimCheckin && renderQoderCheckinBlock()}
-                      {showCroliCredits && <CroliCreditsPanel connections={connections} initialAutoCheckin={croliAutoCheckin} />}
                     </>
                   )}
                 </div>

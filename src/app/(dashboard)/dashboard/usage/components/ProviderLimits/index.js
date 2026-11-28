@@ -467,8 +467,6 @@ export default function ProviderLimits() {
         plan: data.plan || null,
         message: data.message || null,
         raw: data,
-        ...(provider === "croli" && Number.isFinite(data.croli?.walletPoints)
-          ? { croliWalletPoints: data.croli.walletPoints } : {}),
         cachedAt: new Date().toISOString(),
       };
 
@@ -1795,7 +1793,7 @@ export default function ProviderLimits() {
                     </span>
                     <p className="mt-1.5 text-xs text-text-muted">{error}</p>
                   </div>
-                ) : quota?.message && !Number.isFinite(quota?.croliWalletPoints) ? (
+                ) : quota?.message ? (
                   <div className="text-center py-5">
                     <p className="text-xs text-text-muted">{quota.message}</p>
                   </div>
@@ -1807,12 +1805,6 @@ export default function ProviderLimits() {
                         rather than as a filtered one. Say what happened instead.
                         Every hidden row is reachable from the chips below, so
                         point at them. */}
-                    {conn.provider === "croli" && Number.isFinite(quota?.croliWalletPoints) && (
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-2 text-xs" data-croli-wallet-display="true">
-                        <span className="text-text-muted">{translate("Croli wallet balance")} <span className="font-medium text-text">{quota.croliWalletPoints.toLocaleString()}</span> {translate("credits")}</span>
-                        <span className="text-text-muted">{translate("Separate from daily trial quota")}</span>
-                      </div>
-                    )}
                     {visibleQuotas.length === 0 && rawQuotas.length > 0 && (
                       <div className="text-center py-5">
                         <span className="material-symbols-outlined text-[28px] text-text-muted opacity-40">

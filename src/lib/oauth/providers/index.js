@@ -16,7 +16,6 @@ import qoderCn from "./qoder-cn.js";
 import qwenwork from "./qwenwork.js";
 import qwenworkCn from "./qwenwork-cn.js";
 import meoo from "./meoo.js";
-import croli from "./croli.js";
 import nous from "./nous.js";
 import junie from "./junie.js";
 import github from "./github.js";
@@ -57,7 +56,6 @@ const PROVIDERS = {
   qwenwork,
   "qwenwork-cn": qwenworkCn,
   meoo,
-  croli,
   nous,
   junie,
   github,

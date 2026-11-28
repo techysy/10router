@@ -70,6 +70,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 ### 🧹 Catalog recalibration
 
+- **Croli delisted**: the channel stayed unreliable after we shipped it (upstream kept changing how it gates clients — free models had already started returning 403 behind a client-version check). Croli is removed from the provider list, the model catalog and the quota panels. Requests still pointing at a croli model (a combo you built earlier, a manually locked model) will no longer be served by it — re-pick another channel in your combos / connections. Existing Croli connections are automatically marked inactive (credentials kept, nothing is ever sent through them again); delete them whenever you like. No other provider is affected.
+
 - **The free badge on QwenWork CN "member-exclusive free" model rows now explains itself**: hovering the free badge on a model row now carries the upstream promotion's own wording (「会员限免」/「限时1折」— member-exclusive free / limited-time 10% price), making clear the free ride comes from the member perk or a running promo rather than a lasting free quota. Rows without a promotion are unchanged.
 
 

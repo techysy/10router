@@ -103,9 +103,9 @@ const PURE_BALANCE_PROVIDERS = new Set([
   "autoclaw-cn",
   "clixad",
   "freepi",
-  // ⚠️ croli **刻意不加**：其 usage 源码注释明确「never insert wallet credits
-  //  into quotas, where they could drive account routing」——钱包积分是账本奖励，
-  // 不是推理预算，也不得成为路由信号（测试钉住这条排除）。
+  // ⚠️ croli 曾**刻意不加**（其 usage 注释明确「never insert wallet credits into
+  //  quotas」——钱包积分是账本奖励，不得成为路由信号）。2026-11-28 供应商下架，
+  // 该例外失去对象，原断言随测试一并移除；此处保留一行说明，防止下轮又有人补进来。
 ]);
 
 const GATEWAY_FREE_PROVIDERS = new Set([

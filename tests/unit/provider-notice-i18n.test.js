@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import capyRegistry from "open-sse/providers/registry/capy.js";
 import commandCodeRegistry from "open-sse/providers/registry/commandcode.js";
-import croliRegistry from "open-sse/providers/registry/croli.js";
 import crowllmRegistry from "open-sse/providers/registry/crowllm.js";
 import mimoDesktopRegistry from "open-sse/providers/registry/mimo-desktop.js";
 import nousRegistry from "open-sse/providers/registry/nous.js";
@@ -106,28 +105,8 @@ describe("Nous Portal notice i18n", () => {
   });
 });
 
-// Same contract as Nous Portal above: the Croli (#156) and CrowLLM notices
+// Same contract as Nous Portal above: the CrowLLM notice
 // shipped with the English text only \u2014 translate() renders it raw in a Chinese UI.
-describe("Croli notice i18n", () => {
-  const noticeKey = croliRegistry.display?.notice?.text;
-
-  it("the Croli card has a notice naming the Clerk flow and the daily rewards", () => {
-    expect(noticeKey).toBeTruthy();
-    expect(noticeKey).toContain("Clerk");
-    expect(noticeKey).toContain("Daily check-in");
-  });
-
-  it("both Chinese dictionaries carry the Croli notice", () => {
-    for (const locale of ["zh-CN", "zh-TW"]) {
-      const dict = JSON.parse(
-        readFileSync(resolve(rootDir, `public/i18n/literals/${locale}.json`), "utf8"),
-      );
-      expect(dict[noticeKey], `${locale} notice entry`).toBeTruthy();
-      expect(dict[noticeKey], `${locale} notice is translated`).toMatch(/[\u4e00-\u9fff]/);
-    }
-  });
-});
-
 describe("CrowLLM notice i18n", () => {
   const noticeKey = crowllmRegistry.display?.notice?.text;
 

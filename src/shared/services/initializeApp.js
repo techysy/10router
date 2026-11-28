@@ -196,13 +196,8 @@ async function runHeavyStartup() {
       .catch((e) => console.log("[QuworkCheckin] scheduler start failed:", e.message));
   }
 
-  // Croli daily check-in and server-claimable rewards are opt-in. The scheduler
-  // never creates model conversations; successful user chats report their own event.
-  if (settings.croliCheckin === true) {
-    import("@/sse/services/croliCheckin.js")
-      .then(({ startCroliCheckin }) => startCroliCheckin())
-      .catch((e) => console.log("[CroliCheckin] scheduler start failed:", e.message));
-  }
+  // Croli 已下架（2026-11-28）：daily check-in 调度器随 registry 条目一并摘除；
+  // 库里残留的 settings.croliCheckin 不再有任何消费者。
 
   // Auto daily check-in for Lingxi connections (daily_check_in claim, ported
   // from CreditDaddy lingxiClient). Cookie-jar connections; tasks-state gate

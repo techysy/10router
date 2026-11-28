@@ -46,10 +46,8 @@ export const QWENWORK_CN_CONFIG = { ...PROVIDER_OAUTH["qwenwork-cn"] };
 // at login is what the gateway accepts (see providers/meoo.js).
 export const MEOO_CONFIG = { ...PROVIDER_OAUTH["meoo"] };
 
-// Croli（croli.net）— Clerk OAuth application（public client，PKCE S256，无 secret）。
-// issuer clerk.croli.net；credits 池与模型网关在不同域（ds.croli.net/credits 与
-// ds.croli.net/v1），sk 领取在 api.croli.net —— 由 registry 条目的 oauth 块携带。
-export const CROLI_CONFIG = { ...PROVIDER_OAUTH["croli"] };
+// Croli（croli.net）— 2026-11-28 下架：上游反复按客户端版本/风控改放行口径，通道不可靠。
+// registry 条目、oauth 实现与 CROLI_CONFIG 全部摘除（无残留 import 点）。
 
 // iFlow OAuth Configuration (Authorization Code)
 export const IFLOW_CONFIG = { ...PROVIDER_OAUTH["iflow"] };

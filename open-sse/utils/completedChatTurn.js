@@ -4,8 +4,9 @@ const ACCEPTED_OPENAI_FINISH = new Set(["stop", "tool_calls"]);
 const ACCEPTED_CLAUDE_STOP = new Set(["end_turn", "stop_sequence", "tool_use"]);
 
 /**
- * A Croli chat event means one user request reached a provider-authored terminal.
- * Never infer completion from HTTP 200, EOF, or a parser's default stop reason.
+ * A completed chat turn means one user request reached a provider-authored
+ * terminal. Never infer completion from HTTP 200, EOF, or a parser's default
+ * stop reason.
  */
 export function isCompletedChatResponse(body, upstreamFormat) {
   if (!body || typeof body !== "object" || body.error) return false;
