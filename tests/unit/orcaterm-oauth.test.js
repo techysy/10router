@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
 import { ORCATERM_CONFIG } from "../../open-sse/config/orcaterm.js";
@@ -21,9 +22,12 @@ const sessions = [];
 const token = () => `e30.${Buffer.from(JSON.stringify({
   userId: "wechat-user", providerUsername: "Orca user", exp: Math.floor(Date.now() / 1000) + 7200,
 })).toString("base64url")}.private-signature`;
-const config = () => ({ code: 0, data: {
-  appid: "wx-test", state: `state-${sessions.length}`, scope: "snsapi_login", redirect_uri: ORCATERM_CONFIG.bridgeUrl,
-} });
+const refresh = () => `${token().split(".")[0]}.refresh.private-refresh`;
+const exchangeUrl = `${ORCATERM_CONFIG.apiUrl}?action=OAuthExchangeToken`;
+const granted = () => Response.json({ data: { Response: {
+  Code: 0, AccessToken: token(), RefreshToken: refresh(), ExpiresIn: 7200,
+  User: { UserId: "wechat-user", Provider: "wechat", Username: "Orca user" },
+} } });
 const request = (action, body = {}, headers = {}) => POST(new Request(`http://localhost/api/oauth/orcaterm/${action}`, {
   method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body),
 }), { params: Promise.resolve({ action }) });
@@ -42,8 +46,7 @@ async function authorize() {
 
 beforeEach(() => {
   vi.mocked(proxyAwareFetch).mockReset().mockImplementation(async (url) => {
-    if (url === ORCATERM_CONFIG.wechatConfigUrl) return Response.json(config());
-    if (url === ORCATERM_CONFIG.exchangeUrl) return Response.json({ code: 0, data: { accessToken: token() } });
+    if (url === exchangeUrl) return granted();
     throw new Error("Unexpected upstream request");
   });
   db.list.mockReset().mockResolvedValue([]);
@@ -59,52 +62,76 @@ describe("OrcaTerm OAuth endpoint", () => {
   beforeEach(() => { process.env.TENROUTER_PEER_TOKEN = "test-peer-token"; });
   afterEach(() => { delete process.env.TENROUTER_PEER_TOKEN; });
 
-  it("keeps access and renewal credentials server-side", async () => {
+  it("starts a desktop PKCE sign-in without contacting OrcaTerm or revealing the verifier", async () => {
     const session = await authorize();
-    expect(session).not.toHaveProperty("accessToken");
-    const response = await request("exchange", { ...session, code: "wechat-code" });
+    expect(proxyAwareFetch).not.toHaveBeenCalled();
+    const url = new URL(session.authorizeUrl);
+    expect(`${url.origin}${url.pathname}`).toBe(ORCATERM_CONFIG.authorizeUrl);
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      provider: "wechat", source: "desktop", return_url: ORCATERM_CONFIG.desktopReturnUrl, codeChallengeMethod: "S256",
+    });
+    expect(url.searchParams.get("session_id")).toMatch(/^[0-9a-f-]{36}$/);
+    expect(url.searchParams.get("codeChallenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(JSON.stringify(session)).not.toMatch(/verifier/i);
+  });
+
+  it("redeems the session with its PKCE verifier and stores a distinct refresh token server-side", async () => {
+    const session = await authorize();
+    const response = await request("exchange", { sessionId: session.sessionId });
     expect(response.status).toBe(200);
+    const [url, init] = vi.mocked(proxyAwareFetch).mock.calls[0];
+    expect(url).toBe(exchangeUrl);
+    const sent = JSON.parse(init.body);
+    const challenge = new URL(session.authorizeUrl).searchParams;
+    expect(sent.action).toBe("OAuthExchangeToken");
+    expect(sent.data.sessionId).toBe(challenge.get("session_id"));
+    expect(createHash("sha256").update(sent.data.codeVerifier).digest("base64url")).toBe(challenge.get("codeChallenge"));
     expect(db.create).toHaveBeenCalledWith(expect.objectContaining({
-      provider: "orcaterm", authType: "oauth", accessToken: token(), refreshToken: token(),
+      provider: "orcaterm", authType: "oauth", accessToken: token(), refreshToken: refresh(),
       providerSpecificData: { userId: "wechat-user", loginMethod: "wechat" }, testStatus: "unknown",
     }));
     const text = await response.text();
     expect(text).toContain("created-connection");
     expect(text).not.toContain("private-signature");
-    expect(text).not.toContain("accessToken");
+    expect(text).not.toContain("private-refresh");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("rejects mismatched state before any code exchange and permits the valid callback", async () => {
-    const session = await authorize();
-    const rejected = await request("exchange", { ...session, state: "attacker-state", code: "code" });
-    expect(rejected.status).toBe(400);
-    expect(proxyAwareFetch).toHaveBeenCalledTimes(1);
-    expect(db.create).not.toHaveBeenCalled();
-    expect((await request("exchange", { ...session, code: "legitimate-code" })).status).toBe(200);
-  });
-
-  it("consumes a grant once, even if callbacks arrive concurrently", async () => {
+  it("redeems a session once, even if two exchanges arrive concurrently", async () => {
     const session = await authorize();
     let release;
     vi.mocked(proxyAwareFetch).mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
-    const first = request("exchange", { ...session, code: "same-code" });
+    const first = request("exchange", { sessionId: session.sessionId });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const second = await request("exchange", { ...session, code: "same-code" });
-    expect(second.status).toBe(400);
-    release(Response.json({ code: 0, data: { accessToken: token() } }));
+    const second = await request("exchange", { sessionId: session.sessionId });
+    expect(second.status).toBe(409);
+    release(granted());
     expect((await first).status).toBe(200);
+    expect((await request("exchange", { sessionId: session.sessionId })).status).toBe(400);
     expect(db.create).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects expired and cancelled sessions without exchanging a code", async () => {
+  it("reports an unfinished scan and requires a new link afterwards", async () => {
+    const session = await authorize();
+    vi.mocked(proxyAwareFetch).mockResolvedValueOnce(Response.json({ data: { Response: {
+      Error: { Code: "TOKEN_EXPIRED", Message: "expired" },
+    } } }));
+    const response = await request("exchange", { sessionId: session.sessionId });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("TOKEN_EXPIRED");
+    expect((await request("exchange", { sessionId: session.sessionId })).status).toBe(400);
+    expect(db.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects expired and cancelled sessions without contacting OrcaTerm", async () => {
     vi.useFakeTimers();
     const expired = await authorize();
     vi.advanceTimersByTime(ORCATERM_CONFIG.loginTtlMs + 1);
-    expect((await request("exchange", { ...expired, code: "code" })).status).toBe(400);
+    expect((await request("exchange", { sessionId: expired.sessionId })).status).toBe(400);
     const cancelled = await authorize();
-    expect((await request("cancel", cancelled)).status).toBe(200);
-    expect((await request("exchange", { ...cancelled, code: "code" })).status).toBe(400);
+    expect((await request("cancel", { sessionId: cancelled.sessionId })).status).toBe(200);
+    expect((await request("exchange", { sessionId: cancelled.sessionId })).status).toBe(400);
+    expect(proxyAwareFetch).not.toHaveBeenCalled();
     expect(db.create).not.toHaveBeenCalled();
   });
 
@@ -114,10 +141,10 @@ describe("OrcaTerm OAuth endpoint", () => {
       providerSpecificData: { userId: "wechat-user", customSetting: true },
     }]);
     const session = await authorize();
-    expect((await request("exchange", { ...session, code: "new-code" })).status).toBe(200);
+    expect((await request("exchange", { sessionId: session.sessionId })).status).toBe(200);
     expect(db.create).not.toHaveBeenCalled();
     expect(db.update).toHaveBeenCalledWith("existing", expect.objectContaining({
-      resetErrorState: true,
+      resetErrorState: true, refreshToken: refresh(),
       providerSpecificData: { userId: "wechat-user", customSetting: true, loginMethod: "wechat" },
     }));
     expect(db.update.mock.calls[0][1]).not.toHaveProperty("priority");
@@ -134,7 +161,6 @@ describe("OrcaTerm OAuth endpoint", () => {
     const body = JSON.stringify({ sessionId: "x", padding: "x".repeat(ORCATERM_CONFIG.loginBodyMaxBytes + 1) });
     const response = await request("authorize", JSON.parse(body));
     expect(response.status).toBe(413);
-    expect(proxyAwareFetch).not.toHaveBeenCalled();
 
     const streamingRequest = new Request("http://localhost/api/oauth/orcaterm/authorize", {
       method: "POST",
@@ -150,39 +176,24 @@ describe("OrcaTerm OAuth endpoint", () => {
     });
     const streamed = await POST(streamingRequest, { params: Promise.resolve({ action: "authorize" }) });
     expect(streamed.status).toBe(413);
-    expect(proxyAwareFetch).not.toHaveBeenCalled();
   });
 
-  it("caps authorize calls per trusted client IP before the upstream", async () => {
+  it("caps authorize calls per trusted client IP", async () => {
     for (let i = 0; i < ORCATERM_CONFIG.maxAuthorizeRequests; i++) {
-      expect((await requestFromIp("authorize", "198.51.100.5")).status).toBe(200);
+      const response = await requestFromIp("authorize", "198.51.100.5");
+      expect(response.status).toBe(200);
+      sessions.push(await response.json());
     }
     expect((await requestFromIp("authorize", "198.51.100.5")).status).toBe(429);
-    expect(proxyAwareFetch).toHaveBeenCalledTimes(ORCATERM_CONFIG.maxAuthorizeRequests);
-    expect((await requestFromIp("authorize", "198.51.100.6")).status).toBe(200);
-  });
-
-  it("caps simultaneous upstream login-config requests", async () => {
-    const releases = [];
-    vi.mocked(proxyAwareFetch).mockImplementation(() => new Promise((resolve) => {
-      releases.push(() => resolve(Response.json(config())));
-    }));
-    const pending = Array.from({ length: ORCATERM_CONFIG.maxInFlightLoginRequests }, () => request("authorize"));
-    await vi.waitFor(() => expect(releases).toHaveLength(ORCATERM_CONFIG.maxInFlightLoginRequests));
-    const overflow = await request("authorize");
-    expect(overflow.status).toBe(429);
-    expect(releases).toHaveLength(ORCATERM_CONFIG.maxInFlightLoginRequests);
-    releases.forEach((release) => release());
-    for (const response of await Promise.all(pending)) {
-      expect(response.status).toBe(200);
-      const session = await response.json();
-      sessions.push(session);
-    }
+    const other = await requestFromIp("authorize", "198.51.100.6");
+    expect(other.status).toBe(200);
+    sessions.push(await other.json());
   });
 
   it("does not disclose raw errors containing credentials", async () => {
+    const session = await authorize();
     vi.mocked(proxyAwareFetch).mockRejectedValue(new Error(`Network debug: ${token()}`));
-    const response = await request("authorize");
+    const response = await request("exchange", { sessionId: session.sessionId });
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain("private-signature");
   });

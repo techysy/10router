@@ -1652,7 +1652,7 @@
       "Referer": "https://orcaterm.com/terminal",
       "X-Referer": "https://orcaterm.com/terminal"
     },
-    "tokenUrl": "https://orcaterm.com/oauth/wechat/exchange"
+    "tokenUrl": "https://orcaterm.com/cgi/api?action=OAuthExchangeToken"
   },
   "quwork": {
     "baseUrl": "https://llm.quwork.cn/v1/chat/completions",

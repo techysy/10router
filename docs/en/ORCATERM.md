@@ -7,25 +7,37 @@ Clients continue to use 10Router's normal `/v1` API.
 
 1. Build and run this branch following the repository's build instructions.
 2. Open `/dashboard/providers/orcaterm` and add an OAuth connection.
-3. Scan the official WeChat QR code and authorize your own OrcaTerm account.
-4. Use the connection test to validate the account, then make a real model request.
+3. Click **Open the WeChat QR page**. It opens OrcaTerm's own authorize page
+   (`/oauth/authorize?provider=wechat&source=desktop`) in a new tab. Scan it with
+   WeChat. If the browser then offers to open the OrcaTerm app, cancel it.
+4. Back in the dashboard, click **I have scanned it, finish sign-in**.
+5. Use the connection test to validate the account, then make a real model request.
 
-The dashboard embeds Tencent's official WeChat sign-in widget. The callback
-must come from OrcaTerm's bridge and the specific QR iframe. 10Router validates
-the server-held state and consumes the login session once before exchanging
-the code. Pending logins expire after five minutes.
+This is the sign-in the official OrcaTerm desktop client uses. 10Router creates
+an OrcaTerm session id and a PKCE (S256) challenge; the verifier never leaves the
+10Router server. After the scan, 10Router redeems the session once with
+`OAuthExchangeToken` and receives an access token **and a distinct refresh
+token**. Sign-in links expire after five minutes and can be redeemed only once,
+so a failed or early "finish" needs a new link.
 
-The code exchange and token renewal happen on the 10Router server. No token is
+The embedded WeChat widget (`/oauth/wechat/exchange`) is no longer used: it
+returns an access token only, and OrcaTerm now refuses to renew an access token
+by itself (`OAuthRefreshToken` with `accessToken` answers `SESSION_EXPIRED`, and an
+access token sent as `refreshToken` answers `INVALID_REFRESH_TOKEN`). Connections
+created that way stop working when their two-hour token expires and must sign in
+again with the flow above.
+
+The exchange and token renewal happen on the 10Router server. No token is
 returned to the dashboard, and no Tencent Cloud console cookie, local browser
 profile, browser automation or loopback callback port is required. Existing
 10Router dashboard authentication and credential encryption remain in use.
 Authorize requests are limited to 20 per client IP per 10 minutes, with at most
-four concurrent OrcaTerm config lookups and 32 active login sessions.
+32 active login sessions.
 
-OrcaTerm renews its current access token rather than issuing a distinct OAuth2
-refresh token. Both credential fields therefore rotate to the new access token.
-Renewal requests are deduplicated. A revoked grant requires another scan; this
-is not permanent login or a way to bypass account limits.
+Renewal sends the refresh token to `OAuthRefreshToken`. OrcaTerm rotates it on
+every renewal, and 10Router stores the new pair. Renewal requests are
+deduplicated. A revoked grant requires another sign-in; this is not permanent
+login or a way to bypass account limits.
 
 ## Models and API
 
@@ -81,9 +93,10 @@ Offline tests cover the OAuth state/one-use/expiry boundaries, credential
 redaction, token renewal, ACP conversion, tool continuation, image validation,
 SSE framing, Unicode, cancellation and upstream error propagation.
 
-The public OAuth configuration and bridge can be checked without signing in.
-A real WeChat authorization, model call, tool round trip, image request and
-two-hour token renewal still require a user-owned account. Passing mocked
+The authorize page can be checked without signing in. The desktop sign-in and
+refresh-token rotation were verified against a real account (two consecutive
+background renewals, each using the refresh token stored by the previous one);
+model calls, tool round trips and image requests still depend on that account. Passing mocked
 tests or the billing-based connection test does not establish that every
 listed model is enabled for that account.
 
