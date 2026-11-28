@@ -82,8 +82,8 @@ describe("migration 006: mimo-desktop session rows flip untested → active", ()
     const { MIGRATIONS } = await import("@/lib/db/migrations/index.js");
     const m006 = MIGRATIONS.find((m) => m.version === 6);
     expect(m006?.name).toBe("mimo-desktop-session-active");
-    // 007（issue #91 combo-disabled-models）之后的最新水位
-    expect(MIGRATIONS.at(-1).version).toBe(7);
-    expect(MIGRATIONS.at(-1).name).toBe("combo-disabled-models");
+    // 008（#184 responses-store）之后的最新水位
+    expect(MIGRATIONS.at(-1).version).toBe(8);
+    expect(MIGRATIONS.at(-1).name).toBe("responses-store");
   });
 });

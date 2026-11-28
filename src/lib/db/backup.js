@@ -14,7 +14,10 @@ import { timestampSlug, getAppVersion } from "./version.js";
 const KEEP_BACKUPS = 3;
 
 // Tables excluded from safety backups (large, non-critical, reproducible).
-const BACKUP_EXCLUDE_TABLES = ["requestDetails"];
+// responsesStore is 24h working state for /v1/responses continuations: a restore
+// would resurrect conversations whose ids nothing can resume from anyway, and it
+// holds user transcripts we have no reason to copy into every backup.
+const BACKUP_EXCLUDE_TABLES = ["requestDetails", "responsesStore"];
 
 export function makeBackupDir(label) {
   ensureDirs();

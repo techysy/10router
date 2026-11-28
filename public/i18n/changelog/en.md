@@ -29,6 +29,8 @@ User-facing highlights per release. See [CHANGELOG.md](https://github.com/techys
 
 - **New models on QwenWork CN**: GLM-5.4 (launch promo, 1.2x, strong at coding/multi-step/visual tasks) and Ling-3.1-Flash (limited 90% off, 0.1x, long-horizon reasoning) are now live in the QwenWork CN catalog (verified against the official client, 2026-11-25); the static roster and capability table follow — GLM-5.4 corrected to multimodal (text+image+video+PDF, 1M context) and Ling-3.1-Flash corrected to a 1M context window. The official "Now Live" / "90% OFF" badges pass through from the live catalog. The international QwenWork gateway has not shipped these yet; the picker follows automatically once it does.
 
+- **OpenAI Responses API now supports session continuation**: when a client continues a conversation with `previous_response_id`, the gateway now carries the earlier turns — tool calls and tool results included — into the new one. Those fields were not implemented before, so agent clients speaking the Responses protocol lost everything from the second turn onward: the model could only reply in prose and end with `stop`, which looks exactly like "tool calls keep breaking, lots of stop in the translation layer" (issue #184). Continuations are kept for 24 hours, isolated per caller API key, and stored encrypted; `store: false` means this particular response is not kept. If the response id you pass does not exist, has expired, or belongs to a different caller, you now get an explicit error instead of a silently restarted conversation — that silent restart is what read as an interrupted tool call. Clients on the Chat / Claude / Gemini protocols are unaffected and need no settings changes.
+
 
 ### 🐛 Fixed
 
