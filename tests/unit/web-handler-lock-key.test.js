@@ -38,7 +38,10 @@ describe("web handlers clear the lock they wrote (#46 follow-up)", () => {
 
     it(`${rel} resolves credentials under ${key}`, () => {
       const src = read(rel);
-      expect(src).toMatch(new RegExp(`getProviderCredentials\\([^)]*${key}\\s*\\)`));
+      // Not anchored to the closing paren: this call carries options after the
+      // lock key (the routing identity, so session stickiness can pick an
+      // account), and those are none of this invariant's business.
+      expect(src).toMatch(new RegExp(`getProviderCredentials\\([^)]*\\b${key}\\b`));
     });
 
     it(`${rel} scopes its lock key per provider, not account-wide`, () => {
