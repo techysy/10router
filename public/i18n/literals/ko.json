@@ -216,5 +216,15 @@
   "credits": "크레딧",
   "Fetch QwenWork Models": "QwenWork 모델 가져오기",
   "Delete Connection": "연결 삭제",
-  "Remove pushed quota card": "푸시 카드 제거"
+  "Remove pushed quota card": "푸시 카드 제거",
+  "Round Robin — by time": "라운드 로빈 — 시간 기준",
+  "Round Robin — by request count": "라운드 로빈 — 요청 횟수 기준",
+  "Round Robin — by session": "라운드 로빈 — 세션 기준",
+  "Rotate combo members after an idle window or at the request limit.": "유휴 시간이 지나거나 요청 한도에 도달하면 다음 조합 멤버로 전환합니다.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "한 계정에서 정해진 횟수만큼 연속 요청을 처리한 뒤 다음 사용 가능한 계정으로 전환합니다.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "새 세션은 순환 배정하고 같은 세션은 마지막으로 성공한 대상을 우선합니다. 30분간 유휴 상태이면 만료되며, 사용 불가 시 다음 성공한 대상으로 재배정합니다. 세션 ID가 없으면 일반 순환 방식을 사용합니다.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

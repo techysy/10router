@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Cảnh báo rủi ro: Provider này sử dụng subscription/OAuth không được cấp phép chính thức cho mục đích proxy/router. Tài khoản có thể bị hạn chế hoặc cấm. Người dùng tự chịu trách nhiệm.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM chặn lưu lượng HTTPS của các IDE tools (Antigravity, GitHub Copilot, Kiro) qua CA cục bộ để chuyển hướng request đến providers của bạn. Có thể vi phạm ToS → rủi ro bị ban tài khoản. Sử dụng với rủi ro của bạn.",
   "Endpoint is exposed without an API key.": "Endpoint đang mở mà không có API key.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Luân phiên — theo thời gian",
+  "Round Robin — by request count": "Luân phiên — theo số yêu cầu",
+  "Round Robin — by session": "Luân phiên — theo phiên",
+  "Rotate combo members after an idle window or at the request limit.": "Đổi thành viên tổ hợp sau một khoảng không hoạt động hoặc khi đạt giới hạn số yêu cầu.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Giữ nguyên tài khoản trong số yêu cầu liên tiếp đã đặt, sau đó chuyển sang tài khoản khả dụng tiếp theo.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Phiên mới được luân phiên. Mỗi phiên giữ lựa chọn thành công gần nhất tối đa 30 phút không hoạt động. Nếu không khả dụng, lựa chọn thành công tiếp theo sẽ thay thế. Không có mã phiên thì dùng cách luân phiên thông thường.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

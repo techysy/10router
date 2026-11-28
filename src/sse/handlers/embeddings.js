@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import { randomUUID } from "node:crypto";
 import {
   getProviderCredentials,
@@ -100,8 +101,9 @@ export async function handleEmbeddings(request) {
   let lastError = null;
   let lastStatus = null;
 
+  const routingIdentity = getRoutingIdentity(request, apiKey, body);
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { routingIdentity });
 
     // All accounts unavailable
     if (!credentials || credentials.allRateLimited) {
@@ -145,6 +147,7 @@ export async function handleEmbeddings(request) {
     });
 
     if (result.success) {
+      credentials.commitSession?.([]);
       const usage = exactEmbeddingUsage(result.usage);
       if (usage) {
         saveRequestUsage({

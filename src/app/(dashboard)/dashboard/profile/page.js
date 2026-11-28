@@ -14,6 +14,8 @@ import { isRegionalCurrencyEnabled } from "@/shared/utils/currency";
 import { isCompactUnitsEnabled } from "@/shared/utils/compactNumber";
 import { copyTextToClipboard } from "@/shared/utils/clipboard";
 import { translate } from "@/i18n/runtime";
+import { RoutingStrategySelect } from "@/shared/components/RoutingStrategySelect";
+import { SESSION_ROUND_ROBIN } from "open-sse/config/routingStrategies.js";
 import { MODE_META, resolveThemeMeta } from "@/shared/components/ThemeToggle";
 import ThemePickerPanel from "@/shared/components/ThemePicker";
 
@@ -1849,20 +1851,24 @@ export default function ProfilePage() {
           <div className="flex flex-col gap-4">
             <div className="flex items-start sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Round Robin</p>
+                <p className="font-medium text-sm sm:text-base">Account routing</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  Cycle through accounts to distribute load
+                  Default strategy for selecting accounts
                 </p>
               </div>
-              <Toggle
-                checked={settings.fallbackStrategy === "round-robin"}
-                onChange={() => updateFallbackStrategy(settings.fallbackStrategy === "round-robin" ? "fill-first" : "round-robin")}
+              <RoutingStrategySelect
+                layer="account"
+                accessibleLabel="Account routing"
+                options={[{ value: "fill-first", label: "Fill First (Use in order)" }, { value: "round-robin" }]}
+                value={settings.fallbackStrategy || "fill-first"}
+                onChange={(e) => updateFallbackStrategy(e.target.value)}
                 disabled={loading}
+                className="w-52 max-w-full shrink-0"
               />
             </div>
 
             {/* Sticky Round Robin Limit */}
-            {settings.fallbackStrategy === "round-robin" && (
+            {["round-robin", SESSION_ROUND_ROBIN].includes(settings.fallbackStrategy) && (
               <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm sm:text-base">Sticky Limit</p>
@@ -1885,20 +1891,24 @@ export default function ProfilePage() {
             {/* Combo Round Robin */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Combo Round Robin</p>
+                <p className="font-medium text-sm sm:text-base">Combo routing</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  Cycle through providers in combos instead of always starting with first
+                  Default strategy for selecting combo members
                 </p>
               </div>
-              <Toggle
-                checked={settings.comboStrategy === "round-robin"}
-                onChange={() => updateComboStrategy(settings.comboStrategy === "round-robin" ? "fallback" : "round-robin")}
+              <RoutingStrategySelect
+                layer="combo"
+                accessibleLabel="Combo routing"
+                options={[{ value: "fallback", label: "Fallback — try in order" }, { value: "round-robin" }]}
+                value={settings.comboStrategy || "fallback"}
+                onChange={(e) => updateComboStrategy(e.target.value)}
                 disabled={loading}
+                className="w-52 max-w-full shrink-0"
               />
             </div>
 
             {/* Combo Sticky Window (time-window sticky, primary) */}
-            {settings.comboStrategy === "round-robin" && (
+            {["round-robin", SESSION_ROUND_ROBIN].includes(settings.comboStrategy) && (
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div>
                   <p className="font-medium">Combo Sticky Window</p>
@@ -1919,7 +1929,7 @@ export default function ProfilePage() {
             )}
 
             {/* Combo Sticky Round Robin Limit (per-request cap, 0 = window only) */}
-            {settings.comboStrategy === "round-robin" && (
+            {["round-robin", SESSION_ROUND_ROBIN].includes(settings.comboStrategy) && (
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div>
                   <p className="font-medium">Combo Sticky Limit</p>
@@ -1940,13 +1950,6 @@ export default function ProfilePage() {
             )}
 
             <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
-              {settings.fallbackStrategy === "round-robin"
-                ? translate(`Currently distributing requests across all available accounts with ${settings.stickyRoundRobinLimit || 3} calls per account.`)
-                : translate("Currently using accounts in priority order (Fill First).")}
-              {settings.comboStrategy === "round-robin"
-                ? ` Combos keep one model while active (idle window: ${settings.comboStickyWindowMinutes ?? 5} min), then rotate to the next.`
-                : " Combos always start with their first model."}
-              {" "}
               {translate("Note: Per-provider strategies (such as Earliest Expiry First or specific fallback/round-robin) take precedence over these global defaults.")}
             </p>
           </div>

@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ تنبيه مخاطر: يستخدم هذا الموفر اشتراكًا/جلسة OAuth غير مرخصة رسميًا للاستخدام عبر البروكسي/الراوتر. قد يتم تقييد الحساب أو حظره. الاستخدام على مسؤوليتك الخاصة.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ يعترض MITM حركة مرور HTTPS لأدوات IDE (Antigravity، GitHub Copilot، Kiro) عبر CA محلية لإعادة توجيه الطلبات إلى مزوديك. قد ينتهك شروط الخدمة → خطر حظر الحساب. الاستخدام على مسؤوليتك الخاصة.",
   "Endpoint is exposed without an API key.": "نقطة النهاية مكشوفة بدون مفتاح API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "تناوب — حسب الوقت",
+  "Round Robin — by request count": "تناوب — حسب عدد الطلبات",
+  "Round Robin — by session": "تناوب — حسب الجلسة",
+  "Rotate combo members after an idle window or at the request limit.": "يبدّل عضو المجموعة بعد فترة خمول أو عند بلوغ حد الطلبات.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "يبقي الحساب نفسه للعدد المحدد من الطلبات المتتالية، ثم ينتقل إلى الحساب المتاح التالي.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "تتناوب الجلسات الجديدة. يظل آخر اختيار ناجح لمدة تصل إلى 30 دقيقة من الخمول. إذا تعذر استخدامه، يحل محله الاختيار الناجح التالي. دون معرّف جلسة يُستخدم التناوب العادي.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

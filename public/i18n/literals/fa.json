@@ -1386,5 +1386,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ اطلاعیه ریسک: این ارائه‌دهنده از اشتراک/جلسه OAuth استفاده می‌کند که به طور رسمی برای استفاده پروکسی/روتر مجوز ندارد. حساب ممکن است محدود یا مسدود شود. با مسئولیت خود استفاده کنید.",
   "✓ Confirm Add": "✓ تأیید افزودن",
   "📝 Configure providers in dashboard or use environment variables": "📝 ارائه‌دهندگان را در داشبورد پیکربندی کنید یا از متغیرهای محیطی استفاده کنید",
-  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 نیاز به OAuth. اکنون اضافه کنید و پس از اعمال، احراز هویت کنید؛ لیست ابزارها پس از اولین اتصال کشف می‌شود."
+  "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 نیاز به OAuth. اکنون اضافه کنید و پس از اعمال، احراز هویت کنید؛ لیست ابزارها پس از اولین اتصال کشف می‌شود.",
+  "Round Robin — by time": "چرخش — بر اساس زمان",
+  "Round Robin — by request count": "چرخش — بر اساس تعداد درخواست",
+  "Round Robin — by session": "چرخش — بر اساس نشست",
+  "Rotate combo members after an idle window or at the request limit.": "پس از بازهٔ بی‌کاری یا رسیدن به سقف درخواست‌ها، عضو ترکیب عوض می‌شود.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "برای تعداد مشخصی از درخواست‌های پیاپی از همان حساب استفاده می‌کند و سپس به حساب در دسترس بعدی می‌رود.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "نشست‌های جدید به نوبت اختصاص می‌یابند. آخرین انتخاب موفق تا ۳۰ دقیقه بی‌کاری اعتبار دارد. اگر در دسترس نباشد، انتخاب موفق بعدی جایگزین می‌شود. بدون شناسهٔ نشست، چرخش عادی اعمال می‌شود.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

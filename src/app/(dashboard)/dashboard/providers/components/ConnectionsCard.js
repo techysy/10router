@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { translate } from "@/i18n/runtime";
+import { RoutingStrategySelect, useRoutingLocale } from "@/shared/components/RoutingStrategySelect";
+import { SESSION_ROUND_ROBIN } from "open-sse/config/routingStrategies.js";
 import { getStatusVariant as getConnectionStatusVariant } from "@/shared/utils/connectionStatus";
 import { classifyConnectionCooldown, sameConnectionCooldown } from "@/shared/utils/connectionCooldown";
 import { translateQuotaError } from "@/shared/utils/quotaError";
@@ -351,6 +353,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
+  useRoutingLocale();
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("1");
   const [earliestExpiryFirst, setEarliestExpiryFirst] = useState(false);
@@ -408,6 +411,7 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       if (earliestExpiry) override.earliestExpiryFirst = true;
       else delete override.earliestExpiryFirst;
 
+      if (strategy === SESSION_ROUND_ROBIN) delete override.dailyGrantFirst;
       if (balStrategy && balStrategy !== "priority") override.balanceStrategy = balStrategy;
       else delete override.balanceStrategy;
 
@@ -483,172 +487,59 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h2 className="text-lg font-semibold">{translate("Connections")}</h2>
           <div className="flex flex-wrap items-center gap-4">
-            {/* Strategy Controls - Differentiated by Quota Category */}
             {(() => {
-              const quotaCat = getProviderQuotaCategory(providerId);
-
-              // 1. Pack Asset Providers (CodeBuddy, Qoder)
-              if (quotaCat === PROVIDER_QUOTA_TYPES.PACK_ASSET) {
-                return (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs text-text-muted font-medium"
-                      title={translate("Prioritize burning resource packs that are nearest to permanent expiration")}
-                    >
-                      {translate("Earliest Pack Expiry")}
-                    </span>
-                    <Toggle
-                      checked={earliestExpiryFirst}
-                      onChange={(enabled) => {
-                        setEarliestExpiryFirst(enabled);
-                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
-                      }}
-                    />
-                  </div>
-                );
+              const category = getProviderQuotaCategory(providerId);
+              if (category === PROVIDER_QUOTA_TYPES.GATEWAY_FREE) {
+                return <span className="text-xs text-text-muted">{translate("Gateway Managed Auto Routing")}</span>;
               }
-
-              // 2. Rolling Subscription Providers (Antigravity, GitHub, Codex, GLM)
-              if (quotaCat === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION) {
-                return (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs text-text-muted font-medium"
-                      title={translate("Relay between accounts and hand off to next carrier when window reaches 5% red zone")}
-                    >
-                      {translate("Subscription Relay")}
-                    </span>
-                    <Toggle
-                      checked={earliestExpiryFirst}
-                      onChange={(enabled) => {
-                        setEarliestExpiryFirst(enabled);
-                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
-                      }}
-                    />
-                  </div>
-                );
-              }
-
-              // 3. Pure Balance Providers (DeepSeek, StepFun, OpenAI, Anthropic, etc.)
-              if (quotaCat === PROVIDER_QUOTA_TYPES.PURE_BALANCE) {
-                return (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-text-muted font-medium">
-                        {translate("Scheduling Preference")}
-                      </span>
-                      <Select
-                        value={balanceStrategy}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setBalanceStrategy(val);
-                          if (val === "round-robin") {
-                            setEarliestExpiryFirst(false);
-                            setProviderStrategy("round-robin");
-                            if (!providerStickyLimit) setProviderStickyLimit("1");
-                            saveStrategy("round-robin", providerStickyLimit || "1", false, val);
-                          } else if (val === "earliest-expiry") {
-                            // 到期优先:auth.js 排序序 earliestExpiryFirst 先于 balanceStrategy,
-                            // balanceStrategy 归 priority(不写 override)
-                            setEarliestExpiryFirst(true);
-                            setProviderStrategy(null);
-                            saveStrategy(null, providerStickyLimit, true, "priority");
-                          } else {
-                            setEarliestExpiryFirst(false);
-                            setProviderStrategy(null);
-                            saveStrategy(null, providerStickyLimit, false, val);
-                          }
-                        }}
-                        options={[
-                          { value: "priority", label: translate("Manual Priority (#1 → #2)") },
-                          { value: "earliest-expiry", label: translate("Earliest Expiry First") },
-                          { value: "lowest-first", label: translate("Lowest Balance First") },
-                          { value: "highest-first", label: translate("Highest Balance First") },
-                          { value: "round-robin", label: translate("Round Robin (Balanced)") },
-                        ]}
-                        selectClassName="!py-1 !text-xs w-48"
-                      />
-                    </div>
-                    {balanceStrategy === "round-robin" && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={providerStickyLimit}
-                          onChange={(e) => {
-                            setProviderStickyLimit(e.target.value);
-                            saveStrategy("round-robin", e.target.value, false, balanceStrategy);
-                          }}
-                          className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              // 4. Gateway Free Providers
-              if (quotaCat === PROVIDER_QUOTA_TYPES.GATEWAY_FREE) {
-                return (
-                  <span className="text-xs text-text-muted bg-surface px-2.5 py-1 rounded-md border border-border">
-                    {translate("Gateway Managed Auto Routing")}
-                  </span>
-                );
-              }
-
-              // 5. GENERIC Fallback (Safe default for third-party / unknown / custom providers)
+              const pureBalance = category === PROVIDER_QUOTA_TYPES.PURE_BALANCE;
+              const earliestLabel = category === PROVIDER_QUOTA_TYPES.PACK_ASSET ? "Earliest Pack Expiry"
+                : category === PROVIDER_QUOTA_TYPES.ROLLING_SUBSCRIPTION ? "Subscription Relay" : "Earliest Expiry First";
+              const balanceActive = pureBalance && ["lowest-first", "highest-first"].includes(balanceStrategy);
+              const value = earliestExpiryFirst ? "earliest-expiry" : balanceActive ? balanceStrategy
+                : providerStrategy || "priority";
               return (
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs text-text-muted font-medium"
-                      title={translate("Prioritize accounts whose quota (packages, subscription windows, balances) expires soonest")}
-                    >
-                      {translate("Earliest Expiry First")}
-                    </span>
-                    <Toggle
-                      checked={earliestExpiryFirst}
-                      onChange={(enabled) => {
-                        setEarliestExpiryFirst(enabled);
-                        saveStrategy(providerStrategy, providerStickyLimit, enabled, balanceStrategy);
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn("text-xs font-medium", earliestExpiryFirst ? "text-text-muted/50 cursor-not-allowed" : "text-text-muted")}
-                      title={earliestExpiryFirst ? translate("Disabled while Earliest Expiry First is active (earliest-expiry takes precedence over round-robin)") : undefined}
-                    >
-                      {translate("Round Robin")}
-                    </span>
-                    <Toggle
-                      checked={providerStrategy === "round-robin"}
-                      disabled={earliestExpiryFirst}
-                      onChange={(enabled) => {
-                        const strategy = enabled ? "round-robin" : null;
-                        setProviderStrategy(strategy);
-                        if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
-                        saveStrategy(strategy, enabled ? (providerStickyLimit || "1") : providerStickyLimit, earliestExpiryFirst, balanceStrategy);
-                      }}
-                    />
-                    {providerStrategy === "round-robin" && (
-                      <div className={cn("flex flex-wrap items-center gap-1.5", earliestExpiryFirst && "opacity-50 pointer-events-none")}>
-                        <span className="text-xs text-text-muted">{translate("Sticky:")}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={providerStickyLimit}
-                          disabled={earliestExpiryFirst}
-                          onChange={(e) => {
-                            setProviderStickyLimit(e.target.value);
-                            saveStrategy("round-robin", e.target.value, earliestExpiryFirst, balanceStrategy);
-                          }}
-                          className="w-16 px-2 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                    )}
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-text-muted font-medium">{translate("Scheduling Preference")}</span>
+                  <RoutingStrategySelect
+                    layer="account"
+                    value={value}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      const strategy = ["round-robin", SESSION_ROUND_ROBIN].includes(next) ? next : null;
+                      const earliest = next === "earliest-expiry";
+                      const balance = ["lowest-first", "highest-first"].includes(next) || (pureBalance && next === "round-robin") ? next : "priority";
+                      setProviderStrategy(strategy);
+                      setEarliestExpiryFirst(earliest);
+                      setBalanceStrategy(balance);
+                      saveStrategy(strategy, providerStickyLimit || "1", earliest, balance);
+                    }}
+                    options={[
+                      { value: "priority", label: "Manual Priority (#1 → #2)" },
+                      { value: "earliest-expiry", label: earliestLabel },
+                      ...(pureBalance ? [
+                        { value: "lowest-first", label: "Lowest Balance First" },
+                        { value: "highest-first", label: "Highest Balance First" },
+                      ] : []),
+                      { value: "round-robin" },
+                    ]}
+                    selectClassName="!py-1 !text-xs w-48"
+                  />
+                  {value === "round-robin" && (
+                    <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                      {translate("Sticky:")}
+                      <input
+                        type="number"
+                        min={1}
+                        value={providerStickyLimit}
+                        onChange={(e) => {
+                          setProviderStickyLimit(e.target.value);
+                          saveStrategy("round-robin", e.target.value, false, balanceStrategy);
+                        }}
+                        className="w-14 px-2 py-1 text-xs border border-border rounded-md bg-surface"
+                      />
+                    </label>
+                  )}
                 </div>
               );
             })()}

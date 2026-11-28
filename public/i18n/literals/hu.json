@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Kockázati figyelmeztetés: Ez a szolgáltató olyan előfizetést/OAuth munkamenetet használ, amely hivatalosan nincs proxy/router használatra engedélyezve. A fiók korlátozható vagy letiltható. Saját felelősségre használja.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ A MITM elfogja az IDE eszközök (Antigravity, GitHub Copilot, Kiro) HTTPS forgalmát helyi CA-n keresztül, hogy átirányítsa a kéréseket a szolgáltatóidhoz. Megsértheti a ToS-t → fiók letiltási kockázat. Saját felelősségre használja.",
   "Endpoint is exposed without an API key.": "A végpont API-kulcs nélkül van kitéve.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Körforgás — idő szerint",
+  "Round Robin — by request count": "Körforgás — kérésszám szerint",
+  "Round Robin — by session": "Körforgás — munkamenet szerint",
+  "Rotate combo members after an idle window or at the request limit.": "A tétlenségi idő vagy a kéréskorlát elérése után a kombináció következő tagjára vált.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "A beállított számú egymást követő kérés ugyanazt a fiókot kapja, majd a következő elérhető fiók következik.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Az új munkamenetek körforgásban váltanak. Az utolsó sikeres választás 30 perc tétlenségig marad érvényes; ha nem érhető el, a következő sikeres választás lép a helyére. Munkamenet-azonosító nélkül a szokásos körforgás érvényes.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

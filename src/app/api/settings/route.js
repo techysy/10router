@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getSettings, updateSettings, setProviderStrategyOverride } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { accountSessions } from "open-sse/services/sessionAffinity.js";
 import bcrypt from "bcryptjs";
 import { isAutoUpdateCheckEnabled, syncUpdateCheckMarker } from "@/lib/updateCheck";
 import { hasOwnDashboardCredential, setDashboardAuthCookie } from "@/lib/auth/dashboardSession";
@@ -128,6 +129,10 @@ export async function PATCH(request) {
     }
 
     const settings = await updateSettings(body);
+    if ("fallbackStrategy" in body || "providerStrategies" in body) accountSessions.reset();
+    else if (strategyPatch && typeof strategyPatch === "object" && !Array.isArray(strategyPatch)) {
+      for (const providerId of Object.keys(strategyPatch)) accountSessions.reset(providerId);
+    }
 
     // The CLI launcher checks for updates before the server exists; it reads a
     // marker file, not the database.

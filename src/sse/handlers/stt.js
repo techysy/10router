@@ -1,3 +1,4 @@
+import { getRoutingIdentity } from "../services/routingIdentity.js";
 import {
   extractApiKey, isValidApiKey, checkApiKeyDailyLimit,
   getProviderCredentials, markAccountUnavailable,
@@ -81,8 +82,9 @@ export async function handleStt(request) {
   let lastError = null;
   let lastStatus = null;
 
+  const routingIdentity = getRoutingIdentity(request, apiKey, null);
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { routingIdentity });
 
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
@@ -98,7 +100,10 @@ export async function handleStt(request) {
 
     const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport });
 
-    if (result.success) return result.response;
+    if (result.success) {
+      credentials.commitSession?.([]);
+      return result.response;
+    }
 
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
     if (shouldFallback) {

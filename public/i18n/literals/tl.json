@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Babala sa Panganib: Ang provider na ito ay gumagamit ng subscription/OAuth session na hindi opisyal na lisensyado para sa proxy/router na paggamit. Maaaring marestrikta o ma-ban ang account. Gamitin sa sarili mong panganib.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ Hinaharang ng MITM ang HTTPS traffic ng mga IDE tool (Antigravity, GitHub Copilot, Kiro) sa pamamagitan ng lokal na CA upang i-redirect ang mga kahilingan sa iyong mga provider. Maaaring lumabag sa ToS → panganib ng pag-ban sa account. Gamitin sa sarili mong panganib.",
   "Endpoint is exposed without an API key.": "Nakalantad ang endpoint nang walang API key.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Pag-ikot — ayon sa oras",
+  "Round Robin — by request count": "Pag-ikot — ayon sa dami ng kahilingan",
+  "Round Robin — by session": "Pag-ikot — ayon sa sesyon",
+  "Rotate combo members after an idle window or at the request limit.": "Pinapalitan ang kasapi ng combo matapos itong hindi magamit sa takdang oras o maabot ang limitasyon ng mga kahilingan.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Ginagamit ang parehong account para sa itinakdang dami ng sunod-sunod na kahilingan bago lumipat sa susunod na magagamit na account.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Salit-salitan ang mga bagong sesyon. Pinananatili ang huling matagumpay na pagpili sa loob ng 30 minuto ng kawalan ng aktibidad. Kung hindi ito magagamit, papalit ang susunod na matagumpay na pagpili. Kung walang session ID, karaniwang pag-ikot ang gagamitin.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

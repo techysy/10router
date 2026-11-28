@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Ειδοποίηση κινδύνου: Αυτός ο πάροχος χρησιμοποιεί συνδρομή/συνεδρία OAuth που δεν έχει επίσημη άδεια για χρήση μέσω proxy/router. Ο λογαριασμός ενδέχεται να περιοριστεί ή να αποκλειστεί. Χρήση με δική σας ευθύνη.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ Το MITM υποκλέπτει την κίνηση HTTPS των εργαλείων IDE (Antigravity, GitHub Copilot, Kiro) μέσω τοπικού CA για ανακατεύθυνση αιτημάτων στους παρόχους σας. Μπορεί να παραβιάσει τους ToS → κίνδυνος αποκλεισμού λογαριασμού. Χρήση με δική σας ευθύνη.",
   "Endpoint is exposed without an API key.": "Το τελικό σημείο είναι εκτεθειμένο χωρίς κλειδί API.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Εναλλαγή — βάσει χρόνου",
+  "Round Robin — by request count": "Εναλλαγή — βάσει αριθμού αιτημάτων",
+  "Round Robin — by session": "Εναλλαγή — ανά συνεδρία",
+  "Rotate combo members after an idle window or at the request limit.": "Αλλάζει μέλος του συνδυασμού μετά από αδράνεια ή όταν συμπληρωθεί το όριο αιτημάτων.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Χρησιμοποιεί τον ίδιο λογαριασμό για τον καθορισμένο αριθμό διαδοχικών αιτημάτων και μετά περνά στον επόμενο διαθέσιμο.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Οι νέες συνεδρίες εναλλάσσονται. Η τελευταία επιτυχής επιλογή διατηρείται έως 30 λεπτά αδράνειας. Αν δεν είναι διαθέσιμη, την αντικαθιστά η επόμενη επιτυχής επιλογή. Χωρίς αναγνωριστικό συνεδρίας ισχύει η κανονική εναλλαγή.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

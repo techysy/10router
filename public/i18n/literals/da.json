@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ Risikomeddelelse: Denne udbyder bruger et abonnement/OAuth-session, der ikke er officielt licenseret til proxy/router-brug. Kontoen kan blive begrænset eller forbudt. Brug på eget ansvar.",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM opfanger HTTPS-trafik fra IDE-værktøjer (Antigravity, GitHub Copilot, Kiro) via lokal CA for at omdirigere anmodninger til dine udbydere. Kan overtræde ToS → risiko for kontoforbud. Brug på eget ansvar.",
   "Endpoint is exposed without an API key.": "Endpointet er eksponeret uden en API-nøgle.",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "Rotation — efter tid",
+  "Round Robin — by request count": "Rotation — efter antal anmodninger",
+  "Round Robin — by session": "Rotation — pr. session",
+  "Rotate combo members after an idle window or at the request limit.": "Skifter kombinationsmedlem efter en inaktiv periode, eller når anmodningsgrænsen nås.",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "Bruger samme konto til det indstillede antal anmodninger i træk og går derefter til næste tilgængelige konto.",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "Nye sessioner fordeles på skift. Det seneste vellykkede valg bevares i op til 30 minutters inaktivitet. Hvis det bliver utilgængeligt, overtager næste vellykkede valg. Uden sessions-id bruges normal rotation.",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }

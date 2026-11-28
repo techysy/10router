@@ -1279,5 +1279,15 @@
   "Sign in with your QuWork phone number (SMS code after a slider captcha) or paste llm_token + access token. QuWork's gateways reject non-mainland-China IPs (HTTP 405): if this server is outside mainland China, set a mainland proxy in Settings (outbound proxy) or on the connection. Daily reward points can be claimed from the connection card or automatically (Experimental).": "使用 QuWork 手機號登入（滑塊驗證後收簡訊驗證碼），或貼上 llm_token + access token。QuWork 閘道拒絕非中國大陸 IP（HTTP 405）：若本伺服器不在中國大陸，請在設定（出站代理）或該連線上設定國內代理。每日簽到積分可在連線卡上領取，或自動領取（實驗功能）。",
   "QuWork auto daily reward": "QuWork 自動每日簽到",
   "Automatically claim the QuWork daily sign-in points for every QuWork connection with an account token (checks status first, never blind-claims)": "為每個帶帳號 token 的 QuWork 連線自動領取每日簽到積分（先查狀態，絕不盲領）",
-  "微信扫码登录（小浣熊小程序内确认）。IAM token ~30 天有效，过期重新扫码即可。积分按任务/邀请自动发放，配额跟踪器显示积分余额与任务进度。": "微信掃碼登入（小浣熊小程式內確認）。IAM token ~30 天有效，過期重新掃碼即可。積分按任務/邀請自動發放，配額追蹤器顯示積分餘額與任務進度。"
+  "微信扫码登录（小浣熊小程序内确认）。IAM token ~30 天有效，过期重新扫码即可。积分按任务/邀请自动发放，配额跟踪器显示积分余额与任务进度。": "微信掃碼登入（小浣熊小程式內確認）。IAM token ~30 天有效，過期重新掃碼即可。積分按任務/邀請自動發放，配額追蹤器顯示積分餘額與任務進度。",
+  "Round Robin — by time": "輪詢 — 按時間",
+  "Round Robin — by request count": "輪詢 — 按請求次數",
+  "Round Robin — by session": "輪詢 — 按工作階段",
+  "Rotate combo members after an idle window or at the request limit.": "閒置超過時間窗或達到請求次數上限後，輪到下一個組合成員。",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "同一帳號連續處理指定次數的請求後，輪到下一個可用帳號。",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "新工作階段輪轉；同一工作階段優先使用上次成功的成員或帳號。閒置 30 分鐘後失效；不可用時，由下一次成功的選擇接替。沒有工作階段識別碼時，沿用一般輪詢。",
+  "Account routing": "帳號調度",
+  "Combo routing": "組合調度",
+  "Default strategy for selecting accounts": "選擇帳號的預設策略",
+  "Default strategy for selecting combo members": "選擇組合成員的預設策略"
 }

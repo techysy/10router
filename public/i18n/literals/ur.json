@@ -194,5 +194,15 @@
   "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.": "⚠️ خطرے کا نوٹس: یہ فراہم کنندہ ایک سبسکرپشن/OAuth سیشن استعمال کرتا ہے جو پراکسی/راؤٹر استعمال کے لیے سرکاری طور پر لائسنس یافتہ نہیں ہے۔ اکاؤنٹ محدود یا پابند ہو سکتا ہے۔ اپنے خطرے پر استعمال کریں۔",
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM آپ کے فراہم کنندگان کو درخواستوں کو ری ڈائریکٹ کرنے کے لیے مقامی CA کے ذریعے IDE ٹولز (Antigravity, GitHub Copilot, Kiro) کے HTTPS ٹریفک کو روکتا ہے۔ ToS کی خلاف ورزی کر سکتا ہے → اکاؤنٹ پابندی کا خطرہ۔ اپنے خطرے پر استعمال کریں۔",
   "Endpoint is exposed without an API key.": "اینڈ پوائنٹ API کلید کے بغیر بے نقاب ہے۔",
-  "Connected providers only": "Connected providers only"
+  "Connected providers only": "Connected providers only",
+  "Round Robin — by time": "باری باری — وقت کے لحاظ سے",
+  "Round Robin — by request count": "باری باری — درخواستوں کی تعداد کے لحاظ سے",
+  "Round Robin — by session": "باری باری — سیشن کے لحاظ سے",
+  "Rotate combo members after an idle window or at the request limit.": "غیرفعال وقفہ مکمل ہونے یا درخواستوں کی حد تک پہنچنے پر اگلے رکن کو منتخب کرتا ہے۔",
+  "Keep the same account for the configured number of consecutive requests, then rotate to the next available account.": "مقررہ مسلسل درخواستوں کے لیے وہی اکاؤنٹ استعمال کرتا ہے، پھر اگلے دستیاب اکاؤنٹ پر جاتا ہے۔",
+  "New sessions rotate; each session keeps its last successful choice for up to 30 idle minutes. If that choice is unavailable, the next success takes over. Requests without a session use the ordinary rotation.": "نئے سیشن باری باری تقسیم ہوتے ہیں۔ آخری کامیاب انتخاب 30 منٹ کی غیرفعالیت تک برقرار رہتا ہے۔ اگر دستیاب نہ ہو تو اگلا کامیاب انتخاب اس کی جگہ لیتا ہے۔ سیشن شناخت کے بغیر عام گردش ہوتی ہے۔",
+  "Account routing": "Account routing",
+  "Combo routing": "Combo routing",
+  "Default strategy for selecting accounts": "Default strategy for selecting accounts",
+  "Default strategy for selecting combo members": "Default strategy for selecting combo members"
 }
